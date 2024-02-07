@@ -6,8 +6,11 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use ast::MySelect;
+use ast::{MyDef, MySelect, MyTable, Operation};
+use sea_query::{Alias, SelectStatement};
 use value::{MyIden, Value};
+
+use crate::value::MyAlias;
 
 // Query is only valid if `names` are in scope
 pub struct Query<'names> {
@@ -16,19 +19,28 @@ pub struct Query<'names> {
 }
 
 pub trait Table {
+    const NAME: &'static str;
     // these names are defined in `'query`
     type Dummy<'names>;
+
+    fn build<'a, F>(f: F) -> Self::Dummy<'a>
+    where
+        F: FnMut(&'static str) -> MyIden<'a>;
 }
 
 impl<'names> Query<'names> {
     pub fn join<T: Table>(&mut self, _t: T) -> T::Dummy<'names> {
-        // self.ast
-        //     .0
-        //     .push(ast::Operation::From(ast::MyTable::Def(MyDef {
-        //         table: todo!(),
-        //         // columns: todo!(),
-        //     })));
-        todo!()
+        let mut columns = Vec::new();
+        let res = T::build(|name| {
+            let alias = MyAlias::new();
+            columns.push((Alias::new(name), alias));
+            alias.iden()
+        });
+        self.ast.0.push(Operation::From(MyTable::Def(MyDef {
+            table: Alias::new(T::NAME),
+            columns,
+        })));
+        res
     }
 
     // join another query that is grouped by some value
@@ -100,7 +112,7 @@ impl<'a, 'names> Aggr<'a, 'names> {
     }
 }
 
-pub fn new_query<F>(f: F)
+pub fn new_query<F>(f: F) -> SelectStatement
 where
     F: for<'a> FnOnce(Query<'a>),
 {
@@ -109,7 +121,8 @@ where
         names: PhantomData,
         ast: &mut inner,
     };
-    f(query)
+    f(query);
+    inner.into_select(None)
 }
 
 #[cfg(test)]
@@ -120,6 +133,13 @@ mod tests {
 
     impl Table for TestTable {
         type Dummy<'names> = TestDummy<'names>;
+        const NAME: &'static str = "test";
+        fn build<'a, F>(mut f: F) -> Self::Dummy<'a>
+        where
+            F: FnMut(&'static str) -> MyIden<'a>,
+        {
+            TestDummy { foo: f("foo") }
+        }
     }
     struct TestDummy<'names> {
         foo: MyIden<'names>,
@@ -151,7 +171,7 @@ mod tests {
             let test_q = q.join(TestTable);
             // let x = sub_query(&mut q, test_q.foo);
             // q.filter(x);
-        })
+        });
     }
 
     fn get_match<'a>(q: &mut Query<'a>, foo: impl Value + 'a) -> impl Value + 'a {
@@ -170,6 +190,6 @@ mod tests {
                 beta = Some(res.rank_asc(alpha.foo));
             });
             q.filter(alpha.foo.eq(beta.unwrap()))
-        })
+        });
     }
 }
