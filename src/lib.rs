@@ -1,3 +1,5 @@
+mod value;
+
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -24,7 +26,7 @@ impl<'names> Query<'names> {
     }
 
     // join another query that is grouped by some value
-    pub fn group<F>(&mut self, f: F)
+    pub fn query<F>(&mut self, f: F)
     where
         F: for<'a> FnOnce(Group<'a, 'names>),
     {
@@ -32,10 +34,6 @@ impl<'names> Query<'names> {
     }
 
     pub fn filter(&mut self, prop: Value<'names>) {}
-
-    pub fn rank_asc(&mut self, by: Value<'names>) -> Value<'names> {
-        todo!()
-    }
 }
 
 pub struct Group<'a, 'names> {
@@ -58,17 +56,28 @@ impl<'a, 'names> DerefMut for Group<'a, 'names> {
 }
 
 impl<'a, 'names> Group<'a, 'names> {
-    fn by(self, val: Value<'a>) -> Aggr<'a, 'names> {
+    pub fn rank_asc(&mut self, by: Value<'a>) -> Value<'a> {
         todo!()
+    }
+
+    fn by(self, val: Value<'a>) -> Aggr<'a, 'names> {
+        Aggr {
+            group: self,
+            by: val,
+        }
     }
 }
 
 pub struct Aggr<'a, 'names> {
-    outer: &'a mut Query<'names>,
-    inner: Query<'a>,
+    group: Group<'a, 'names>,
+    by: Value<'a>,
 }
 
 impl<'a, 'names> Aggr<'a, 'names> {
+    fn values(&mut self) -> Value<'names> {
+        todo!()
+    }
+
     fn average(&mut self, val: Value<'a>) -> Value<'names> {
         todo!()
     }
@@ -80,10 +89,9 @@ impl<'a, 'names> Aggr<'a, 'names> {
 
 pub fn new_query<F>(f: F)
 where
-    F: for<'a> FnOnce(&'a mut Query<'a>),
+    F: for<'a> FnOnce(Query<'a>),
 {
-    let mut q = Query { names: PhantomData };
-    f(&mut q)
+    f(Query { names: PhantomData })
 }
 
 #[cfg(test)]
@@ -109,7 +117,7 @@ mod tests {
         new_query(|mut q| {
             let q_test = q.join(TestTable);
             let mut out = None;
-            q.group(|mut g| {
+            q.query(|mut g| {
                 let g_test = g.join(TestTable);
                 g.filter(q_test.foo);
                 let mut aggr = g.by(g_test.foo);
@@ -125,6 +133,25 @@ mod tests {
             let test_q = q.join(TestTable);
             // let x = sub_query(&mut q, test_q.foo);
             // q.filter(x);
+        })
+    }
+
+    fn get_match<'a>(q: &mut Query<'a>, foo: Value<'a>) -> Value<'a> {
+        let test = q.join(TestTable);
+        q.filter(test.foo.eq(foo));
+        test.foo
+    }
+
+    fn transpose() {
+        new_query(|mut q| {
+            let alpha = q.join(TestTable);
+            let mut beta = None;
+            q.query(|mut g| {
+                let res = get_match(&mut g, alpha.foo);
+                let mut res = g.by(res);
+                beta = Some(res.values());
+            });
+            q.filter(alpha.foo.eq(beta.unwrap()))
         })
     }
 }
