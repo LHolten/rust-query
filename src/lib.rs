@@ -24,15 +24,20 @@ impl<'names> Query<'names> {
     }
 
     // join another query that is grouped by some value
-    pub fn group_by<F>(&mut self, f: F)
+    pub fn group<F>(&mut self, f: F)
     where
-        F: for<'a> FnOnce(Group<'a, 'names>) -> Value<'a>,
+        F: for<'a> FnOnce(Group<'a, 'names>),
     {
         todo!()
     }
 
     pub fn filter(&mut self, prop: Value<'names>) {}
+
+    pub fn rank_asc(&mut self, by: Value<'names>) -> Value<'names> {
+        todo!()
+    }
 }
+
 pub struct Group<'a, 'names> {
     outer: &'a mut Query<'names>,
     inner: Query<'a>,
@@ -53,7 +58,22 @@ impl<'a, 'names> DerefMut for Group<'a, 'names> {
 }
 
 impl<'a, 'names> Group<'a, 'names> {
+    fn by(self, val: Value<'a>) -> Aggr<'a, 'names> {
+        todo!()
+    }
+}
+
+pub struct Aggr<'a, 'names> {
+    outer: &'a mut Query<'names>,
+    inner: Query<'a>,
+}
+
+impl<'a, 'names> Aggr<'a, 'names> {
     fn average(&mut self, val: Value<'a>) -> Value<'names> {
+        todo!()
+    }
+
+    fn count(&mut self) -> Value<'names> {
         todo!()
     }
 }
@@ -87,11 +107,13 @@ mod tests {
     #[test]
     fn test() {
         new_query(|mut q| {
+            let q_test = q.join(TestTable);
             let mut out = None;
-            q.group_by(|mut g| {
+            q.group(|mut g| {
                 let g_test = g.join(TestTable);
-                out = Some(g.average(g_test.foo));
-                g_test.foo
+                g.filter(q_test.foo);
+                let mut aggr = g.by(g_test.foo);
+                out = Some(aggr.average(g_test.foo));
             });
             q.filter(out.unwrap());
 
