@@ -1,3 +1,4 @@
+mod ast;
 mod value;
 
 use std::{
@@ -5,14 +6,13 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use ast::MySelect;
+use value::{MyIden, Value};
+
 // Query is only valid if `names` are in scope
 pub struct Query<'names> {
     names: PhantomData<&'names ()>,
-}
-
-#[derive(Clone, Copy)]
-pub struct Value<'names> {
-    names: PhantomData<&'names ()>,
+    ast: &'names mut MySelect,
 }
 
 pub trait Table {
@@ -22,6 +22,12 @@ pub trait Table {
 
 impl<'names> Query<'names> {
     pub fn join<T: Table>(&mut self, _t: T) -> T::Dummy<'names> {
+        // self.ast
+        //     .0
+        //     .push(ast::Operation::From(ast::MyTable::Def(MyDef {
+        //         table: todo!(),
+        //         // columns: todo!(),
+        //     })));
         todo!()
     }
 
@@ -30,10 +36,21 @@ impl<'names> Query<'names> {
     where
         F: for<'a> FnOnce(Group<'a, 'names>),
     {
-        todo!()
+        let mut ast = MySelect(vec![]);
+        let inner = Query {
+            names: PhantomData,
+            ast: &mut ast,
+        };
+        let group = Group { outer: self, inner };
+        f(group);
+        self.ast
+            .0
+            .push(ast::Operation::From(ast::MyTable::Select(ast)))
     }
 
-    pub fn filter(&mut self, prop: Value<'names>) {}
+    pub fn filter(&mut self, prop: impl Value + 'names) {
+        self.ast.0.push(ast::Operation::Filter(prop.into_expr()));
+    }
 }
 
 pub struct Group<'a, 'names> {
@@ -56,33 +73,29 @@ impl<'a, 'names> DerefMut for Group<'a, 'names> {
 }
 
 impl<'a, 'names> Group<'a, 'names> {
-    pub fn rank_asc(&mut self, by: Value<'a>) -> Value<'a> {
-        todo!()
-    }
-
-    fn by(self, val: Value<'a>) -> Aggr<'a, 'names> {
-        Aggr {
-            group: self,
-            by: val,
-        }
+    fn by(self, val: impl Value + 'a) -> Aggr<'a, 'names> {
+        Aggr { group: self }
     }
 }
 
 pub struct Aggr<'a, 'names> {
     group: Group<'a, 'names>,
-    by: Value<'a>,
 }
 
 impl<'a, 'names> Aggr<'a, 'names> {
-    fn values(&mut self) -> Value<'names> {
+    pub fn rank_asc(&mut self, by: impl Value + 'names) -> MyIden<'names> {
         todo!()
     }
 
-    fn average(&mut self, val: Value<'a>) -> Value<'names> {
+    // fn values(&mut self) -> Value<'names> {
+    //     todo!()
+    // }
+
+    fn average(&mut self, val: impl Value + 'a) -> MyIden<'names> {
         todo!()
     }
 
-    fn count(&mut self) -> Value<'names> {
+    fn count(&mut self) -> MyIden<'names> {
         todo!()
     }
 }
@@ -91,7 +104,12 @@ pub fn new_query<F>(f: F)
 where
     F: for<'a> FnOnce(Query<'a>),
 {
-    f(Query { names: PhantomData })
+    let mut inner = MySelect(vec![]);
+    let query = Query {
+        names: PhantomData,
+        ast: &mut inner,
+    };
+    f(query)
 }
 
 #[cfg(test)]
@@ -104,10 +122,10 @@ mod tests {
         type Dummy<'names> = TestDummy<'names>;
     }
     struct TestDummy<'names> {
-        foo: Value<'names>,
+        foo: MyIden<'names>,
     }
 
-    fn sub_query<'a>(q: &mut Query<'a>, val: Value<'a>) -> Value<'a> {
+    fn sub_query<'a>(q: &mut Query<'a>, val: impl Value + 'a) -> impl Value + 'a {
         q.filter(val);
         val
     }
@@ -136,7 +154,7 @@ mod tests {
         })
     }
 
-    fn get_match<'a>(q: &mut Query<'a>, foo: Value<'a>) -> Value<'a> {
+    fn get_match<'a>(q: &mut Query<'a>, foo: impl Value + 'a) -> impl Value + 'a {
         let test = q.join(TestTable);
         q.filter(test.foo.eq(foo));
         test.foo
@@ -149,7 +167,7 @@ mod tests {
             q.query(|mut g| {
                 let res = get_match(&mut g, alpha.foo);
                 let mut res = g.by(res);
-                beta = Some(res.values());
+                beta = Some(res.rank_asc(alpha.foo));
             });
             q.filter(alpha.foo.eq(beta.unwrap()))
         })
