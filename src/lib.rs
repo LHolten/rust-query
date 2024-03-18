@@ -43,17 +43,18 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     // join another query that is grouped by some value
-    pub fn query<F>(&mut self, f: F)
+    pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a> FnOnce(Query<'a, 'inner>),
+        F: for<'a> FnOnce(Query<'a, 'inner>) -> R,
     {
         let mut ast = MySelect::default();
         let inner = Query {
             selected: PhantomData,
             ast: &mut ast,
         };
-        f(inner);
-        self.ast.sources.push(ast::Source::Select(ast))
+        let res = f(inner);
+        self.ast.sources.push(ast::Source::Select(ast));
+        res
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
@@ -96,10 +97,11 @@ impl<'inner, 'outer> Group<'inner, 'outer> {
     }
 }
 
-pub fn new_query<F>(f: F)
+pub fn new_query<F, R>(f: F) -> R
 where
-    F: for<'a> FnOnce(Base<'a>),
+    F: for<'a, 'names> FnOnce(Base<'names>, Query<'a, 'names>) -> R,
 {
+    todo!()
 }
 
 pub struct Base<'a> {
@@ -108,18 +110,8 @@ pub struct Base<'a> {
 }
 
 impl<'names> Base<'names> {
-    pub fn all_rows<F>(self, f: F) -> Vec<Row<'names>>
-    where
-        F: for<'a> FnOnce(Query<'a, 'names>),
-    {
-        let mut ast = MySelect::default();
-        let query = Query {
-            selected: PhantomData,
-            ast: &mut ast,
-        };
-        f(query);
-        // query.ast.into_select(None);
-        vec![]
+    pub fn all_rows<'a>(self, q: Query<'a, 'names>) -> Vec<Row<'names>> {
+        todo!()
     }
 }
 
@@ -159,40 +151,32 @@ mod tests {
 
     #[test]
     fn test() {
-        new_query(|b| {
-            let mut more_out = None;
-            let rows = b.all_rows(|mut q| {
-                let q_test = q.table(TestTable);
-                let mut out = None;
-                q.query(|mut g| {
-                    let g_test = g.table(TestTable);
-                    g.filter(q_test.foo);
-                    let foo = g.all(g_test.foo);
+        new_query(|b, mut q| {
+            let q_test = q.table(TestTable);
+            let out = q.query(|mut g| {
+                let g_test = g.table(TestTable);
+                g.filter(q_test.foo);
+                let foo = g.all(g_test.foo);
 
-                    let mut g = g.into_groups();
-                    let bar_avg = g.avg(g_test.bar);
-                    out = Some((foo, bar_avg));
-                });
-                q.filter(out.unwrap());
+                let mut g = g.into_groups();
+                let bar_avg = g.avg(g_test.bar);
+                (foo, bar_avg)
+            });
+            q.filter(out);
 
-                more_out = Some(q.all(out.unwrap()));
+            new_query(|b, mut p| {
+                let test_p = p.table(TestTable);
+                let bar = p.all(test_p.bar);
+                // q.filter(bar);
+                // q.filter(test_p.foo);
+                // p.filter(q_test.foo);
 
-                new_query(|p| {
-                    let mut out = None;
-                    let rows = p.all_rows(|mut p| {
-                        let test_p = p.table(TestTable);
-                        // q.filter(test_p.foo);
-                        // p.filter(q_test.foo);
-
-                        out = Some(p.all(test_p.bar));
-                    });
-
-                    let val = rows[0].get_i64(out.unwrap());
-                });
+                let rows = b.all_rows(p);
+                let val = rows[0].get_i64(out);
             });
 
-            for row in rows {
-                row.get_i64(more_out.unwrap());
+            for row in b.all_rows(q) {
+                row.get_i64(out);
             }
         });
     }
