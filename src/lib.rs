@@ -103,21 +103,23 @@ where
 }
 
 pub struct Base<'a> {
-    inner: &'a mut MySelect,
+    // we are invariant with respect to 'a
+    select: PhantomData<dyn Fn(&'a ()) -> &'a ()>,
 }
 
 impl<'names> Base<'names> {
-    pub fn all_rows<F>(self, f: F) -> impl Iterator<Item = Row<'names>>
+    pub fn all_rows<F>(self, f: F) -> Vec<Row<'names>>
     where
         F: for<'a> FnOnce(Query<'a, 'names>),
     {
+        let mut ast = MySelect::default();
         let query = Query {
             selected: PhantomData,
-            ast: self.inner,
+            ast: &mut ast,
         };
         f(query);
         // query.ast.into_select(None);
-        [].into_iter()
+        vec![]
     }
 }
 
@@ -126,7 +128,7 @@ pub struct Row<'names> {
 }
 
 impl<'names> Row<'names> {
-    pub fn get_string(&self, val: impl Value + 'names) -> String {
+    pub fn get_i64(&self, val: impl Value + 'names) -> i64 {
         todo!()
     }
 }
@@ -155,14 +157,10 @@ mod tests {
         bar: MyIden<'names>,
     }
 
-    fn sub_query<'a, 'b>(q: &mut Query<'a, 'b>, val: impl Value + 'a) -> impl Value + 'a {
-        q.filter(val);
-        val
-    }
-
     #[test]
     fn test() {
         new_query(|b| {
+            let mut more_out = None;
             let rows = b.all_rows(|mut q| {
                 let q_test = q.table(TestTable);
                 let mut out = None;
@@ -177,27 +175,29 @@ mod tests {
                 });
                 q.filter(out.unwrap());
 
+                more_out = Some(q.all(out.unwrap()));
+
                 new_query(|p| {
                     let mut out = None;
-                    let mut rows = p.all_rows(|mut p| {
+                    let rows = p.all_rows(|mut p| {
                         let test_p = p.table(TestTable);
                         // q.filter(test_p.foo);
-                        // FIXME: this should give an error
-                        p.filter(q_test.foo);
+                        // p.filter(q_test.foo);
 
                         out = Some(p.all(test_p.bar));
                     });
 
-                    let val = rows.next().unwrap().get_string(out.unwrap());
+                    let val = rows[0].get_i64(out.unwrap());
                 });
-
-                let x = sub_query(&mut q, q_test.foo);
-                q.filter(x);
             });
+
+            for row in rows {
+                row.get_i64(more_out.unwrap());
+            }
         });
     }
 
-    fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> impl Value + 'a {
+    fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> MyIden<'a> {
         let test = q.table(TestTable);
         q.filter(test.foo.eq(foo));
         test.foo
