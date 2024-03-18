@@ -16,11 +16,11 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: Vec<SimpleExpr>,
     // distinct on
-    pub(super) group: Vec<SimpleExpr>,
+    pub(super) group: Vec<(MyAlias, SimpleExpr)>,
     // calculating these agregates
     pub(super) aggr: Vec<(MyAlias, SimpleExpr)>,
     // sort on value (and keep row with smallest value)
-    pub(super) sort: Vec<SimpleExpr>,
+    pub(super) sort: Vec<(MyAlias, SimpleExpr, bool)>,
 }
 
 pub struct MyDef {
