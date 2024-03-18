@@ -12,8 +12,8 @@ use crate::value::MyAlias;
 
 pub struct Query<'inner, 'outer> {
     // we might store 'inner
-    selected: PhantomData<&'inner ()>,
-    ast: &'outer mut MySelect,
+    selected: PhantomData<&'inner &'outer ()>,
+    ast: &'inner mut MySelect,
     // outer: PhantomData<>
 }
 
@@ -27,8 +27,8 @@ pub trait Table {
         F: FnMut(&'static str) -> MyIden<'a>;
 }
 
-impl<'inner, 'names> Query<'inner, 'names> {
-    pub fn table<T: Table>(&mut self, _t: T) -> T::Dummy<'names> {
+impl<'inner, 'outer> Query<'inner, 'outer> {
+    pub fn table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
         let mut columns = Vec::new();
         let res = T::build(|name| {
             let alias = MyAlias::new();
@@ -61,34 +61,34 @@ impl<'inner, 'names> Query<'inner, 'names> {
     }
 
     // the values of which all variants need to be preserved
-    pub fn all(&mut self, val: impl Value + 'inner) -> impl Value + 'names {
+    pub fn all(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
         self.ast.group.push((alias, val.into_expr()));
         alias.iden()
     }
 
-    pub fn into_groups(self) -> Group<'inner, 'names> {
+    pub fn into_groups(self) -> Group<'inner, 'outer> {
         Group(self)
     }
 }
 
 pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
 
-impl<'inner, 'names> Group<'inner, 'names> {
-    pub fn any(&mut self, val: impl Value + 'inner, prefer_large: bool) -> impl Value + 'names {
+impl<'inner, 'outer> Group<'inner, 'outer> {
+    pub fn any(&mut self, val: impl Value + 'inner, prefer_large: bool) -> MyIden<'outer> {
         let alias = MyAlias::new();
         self.0.ast.sort.push((alias, val.into_expr(), prefer_large));
         alias.iden()
     }
 
-    fn average(&mut self, val: impl Value + 'inner) -> impl Value + 'names {
+    fn avg<'a>(&'a mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
         let expr = Func::avg(val.into_expr()).into();
         self.0.ast.aggr.push((alias, expr));
         alias.iden()
     }
 
-    fn count_distinct(&mut self, val: impl Value + 'inner) -> impl Value + 'names {
+    fn count_distinct(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
         let expr = Func::count_distinct(val.into_expr()).into();
         self.0.ast.aggr.push((alias, expr));
@@ -107,18 +107,17 @@ pub struct Base<'a> {
 }
 
 impl<'names> Base<'names> {
-    pub fn query<F>(self, f: F) -> impl Iterator<Item = Row<'names>>
+    pub fn all_rows<F>(self, f: F) -> impl Iterator<Item = Row<'names>>
     where
         F: for<'a> FnOnce(Query<'a, 'names>),
     {
-        let mut ast = MySelect::default();
         let query = Query {
             selected: PhantomData,
-            ast: &mut ast,
+            ast: self.inner,
         };
         f(query);
-        query.ast.into_select(None);
-        todo!()
+        // query.ast.into_select(None);
+        [].into_iter()
     }
 }
 
@@ -145,11 +144,15 @@ mod tests {
         where
             F: FnMut(&'static str) -> MyIden<'a>,
         {
-            TestDummy { foo: f("foo") }
+            TestDummy {
+                foo: f("foo"),
+                bar: f("bar"),
+            }
         }
     }
     struct TestDummy<'names> {
         foo: MyIden<'names>,
+        bar: MyIden<'names>,
     }
 
     fn sub_query<'a, 'b>(q: &mut Query<'a, 'b>, val: impl Value + 'a) -> impl Value + 'a {
@@ -157,31 +160,44 @@ mod tests {
         val
     }
 
-    // #[test]
-    // fn test() {
-    //     new_query(|mut q| {
-    //         let q_test = q.table(TestTable);
-    //         let mut out = None;
-    //         q.query(|mut g| {
-    //             let g_test = g.table(TestTable);
-    //             g.filter(q_test.foo);
-    //             let mut aggr = g.group(g_test.foo);
-    //             out = Some(aggr.average(g_test.foo));
-    //         });
-    //         q.filter(out.unwrap());
+    #[test]
+    fn test() {
+        new_query(|b| {
+            let rows = b.all_rows(|mut q| {
+                let q_test = q.table(TestTable);
+                let mut out = None;
+                q.query(|mut g| {
+                    let g_test = g.table(TestTable);
+                    g.filter(q_test.foo);
+                    let foo = g.all(g_test.foo);
 
-    //         // new_query(|mut p| {
-    //         //     let test_p = p.join(TestTable);
-    //         //     // q.filter(test_p.foo);
-    //         //     // p.filter(test_q.foo);
-    //         // });
-    //         let test_q = q.table(TestTable);
-    //         // let x = sub_query(&mut q, test_q.foo);
-    //         // q.filter(x);
-    //     });
-    // }
+                    let mut g = g.into_groups();
+                    let bar_avg = g.avg(g_test.bar);
+                    out = Some((foo, bar_avg));
+                });
+                q.filter(out.unwrap());
 
-    fn get_match<'a>(q: &mut Query<'a>, foo: impl Value + 'a) -> impl Value + 'a {
+                new_query(|p| {
+                    let mut out = None;
+                    let mut rows = p.all_rows(|mut p| {
+                        let test_p = p.table(TestTable);
+                        // q.filter(test_p.foo);
+                        // FIXME: this should give an error
+                        p.filter(q_test.foo);
+
+                        out = Some(p.all(test_p.bar));
+                    });
+
+                    let val = rows.next().unwrap().get_string(out.unwrap());
+                });
+
+                let x = sub_query(&mut q, q_test.foo);
+                q.filter(x);
+            });
+        });
+    }
+
+    fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> impl Value + 'a {
         let test = q.table(TestTable);
         q.filter(test.foo.eq(foo));
         test.foo
