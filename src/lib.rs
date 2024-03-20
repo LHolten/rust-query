@@ -12,7 +12,7 @@ use crate::value::MyAlias;
 
 pub struct Query<'inner, 'outer> {
     // we might store 'inner
-    selected: PhantomData<&'inner &'outer ()>,
+    phantom: PhantomData<dyn Fn(&'inner &'outer ()) -> &'inner &'outer ()>,
     ast: &'inner mut MySelect,
     // outer: PhantomData<>
 }
@@ -49,7 +49,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     {
         let mut ast = MySelect::default();
         let inner = Query {
-            selected: PhantomData,
+            phantom: PhantomData,
             ast: &mut ast,
         };
         let res = f(inner);
@@ -62,6 +62,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     // the values of which all variants need to be preserved
+    // TODO: add a variant with ordering
     pub fn all(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
         self.ast.group.push((alias, val.into_expr()));
@@ -99,24 +100,24 @@ impl<'inner, 'outer> Group<'inner, 'outer> {
 
 pub fn new_query<F, R>(f: F) -> R
 where
-    F: for<'a, 'names> FnOnce(Base<'names>, Query<'a, 'names>) -> R,
+    F: for<'a, 'names> FnOnce(Exec<'names>, Query<'a, 'names>) -> R,
 {
     todo!()
 }
 
-pub struct Base<'a> {
-    // we are invariant with respect to 'a
-    select: PhantomData<dyn Fn(&'a ()) -> &'a ()>,
+pub struct Exec<'a> {
+    // we are contravariant with respect to 'a
+    phantom: PhantomData<dyn Fn(&'a ())>,
 }
 
-impl<'names> Base<'names> {
-    pub fn all_rows<'a>(self, q: Query<'a, 'names>) -> Vec<Row<'names>> {
+impl<'names> Exec<'names> {
+    pub fn all_rows(self, q: Query<'_, 'names>) -> Vec<Row<'names>> {
         todo!()
     }
 }
 
 pub struct Row<'names> {
-    inner: PhantomData<&'names MySelect>,
+    inner: PhantomData<dyn Fn(&'names ())>,
 }
 
 impl<'names> Row<'names> {
@@ -151,7 +152,7 @@ mod tests {
 
     #[test]
     fn test() {
-        new_query(|b, mut q| {
+        new_query(|e, mut q| {
             let q_test = q.table(TestTable);
             let out = q.query(|mut g| {
                 let g_test = g.table(TestTable);
@@ -163,19 +164,21 @@ mod tests {
                 (foo, bar_avg)
             });
             q.filter(out);
+            let out = q.all(out);
 
-            new_query(|b, mut p| {
+            new_query(|e, mut p| {
                 let test_p = p.table(TestTable);
                 let bar = p.all(test_p.bar);
                 // q.filter(bar);
                 // q.filter(test_p.foo);
                 // p.filter(q_test.foo);
+                // p.filter(out);
 
-                let rows = b.all_rows(p);
-                let val = rows[0].get_i64(out);
+                let rows = e.all_rows(p);
+                // let val = rows[0].get_i64(out);
             });
 
-            for row in b.all_rows(q) {
+            for row in e.all_rows(q) {
                 row.get_i64(out);
             }
         });
