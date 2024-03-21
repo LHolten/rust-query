@@ -3,7 +3,7 @@ mod value;
 
 use std::marker::PhantomData;
 
-use ast::{MyDef, MySelect, Source};
+use ast::{MySelect, MyTable, Source};
 
 use sea_query::Func;
 use value::{MyIden, Value};
@@ -35,7 +35,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
             columns.push((name, alias));
             alias.iden()
         });
-        self.ast.sources.push(Source::Table(MyDef {
+        self.ast.sources.push(Source::Table(MyTable {
             table: T::NAME,
             columns,
         }));
@@ -62,7 +62,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     // the values of which all variants need to be preserved
-    // TODO: add a variant with ordering
+    // TODO: add a variant with ordering?
     pub fn all(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
         self.ast.group.push((alias, val.into_expr()));
@@ -77,9 +77,10 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
 pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
 
 impl<'inner, 'outer> Group<'inner, 'outer> {
-    pub fn any(&mut self, val: impl Value + 'inner, prefer_large: bool) -> MyIden<'outer> {
+    // TODO: add a variant with ordering?
+    pub fn any(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
-        self.0.ast.sort.push((alias, val.into_expr(), prefer_large));
+        self.0.ast.sort.push((alias, val.into_expr()));
         alias.iden()
     }
 
