@@ -10,7 +10,7 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: Vec<SimpleExpr>,
     // distinct on
-    pub(super) group: FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+    pub(super) group: FrozenVec<Box<(AnyAlias, SimpleExpr)>>,
     // calculating these agregates
     pub(super) aggr: Vec<(MyAlias, SimpleExpr)>,
     // sort on value (and keep row with smallest value)

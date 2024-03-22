@@ -6,8 +6,7 @@ use std::{cell::OnceCell, marker::PhantomData};
 use ast::{MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
-use sea_query::{table, Func};
-use value::{AnyAlias, MyFk, MyIden, MyTableAlias, Value};
+use value::{Db, MyIdenT, TableInfo, Value};
 
 use crate::value::MyAlias;
 
@@ -36,36 +35,20 @@ impl<'a> Builder<'a> {
         Builder { table }
     }
 
-    pub fn iden(&self, name: &'static str) -> MyIden<'a> {
+    pub fn iden<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
         let t = self.table;
         let item = if let Some(item) = t.columns.iter().find(|item| item.0 == name) {
             &item.1
         } else {
-            let alias = AnyAlias::Value(MyAlias::new());
+            let alias = T::new_alias();
             &t.columns.push_get(Box::new((name, alias))).1
         };
-        let AnyAlias::Value(alias) = item else {
-            panic!()
-        };
-        alias.iden()
-    }
-    pub fn fk<T: Table>(&self, name: &'static str) -> MyFk<'a, T> {
-        let t = self.table;
-        let item = if let Some(item) = t.columns.iter().find(|item| item.0 == name) {
-            &item.1
-        } else {
-            let alias = AnyAlias::Table(MyTableAlias::new(T::NAME));
-            &t.columns.push_get(Box::new((name, alias))).1
-        };
-        let AnyAlias::Table(alias) = item else {
-            panic!()
-        };
-        alias.fk()
+        T::iden(item)
     }
 }
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
-    pub fn table<T: Table>(&mut self, _t: T) -> MyFk<'inner, T> {
+    pub fn table<T: Table>(&mut self, _t: T) -> Db<'inner, T> {
         let table = Source::Table(MyTable {
             name: T::NAME,
             columns: FrozenVec::new(),
@@ -73,10 +56,12 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         let Source::Table(table) = self.ast.sources.push_get(Box::new(table)) else {
             unreachable!()
         };
-        MyFk {
-            table,
-            iden: Builder::new(table).iden(T::ID),
-            inner: OnceCell::new(),
+        Db {
+            col: Builder::new(table).iden::<T>(T::ID).col,
+            info: TableInfo {
+                table,
+                inner: OnceCell::new(),
+            },
         }
     }
 
@@ -103,10 +88,10 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
 
     // the values of which all variants need to be preserved
     // TODO: add a variant with ordering?
-    pub fn all(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
-        let item = (MyAlias::new(), val.into_expr());
+    pub fn all<V: Value + 'inner>(&mut self, val: V) -> Db<'outer, V::Typ> {
+        let item = (V::Typ::new_alias(), val.into_expr());
         let last = self.ast.group.push_get(Box::new(item));
-        last.0.iden()
+        V::Typ::iden(&last.0)
     }
 
     pub fn into_groups(self) -> Group<'inner, 'outer> {
@@ -118,14 +103,14 @@ pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
 
 impl<'inner, 'outer> Group<'inner, 'outer> {
     // TODO: add a variant with ordering?
-    pub fn any(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
+    pub fn any<V: Value + 'inner>(&mut self, val: V) -> Db<'outer, V::Typ> {
         let alias = MyAlias::new();
         // self.0.ast.sort.push((alias, val.into_expr()));
         // alias.iden()
         todo!()
     }
 
-    fn avg<'a>(&'a mut self, val: impl Value + 'inner) -> MyIden<'outer> {
+    fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
         let alias = MyAlias::new();
         // let expr = Func::avg(val.into_expr()).into();
         // self.0.ast.aggr.push((alias, expr));
@@ -133,7 +118,7 @@ impl<'inner, 'outer> Group<'inner, 'outer> {
         todo!()
     }
 
-    fn count_distinct(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
+    fn count_distinct<V: Value + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
         let alias = MyAlias::new();
         // let expr = Func::count_distinct(val.into_expr()).into();
         // self.0.ast.aggr.push((alias, expr));
@@ -177,11 +162,7 @@ pub struct Row<'names> {
 }
 
 impl<'names> Row<'names> {
-    pub fn get_i64(&self, val: impl Value + 'names) -> i64 {
-        todo!()
-    }
-
-    pub fn get_string(&self, val: impl Value + 'names) -> String {
+    pub fn get<V: Value + 'names>(&self, val: V) -> V::Typ {
         todo!()
     }
 }
@@ -195,7 +176,7 @@ mod tests {
     impl Table for TestTable {
         type Dummy<'names> = TestDummy<'names>;
         const NAME: &'static str = "test";
-        fn build<'a>(f: Builder<'a>) -> Self::Dummy<'a> {
+        fn build(f: Builder<'_>) -> Self::Dummy<'_> {
             TestDummy {
                 foo: f.iden("foo"),
                 bar: f.iden("bar"),
@@ -203,8 +184,8 @@ mod tests {
         }
     }
     struct TestDummy<'names> {
-        foo: MyIden<'names>,
-        bar: MyIden<'names>,
+        foo: Db<'names, i64>,
+        bar: Db<'names, i64>,
     }
 
     #[test]
@@ -220,8 +201,8 @@ mod tests {
                 let bar_avg = g.avg(g_test.bar);
                 (foo, bar_avg)
             });
-            q.filter(out);
-            let out = q.all(out);
+            q.filter(out.0);
+            let out = q.all(out.1);
 
             new_query(|e, mut p| {
                 let test_p = p.table(TestTable);
@@ -236,12 +217,12 @@ mod tests {
             });
 
             for row in e.all_rows(q) {
-                row.get_i64(out);
+                row.get(out);
             }
         });
     }
 
-    fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> MyIden<'a> {
+    fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> Db<'a, i64> {
         let test = q.table(TestTable);
         q.filter(test.foo.eq(foo));
         test.foo

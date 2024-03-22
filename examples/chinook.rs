@@ -1,9 +1,5 @@
 #![allow(dead_code)]
-use rust_orm::{
-    new_query,
-    value::{MyFk, MyIden},
-    Builder, Table,
-};
+use rust_orm::{new_query, value::Db, Builder, Table};
 
 fn main() {
     invoice_info();
@@ -24,15 +20,13 @@ struct Invoice {
 fn invoice_info() -> Vec<Invoice> {
     new_query(|e, mut q| {
         let ivl = q.table(InvoiceLine);
-        let ivl_id = q.all(ivl.id());
-        let track = q.all(ivl.track.name);
-        let artist = q.all(ivl.track.album.artist.name);
+        let ivl = q.all(ivl);
 
         e.all_rows(q)
             .map(|row| Invoice {
-                track: row.get_string(track),
-                artist: row.get_string(artist),
-                ivl_id: row.get_i64(ivl_id),
+                track: row.get(ivl.track.name),
+                artist: row.get(ivl.track.album.artist.name),
+                ivl_id: row.get(ivl.id()),
             })
             .collect()
     })
@@ -41,10 +35,10 @@ fn invoice_info() -> Vec<Invoice> {
 struct InvoiceLine;
 
 struct InvoiceLineDummy<'a> {
-    invoice_id: MyIden<'a>,
-    track: MyFk<'a, Track>,
-    unit_price: MyIden<'a>,
-    quantity: MyIden<'a>,
+    invoice_id: Db<'a, i64>,
+    track: Db<'a, Track>,
+    unit_price: Db<'a, i64>,
+    quantity: Db<'a, i64>,
 }
 
 impl Table for InvoiceLine {
@@ -56,7 +50,7 @@ impl Table for InvoiceLine {
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         InvoiceLineDummy {
             invoice_id: f.iden("InvoiceId"),
-            track: f.fk("TrackId"),
+            track: f.iden("TrackId"),
             unit_price: f.iden("UnitPrice"),
             quantity: f.iden("Quantity"),
         }
@@ -66,14 +60,14 @@ impl Table for InvoiceLine {
 struct Track;
 
 struct TrackDummy<'a> {
-    name: MyIden<'a>,
-    album: MyFk<'a, Album>,
-    media_type_id: MyIden<'a>,
-    genre_id: MyIden<'a>,
-    composer: MyIden<'a>,
-    milliseconds: MyIden<'a>,
-    bytes: MyIden<'a>,
-    unit_price: MyIden<'a>,
+    name: Db<'a, String>,
+    album: Db<'a, Album>,
+    media_type_id: Db<'a, i64>,
+    genre_id: Db<'a, String>,
+    composer: Db<'a, String>,
+    milliseconds: Db<'a, i64>,
+    bytes: Db<'a, i64>,
+    unit_price: Db<'a, i64>,
 }
 
 impl Table for Track {
@@ -85,7 +79,7 @@ impl Table for Track {
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         TrackDummy {
             name: f.iden("Name"),
-            album: f.fk("AlbumId"),
+            album: f.iden("AlbumId"),
             media_type_id: f.iden("MediaTypeId"),
             genre_id: f.iden("GenreId"),
             composer: f.iden("Composer"),
@@ -99,8 +93,8 @@ impl Table for Track {
 struct Album;
 
 struct AlbumDummy<'a> {
-    title: MyIden<'a>,
-    artist: MyFk<'a, Artist>,
+    title: Db<'a, String>,
+    artist: Db<'a, Artist>,
 }
 
 impl Table for Album {
@@ -112,7 +106,7 @@ impl Table for Album {
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         AlbumDummy {
             title: f.iden("Title"),
-            artist: f.fk("ArtistId"),
+            artist: f.iden("ArtistId"),
         }
     }
 }
@@ -120,7 +114,7 @@ impl Table for Album {
 struct Artist;
 
 struct ArtistDummy<'a> {
-    name: MyIden<'a>,
+    name: Db<'a, String>,
 }
 
 impl Table for Artist {
