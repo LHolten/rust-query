@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 
 use ast::{MySelect, MyTable, Source};
 
+use elsa::FrozenVec;
 use sea_query::Func;
 use value::{MyIden, Value};
 
@@ -13,7 +14,7 @@ use crate::value::MyAlias;
 pub struct Query<'inner, 'outer> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner &'outer ()) -> &'inner &'outer ()>,
-    ast: &'inner mut MySelect,
+    ast: &'outer MySelect,
     // outer: PhantomData<>
 }
 
@@ -29,17 +30,18 @@ pub trait Table {
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
     pub fn table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
-        let mut columns = Vec::new();
-        let res = T::build(|name| {
-            let alias = MyAlias::new();
-            columns.push((name, alias));
-            alias.iden()
-        });
-        self.ast.sources.push(Source::Table(MyTable {
+        let source = Source::Table(MyTable {
             table: T::NAME,
-            columns,
-        }));
-        res
+            columns: FrozenVec::new(),
+        });
+        let Source::Table(t) = self.ast.sources.push_get(Box::new(source)) else {
+            unreachable!()
+        };
+
+        T::build(|name| {
+            let item = t.columns.push_get(Box::new((name, MyAlias::new())));
+            item.1.iden()
+        })
     }
 
     // join another query that is grouped by some value
@@ -47,26 +49,27 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     where
         F: for<'a> FnOnce(Query<'a, 'inner>) -> R,
     {
-        let mut ast = MySelect::default();
-        let inner = Query {
-            phantom: PhantomData,
-            ast: &mut ast,
-        };
-        let res = f(inner);
-        self.ast.sources.push(ast::Source::Select(ast));
-        res
+        // let mut ast = MySelect::default();
+        // let inner = Query {
+        //     phantom: PhantomData,
+        //     ast: &ast,
+        // };
+        // let res = f(inner);
+        // self.ast.sources.push(ast::Source::Select(ast));
+        // res
+        todo!()
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
-        self.ast.filters.push(prop.into_expr());
+        // self.ast.filters.push(prop.into_expr());
     }
 
     // the values of which all variants need to be preserved
     // TODO: add a variant with ordering?
     pub fn all(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
-        let alias = MyAlias::new();
-        self.ast.group.push((alias, val.into_expr()));
-        alias.iden()
+        let item = (MyAlias::new(), val.into_expr());
+        let last = self.ast.group.push_get(Box::new(item));
+        last.0.iden()
     }
 
     pub fn into_groups(self) -> Group<'inner, 'outer> {
@@ -80,22 +83,25 @@ impl<'inner, 'outer> Group<'inner, 'outer> {
     // TODO: add a variant with ordering?
     pub fn any(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
-        self.0.ast.sort.push((alias, val.into_expr()));
-        alias.iden()
+        // self.0.ast.sort.push((alias, val.into_expr()));
+        // alias.iden()
+        todo!()
     }
 
     fn avg<'a>(&'a mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
-        let expr = Func::avg(val.into_expr()).into();
-        self.0.ast.aggr.push((alias, expr));
-        alias.iden()
+        // let expr = Func::avg(val.into_expr()).into();
+        // self.0.ast.aggr.push((alias, expr));
+        // alias.iden()
+        todo!()
     }
 
     fn count_distinct(&mut self, val: impl Value + 'inner) -> MyIden<'outer> {
         let alias = MyAlias::new();
-        let expr = Func::count_distinct(val.into_expr()).into();
-        self.0.ast.aggr.push((alias, expr));
-        alias.iden()
+        // let expr = Func::count_distinct(val.into_expr()).into();
+        // self.0.ast.aggr.push((alias, expr));
+        // alias.iden()
+        todo!()
     }
 }
 

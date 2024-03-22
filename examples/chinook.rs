@@ -1,6 +1,6 @@
 use rust_orm::{
     new_query,
-    value::{MyIden, Value},
+    value::{MyFk, MyIden, Value},
     Table,
 };
 
@@ -23,15 +23,9 @@ struct Invoice {
 fn invoice_info() -> Vec<Invoice> {
     new_query(|e, mut q| {
         let i = q.table(InvoiceLine);
-        let t = q.table(Track);
-        q.filter(i.track_id.eq(t.track_id));
-        let al = q.table(Album);
-        q.filter(al.album_id.eq(t.album_id));
-        let ar = q.table(Artist);
-        q.filter(ar.artist_id.eq(al.artist_id));
         let invoice = q.all(i.invoice_line_id);
-        let track = q.all(t.name);
-        let artist = q.all(ar.name);
+        let track = q.all(i.track.name);
+        let artist = q.all(i.track.album.artist.name);
 
         e.all_rows(q)
             .into_iter()
@@ -49,7 +43,7 @@ struct InvoiceLine;
 struct InvoiceLineDummy<'a> {
     invoice_line_id: MyIden<'a>,
     invoice_id: MyIden<'a>,
-    track_id: MyIden<'a>,
+    track: MyFk<'a, Track>,
     unit_price: MyIden<'a>,
     quantity: MyIden<'a>,
 }
@@ -66,7 +60,7 @@ impl Table for InvoiceLine {
         InvoiceLineDummy {
             invoice_line_id: f("InvoiceLineId"),
             invoice_id: f("InvoiceId"),
-            track_id: f("TrackId"),
+            track: f("TrackId").fk(),
             unit_price: f("UnitPrice"),
             quantity: f("Quantity"),
         }
@@ -78,7 +72,7 @@ struct Track;
 struct TrackDummy<'a> {
     track_id: MyIden<'a>,
     name: MyIden<'a>,
-    album_id: MyIden<'a>,
+    album: MyFk<'a, Album>,
     media_type_id: MyIden<'a>,
     genre_id: MyIden<'a>,
     composer: MyIden<'a>,
@@ -99,7 +93,7 @@ impl Table for Track {
         TrackDummy {
             track_id: f("TrackId"),
             name: f("Name"),
-            album_id: f("AlbumId"),
+            album: f("AlbumId").fk(),
             media_type_id: f("MediaTypeId"),
             genre_id: f("GenreId"),
             composer: f("Composer"),
@@ -115,7 +109,7 @@ struct Album;
 struct AlbumDummy<'a> {
     album_id: MyIden<'a>,
     title: MyIden<'a>,
-    artist_id: MyIden<'a>,
+    artist: MyFk<'a, Artist>,
 }
 
 impl Table for Album {
@@ -130,7 +124,7 @@ impl Table for Album {
         AlbumDummy {
             album_id: f("AlbumId"),
             title: f("Title"),
-            artist_id: f("ArtistId"),
+            artist: f("ArtistId").fk(),
         }
     }
 }

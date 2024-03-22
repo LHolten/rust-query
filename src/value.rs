@@ -1,9 +1,17 @@
 use std::{
+    cell::OnceCell,
     marker::PhantomData,
-    sync::atomic::{AtomicU64, Ordering},
+    ops::Deref,
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
-use sea_query::{Expr, Iden, SimpleExpr};
+use elsa::FrozenVec;
+use sea_query::{Alias, Expr, Iden, SimpleExpr};
+
+use crate::{
+    ast::{MyTable, Source},
+    Table,
+};
 
 pub trait Value: Copy {
     fn into_expr(self) -> SimpleExpr;
@@ -33,13 +41,13 @@ impl<'t, A: Value, B: Value> Value for (A, B) {
 
 #[derive(Clone, Copy)]
 pub struct MyIden<'t> {
-    pub(super) name: MyAlias,
-    pub(super) _t: PhantomData<&'t ()>,
+    pub(super) col: &'t MyAlias,
+    // pub(super) _t: PhantomData<&'t ()>,
 }
 
 impl<'t> Value for MyIden<'t> {
     fn into_expr(self) -> SimpleExpr {
-        Expr::col(self.name).into()
+        Expr::col(self.col.into_alias()).into()
     }
 }
 
@@ -91,25 +99,66 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct MyAlias(u64);
+// #[derive(Clone, Copy)]
+pub struct MyAlias {
+    name: u64,
+    join: OnceCell<MyTable>,
+}
+
 impl MyAlias {
     pub fn new() -> Self {
         static IDEN_NUM: AtomicU64 = AtomicU64::new(0);
         let next = IDEN_NUM.fetch_add(1, Ordering::Relaxed);
-        Self(next)
+        Self {
+            name: next,
+            join: OnceCell::new(),
+        }
     }
 
-    pub fn iden<'t>(self) -> MyIden<'t> {
+    pub fn iden<'t>(&'t self) -> MyIden<'t> {
         MyIden {
-            name: self,
-            _t: PhantomData,
+            col: self,
+            // _t: PhantomData,
+        }
+    }
+
+    pub fn into_alias(&self) -> Alias {
+        Alias::new(format!("{}", self.name))
+    }
+}
+
+impl<'a> MyIden<'a> {
+    pub fn fk<T: Table>(self) -> MyFk<'a, T> {
+        MyFk {
+            id: self,
+            inner: OnceCell::new(),
         }
     }
 }
 
-impl Iden for MyAlias {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "{}", self.0).unwrap()
+pub struct MyFk<'a, T: Table> {
+    pub id: MyIden<'a>,
+    inner: OnceCell<T::Dummy<'a>>,
+}
+
+impl<'a, T: Table> Deref for MyFk<'a, T> {
+    type Target = T::Dummy<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner.get_or_init(|| {
+            let t = self.id.col.join.get_or_init(|| MyTable {
+                table: T::NAME,
+                columns: FrozenVec::new(),
+            });
+
+            T::build(|name| {
+                if let Some(item) = t.columns.iter().find(|item| item.0 == name) {
+                    item.1.iden()
+                } else {
+                    let item = t.columns.push_get(Box::new((name, MyAlias::new())));
+                    item.1.iden()
+                }
+            })
+        })
     }
 }

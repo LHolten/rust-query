@@ -6,4 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sea-query = "0.30.7"
+elsa = "1.10.0"
+sea-query = "0.30"
+
+[dev-dependencie]
+sea-query-rusqlite = "0"
+rusqlite = "0.30"
