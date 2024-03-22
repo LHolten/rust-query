@@ -1,13 +1,13 @@
 mod ast;
 pub mod value;
 
-use std::marker::PhantomData;
+use std::{cell::OnceCell, marker::PhantomData};
 
 use ast::{MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
-use sea_query::Func;
-use value::{MyIden, Value};
+use sea_query::{table, Func};
+use value::{AnyAlias, MyFk, MyIden, MyTableAlias, Value};
 
 use crate::value::MyAlias;
 
@@ -20,28 +20,64 @@ pub struct Query<'inner, 'outer> {
 
 pub trait Table {
     const NAME: &'static str;
+    const ID: &'static str = "id";
     // these names are defined in `'query`
     type Dummy<'names>;
 
-    fn build<'a, F>(f: F) -> Self::Dummy<'a>
-    where
-        F: FnMut(&'static str) -> MyIden<'a>;
+    fn build<'a>(f: Builder<'a>) -> Self::Dummy<'a>;
+}
+
+pub struct Builder<'a> {
+    table: &'a MyTable,
+}
+
+impl<'a> Builder<'a> {
+    pub fn new(table: &'a MyTable) -> Self {
+        Builder { table }
+    }
+
+    pub fn iden(&self, name: &'static str) -> MyIden<'a> {
+        let t = self.table;
+        let item = if let Some(item) = t.columns.iter().find(|item| item.0 == name) {
+            &item.1
+        } else {
+            let alias = AnyAlias::Value(MyAlias::new());
+            &t.columns.push_get(Box::new((name, alias))).1
+        };
+        let AnyAlias::Value(alias) = item else {
+            panic!()
+        };
+        alias.iden()
+    }
+    pub fn fk<T: Table>(&self, name: &'static str) -> MyFk<'a, T> {
+        let t = self.table;
+        let item = if let Some(item) = t.columns.iter().find(|item| item.0 == name) {
+            &item.1
+        } else {
+            let alias = AnyAlias::Table(MyTableAlias::new(T::NAME));
+            &t.columns.push_get(Box::new((name, alias))).1
+        };
+        let AnyAlias::Table(alias) = item else {
+            panic!()
+        };
+        alias.fk()
+    }
 }
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
-    pub fn table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
-        let source = Source::Table(MyTable {
-            table: T::NAME,
+    pub fn table<T: Table>(&mut self, _t: T) -> MyFk<'inner, T> {
+        let table = Source::Table(MyTable {
+            name: T::NAME,
             columns: FrozenVec::new(),
         });
-        let Source::Table(t) = self.ast.sources.push_get(Box::new(source)) else {
+        let Source::Table(table) = self.ast.sources.push_get(Box::new(table)) else {
             unreachable!()
         };
-
-        T::build(|name| {
-            let item = t.columns.push_get(Box::new((name, MyAlias::new())));
-            item.1.iden()
-        })
+        MyFk {
+            table,
+            iden: Builder::new(table).iden(T::ID),
+            inner: OnceCell::new(),
+        }
     }
 
     // join another query that is grouped by some value
@@ -146,13 +182,10 @@ mod tests {
     impl Table for TestTable {
         type Dummy<'names> = TestDummy<'names>;
         const NAME: &'static str = "test";
-        fn build<'a, F>(mut f: F) -> Self::Dummy<'a>
-        where
-            F: FnMut(&'static str) -> MyIden<'a>,
-        {
+        fn build<'a>(f: Builder<'a>) -> Self::Dummy<'a> {
             TestDummy {
-                foo: f("foo"),
-                bar: f("bar"),
+                foo: f.iden("foo"),
+                bar: f.iden("bar"),
             }
         }
     }

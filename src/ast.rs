@@ -1,9 +1,7 @@
-use std::cell::OnceCell;
-
 use elsa::FrozenVec;
 use sea_query::{Alias, Condition, Expr, SelectStatement, SimpleExpr};
 
-use crate::value::MyAlias;
+use crate::value::{AnyAlias, MyAlias, MyTableAlias};
 
 #[derive(Default)]
 pub struct MySelect {
@@ -20,17 +18,13 @@ pub struct MySelect {
 }
 
 pub struct MyTable {
-    pub(super) table: &'static str,
-    pub(super) columns: FrozenVec<Box<(&'static str, MyAlias)>>,
+    pub(super) name: &'static str,
+    pub(super) columns: FrozenVec<Box<(&'static str, AnyAlias)>>,
 }
-
-// pub struct MyColumn {
-//     pub(super) alias: MyAlias,
-//     pub(super) join: OnceCell<MyTable>,
-// }
 
 pub(super) enum Source {
     Select(MySelect),
+    // table and pk
     Table(MyTable),
 }
 
@@ -47,23 +41,7 @@ impl MySelect {
                         Condition::any(),
                     );
                 }
-                Source::Table(def) => {
-                    let tbl_ref = Alias::new(def.table);
-                    let tbl_alias = MyAlias::new();
-                    select.join_as(
-                        sea_query::JoinType::InnerJoin,
-                        tbl_ref,
-                        tbl_alias.into_alias(),
-                        Condition::any(),
-                    );
-                    for (col, alias) in &def.columns {
-                        let col_alias = Alias::new(*col);
-                        select.expr_as(
-                            Expr::col((tbl_alias.into_alias(), col_alias)),
-                            alias.into_alias(),
-                        );
-                    }
-                }
+                Source::Table(table) => table.join(&mut select),
             }
         }
 
@@ -87,5 +65,33 @@ impl MySelect {
         }
 
         select
+    }
+}
+
+impl MyTable {
+    pub fn join(&self, select: &mut SelectStatement) {
+        if self.columns.is_empty() {
+            return;
+        }
+
+        let tbl_alias = MyAlias::new();
+        select.join_as(
+            sea_query::JoinType::InnerJoin,
+            Alias::new(self.name),
+            tbl_alias.into_alias(),
+            Condition::any(),
+        );
+
+        for (col, alias) in self.columns.iter() {
+            let col_alias = Alias::new(*col);
+            select.expr_as(
+                Expr::col((tbl_alias.into_alias(), col_alias)),
+                alias.into_alias(),
+            );
+
+            if let AnyAlias::Table(alias) = alias {
+                alias.table.join(select)
+            }
+        }
     }
 }

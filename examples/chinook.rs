@@ -1,7 +1,7 @@
 use rust_orm::{
     new_query,
     value::{MyFk, MyIden, Value},
-    Table,
+    Builder, Table,
 };
 
 fn main() {
@@ -23,7 +23,7 @@ struct Invoice {
 fn invoice_info() -> Vec<Invoice> {
     new_query(|e, mut q| {
         let i = q.table(InvoiceLine);
-        let invoice = q.all(i.invoice_line_id);
+        let invoice = q.all(i.id_num());
         let track = q.all(i.track.name);
         let artist = q.all(i.track.album.artist.name);
 
@@ -41,7 +41,6 @@ fn invoice_info() -> Vec<Invoice> {
 struct InvoiceLine;
 
 struct InvoiceLineDummy<'a> {
-    invoice_line_id: MyIden<'a>,
     invoice_id: MyIden<'a>,
     track: MyFk<'a, Track>,
     unit_price: MyIden<'a>,
@@ -50,19 +49,16 @@ struct InvoiceLineDummy<'a> {
 
 impl Table for InvoiceLine {
     const NAME: &'static str = "InvoiceLine";
+    const ID: &'static str = "InvoiceLineId";
 
     type Dummy<'names> = InvoiceLineDummy<'names>;
 
-    fn build<'a, F>(mut f: F) -> Self::Dummy<'a>
-    where
-        F: FnMut(&'static str) -> MyIden<'a>,
-    {
+    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
         InvoiceLineDummy {
-            invoice_line_id: f("InvoiceLineId"),
-            invoice_id: f("InvoiceId"),
-            track: f("TrackId").fk(),
-            unit_price: f("UnitPrice"),
-            quantity: f("Quantity"),
+            invoice_id: f.iden("InvoiceId"),
+            track: f.fk("TrackId"),
+            unit_price: f.iden("UnitPrice"),
+            quantity: f.iden("Quantity"),
         }
     }
 }
@@ -70,7 +66,6 @@ impl Table for InvoiceLine {
 struct Track;
 
 struct TrackDummy<'a> {
-    track_id: MyIden<'a>,
     name: MyIden<'a>,
     album: MyFk<'a, Album>,
     media_type_id: MyIden<'a>,
@@ -83,23 +78,20 @@ struct TrackDummy<'a> {
 
 impl Table for Track {
     const NAME: &'static str = "Track";
+    const ID: &'static str = "TrackId";
 
     type Dummy<'names> = TrackDummy<'names>;
 
-    fn build<'a, F>(mut f: F) -> Self::Dummy<'a>
-    where
-        F: FnMut(&'static str) -> MyIden<'a>,
-    {
+    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
         TrackDummy {
-            track_id: f("TrackId"),
-            name: f("Name"),
-            album: f("AlbumId").fk(),
-            media_type_id: f("MediaTypeId"),
-            genre_id: f("GenreId"),
-            composer: f("Composer"),
-            milliseconds: f("Milliseconds"),
-            bytes: f("Bytes"),
-            unit_price: f("UnitPrice"),
+            name: f.iden("Name"),
+            album: f.fk("AlbumId"),
+            media_type_id: f.iden("MediaTypeId"),
+            genre_id: f.iden("GenreId"),
+            composer: f.iden("Composer"),
+            milliseconds: f.iden("Milliseconds"),
+            bytes: f.iden("Bytes"),
+            unit_price: f.iden("UnitPrice"),
         }
     }
 }
@@ -107,24 +99,20 @@ impl Table for Track {
 struct Album;
 
 struct AlbumDummy<'a> {
-    album_id: MyIden<'a>,
     title: MyIden<'a>,
     artist: MyFk<'a, Artist>,
 }
 
 impl Table for Album {
     const NAME: &'static str = "Album";
+    const ID: &'static str = "AlbumId";
 
     type Dummy<'names> = AlbumDummy<'names>;
 
-    fn build<'a, F>(mut f: F) -> Self::Dummy<'a>
-    where
-        F: FnMut(&'static str) -> MyIden<'a>,
-    {
+    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
         AlbumDummy {
-            album_id: f("AlbumId"),
-            title: f("Title"),
-            artist: f("ArtistId").fk(),
+            title: f.iden("Title"),
+            artist: f.fk("ArtistId"),
         }
     }
 }
@@ -132,22 +120,18 @@ impl Table for Album {
 struct Artist;
 
 struct ArtistDummy<'a> {
-    artist_id: MyIden<'a>,
     name: MyIden<'a>,
 }
 
 impl Table for Artist {
     const NAME: &'static str = "Artist";
+    const ID: &'static str = "ArtistId";
 
     type Dummy<'names> = ArtistDummy<'names>;
 
-    fn build<'a, F>(mut f: F) -> Self::Dummy<'a>
-    where
-        F: FnMut(&'static str) -> MyIden<'a>,
-    {
+    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
         ArtistDummy {
-            artist_id: f("ArtistId"),
-            name: f("Name"),
+            name: f.iden("Name"),
         }
     }
 }
