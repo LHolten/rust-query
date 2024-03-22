@@ -6,7 +6,7 @@ use std::{cell::OnceCell, marker::PhantomData};
 use ast::{MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
-use value::{Db, MyIdenT, TableInfo, Value};
+use value::{Db, MyIdenT, Value};
 
 use crate::value::MyAlias;
 
@@ -56,13 +56,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         let Source::Table(table) = self.ast.sources.push_get(Box::new(table)) else {
             unreachable!()
         };
-        Db {
-            col: Builder::new(table).iden::<T>(T::ID).col,
-            info: TableInfo {
-                table,
-                inner: OnceCell::new(),
-            },
-        }
+        Builder::new(table).iden::<T>(T::ID)
     }
 
     // join another query that is grouped by some value

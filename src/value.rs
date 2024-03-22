@@ -30,13 +30,6 @@ pub trait Value: Sized {
     }
 }
 
-// impl<'t, A: Value, B: Value> Value for (A, B) {
-//     type Typ = (A::Typ, B::Typ);
-//     fn into_expr(self) -> SimpleExpr {
-//         Expr::tuple([self.0.into_expr(), self.1.into_expr()]).into()
-//     }
-// }
-
 impl<'t, T: MyIdenT> Value for Db<'t, T> {
     type Typ = T;
     fn into_expr(self) -> SimpleExpr {
@@ -47,7 +40,7 @@ impl<'t, T: MyIdenT> Value for Db<'t, T> {
 #[derive(Clone, Copy)]
 pub struct MyAdd<A, B>(A, B);
 
-impl<'t, A: Value, B: Value> Value for MyAdd<A, B> {
+impl<A: Value, B: Value> Value for MyAdd<A, B> {
     type Typ = A::Typ;
     fn into_expr(self) -> SimpleExpr {
         self.0.into_expr().add(self.1.into_expr())
@@ -57,7 +50,7 @@ impl<'t, A: Value, B: Value> Value for MyAdd<A, B> {
 #[derive(Clone, Copy)]
 pub struct MyNot<T>(T);
 
-impl<'t, T: Value> Value for MyNot<T> {
+impl<T: Value> Value for MyNot<T> {
     type Typ = T::Typ;
     fn into_expr(self) -> SimpleExpr {
         self.0.into_expr().not()
@@ -67,7 +60,7 @@ impl<'t, T: Value> Value for MyNot<T> {
 #[derive(Clone, Copy)]
 pub struct MyLt<A>(A, i32);
 
-impl<'t, A: Value> Value for MyLt<A> {
+impl<A: Value> Value for MyLt<A> {
     type Typ = bool;
     fn into_expr(self) -> SimpleExpr {
         Expr::expr(self.0.into_expr()).lt(self.1)
@@ -77,7 +70,7 @@ impl<'t, A: Value> Value for MyLt<A> {
 #[derive(Clone, Copy)]
 pub struct MyEq<A, B>(A, B);
 
-impl<'t, A: Value, B: Value> Value for MyEq<A, B> {
+impl<A: Value, B: Value> Value for MyEq<A, B> {
     type Typ = bool;
     fn into_expr(self) -> SimpleExpr {
         self.0.into_expr().eq(self.1.into_expr())
@@ -87,7 +80,7 @@ impl<'t, A: Value, B: Value> Value for MyEq<A, B> {
 #[derive(Clone, Copy)]
 pub struct Const<T>(pub T);
 
-impl<'t, T: MyIdenT> Value for Const<T>
+impl<T: MyIdenT> Value for Const<T>
 where
     T: Into<sea_query::value::Value> + Copy,
 {
@@ -112,7 +105,7 @@ impl MyAlias {
     pub fn iden<'t, T: MyIdenT<Alias = Self, Info<'t> = ()>>(&'t self) -> Db<'t, T> {
         Db {
             col: self,
-            info: (),
+            inner: (),
         }
     }
 
@@ -133,16 +126,6 @@ impl MyTableAlias {
             table: MyTable {
                 name: table,
                 columns: FrozenVec::new(),
-            },
-        }
-    }
-
-    pub fn fk<'t, T: Table>(&'t self) -> Db<'t, T> {
-        Db {
-            col: &self,
-            info: TableInfo {
-                table: &self.table,
-                inner: OnceCell::new(),
             },
         }
     }
@@ -214,25 +197,16 @@ pub(super) trait MyIdenT: Sized {
     fn iden(col: &AnyAlias) -> Db<'_, Self>;
 }
 
-pub(super) struct TableInfo<'t, T: Table> {
-    pub table: &'t MyTable,
-    pub inner: OnceCell<T::Dummy<'t>>,
-}
-
 impl<T: Table> MyIdenT for T {
     type Alias = MyTableAlias;
-    type Info<'t> = TableInfo<'t, T>;
+    type Info<'t> = OnceCell<T::Dummy<'t>>;
     fn new_alias() -> AnyAlias {
         AnyAlias::Table(MyTableAlias::new(T::NAME))
     }
     fn iden(col: &AnyAlias) -> Db<'_, Self> {
-        let col = col.as_table();
         Db {
-            col,
-            info: TableInfo {
-                table: &col.table,
-                inner: OnceCell::new(),
-            },
+            col: col.as_table(),
+            inner: OnceCell::new(),
         }
     }
 }
@@ -246,7 +220,7 @@ impl MyIdenT for i64 {
     fn iden(col: &AnyAlias) -> Db<'_, Self> {
         Db {
             col: col.as_val(),
-            info: (),
+            inner: (),
         }
     }
 }
@@ -260,7 +234,7 @@ impl MyIdenT for bool {
     fn iden(col: &AnyAlias) -> Db<'_, Self> {
         Db {
             col: col.as_val(),
-            info: (),
+            inner: (),
         }
     }
 }
@@ -274,14 +248,14 @@ impl MyIdenT for String {
     fn iden(col: &AnyAlias) -> Db<'_, Self> {
         Db {
             col: col.as_val(),
-            info: (),
+            inner: (),
         }
     }
 }
 
 pub struct Db<'t, T: MyIdenT> {
     pub(super) col: &'t T::Alias,
-    pub(super) info: T::Info<'t>,
+    pub(super) inner: T::Info<'t>,
 }
 
 impl<'t, T: MyIdenT> Clone for Db<'t, T>
@@ -291,7 +265,7 @@ where
     fn clone(&self) -> Self {
         Self {
             col: self.col,
-            info: self.info.clone(),
+            inner: self.inner.clone(),
         }
     }
 }
@@ -307,8 +281,7 @@ impl<'a, T: Table> Deref for Db<'a, T> {
     type Target = T::Dummy<'a>;
 
     fn deref(&self) -> &Self::Target {
-        self.info
-            .inner
-            .get_or_init(|| T::build(Builder::new(self.info.table)))
+        self.inner
+            .get_or_init(|| T::build(Builder::new(&self.col.table)))
     }
 }
