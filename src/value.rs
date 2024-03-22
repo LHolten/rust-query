@@ -165,7 +165,7 @@ pub struct MyFk<'a, T: Table> {
 }
 
 impl<'a, T: Table> MyFk<'a, T> {
-    pub fn id_num(&self) -> MyIden<'a> {
+    pub fn id(&self) -> MyIden<'a> {
         self.iden
     }
 }

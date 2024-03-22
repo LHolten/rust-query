@@ -1,11 +1,12 @@
+#![allow(dead_code)]
 use rust_orm::{
     new_query,
-    value::{MyFk, MyIden, Value},
+    value::{MyFk, MyIden},
     Builder, Table,
 };
 
 fn main() {
-    todo!()
+    invoice_info();
 }
 
 // -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.
@@ -17,22 +18,21 @@ fn main() {
 struct Invoice {
     track: String,
     artist: String,
-    invoice: i64,
+    ivl_id: i64,
 }
 
 fn invoice_info() -> Vec<Invoice> {
     new_query(|e, mut q| {
-        let i = q.table(InvoiceLine);
-        let invoice = q.all(i.id_num());
-        let track = q.all(i.track.name);
-        let artist = q.all(i.track.album.artist.name);
+        let ivl = q.table(InvoiceLine);
+        let ivl_id = q.all(ivl.id());
+        let track = q.all(ivl.track.name);
+        let artist = q.all(ivl.track.album.artist.name);
 
         e.all_rows(q)
-            .into_iter()
             .map(|row| Invoice {
                 track: row.get_string(track),
                 artist: row.get_string(artist),
-                invoice: row.get_i64(invoice),
+                ivl_id: row.get_i64(ivl_id),
             })
             .collect()
     })
@@ -53,7 +53,7 @@ impl Table for InvoiceLine {
 
     type Dummy<'names> = InvoiceLineDummy<'names>;
 
-    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         InvoiceLineDummy {
             invoice_id: f.iden("InvoiceId"),
             track: f.fk("TrackId"),
@@ -82,7 +82,7 @@ impl Table for Track {
 
     type Dummy<'names> = TrackDummy<'names>;
 
-    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         TrackDummy {
             name: f.iden("Name"),
             album: f.fk("AlbumId"),
@@ -109,7 +109,7 @@ impl Table for Album {
 
     type Dummy<'names> = AlbumDummy<'names>;
 
-    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         AlbumDummy {
             title: f.iden("Title"),
             artist: f.fk("ArtistId"),
@@ -129,7 +129,7 @@ impl Table for Artist {
 
     type Dummy<'names> = ArtistDummy<'names>;
 
-    fn build<'a>(mut f: Builder<'a>) -> Self::Dummy<'a> {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         ArtistDummy {
             name: f.iden("Name"),
         }

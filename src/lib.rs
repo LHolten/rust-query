@@ -24,7 +24,7 @@ pub trait Table {
     // these names are defined in `'query`
     type Dummy<'names>;
 
-    fn build<'a>(f: Builder<'a>) -> Self::Dummy<'a>;
+    fn build(f: Builder<'_>) -> Self::Dummy<'_>;
 }
 
 pub struct Builder<'a> {
@@ -85,15 +85,16 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     where
         F: for<'a> FnOnce(Query<'a, 'inner>) -> R,
     {
-        // let mut ast = MySelect::default();
-        // let inner = Query {
-        //     phantom: PhantomData,
-        //     ast: &ast,
-        // };
-        // let res = f(inner);
-        // self.ast.sources.push(ast::Source::Select(ast));
-        // res
-        todo!()
+        let source = Source::Select(MySelect::default());
+        let source = self.ast.sources.push_get(Box::new(source));
+        let Source::Select(ast) = source else {
+            unreachable!()
+        };
+        let inner = Query {
+            phantom: PhantomData,
+            ast,
+        };
+        f(inner)
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
@@ -154,7 +155,19 @@ pub struct Exec<'a> {
 }
 
 impl<'names> Exec<'names> {
-    pub fn all_rows(self, q: Query<'_, 'names>) -> Vec<Row<'names>> {
+    pub fn all_rows(self, q: Query<'_, 'names>) -> Rows<'names> {
+        todo!()
+    }
+}
+
+pub struct Rows<'names> {
+    _p: PhantomData<&'names ()>,
+}
+
+impl<'names> Iterator for Rows<'names> {
+    type Item = Row<'names>;
+
+    fn next(&mut self) -> Option<Self::Item> {
         todo!()
     }
 }
