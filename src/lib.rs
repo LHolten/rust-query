@@ -1,5 +1,5 @@
 mod ast;
-mod value;
+pub mod value;
 
 use std::marker::PhantomData;
 
@@ -123,6 +123,10 @@ pub struct Row<'names> {
 
 impl<'names> Row<'names> {
     pub fn get_i64(&self, val: impl Value + 'names) -> i64 {
+        todo!()
+    }
+
+    pub fn get_string(&self, val: impl Value + 'names) -> String {
         todo!()
     }
 }
