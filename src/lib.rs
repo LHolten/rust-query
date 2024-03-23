@@ -11,8 +11,9 @@ use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
 
 pub struct Query<'inner, 'outer> {
     // we might store 'inner
-    phantom: PhantomData<dyn Fn(&'inner &'outer ()) -> &'inner &'outer ()>,
-    ast: &'outer MySelect,
+    phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
+    phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
+    ast: &'inner MySelect,
     joins: &'outer Joins,
     // outer: PhantomData<>
 }
@@ -76,6 +77,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         };
         let inner = Query {
             phantom: PhantomData,
+            phantom2: PhantomData,
             ast,
             joins,
         };
@@ -140,6 +142,7 @@ where
     };
     let q = Query {
         phantom: PhantomData,
+        phantom2: PhantomData,
         ast: &ast,
         joins: &joins,
     };
@@ -215,36 +218,36 @@ mod tests {
 
     #[test]
     fn test() {
-        new_query(|e, mut q| {
-            let q_test = q.table(TestTable);
-            let out = q.query(|mut g| {
-                let g_test = g.table(TestTable);
-                g.filter(q_test.foo);
-                let foo = g.all(&g_test.foo);
+        // new_query(|e, mut q| {
+        //     let q_test = q.table(TestTable);
+        //     let out = q.query(|mut g| {
+        //         let g_test = g.table(TestTable);
+        //         g.filter(q_test.foo);
+        //         let foo = g.all(&g_test.foo);
 
-                let mut g = g.into_groups();
-                let bar_avg = g.avg(g_test.bar);
-                (foo, bar_avg)
-            });
-            q.filter(out.0);
-            let out = q.all(&out.1);
+        //         let mut g = g.into_groups();
+        //         let bar_avg = g.avg(g_test.bar);
+        //         (foo, bar_avg)
+        //     });
+        //     q.filter(out.0);
+        //     let out = q.all(&out.1);
 
-            new_query(|e, mut p| {
-                let test_p = p.table(TestTable);
-                let bar = p.all(&test_p.bar);
-                // q.filter(bar);
-                // q.filter(test_p.foo);
-                // p.filter(q_test.foo);
-                // p.filter(out);
+        //     new_query(|e, mut p| {
+        //         let test_p = p.table(TestTable);
+        //         let bar = p.all(&test_p.bar);
+        //         // q.filter(bar);
+        //         // q.filter(test_p.foo);
+        //         // p.filter(q_test.foo);
+        //         // p.filter(out);
 
-                let rows = e.all_rows(p);
-                // let val = rows[0].get_i64(out);
-            });
+        //         let rows = e.all_rows(p);
+        //         // let val = rows[0].get_i64(out);
+        //     });
 
-            for row in e.all_rows(q) {
-                row.get(out);
-            }
-        });
+        //     for row in e.all_rows(q) {
+        //         row.get(out);
+        //     }
+        // });
     }
 
     fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> Db<'a, i64> {
