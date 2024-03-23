@@ -3,17 +3,17 @@ pub mod value;
 
 use std::{cell::OnceCell, marker::PhantomData, process::exit};
 
-use ast::{MySelect, MyTable, Source};
+use ast::{Joins, MySelect, Source};
 
+use elsa::FrozenVec;
 use sea_query::{Func, SqliteQueryBuilder};
-use value::{Db, MyIdenT, MyTableAlias, Value};
-
-use crate::value::MyAlias;
+use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
 
 pub struct Query<'inner, 'outer> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner &'outer ()) -> &'inner &'outer ()>,
     ast: &'outer MySelect,
+    joins: &'outer Joins,
     // outer: PhantomData<>
 }
 
@@ -27,37 +27,35 @@ pub trait Table {
 }
 
 pub struct Builder<'a> {
-    table: &'a MyTable,
+    table: &'a Joins,
 }
 
 impl<'a> Builder<'a> {
-    pub fn new(table: &'a MyTable) -> Self {
+    pub fn new(table: &'a Joins) -> Self {
         Builder { table }
     }
 
     pub fn iden<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
-        let t = self.table;
-        let item = if let Some(item) = t.columns.iter().find(|item| item.0 == name) {
-            &item.1
-        } else {
-            let alias = T::new_alias();
-            &t.columns.push_get(Box::new((name, alias))).1
-        };
-        T::iden_any(item)
+        T::iden_any(self.table, Field::Str(name))
     }
 }
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
     pub fn table<T: Table>(&mut self, _t: T) -> Db<'inner, T> {
-        let alias = MyTableAlias::new(T::NAME, T::ID);
-
-        let source = Box::new(Source::Table(alias));
-        let Source::Table(alias) = self.ast.sources.push_get(source) else {
+        let joins = Joins {
+            alias: MyAlias::new(),
+            joined: FrozenVec::new(),
+        };
+        let source = Box::new(Source::Table(T::NAME, joins));
+        let Source::Table(_, joins) = self.ast.sources.push_get(source) else {
             unreachable!()
         };
         Db {
-            col: alias,
-            inner: OnceCell::new(),
+            info: FkInfo {
+                field: Field::Str(T::ID),
+                table: joins,
+                inner: OnceCell::new(),
+            },
         }
     }
 
@@ -66,14 +64,19 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     where
         F: for<'a> FnOnce(Query<'a, 'inner>) -> R,
     {
-        let source = Source::Select(MySelect::default());
+        let joins = Joins {
+            alias: MyAlias::new(),
+            joined: FrozenVec::new(),
+        };
+        let source = Source::Select(MySelect::default(), joins);
         let source = self.ast.sources.push_get(Box::new(source));
-        let Source::Select(ast) = source else {
+        let Source::Select(ast, joins) = source else {
             unreachable!()
         };
         let inner = Query {
             phantom: PhantomData,
             ast,
+            joins,
         };
         f(inner)
     }
@@ -85,9 +88,10 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     // the values of which all variants need to be preserved
     // TODO: add a variant with ordering?
     pub fn all<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
-        let item = (V::Typ::new_alias(), val.into_expr());
-        let last = self.ast.group.push_get(Box::new(item));
-        V::Typ::iden_any(&last.0)
+        let alias = MyAlias::new();
+        let item = (alias, val.into_expr());
+        self.ast.group.push(Box::new(item));
+        V::Typ::iden_any(self.joins, Field::U64(alias))
     }
 
     pub fn into_groups(self) -> Group<'inner, 'outer> {
@@ -100,21 +104,24 @@ pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
 impl<'inner, 'outer> Group<'inner, 'outer> {
     // TODO: add a variant with ordering?
     pub fn any<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
-        let item = (V::Typ::new_alias(), val.into_expr());
-        let last = self.0.ast.sort.push_get(Box::new(item));
-        V::Typ::iden_any(&last.0)
+        let alias = MyAlias::new();
+        let item = (alias, val.into_expr());
+        self.0.ast.sort.push(Box::new(item));
+        V::Typ::iden_any(self.0.joins, Field::U64(alias))
     }
 
     pub fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
-        let item = (MyAlias::new(), Func::avg(val.into_expr()).into());
+        let alias = MyAlias::new();
+        let item = (alias, Func::avg(val.into_expr()).into());
         let last = self.0.ast.aggr.push_get(Box::new(item));
-        i64::iden(&last.0)
+        i64::iden_any(self.0.joins, Field::U64(alias))
     }
 
     pub fn count_distinct<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, i64> {
-        let item = (MyAlias::new(), Func::count_distinct(val.into_expr()).into());
+        let alias = MyAlias::new();
+        let item = (alias, Func::count_distinct(val.into_expr()).into());
         let last = self.0.ast.aggr.push_get(Box::new(item));
-        i64::iden(&last.0)
+        i64::iden_any(self.0.joins, Field::U64(alias))
     }
 }
 
@@ -126,9 +133,14 @@ where
         phantom: PhantomData,
     };
     let ast = MySelect::default();
+    let joins = Joins {
+        alias: MyAlias::new(),
+        joined: FrozenVec::new(),
+    };
     let q = Query {
         phantom: PhantomData,
         ast: &ast,
+        joins: &joins,
     };
     f(e, q)
 }

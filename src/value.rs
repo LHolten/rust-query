@@ -5,9 +5,12 @@ use std::{
 };
 
 use elsa::FrozenVec;
-use sea_query::{Expr, SimpleExpr};
+use sea_query::{Expr, IntoColumnRef, SimpleExpr};
 
-use crate::{ast::MyTable, Builder, Table};
+use crate::{
+    ast::{Joins, MyTable},
+    Builder, Table,
+};
 
 pub trait Value: Sized {
     type Typ: MyIdenT;
@@ -33,7 +36,7 @@ pub trait Value: Sized {
 impl<'t, T: MyIdenT> Value for Db<'t, T> {
     type Typ = T;
     fn into_expr(&self) -> SimpleExpr {
-        Expr::col(self.col.alias()).into()
+        Expr::col(self.info.alias()).into()
     }
 }
 
@@ -91,26 +94,45 @@ where
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct MyAlias {
-    name: u64,
-    // field: Field,
+pub(super) struct FieldAlias {
+    pub table: MyAlias,
+    pub col: Field,
 }
 
-impl sea_query::Iden for MyAlias {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "_{}", self.name).unwrap()
+impl IntoColumnRef for FieldAlias {
+    fn into_column_ref(self) -> sea_query::ColumnRef {
+        (self.table, self.col).into_column_ref()
     }
+}
 
+// impl FieldAlias {
+//     pub fn new() -> Self {
+//         Self::Just(MyAlias::new())
+//     }
+// }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Field {
+    U64(MyAlias),
+    Str(&'static str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct MyAlias {
+    name: u64,
+}
+
+impl sea_query::Iden for Field {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        match self {
+            Field::U64(alias) => alias.unquoted(s),
+            Field::Str(name) => write!(s, "{}", name).unwrap(),
+        }
+    }
     fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
         self.unquoted(s)
     }
 }
-
-// #[derive(Debug, Clone, Copy)]
-// pub(super) enum Field {
-//     U64(u64),
-//     Str(&'static str),
-// }
 
 impl MyAlias {
     pub fn new() -> Self {
@@ -120,141 +142,144 @@ impl MyAlias {
     }
 }
 
-#[derive(Debug)]
-pub struct MyTableAlias {
-    pub(super) val: MyAlias,
-    pub(super) table: MyTable,
+impl sea_query::Iden for MyAlias {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "_{}", self.name).unwrap()
+    }
+    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
+        self.unquoted(s)
+    }
 }
 
-impl MyTableAlias {
-    pub(crate) fn new(table: &'static str, id: &'static str) -> MyTableAlias {
-        MyTableAlias {
-            val: MyAlias::new(),
-            table: MyTable {
-                name: table,
-                id,
-                columns: FrozenVec::new(),
+pub trait MyTableT<'t> {
+    fn unwrap(val: &'t Joins, field: Field) -> Self;
+    fn alias(&self) -> FieldAlias;
+}
+
+impl<'t, T: Table> MyTableT<'t> for FkInfo<'t, T> {
+    fn unwrap(table: &'t Joins, field: Field) -> Self {
+        FkInfo {
+            field,
+            table,
+            inner: OnceCell::new(),
+        }
+    }
+    fn alias(&self) -> FieldAlias {
+        FieldAlias {
+            table: self.table.alias,
+            col: self.field,
+        }
+    }
+}
+
+impl<'t> MyTableT<'t> for ValueInfo {
+    fn unwrap(table: &'t Joins, field: Field) -> Self {
+        ValueInfo {
+            field: FieldAlias {
+                table: table.alias,
+                col: field,
+            },
+        }
+    }
+    fn alias(&self) -> FieldAlias {
+        self.field
+    }
+}
+
+pub(super) struct FkInfo<'t, T: Table> {
+    pub field: Field,
+    pub table: &'t Joins, // the table that we join onto
+    pub inner: OnceCell<T::Dummy<'t>>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ValueInfo {
+    pub field: FieldAlias,
+}
+
+pub(super) trait MyIdenT: Sized {
+    type Info<'t>: MyTableT<'t>;
+    fn new_join() -> Option<MyTable>;
+    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self>;
+    fn iden_any<'t>(col: &'t Joins, field: Field) -> Db<'t, Self> {
+        Self::iden(&Self::Info::unwrap(col, field))
+    }
+}
+
+impl<T: Table> MyIdenT for T {
+    type Info<'t> = FkInfo<'t, T>;
+    fn new_join() -> Option<MyTable> {
+        Some(MyTable {
+            name: T::NAME,
+            id: T::ID,
+            joins: Joins {
+                alias: MyAlias::new(),
+                joined: FrozenVec::new(),
+            },
+        })
+    }
+    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
+        Db {
+            info: FkInfo {
+                field: col.field,
+                table: col.table,
+                inner: OnceCell::new(),
             },
         }
     }
 }
 
-#[derive(Debug)]
-pub(super) enum AnyAlias {
-    Value(MyAlias),
-    Table(MyTableAlias),
-}
-
-impl AnyAlias {
-    pub fn into_alias(&self) -> MyAlias {
-        match self {
-            AnyAlias::Value(x) => *x,
-            AnyAlias::Table(x) => x.val,
-        }
-    }
-}
-
-pub trait MyAliasT {
-    fn alias(&self) -> MyAlias;
-    fn unwrap(val: &AnyAlias) -> &Self;
-}
-
-impl MyAliasT for MyAlias {
-    fn alias(&self) -> MyAlias {
-        *self
-    }
-    fn unwrap(val: &AnyAlias) -> &Self {
-        match val {
-            AnyAlias::Value(val) => val,
-            AnyAlias::Table(_) => panic!(),
-        }
-    }
-}
-
-impl MyAliasT for MyTableAlias {
-    fn alias(&self) -> MyAlias {
-        self.val
-    }
-    fn unwrap(val: &AnyAlias) -> &Self {
-        match val {
-            AnyAlias::Value(_) => panic!(),
-            AnyAlias::Table(table) => table,
-        }
-    }
-}
-
-pub(super) trait MyIdenT: Sized {
-    type Alias: MyAliasT;
-    type Info<'t>;
-    fn new_alias() -> AnyAlias;
-    fn iden(col: &Self::Alias) -> Db<'_, Self>;
-    fn iden_any(col: &AnyAlias) -> Db<'_, Self> {
-        Self::iden(Self::Alias::unwrap(col))
-    }
-}
-
-impl<T: Table> MyIdenT for T {
-    type Alias = MyTableAlias;
-    type Info<'t> = OnceCell<T::Dummy<'t>>;
-    fn new_alias() -> AnyAlias {
-        AnyAlias::Table(MyTableAlias::new(T::NAME, T::ID))
-    }
-    fn iden(col: &Self::Alias) -> Db<'_, Self> {
-        Db {
-            col,
-            inner: OnceCell::new(),
-        }
-    }
-}
-
 impl MyIdenT for i64 {
-    type Alias = MyAlias;
-    type Info<'t> = ();
-    fn new_alias() -> AnyAlias {
-        AnyAlias::Value(MyAlias::new())
+    type Info<'t> = ValueInfo;
+    fn new_join() -> Option<MyTable> {
+        None
     }
-    fn iden(col: &Self::Alias) -> Db<'_, Self> {
-        Db { col, inner: () }
+    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: *col }
     }
 }
 
 impl MyIdenT for bool {
-    type Alias = MyAlias;
-    type Info<'t> = ();
-    fn new_alias() -> AnyAlias {
-        AnyAlias::Value(MyAlias::new())
+    type Info<'t> = ValueInfo;
+    fn new_join() -> Option<MyTable> {
+        None
     }
-    fn iden(col: &Self::Alias) -> Db<'_, Self> {
-        Db { col, inner: () }
+    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: *col }
     }
 }
 
 impl MyIdenT for String {
-    type Alias = MyAlias;
-    type Info<'t> = ();
-    fn new_alias() -> AnyAlias {
-        AnyAlias::Value(MyAlias::new())
+    type Info<'t> = ValueInfo;
+    fn new_join() -> Option<MyTable> {
+        None
     }
-    fn iden(col: &Self::Alias) -> Db<'_, Self> {
-        Db { col, inner: () }
+    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: *col }
     }
 }
 
 pub struct Db<'t, T: MyIdenT> {
-    pub(super) col: &'t T::Alias,
-    pub(super) inner: T::Info<'t>,
+    pub(super) info: T::Info<'t>,
 }
 
 impl<'t, T: MyIdenT> Clone for Db<'t, T> {
     fn clone(&self) -> Self {
-        T::iden(self.col)
+        T::iden(&self.info)
     }
 }
 impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
 
 impl<'a, T: Table> Db<'a, T> {
     pub fn id(&self) -> Db<'a, i64> {
-        i64::iden(&self.col.val)
+        Db {
+            info: ValueInfo {
+                field: FieldAlias {
+                    table: self.info.table.alias,
+                    col: self.info.field,
+                },
+            },
+        }
     }
 }
 
@@ -262,7 +287,24 @@ impl<'a, T: Table> Deref for Db<'a, T> {
     type Target = T::Dummy<'a>;
 
     fn deref(&self) -> &Self::Target {
-        self.inner
-            .get_or_init(|| T::build(Builder::new(&self.col.table)))
+        self.info.inner.get_or_init(|| {
+            let t = self.info.table;
+            let name = self.info.field;
+            let table = if let Some(item) = t.joined.iter().find(|item| item.0 == name) {
+                &item.1
+            } else {
+                let table = MyTable {
+                    name: T::NAME,
+                    id: T::ID,
+                    joins: Joins {
+                        alias: MyAlias::new(),
+                        joined: FrozenVec::new(),
+                    },
+                };
+                &t.joined.push_get(Box::new((name, table))).1
+            };
+
+            T::build(Builder::new(&table.joins))
+        })
     }
 }
