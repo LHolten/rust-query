@@ -19,7 +19,7 @@ pub struct Query<'inner, 'outer> {
 
 pub trait Table {
     const NAME: &'static str;
-    const ID: &'static str = "id";
+    const ID: &'static str;
     // these names are defined in `'query`
     type Dummy<'names>;
 
@@ -43,7 +43,7 @@ impl<'a> Builder<'a> {
             let alias = T::new_alias();
             &t.columns.push_get(Box::new((name, alias))).1
         };
-        T::iden(item)
+        T::iden_any(item)
     }
 }
 
@@ -82,10 +82,10 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
 
     // the values of which all variants need to be preserved
     // TODO: add a variant with ordering?
-    pub fn all<V: Value + 'inner>(&mut self, val: V) -> Db<'outer, V::Typ> {
+    pub fn all<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
         let item = (V::Typ::new_alias(), val.into_expr());
         let last = self.ast.group.push_get(Box::new(item));
-        V::Typ::iden(&last.0)
+        V::Typ::iden_any(&last.0)
     }
 
     pub fn into_groups(self) -> Group<'inner, 'outer> {
@@ -97,14 +97,14 @@ pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
 
 impl<'inner, 'outer> Group<'inner, 'outer> {
     // TODO: add a variant with ordering?
-    pub fn any<V: Value + 'inner>(&mut self, val: V) -> Db<'outer, V::Typ> {
+    pub fn any<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
         let alias = MyAlias::new();
         // self.0.ast.sort.push((alias, val.into_expr()));
         // alias.iden()
         todo!()
     }
 
-    fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
+    pub fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
         let alias = MyAlias::new();
         // let expr = Func::avg(val.into_expr()).into();
         // self.0.ast.aggr.push((alias, expr));
@@ -112,7 +112,7 @@ impl<'inner, 'outer> Group<'inner, 'outer> {
         todo!()
     }
 
-    fn count_distinct<V: Value + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
+    pub fn count_distinct<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, i64> {
         let alias = MyAlias::new();
         // let expr = Func::count_distinct(val.into_expr()).into();
         // self.0.ast.aggr.push((alias, expr));
@@ -135,6 +135,10 @@ pub struct Exec<'a> {
 
 impl<'names> Exec<'names> {
     pub fn all_rows(self, q: Query<'_, 'names>) -> Rows<'names> {
+        todo!()
+    }
+
+    pub fn all_rows2(self, q: Group<'_, 'names>) -> Rows<'names> {
         todo!()
     }
 }
@@ -170,6 +174,7 @@ mod tests {
     impl Table for TestTable {
         type Dummy<'names> = TestDummy<'names>;
         const NAME: &'static str = "test";
+        const ID: &'static str = "id";
         fn build(f: Builder<'_>) -> Self::Dummy<'_> {
             TestDummy {
                 foo: f.iden("foo"),
@@ -189,18 +194,18 @@ mod tests {
             let out = q.query(|mut g| {
                 let g_test = g.table(TestTable);
                 g.filter(q_test.foo);
-                let foo = g.all(g_test.foo);
+                let foo = g.all(&g_test.foo);
 
                 let mut g = g.into_groups();
                 let bar_avg = g.avg(g_test.bar);
                 (foo, bar_avg)
             });
             q.filter(out.0);
-            let out = q.all(out.1);
+            let out = q.all(&out.1);
 
             new_query(|e, mut p| {
                 let test_p = p.table(TestTable);
-                let bar = p.all(test_p.bar);
+                let bar = p.all(&test_p.bar);
                 // q.filter(bar);
                 // q.filter(test_p.foo);
                 // p.filter(q_test.foo);

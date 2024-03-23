@@ -20,7 +20,7 @@ struct Invoice {
 fn invoice_info() -> Vec<Invoice> {
     new_query(|e, mut q| {
         let ivl = q.table(InvoiceLine);
-        let ivl = q.all(ivl);
+        let ivl = q.all(&ivl);
 
         e.all_rows(q)
             .map(|row| Invoice {
@@ -28,6 +28,50 @@ fn invoice_info() -> Vec<Invoice> {
                 artist: row.get(ivl.track.album.artist.name),
                 ivl_id: row.get(ivl.id()),
             })
+            .collect()
+    })
+}
+
+// -- 15. Provide a query that shows the total number of tracks in each playlist. The Playlist name should be include on the resultant table.
+// select *, count(trackid) as '# of tracks'
+// from playlisttrack, playlist
+// on playlisttrack.playlistid = playlist.playlistid
+// group by playlist.playlistid
+struct PlaylistTrackCount {
+    playlist: String,
+    track_count: i64,
+}
+
+fn playlist_track_count() -> Vec<PlaylistTrackCount> {
+    new_query(|e, mut q| {
+        let plt = q.table(PlaylistTrack);
+        let pl = q.all(&plt.playlist);
+        let mut q = q.into_groups();
+        let count = q.count_distinct(&plt.track);
+
+        e.all_rows2(q)
+            .map(|row| PlaylistTrackCount {
+                playlist: row.get(pl.name),
+                track_count: row.get(count),
+            })
+            .collect()
+    })
+}
+
+fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
+    new_query(|e, mut q| {
+        let (album, track_count) = q.query(|mut q| {
+            let track = q.table(Track);
+            let album = q.all(&track.album);
+            let mut q = q.into_groups();
+            let track_count = q.count_distinct(&track);
+            (album, track_count)
+        });
+        let artist = q.all(&album.artist);
+        let mut q = q.into_groups();
+        let avg_album_track_count = q.avg(track_count);
+        e.all_rows2(q)
+            .map(|row| (row.get(artist.name), row.get(avg_album_track_count)))
             .collect()
     })
 }
@@ -126,6 +170,46 @@ impl Table for Artist {
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         ArtistDummy {
             name: f.iden("Name"),
+        }
+    }
+}
+
+struct Playlist;
+
+struct PlaylistDummy<'t> {
+    name: Db<'t, String>,
+}
+
+impl Table for Playlist {
+    const NAME: &'static str = "Playlist";
+    const ID: &'static str = "PlaylistId";
+
+    type Dummy<'names> = PlaylistDummy<'names>;
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        PlaylistDummy {
+            name: f.iden("Name"),
+        }
+    }
+}
+
+struct PlaylistTrack;
+
+struct PlaylistTrackDummy<'t> {
+    playlist: Db<'t, Playlist>,
+    track: Db<'t, Track>,
+}
+
+impl Table for PlaylistTrack {
+    const NAME: &'static str = "PlaylistTrack";
+    const ID: &'static str = ""; //TODO: figure out how to fix this
+
+    type Dummy<'names> = PlaylistTrackDummy<'names>;
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        PlaylistTrackDummy {
+            playlist: f.iden("PlaylistId"),
+            track: f.iden("TrackId"),
         }
     }
 }

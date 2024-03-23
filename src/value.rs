@@ -11,7 +11,7 @@ use crate::{ast::MyTable, Builder, Table};
 
 pub trait Value: Sized {
     type Typ: MyIdenT;
-    fn into_expr(self) -> SimpleExpr;
+    fn into_expr(&self) -> SimpleExpr;
 
     fn add<T: Value>(self, rhs: T) -> MyAdd<Self, T> {
         MyAdd(self, rhs)
@@ -32,7 +32,7 @@ pub trait Value: Sized {
 
 impl<'t, T: MyIdenT> Value for Db<'t, T> {
     type Typ = T;
-    fn into_expr(self) -> SimpleExpr {
+    fn into_expr(&self) -> SimpleExpr {
         Expr::col(self.col.alias()).into()
     }
 }
@@ -42,7 +42,7 @@ pub struct MyAdd<A, B>(A, B);
 
 impl<A: Value, B: Value> Value for MyAdd<A, B> {
     type Typ = A::Typ;
-    fn into_expr(self) -> SimpleExpr {
+    fn into_expr(&self) -> SimpleExpr {
         self.0.into_expr().add(self.1.into_expr())
     }
 }
@@ -52,7 +52,7 @@ pub struct MyNot<T>(T);
 
 impl<T: Value> Value for MyNot<T> {
     type Typ = T::Typ;
-    fn into_expr(self) -> SimpleExpr {
+    fn into_expr(&self) -> SimpleExpr {
         self.0.into_expr().not()
     }
 }
@@ -62,7 +62,7 @@ pub struct MyLt<A>(A, i32);
 
 impl<A: Value> Value for MyLt<A> {
     type Typ = bool;
-    fn into_expr(self) -> SimpleExpr {
+    fn into_expr(&self) -> SimpleExpr {
         Expr::expr(self.0.into_expr()).lt(self.1)
     }
 }
@@ -72,7 +72,7 @@ pub struct MyEq<A, B>(A, B);
 
 impl<A: Value, B: Value> Value for MyEq<A, B> {
     type Typ = bool;
-    fn into_expr(self) -> SimpleExpr {
+    fn into_expr(&self) -> SimpleExpr {
         self.0.into_expr().eq(self.1.into_expr())
     }
 }
@@ -85,7 +85,7 @@ where
     T: Into<sea_query::value::Value> + Copy,
 {
     type Typ = T;
-    fn into_expr(self) -> SimpleExpr {
+    fn into_expr(&self) -> SimpleExpr {
         SimpleExpr::from(self.0)
     }
 }
@@ -163,38 +163,41 @@ impl AnyAlias {
 
 pub trait MyAliasT {
     fn alias(&self) -> Alias;
-    // fn unwrap(val: AnyAlias) -> Self;
+    fn unwrap(val: &AnyAlias) -> &Self;
 }
 
 impl MyAliasT for MyAlias {
     fn alias(&self) -> Alias {
         self.into_alias()
     }
-    // fn unwrap(val: AnyAlias) -> Self {
-    //     match val {
-    //         AnyAlias::Value(val) => val,
-    //         AnyAlias::Table(_) => panic!(),
-    //     }
-    // }
+    fn unwrap(val: &AnyAlias) -> &Self {
+        match val {
+            AnyAlias::Value(val) => val,
+            AnyAlias::Table(_) => panic!(),
+        }
+    }
 }
 
 impl MyAliasT for MyTableAlias {
     fn alias(&self) -> Alias {
         self.val.into_alias()
     }
-    // fn unwrap(val: AnyAlias) -> Self {
-    //     match val {
-    //         AnyAlias::Value(_) => panic!(),
-    //         AnyAlias::Table(table) => table,
-    //     }
-    // }
+    fn unwrap(val: &AnyAlias) -> &Self {
+        match val {
+            AnyAlias::Value(_) => panic!(),
+            AnyAlias::Table(table) => table,
+        }
+    }
 }
 
 pub(super) trait MyIdenT: Sized {
     type Alias: MyAliasT;
     type Info<'t>;
     fn new_alias() -> AnyAlias;
-    fn iden(col: &AnyAlias) -> Db<'_, Self>;
+    fn iden(col: &Self::Alias) -> Db<'_, Self>;
+    fn iden_any(col: &AnyAlias) -> Db<'_, Self> {
+        Self::iden(Self::Alias::unwrap(col))
+    }
 }
 
 impl<T: Table> MyIdenT for T {
@@ -203,9 +206,9 @@ impl<T: Table> MyIdenT for T {
     fn new_alias() -> AnyAlias {
         AnyAlias::Table(MyTableAlias::new(T::NAME))
     }
-    fn iden(col: &AnyAlias) -> Db<'_, Self> {
+    fn iden(col: &Self::Alias) -> Db<'_, Self> {
         Db {
-            col: col.as_table(),
+            col,
             inner: OnceCell::new(),
         }
     }
@@ -217,11 +220,8 @@ impl MyIdenT for i64 {
     fn new_alias() -> AnyAlias {
         AnyAlias::Value(MyAlias::new())
     }
-    fn iden(col: &AnyAlias) -> Db<'_, Self> {
-        Db {
-            col: col.as_val(),
-            inner: (),
-        }
+    fn iden(col: &Self::Alias) -> Db<'_, Self> {
+        Db { col, inner: () }
     }
 }
 
@@ -231,11 +231,8 @@ impl MyIdenT for bool {
     fn new_alias() -> AnyAlias {
         AnyAlias::Value(MyAlias::new())
     }
-    fn iden(col: &AnyAlias) -> Db<'_, Self> {
-        Db {
-            col: col.as_val(),
-            inner: (),
-        }
+    fn iden(col: &Self::Alias) -> Db<'_, Self> {
+        Db { col, inner: () }
     }
 }
 
@@ -245,11 +242,8 @@ impl MyIdenT for String {
     fn new_alias() -> AnyAlias {
         AnyAlias::Value(MyAlias::new())
     }
-    fn iden(col: &AnyAlias) -> Db<'_, Self> {
-        Db {
-            col: col.as_val(),
-            inner: (),
-        }
+    fn iden(col: &Self::Alias) -> Db<'_, Self> {
+        Db { col, inner: () }
     }
 }
 
@@ -258,15 +252,9 @@ pub struct Db<'t, T: MyIdenT> {
     pub(super) inner: T::Info<'t>,
 }
 
-impl<'t, T: MyIdenT> Clone for Db<'t, T>
-where
-    T::Info<'t>: Clone,
-{
+impl<'t, T: MyIdenT> Clone for Db<'t, T> {
     fn clone(&self) -> Self {
-        Self {
-            col: self.col,
-            inner: self.inner.clone(),
-        }
+        T::iden(self.col)
     }
 }
 impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
