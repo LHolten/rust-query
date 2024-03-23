@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 elsa = "1.10.0"
 sea-query = "0.30"
+rusqlite = "0.30"
+sea-query-rusqlite = "0"
 
 [dev-dependencie]
-sea-query-rusqlite = "0"
-rusqlite = "0.30"

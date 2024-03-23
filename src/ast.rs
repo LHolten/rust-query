@@ -19,6 +19,7 @@ pub struct MySelect {
 
 pub struct MyTable {
     pub(super) name: &'static str,
+    pub(super) id: &'static str,
     pub(super) columns: FrozenVec<Box<(&'static str, AnyAlias)>>,
 }
 
@@ -31,17 +32,23 @@ pub(super) enum Source {
 impl MySelect {
     pub fn build_select(&self) -> SelectStatement {
         let mut select = SelectStatement::new();
+        select.from_values([1], Alias::new("_"));
         for source in self.sources.iter() {
             match source {
                 Source::Select(join) => {
-                    select.join_lateral(
+                    select.join_subquery(
                         sea_query::JoinType::InnerJoin,
                         join.build_select(),
                         MyAlias::new().into_alias(),
                         Condition::all(),
                     );
                 }
-                Source::Table(alias) => alias.table.join(&mut select),
+                Source::Table(alias) => {
+                    let item = (alias.table.id, AnyAlias::Value(alias.val));
+                    alias.table.columns.push(Box::new(item));
+
+                    alias.table.join(None, &mut select)
+                }
             }
         }
 
@@ -69,17 +76,21 @@ impl MySelect {
 }
 
 impl MyTable {
-    pub fn join(&self, select: &mut SelectStatement) {
+    pub fn join(&self, filter: Option<MyAlias>, select: &mut SelectStatement) {
         if self.columns.is_empty() {
             return;
         }
 
         let tbl_alias = MyAlias::new();
+        let filter = filter.map(|pk| {
+            Expr::col((tbl_alias.into_alias(), Alias::new(self.id))).equals(pk.into_alias())
+        });
+
         select.join_as(
             sea_query::JoinType::InnerJoin,
             Alias::new(self.name),
             tbl_alias.into_alias(),
-            Condition::all(),
+            Condition::all().add_option(filter),
         );
 
         for (col, alias) in self.columns.iter() {
@@ -90,7 +101,7 @@ impl MyTable {
             );
 
             if let AnyAlias::Table(alias) = alias {
-                alias.table.join(select)
+                alias.table.join(Some(alias.val), select)
             }
         }
     }

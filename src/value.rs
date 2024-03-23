@@ -113,11 +113,12 @@ pub struct MyTableAlias {
 }
 
 impl MyTableAlias {
-    pub(crate) fn new(table: &'static str) -> MyTableAlias {
+    pub(crate) fn new(table: &'static str, id: &'static str) -> MyTableAlias {
         MyTableAlias {
             val: MyAlias::new(),
             table: MyTable {
                 name: table,
+                id,
                 columns: FrozenVec::new(),
             },
         }
@@ -127,22 +128,6 @@ impl MyTableAlias {
 pub(super) enum AnyAlias {
     Value(MyAlias),
     Table(MyTableAlias),
-}
-
-impl AnyAlias {
-    pub fn as_val(&self) -> &MyAlias {
-        match self {
-            AnyAlias::Value(val) => val,
-            AnyAlias::Table(_) => todo!(),
-        }
-    }
-
-    pub fn as_table(&self) -> &MyTableAlias {
-        match self {
-            AnyAlias::Value(_) => todo!(),
-            AnyAlias::Table(table) => table,
-        }
-    }
 }
 
 impl AnyAlias {
@@ -197,7 +182,7 @@ impl<T: Table> MyIdenT for T {
     type Alias = MyTableAlias;
     type Info<'t> = OnceCell<T::Dummy<'t>>;
     fn new_alias() -> AnyAlias {
-        AnyAlias::Table(MyTableAlias::new(T::NAME))
+        AnyAlias::Table(MyTableAlias::new(T::NAME, T::ID))
     }
     fn iden(col: &Self::Alias) -> Db<'_, Self> {
         Db {

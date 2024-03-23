@@ -6,6 +6,7 @@ use std::{cell::OnceCell, marker::PhantomData, process::exit};
 use ast::{MySelect, MyTable, Source};
 
 use sea_query::{Func, SqliteQueryBuilder};
+use sea_query_rusqlite::RusqliteBinder;
 use value::{AnyAlias, Db, MyIdenT, MyTableAlias, Value};
 
 use crate::value::MyAlias;
@@ -49,9 +50,7 @@ impl<'a> Builder<'a> {
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
     pub fn table<T: Table>(&mut self, _t: T) -> Db<'inner, T> {
-        let alias = MyTableAlias::new(T::NAME);
-        let item = (T::ID, AnyAlias::Value(alias.val));
-        alias.table.columns.push(Box::new(item));
+        let alias = MyTableAlias::new(T::NAME, T::ID);
 
         let source = Box::new(Source::Table(alias));
         let Source::Table(alias) = self.ast.sources.push_get(source) else {
@@ -142,8 +141,14 @@ pub struct Exec<'a> {
 
 impl<'names> Exec<'names> {
     pub fn all_rows(self, q: Query<'_, 'names>) -> Rows<'names> {
-        let (sql, param) = q.ast.build_select().build(SqliteQueryBuilder);
+        let sql = q.ast.build_select().to_string(SqliteQueryBuilder);
         println!("{sql}");
+        let conn = rusqlite::Connection::open("examples/Chinook_Sqlite.sqlite").unwrap();
+        let statement = &mut conn.prepare(&sql).unwrap();
+        let mut rows = statement.query([]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            println!("{row:?}");
+        }
         exit(0)
     }
 
