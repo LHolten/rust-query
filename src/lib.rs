@@ -54,7 +54,8 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
             info: FkInfo {
                 field: Field::Str(T::ID),
                 table: joins,
-                inner: OnceCell::new(),
+                // prevent unnecessary join
+                inner: OnceCell::from(T::build(Builder::new(joins))),
             },
         }
     }

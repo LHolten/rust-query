@@ -200,9 +200,9 @@ pub(super) struct ValueInfo {
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
     fn new_join() -> Option<MyTable>;
-    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self>;
+    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self>;
     fn iden_any<'t>(col: &'t Joins, field: Field) -> Db<'t, Self> {
-        Self::iden(&Self::Info::unwrap(col, field))
+        Self::iden(Self::Info::unwrap(col, field))
     }
 }
 
@@ -218,14 +218,8 @@ impl<T: Table> MyIdenT for T {
             },
         })
     }
-    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
-        Db {
-            info: FkInfo {
-                field: col.field,
-                table: col.table,
-                inner: OnceCell::new(),
-            },
-        }
+    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: col }
     }
 }
 
@@ -234,8 +228,8 @@ impl MyIdenT for i64 {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
-        Db { info: *col }
+    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: col }
     }
 }
 
@@ -244,8 +238,8 @@ impl MyIdenT for bool {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
-        Db { info: *col }
+    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: col }
     }
 }
 
@@ -254,8 +248,8 @@ impl MyIdenT for String {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden<'t>(col: &Self::Info<'t>) -> Db<'t, Self> {
-        Db { info: *col }
+    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+        Db { info: col }
     }
 }
 
@@ -263,9 +257,14 @@ pub struct Db<'t, T: MyIdenT> {
     pub(super) info: T::Info<'t>,
 }
 
-impl<'t, T: MyIdenT> Clone for Db<'t, T> {
+impl<'t, T: MyIdenT> Clone for Db<'t, T>
+where
+    T::Info<'t>: Clone,
+{
     fn clone(&self) -> Self {
-        T::iden(&self.info)
+        Db {
+            info: self.info.clone(),
+        }
     }
 }
 impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
