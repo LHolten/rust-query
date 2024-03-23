@@ -1,12 +1,12 @@
 mod ast;
 pub mod value;
 
-use std::{cell::OnceCell, marker::PhantomData};
+use std::{cell::OnceCell, marker::PhantomData, process::exit};
 
 use ast::{MySelect, MyTable, Source};
 
-use elsa::FrozenVec;
-use value::{Db, MyIdenT, Value};
+use sea_query::{Func, SqliteQueryBuilder};
+use value::{AnyAlias, Db, MyIdenT, MyTableAlias, Value};
 
 use crate::value::MyAlias;
 
@@ -49,14 +49,18 @@ impl<'a> Builder<'a> {
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
     pub fn table<T: Table>(&mut self, _t: T) -> Db<'inner, T> {
-        let table = Source::Table(MyTable {
-            name: T::NAME,
-            columns: FrozenVec::new(),
-        });
-        let Source::Table(table) = self.ast.sources.push_get(Box::new(table)) else {
+        let alias = MyTableAlias::new(T::NAME);
+        let item = (T::ID, AnyAlias::Value(alias.val));
+        alias.table.columns.push(Box::new(item));
+
+        let source = Box::new(Source::Table(alias));
+        let Source::Table(alias) = self.ast.sources.push_get(source) else {
             unreachable!()
         };
-        Builder::new(table).iden::<T>(T::ID)
+        Db {
+            col: alias,
+            inner: OnceCell::new(),
+        }
     }
 
     // join another query that is grouped by some value
@@ -77,7 +81,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
-        // self.ast.filters.push(prop.into_expr());
+        self.ast.filters.push(Box::new(prop.into_expr()));
     }
 
     // the values of which all variants need to be preserved
@@ -98,26 +102,21 @@ pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
 impl<'inner, 'outer> Group<'inner, 'outer> {
     // TODO: add a variant with ordering?
     pub fn any<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
-        let alias = MyAlias::new();
-        // self.0.ast.sort.push((alias, val.into_expr()));
-        // alias.iden()
-        todo!()
+        let item = (V::Typ::new_alias(), val.into_expr());
+        let last = self.0.ast.sort.push_get(Box::new(item));
+        V::Typ::iden_any(&last.0)
     }
 
     pub fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
-        let alias = MyAlias::new();
-        // let expr = Func::avg(val.into_expr()).into();
-        // self.0.ast.aggr.push((alias, expr));
-        // alias.iden()
-        todo!()
+        let item = (MyAlias::new(), Func::avg(val.into_expr()).into());
+        let last = self.0.ast.aggr.push_get(Box::new(item));
+        i64::iden(&last.0)
     }
 
     pub fn count_distinct<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, i64> {
-        let alias = MyAlias::new();
-        // let expr = Func::count_distinct(val.into_expr()).into();
-        // self.0.ast.aggr.push((alias, expr));
-        // alias.iden()
-        todo!()
+        let item = (MyAlias::new(), Func::count_distinct(val.into_expr()).into());
+        let last = self.0.ast.aggr.push_get(Box::new(item));
+        i64::iden(&last.0)
     }
 }
 
@@ -125,7 +124,15 @@ pub fn new_query<F, R>(f: F) -> R
 where
     F: for<'a, 'names> FnOnce(Exec<'names>, Query<'a, 'names>) -> R,
 {
-    todo!()
+    let e = Exec {
+        phantom: PhantomData,
+    };
+    let ast = MySelect::default();
+    let q = Query {
+        phantom: PhantomData,
+        ast: &ast,
+    };
+    f(e, q)
 }
 
 pub struct Exec<'a> {
@@ -135,11 +142,13 @@ pub struct Exec<'a> {
 
 impl<'names> Exec<'names> {
     pub fn all_rows(self, q: Query<'_, 'names>) -> Rows<'names> {
-        todo!()
+        let (sql, param) = q.ast.build_select().build(SqliteQueryBuilder);
+        println!("{sql}");
+        exit(0)
     }
 
     pub fn all_rows2(self, q: Group<'_, 'names>) -> Rows<'names> {
-        todo!()
+        self.all_rows(q.0)
     }
 }
 

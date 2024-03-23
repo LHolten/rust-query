@@ -2,7 +2,7 @@
 use rust_orm::{new_query, value::Db, Builder, Table};
 
 fn main() {
-    invoice_info();
+    avg_album_track_count_for_artist();
 }
 
 // -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.

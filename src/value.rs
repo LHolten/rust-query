@@ -102,13 +102,6 @@ impl MyAlias {
         Self { name: next }
     }
 
-    pub fn iden<'t, T: MyIdenT<Alias = Self, Info<'t> = ()>>(&'t self) -> Db<'t, T> {
-        Db {
-            col: self,
-            inner: (),
-        }
-    }
-
     pub fn into_alias(&self) -> Alias {
         Alias::new(format!("{}", self.name))
     }
@@ -261,7 +254,7 @@ impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
 
 impl<'a, T: Table> Db<'a, T> {
     pub fn id(&self) -> Db<'a, i64> {
-        self.col.val.iden()
+        i64::iden(&self.col.val)
     }
 }
 

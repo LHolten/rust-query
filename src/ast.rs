@@ -8,13 +8,13 @@ pub struct MySelect {
     // the sources to use
     pub(super) sources: FrozenVec<Box<Source>>,
     // all conditions to check
-    pub(super) filters: Vec<SimpleExpr>,
+    pub(super) filters: FrozenVec<Box<SimpleExpr>>,
     // distinct on
     pub(super) group: FrozenVec<Box<(AnyAlias, SimpleExpr)>>,
     // calculating these agregates
-    pub(super) aggr: Vec<(MyAlias, SimpleExpr)>,
+    pub(super) aggr: FrozenVec<Box<(MyAlias, SimpleExpr)>>,
     // sort on value (and keep row with smallest value)
-    pub(super) sort: Vec<(MyAlias, SimpleExpr)>,
+    pub(super) sort: FrozenVec<Box<(AnyAlias, SimpleExpr)>>,
 }
 
 pub struct MyTable {
@@ -25,23 +25,23 @@ pub struct MyTable {
 pub(super) enum Source {
     Select(MySelect),
     // table and pk
-    Table(MyTable),
+    Table(MyTableAlias),
 }
 
 impl MySelect {
-    pub fn into_select(&self) -> SelectStatement {
+    pub fn build_select(&self) -> SelectStatement {
         let mut select = SelectStatement::new();
         for source in self.sources.iter() {
             match source {
                 Source::Select(join) => {
                     select.join_lateral(
                         sea_query::JoinType::InnerJoin,
-                        join.into_select(),
+                        join.build_select(),
                         MyAlias::new().into_alias(),
-                        Condition::any(),
+                        Condition::all(),
                     );
                 }
-                Source::Table(table) => table.join(&mut select),
+                Source::Table(alias) => alias.table.join(&mut select),
             }
         }
 
@@ -79,7 +79,7 @@ impl MyTable {
             sea_query::JoinType::InnerJoin,
             Alias::new(self.name),
             tbl_alias.into_alias(),
-            Condition::any(),
+            Condition::all(),
         );
 
         for (col, alias) in self.columns.iter() {
