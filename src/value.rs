@@ -5,7 +5,7 @@ use std::{
 };
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Expr, SimpleExpr};
+use sea_query::{Expr, SimpleExpr};
 
 use crate::{ast::MyTable, Builder, Table};
 
@@ -90,10 +90,27 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(super) struct MyAlias {
     name: u64,
+    // field: Field,
 }
+
+impl sea_query::Iden for MyAlias {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "_{}", self.name).unwrap()
+    }
+
+    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
+        self.unquoted(s)
+    }
+}
+
+// #[derive(Debug, Clone, Copy)]
+// pub(super) enum Field {
+//     U64(u64),
+//     Str(&'static str),
+// }
 
 impl MyAlias {
     pub fn new() -> Self {
@@ -101,12 +118,9 @@ impl MyAlias {
         let next = IDEN_NUM.fetch_add(1, Ordering::Relaxed);
         Self { name: next }
     }
-
-    pub fn into_alias(&self) -> Alias {
-        Alias::new(format!("{}", self.name))
-    }
 }
 
+#[derive(Debug)]
 pub struct MyTableAlias {
     pub(super) val: MyAlias,
     pub(super) table: MyTable,
@@ -125,28 +139,29 @@ impl MyTableAlias {
     }
 }
 
+#[derive(Debug)]
 pub(super) enum AnyAlias {
     Value(MyAlias),
     Table(MyTableAlias),
 }
 
 impl AnyAlias {
-    pub fn into_alias(&self) -> Alias {
+    pub fn into_alias(&self) -> MyAlias {
         match self {
-            AnyAlias::Value(x) => x.into_alias(),
-            AnyAlias::Table(x) => x.val.into_alias(),
+            AnyAlias::Value(x) => *x,
+            AnyAlias::Table(x) => x.val,
         }
     }
 }
 
 pub trait MyAliasT {
-    fn alias(&self) -> Alias;
+    fn alias(&self) -> MyAlias;
     fn unwrap(val: &AnyAlias) -> &Self;
 }
 
 impl MyAliasT for MyAlias {
-    fn alias(&self) -> Alias {
-        self.into_alias()
+    fn alias(&self) -> MyAlias {
+        *self
     }
     fn unwrap(val: &AnyAlias) -> &Self {
         match val {
@@ -157,8 +172,8 @@ impl MyAliasT for MyAlias {
 }
 
 impl MyAliasT for MyTableAlias {
-    fn alias(&self) -> Alias {
-        self.val.into_alias()
+    fn alias(&self) -> MyAlias {
+        self.val
     }
     fn unwrap(val: &AnyAlias) -> &Self {
         match val {

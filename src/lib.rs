@@ -6,8 +6,7 @@ use std::{cell::OnceCell, marker::PhantomData, process::exit};
 use ast::{MySelect, MyTable, Source};
 
 use sea_query::{Func, SqliteQueryBuilder};
-use sea_query_rusqlite::RusqliteBinder;
-use value::{AnyAlias, Db, MyIdenT, MyTableAlias, Value};
+use value::{Db, MyIdenT, MyTableAlias, Value};
 
 use crate::value::MyAlias;
 
