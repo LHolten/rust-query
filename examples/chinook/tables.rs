@@ -140,18 +140,18 @@ impl Table for PlaylistTrack {
 
 pub struct Customer;
 pub struct CustomerDummy<'t> {
-    first_name: Db<'t, String>,
-    last_name: Db<'t, String>,
-    company: Db<'t, String>,
-    address: Db<'t, String>,
-    city: Db<'t, String>,
-    state: Db<'t, String>,
-    country: Db<'t, String>,
-    postal_code: Db<'t, String>,
-    phone: Db<'t, String>,
-    fax: Db<'t, String>,
-    email: Db<'t, String>,
-    support_rep: Db<'t, Employee>,
+    pub first_name: Db<'t, String>,
+    pub last_name: Db<'t, String>,
+    pub company: Db<'t, String>,
+    pub address: Db<'t, String>,
+    pub city: Db<'t, String>,
+    pub state: Db<'t, String>,
+    pub country: Db<'t, String>,
+    pub postal_code: Db<'t, String>,
+    pub phone: Db<'t, String>,
+    pub fax: Db<'t, String>,
+    pub email: Db<'t, String>,
+    pub support_rep: Db<'t, Employee>,
 }
 
 impl Table for Customer {
@@ -180,20 +180,20 @@ impl Table for Customer {
 
 pub struct Employee;
 pub struct EmployeeDummy<'t> {
-    last_name: Db<'t, String>,
-    first_name: Db<'t, String>,
-    title: Db<'t, String>,
-    reports_to: Db<'t, Employee>,
-    birth_date: Db<'t, String>,
-    hire_date: Db<'t, String>,
-    address: Db<'t, String>,
-    city: Db<'t, String>,
-    state: Db<'t, String>,
-    country: Db<'t, String>,
-    postal_code: Db<'t, String>,
-    phone: Db<'t, String>,
-    fax: Db<'t, String>,
-    email: Db<'t, String>,
+    pub last_name: Db<'t, String>,
+    pub first_name: Db<'t, String>,
+    pub title: Db<'t, String>,
+    pub reports_to: Db<'t, Employee>,
+    pub birth_date: Db<'t, String>,
+    pub hire_date: Db<'t, String>,
+    pub address: Db<'t, String>,
+    pub city: Db<'t, String>,
+    pub state: Db<'t, String>,
+    pub country: Db<'t, String>,
+    pub postal_code: Db<'t, String>,
+    pub phone: Db<'t, String>,
+    pub fax: Db<'t, String>,
+    pub email: Db<'t, String>,
 }
 
 impl Table for Employee {
@@ -224,7 +224,7 @@ impl Table for Employee {
 
 pub struct Genre;
 pub struct GenreDummy<'t> {
-    name: Db<'t, String>,
+    pub name: Db<'t, String>,
 }
 
 impl Table for Genre {
@@ -242,14 +242,14 @@ impl Table for Genre {
 
 pub struct Invoice;
 pub struct InvoiceDummy<'t> {
-    customer: Db<'t, Customer>,
-    invoice_date: Db<'t, String>,
-    billing_address: Db<'t, String>,
-    billing_city: Db<'t, String>,
-    billing_state: Db<'t, String>,
-    billing_country: Db<'t, String>,
-    billing_postal_code: Db<'t, String>,
-    total: Db<'t, i64>,
+    pub customer: Db<'t, Customer>,
+    pub invoice_date: Db<'t, String>,
+    pub billing_address: Db<'t, String>,
+    pub billing_city: Db<'t, String>,
+    pub billing_state: Db<'t, String>,
+    pub billing_country: Db<'t, String>,
+    pub billing_postal_code: Db<'t, String>,
+    pub total: Db<'t, i64>,
 }
 
 impl Table for Invoice {
@@ -274,7 +274,7 @@ impl Table for Invoice {
 
 pub struct MediaType;
 pub struct MediaTypeDummy<'t> {
-    name: Db<'t, String>,
+    pub name: Db<'t, String>,
 }
 
 impl Table for MediaType {

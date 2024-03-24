@@ -2,10 +2,10 @@
 mod tables;
 
 use rust_query::new_query;
-use tables::{InvoiceLine, PlaylistTrack, Track};
+use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
-    let res = playlist_track_count();
+    let res = count_reporting();
     println!("{res:#?}")
 }
 
@@ -73,6 +73,18 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
         let avg_album_track_count = q.avg(track_count);
         e.into_vec(q, |row| {
             (row.get(artist.name), row.get(avg_album_track_count))
+        })
+    })
+}
+
+fn count_reporting() -> Vec<(String, i64)> {
+    new_query(|e, mut q| {
+        let reporter = q.table(Employee);
+        let reports_to = q.all(&reporter.reports_to);
+        let mut q = q.into_groups();
+        let report_count = q.count_distinct(&reporter);
+        e.into_vec(q, |row| {
+            (row.get(reports_to.last_name), row.get(report_count))
         })
     })
 }
