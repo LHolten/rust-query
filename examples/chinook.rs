@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use rust_orm::{new_query, value::Db, Builder, Table};
+use rust_query::{new_query, value::Db, Builder, Table};
 
 fn main() {
     let res = playlist_track_count();

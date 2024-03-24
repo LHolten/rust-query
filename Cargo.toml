@@ -1,5 +1,5 @@
 [package]
-name = "rust-orm"
+name = "rust-query"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,6 +9,5 @@ edition = "2021"
 elsa = "1.10.0"
 sea-query = "0.30"
 rusqlite = "0.30"
-sea-query-rusqlite = "0"
 
 [dev-dependencie]
