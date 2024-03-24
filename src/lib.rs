@@ -9,7 +9,7 @@ use std::{
 use ast::{Joins, MySelect, Source};
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Func, Iden, SqliteQueryBuilder};
+use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
 use value::{Db, Field, FkInfo, MyAlias, MyIdenT, MyTableT, Value};
 
 pub struct Query<'inner, 'outer> {
@@ -163,7 +163,8 @@ impl<'names> Exec<'names> {
         F: FnMut(Row<'_, 'names>) -> T,
     {
         let inner_select = q.ast.build_select();
-        let mut select = q.joins.wrap(&inner_select, 0);
+        let last = FrozenVec::new();
+        let mut select = q.joins.wrap(&inner_select, 0, &last);
         let sql = select.to_string(SqliteQueryBuilder);
 
         println!("{sql}");
@@ -182,12 +183,15 @@ impl<'names> Exec<'names> {
                 joins: q.joins,
                 conn: &conn,
                 updated: &updated,
+                last: &last,
             };
             out.push(f(row));
 
             if updated.get() {
-                select = q.joins.wrap(&inner_select, out.len());
+                println!("UPDATING!");
+                select = q.joins.wrap(&inner_select, out.len(), &last);
                 let sql = select.to_string(SqliteQueryBuilder);
+                println!("{sql}");
 
                 drop(rows);
                 statement = conn.prepare(&sql).unwrap();
@@ -213,30 +217,35 @@ pub struct Row<'x, 'names> {
     joins: &'x Joins,
     conn: &'x rusqlite::Connection,
     updated: &'x Cell<bool>,
+    last: &'x FrozenVec<Box<(MyAlias, SimpleExpr)>>,
 }
 
 impl<'names> Row<'_, 'names> {
-    pub fn get<T: MyIdenT + rusqlite::types::FromSql>(&self, val: Db<'names, T>) -> T {
-        let alias = val.info.alias();
-        let idx = &*alias.col.to_string();
-        match self.row.get(idx) {
-            Ok(res) => res,
-            Err(rusqlite::Error::InvalidColumnName(_)) => self.requery(idx),
-            Err(e) => {
-                panic!("{}", e)
-            }
-        }
+    pub fn get<V: Value + 'names>(&self, val: V) -> V::Typ
+    where
+        V::Typ: MyIdenT + rusqlite::types::FromSql,
+    {
+        let expr = val.into_expr();
+        let Some((alias, _)) = self.last.iter().find(|x| x.1 == expr) else {
+            let alias = MyAlias::new();
+            self.last.push(Box::new((alias, expr)));
+            return self.requery(alias);
+        };
+
+        let idx = &*alias.to_string();
+        self.row.get_unwrap(idx)
     }
 
-    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, idx: &str) -> T {
+    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
         let mut select = self.ast.build_select();
-        select = self.joins.wrap(&select, self.offset);
+        select = self.joins.wrap(&select, self.offset, self.last);
 
         let sql = select.to_string(SqliteQueryBuilder);
-        println!("{sql}");
         let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
         self.updated.set(true);
+
+        let idx = &*alias.to_string();
         rows.next().unwrap().unwrap().get_unwrap(idx)
     }
 }

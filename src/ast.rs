@@ -1,7 +1,7 @@
 use std::fmt;
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
+use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::value::{Field, FieldAlias, MyAlias};
 
@@ -27,7 +27,7 @@ pub struct MyTable {
     pub(super) joins: Joins,
 }
 
-pub struct Joins {
+pub(super) struct Joins {
     pub(super) alias: MyAlias,
     pub(super) joined: FrozenVec<Box<(Field, MyTable)>>,
 }
@@ -49,7 +49,12 @@ pub(super) enum Source {
 }
 
 impl Joins {
-    pub fn wrap(&self, inner: &SelectStatement, offset: usize) -> SelectStatement {
+    pub fn wrap(
+        &self,
+        inner: &SelectStatement,
+        offset: usize,
+        last: &FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+    ) -> SelectStatement {
         let mut select = SelectStatement::new();
         select.from_subquery(inner.clone(), self.alias);
 
@@ -57,7 +62,12 @@ impl Joins {
             let field = self.col_alias(*col);
             table.join(field, &mut select)
         }
-        select.column(Asterisk);
+
+        select.expr_as(Expr::val(1), NullAlias);
+        for (alias, expr) in last.iter() {
+            select.expr_as(expr.clone(), *alias);
+        }
+
         select.offset(offset as u64);
         select.limit(1000000000);
 

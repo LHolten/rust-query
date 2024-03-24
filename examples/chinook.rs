@@ -2,8 +2,8 @@
 use rust_orm::{new_query, value::Db, Builder, Table};
 
 fn main() {
-    let res = avg_album_track_count_for_artist();
-    println!("{res:?}")
+    let res = playlist_track_count();
+    println!("{res:#?}")
 }
 
 // -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.
@@ -36,6 +36,7 @@ fn invoice_info() -> Vec<Invoice> {
 // from playlisttrack, playlist
 // on playlisttrack.playlistid = playlist.playlistid
 // group by playlist.playlistid
+#[derive(Debug)]
 struct PlaylistTrackCount {
     playlist: String,
     track_count: i64,
