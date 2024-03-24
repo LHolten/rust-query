@@ -1,7 +1,7 @@
 use std::fmt;
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
+use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::value::{Field, FieldAlias, MyAlias};
 
@@ -46,6 +46,23 @@ pub(super) enum Source {
     Select(MySelect, Joins),
     // table and pk
     Table(&'static str, Joins),
+}
+
+impl Joins {
+    pub fn wrap(&self, inner: &SelectStatement, offset: usize) -> SelectStatement {
+        let mut select = SelectStatement::new();
+        select.from_subquery(inner.clone(), self.alias);
+
+        for (col, table) in self.joined.iter() {
+            let field = self.col_alias(*col);
+            table.join(field, &mut select)
+        }
+        select.column(Asterisk);
+        select.offset(offset as u64);
+        select.limit(1000000000);
+
+        select
+    }
 }
 
 impl MySelect {

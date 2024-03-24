@@ -2,7 +2,8 @@
 use rust_orm::{new_query, value::Db, Builder, Table};
 
 fn main() {
-    avg_album_track_count_for_artist();
+    let res = avg_album_track_count_for_artist();
+    println!("{res:?}")
 }
 
 // -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.
@@ -22,13 +23,11 @@ fn invoice_info() -> Vec<Invoice> {
         let ivl = q.table(InvoiceLine);
         let ivl = q.all(&ivl);
 
-        e.all_rows(q)
-            .map(|row| Invoice {
-                track: row.get(ivl.track.name),
-                artist: row.get(ivl.track.album.artist.name),
-                ivl_id: row.get(ivl.id()),
-            })
-            .collect()
+        e.into_vec(q, |row| Invoice {
+            track: row.get(ivl.track.name),
+            artist: row.get(ivl.track.album.artist.name),
+            ivl_id: row.get(ivl.id()),
+        })
     })
 }
 
@@ -49,12 +48,10 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
         let mut q = q.into_groups();
         let count = q.count_distinct(&plt.track);
 
-        e.all_rows2(q)
-            .map(|row| PlaylistTrackCount {
-                playlist: row.get(pl.name),
-                track_count: row.get(count),
-            })
-            .collect()
+        e.into_vec2(q, |row| PlaylistTrackCount {
+            playlist: row.get(pl.name),
+            track_count: row.get(count),
+        })
     })
 }
 
@@ -70,9 +67,9 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
         let artist = q.all(&album.artist);
         let mut q = q.into_groups();
         let avg_album_track_count = q.avg(track_count);
-        e.all_rows2(q)
-            .map(|row| (row.get(artist.name), row.get(avg_album_track_count)))
-            .collect()
+        e.into_vec2(q, |row| {
+            (row.get(artist.name), row.get(avg_album_track_count))
+        })
     })
 }
 
