@@ -1,3 +1,5 @@
+#![allow(private_bounds)]
+
 mod ast;
 pub mod value;
 
@@ -10,7 +12,7 @@ use ast::{Joins, MySelect, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
-use value::{Db, Field, FkInfo, MyAlias, MyIdenT, MyTableT, Value};
+use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
 
 pub struct Query<'inner, 'outer> {
     // we might store 'inner
@@ -35,7 +37,7 @@ pub struct Builder<'a> {
 }
 
 impl<'a> Builder<'a> {
-    pub fn new(table: &'a Joins) -> Self {
+    fn new(table: &'a Joins) -> Self {
         Builder { table }
     }
 
@@ -88,14 +90,14 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
-        self.ast.filters.push(Box::new(prop.into_expr()));
+        self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
     // the values of which all variants need to be preserved
     // TODO: add a variant with ordering?
     pub fn all<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
         let alias = MyAlias::new();
-        let item = (alias, val.into_expr());
+        let item = (alias, val.build_expr());
         self.ast.group.push(Box::new(item));
         V::Typ::iden_any(self.joins, Field::U64(alias))
     }
@@ -111,21 +113,21 @@ impl<'inner, 'outer> Group<'inner, 'outer> {
     // TODO: add a variant with ordering?
     pub fn any<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
         let alias = MyAlias::new();
-        let item = (alias, val.into_expr());
+        let item = (alias, val.build_expr());
         self.0.ast.sort.push(Box::new(item));
         V::Typ::iden_any(self.0.joins, Field::U64(alias))
     }
 
     pub fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
         let alias = MyAlias::new();
-        let expr = Func::cast_as(Func::avg(val.into_expr()), Alias::new("integer"));
+        let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
         self.0.ast.aggr.push(Box::new((alias, expr.into())));
         i64::iden_any(self.0.joins, Field::U64(alias))
     }
 
     pub fn count_distinct<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, i64> {
         let alias = MyAlias::new();
-        let item = (alias, Func::count_distinct(val.into_expr()).into());
+        let item = (alias, Func::count_distinct(val.build_expr()).into());
         self.0.ast.aggr.push(Box::new(item));
         i64::iden_any(self.0.joins, Field::U64(alias))
     }
@@ -157,11 +159,28 @@ pub struct Exec<'a> {
     phantom: PhantomData<dyn Fn(&'a ())>,
 }
 
+trait IntoQuery<'a, 'b> {
+    fn into_query(self) -> Query<'a, 'b>;
+}
+
+impl<'a, 'b> IntoQuery<'a, 'b> for Query<'a, 'b> {
+    fn into_query(self) -> Query<'a, 'b> {
+        self
+    }
+}
+
+impl<'a, 'b> IntoQuery<'a, 'b> for Group<'a, 'b> {
+    fn into_query(self) -> Query<'a, 'b> {
+        self.0
+    }
+}
+
 impl<'names> Exec<'names> {
-    pub fn into_vec<F, T>(&self, q: Query<'_, 'names>, mut f: F) -> Vec<T>
+    pub fn into_vec<'z, F, T>(&self, q: impl IntoQuery<'z, 'names>, mut f: F) -> Vec<T>
     where
         F: FnMut(Row<'_, 'names>) -> T,
     {
+        let q = q.into_query();
         let inner_select = q.ast.build_select();
         let last = FrozenVec::new();
         let mut select = q.joins.wrap(&inner_select, 0, &last);
@@ -200,13 +219,6 @@ impl<'names> Exec<'names> {
         }
         out
     }
-
-    pub fn into_vec2<F, T>(&self, q: Group<'_, 'names>, f: F) -> Vec<T>
-    where
-        F: FnMut(Row<'_, 'names>) -> T,
-    {
-        self.into_vec(q.0, f)
-    }
 }
 
 pub struct Row<'x, 'names> {
@@ -225,7 +237,7 @@ impl<'names> Row<'_, 'names> {
     where
         V::Typ: MyIdenT + rusqlite::types::FromSql,
     {
-        let expr = val.into_expr();
+        let expr = val.build_expr();
         let Some((alias, _)) = self.last.iter().find(|x| x.1 == expr) else {
             let alias = MyAlias::new();
             self.last.push(Box::new((alias, expr)));
@@ -248,80 +260,4 @@ impl<'names> Row<'_, 'names> {
         let idx = &*alias.to_string();
         rows.next().unwrap().unwrap().get_unwrap(idx)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct TestTable;
-
-    impl Table for TestTable {
-        type Dummy<'names> = TestDummy<'names>;
-        const NAME: &'static str = "test";
-        const ID: &'static str = "id";
-        fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-            TestDummy {
-                foo: f.iden("foo"),
-                bar: f.iden("bar"),
-            }
-        }
-    }
-    struct TestDummy<'names> {
-        foo: Db<'names, i64>,
-        bar: Db<'names, i64>,
-    }
-
-    #[test]
-    fn test() {
-        // new_query(|e, mut q| {
-        //     let q_test = q.table(TestTable);
-        //     let out = q.query(|mut g| {
-        //         let g_test = g.table(TestTable);
-        //         g.filter(q_test.foo);
-        //         let foo = g.all(&g_test.foo);
-
-        //         let mut g = g.into_groups();
-        //         let bar_avg = g.avg(g_test.bar);
-        //         (foo, bar_avg)
-        //     });
-        //     q.filter(out.0);
-        //     let out = q.all(&out.1);
-
-        //     new_query(|e, mut p| {
-        //         let test_p = p.table(TestTable);
-        //         let bar = p.all(&test_p.bar);
-        //         // q.filter(bar);
-        //         // q.filter(test_p.foo);
-        //         // p.filter(q_test.foo);
-        //         // p.filter(out);
-
-        //         let rows = e.all_rows(p);
-        //         // let val = rows[0].get_i64(out);
-        //     });
-
-        //     for row in e.all_rows(q) {
-        //         row.get(out);
-        //     }
-        // });
-    }
-
-    fn get_match<'a, 'b>(q: &mut Query<'a, 'b>, foo: impl Value + 'a) -> Db<'a, i64> {
-        let test = q.table(TestTable);
-        q.filter(test.foo.eq(foo));
-        test.foo
-    }
-
-    // fn transpose() {
-    //     new_query(|mut q| {
-    //         let alpha = q.table(TestTable);
-    //         let mut beta = None;
-    //         q.query(|mut g| {
-    //             let res = get_match(&mut g, alpha.foo);
-    //             let mut res = g.group(res);
-    //             beta = Some(res.rank_asc(alpha.foo));
-    //         });
-    //         q.filter(alpha.foo.eq(beta.unwrap()))
-    //     });
-    // }
 }

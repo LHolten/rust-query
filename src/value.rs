@@ -14,7 +14,7 @@ use crate::{
 
 pub trait Value: Sized {
     type Typ: MyIdenT;
-    fn into_expr(&self) -> SimpleExpr;
+    fn build_expr(&self) -> SimpleExpr;
 
     fn add<T: Value>(self, rhs: T) -> MyAdd<Self, T> {
         MyAdd(self, rhs)
@@ -35,7 +35,7 @@ pub trait Value: Sized {
 
 impl<'t, T: MyIdenT> Value for Db<'t, T> {
     type Typ = T;
-    fn into_expr(&self) -> SimpleExpr {
+    fn build_expr(&self) -> SimpleExpr {
         Expr::col(self.info.alias()).into()
     }
 }
@@ -45,8 +45,8 @@ pub struct MyAdd<A, B>(A, B);
 
 impl<A: Value, B: Value> Value for MyAdd<A, B> {
     type Typ = A::Typ;
-    fn into_expr(&self) -> SimpleExpr {
-        self.0.into_expr().add(self.1.into_expr())
+    fn build_expr(&self) -> SimpleExpr {
+        self.0.build_expr().add(self.1.build_expr())
     }
 }
 
@@ -55,8 +55,8 @@ pub struct MyNot<T>(T);
 
 impl<T: Value> Value for MyNot<T> {
     type Typ = T::Typ;
-    fn into_expr(&self) -> SimpleExpr {
-        self.0.into_expr().not()
+    fn build_expr(&self) -> SimpleExpr {
+        self.0.build_expr().not()
     }
 }
 
@@ -65,8 +65,8 @@ pub struct MyLt<A>(A, i32);
 
 impl<A: Value> Value for MyLt<A> {
     type Typ = bool;
-    fn into_expr(&self) -> SimpleExpr {
-        Expr::expr(self.0.into_expr()).lt(self.1)
+    fn build_expr(&self) -> SimpleExpr {
+        Expr::expr(self.0.build_expr()).lt(self.1)
     }
 }
 
@@ -75,8 +75,8 @@ pub struct MyEq<A, B>(A, B);
 
 impl<A: Value, B: Value> Value for MyEq<A, B> {
     type Typ = bool;
-    fn into_expr(&self) -> SimpleExpr {
-        self.0.into_expr().eq(self.1.into_expr())
+    fn build_expr(&self) -> SimpleExpr {
+        self.0.build_expr().eq(self.1.build_expr())
     }
 }
 
@@ -88,7 +88,7 @@ where
     T: Into<sea_query::value::Value> + Copy,
 {
     type Typ = T;
-    fn into_expr(&self) -> SimpleExpr {
+    fn build_expr(&self) -> SimpleExpr {
         SimpleExpr::from(self.0)
     }
 }
@@ -151,7 +151,7 @@ impl sea_query::Iden for MyAlias {
     }
 }
 
-pub trait MyTableT<'t> {
+pub(super) trait MyTableT<'t> {
     fn unwrap(val: &'t Joins, field: Field) -> Self;
     fn alias(&self) -> FieldAlias;
 }
@@ -200,8 +200,8 @@ pub(super) struct ValueInfo {
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
     fn new_join() -> Option<MyTable>;
-    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self>;
-    fn iden_any<'t>(col: &'t Joins, field: Field) -> Db<'t, Self> {
+    fn iden(col: Self::Info<'_>) -> Db<'_, Self>;
+    fn iden_any(col: &Joins, field: Field) -> Db<'_, Self> {
         Self::iden(Self::Info::unwrap(col, field))
     }
 }
@@ -218,7 +218,7 @@ impl<T: Table> MyIdenT for T {
             },
         })
     }
-    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
         Db { info: col }
     }
 }
@@ -228,7 +228,7 @@ impl MyIdenT for i64 {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
         Db { info: col }
     }
 }
@@ -238,7 +238,7 @@ impl MyIdenT for bool {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
         Db { info: col }
     }
 }
@@ -248,7 +248,7 @@ impl MyIdenT for String {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden<'t>(col: Self::Info<'t>) -> Db<'t, Self> {
+    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
         Db { info: col }
     }
 }

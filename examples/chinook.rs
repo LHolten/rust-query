@@ -49,7 +49,7 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
         let mut q = q.into_groups();
         let count = q.count_distinct(&plt.track);
 
-        e.into_vec2(q, |row| PlaylistTrackCount {
+        e.into_vec(q, |row| PlaylistTrackCount {
             playlist: row.get(pl.name),
             track_count: row.get(count),
         })
@@ -68,7 +68,7 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
         let artist = q.all(&album.artist);
         let mut q = q.into_groups();
         let avg_album_track_count = q.avg(track_count);
-        e.into_vec2(q, |row| {
+        e.into_vec(q, |row| {
             (row.get(artist.name), row.get(avg_album_track_count))
         })
     })
