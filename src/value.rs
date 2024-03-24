@@ -105,12 +105,6 @@ impl IntoColumnRef for FieldAlias {
     }
 }
 
-// impl FieldAlias {
-//     pub fn new() -> Self {
-//         Self::Just(MyAlias::new())
-//     }
-// }
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Field {
     U64(MyAlias),
@@ -189,7 +183,7 @@ impl<'t> MyTableT<'t> for ValueInfo {
 pub(super) struct FkInfo<'t, T: Table> {
     pub field: Field,
     pub table: &'t Joins, // the table that we join onto
-    pub inner: OnceCell<T::Dummy<'t>>,
+    pub inner: OnceCell<Box<T::Dummy<'t>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -200,7 +194,9 @@ pub(super) struct ValueInfo {
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
     fn new_join() -> Option<MyTable>;
-    fn iden(col: Self::Info<'_>) -> Db<'_, Self>;
+    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
+        Db { info: col }
+    }
     fn iden_any(col: &Joins, field: Field) -> Db<'_, Self> {
         Self::iden(Self::Info::unwrap(col, field))
     }
@@ -218,18 +214,12 @@ impl<T: Table> MyIdenT for T {
             },
         })
     }
-    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
-        Db { info: col }
-    }
 }
 
 impl MyIdenT for i64 {
     type Info<'t> = ValueInfo;
     fn new_join() -> Option<MyTable> {
         None
-    }
-    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
-        Db { info: col }
     }
 }
 
@@ -238,18 +228,12 @@ impl MyIdenT for bool {
     fn new_join() -> Option<MyTable> {
         None
     }
-    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
-        Db { info: col }
-    }
 }
 
 impl MyIdenT for String {
     type Info<'t> = ValueInfo;
     fn new_join() -> Option<MyTable> {
         None
-    }
-    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
-        Db { info: col }
     }
 }
 
@@ -303,7 +287,7 @@ impl<'a, T: Table> Deref for Db<'a, T> {
                 &t.joined.push_get(Box::new((name, table))).1
             };
 
-            T::build(Builder::new(&table.joins))
+            Box::new(T::build(Builder::new(&table.joins)))
         })
     }
 }

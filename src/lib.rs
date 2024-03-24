@@ -61,7 +61,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
                 field: Field::Str(T::ID),
                 table: joins,
                 // prevent unnecessary join
-                inner: OnceCell::from(T::build(Builder::new(joins))),
+                inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
             },
         }
     }
