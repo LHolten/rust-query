@@ -5,7 +5,7 @@ use rust_query::new_query;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
-    let res = count_reporting();
+    let res = avg_album_track_count_for_artist();
     println!("{res:#?}")
 }
 
@@ -15,18 +15,18 @@ fn main() {
 // 	join track as t on i.trackid = t.trackid
 // 	join album as al on al.albumid = t.albumid
 // 	join artist as ar on ar.artistid = al.artistid
-struct Invoice {
+struct InvoiceInfo {
     track: String,
     artist: String,
     ivl_id: i64,
 }
 
-fn invoice_info() -> Vec<Invoice> {
-    new_query(|e, mut q| {
+fn invoice_info() -> Vec<InvoiceInfo> {
+    new_query(|e, q| {
         let ivl = q.table(InvoiceLine);
         let ivl = q.all(&ivl);
 
-        e.into_vec(q, |row| Invoice {
+        e.into_vec(q, |row| InvoiceInfo {
             track: row.get(ivl.track.name),
             artist: row.get(ivl.track.album.artist.name),
             ivl_id: row.get(ivl.id()),
@@ -46,10 +46,9 @@ struct PlaylistTrackCount {
 }
 
 fn playlist_track_count() -> Vec<PlaylistTrackCount> {
-    new_query(|e, mut q| {
+    new_query(|e, q| {
         let plt = q.flat_table(PlaylistTrack);
         let pl = q.all(&plt.playlist);
-        let mut q = q.into_groups();
         let count = q.count_distinct(&plt.track);
 
         e.into_vec(q, |row| PlaylistTrackCount {
@@ -60,28 +59,20 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
 }
 
 fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
-    new_query(|e, mut q| {
-        let (album, track_count) = q.query(|mut q| {
+    new_query(|e, q| {
+        let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
-            let album = q.all(&track.album);
-            let mut q = q.into_groups();
-            let track_count = q.count_distinct(&track);
-            (album, track_count)
+            (q.all(&track.album), q.count_distinct(&track))
         });
         let artist = q.all(&album.artist);
-        let mut q = q.into_groups();
-        let avg_album_track_count = q.avg(track_count);
-        e.into_vec(q, |row| {
-            (row.get(artist.name), row.get(avg_album_track_count))
-        })
+        e.into_vec(q, |row| (row.get(artist.name), row.get(q.avg(track_count))))
     })
 }
 
 fn count_reporting() -> Vec<(String, i64)> {
-    new_query(|e, mut q| {
+    new_query(|e, q| {
         let reporter = q.table(Employee);
         let reports_to = q.all(&reporter.reports_to);
-        let mut q = q.into_groups();
         let report_count = q.count_distinct(&reporter);
         e.into_vec(q, |row| {
             (row.get(reports_to.last_name), row.get(report_count))

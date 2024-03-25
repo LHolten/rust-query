@@ -82,7 +82,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     // join another query that is grouped by some value
     pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a> FnOnce(Query<'a, 'inner>) -> R,
+        F: for<'a> FnOnce(&'inner mut Query<'a, 'inner>) -> R,
     {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -93,12 +93,12 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         let Source::Select(ast, joins) = source else {
             unreachable!()
         };
-        let inner = Query {
+        let inner = Box::leak(Box::new(Query {
             phantom: PhantomData,
             phantom2: PhantomData,
             ast,
             joins,
-        };
+        }));
         f(inner)
     }
 
@@ -115,40 +115,31 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         V::Typ::iden_any(self.joins, Field::U64(alias))
     }
 
-    pub fn into_groups(self) -> Group<'inner, 'outer> {
-        Group(self)
-    }
-}
-
-pub struct Group<'inner, 'outer>(Query<'inner, 'outer>);
-
-impl<'inner, 'outer> Group<'inner, 'outer> {
-    // TODO: add a variant with ordering?
-    pub fn any<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
+    pub fn any<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, V::Typ> {
         let alias = MyAlias::new();
         let item = (alias, val.build_expr());
-        self.0.ast.sort.push(Box::new(item));
-        V::Typ::iden_any(self.0.joins, Field::U64(alias))
+        self.ast.sort.push(Box::new(item));
+        V::Typ::iden_any(self.joins, Field::U64(alias))
     }
 
-    pub fn avg<V: Value<Typ = i64> + 'inner>(&mut self, val: V) -> Db<'outer, i64> {
+    pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> Db<'out, i64> {
         let alias = MyAlias::new();
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        self.0.ast.aggr.push(Box::new((alias, expr.into())));
-        i64::iden_any(self.0.joins, Field::U64(alias))
+        self.ast.aggr.push(Box::new((alias, expr.into())));
+        i64::iden_any(self.joins, Field::U64(alias))
     }
 
-    pub fn count_distinct<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, i64> {
+    pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, i64> {
         let alias = MyAlias::new();
         let item = (alias, Func::count_distinct(val.build_expr()).into());
-        self.0.ast.aggr.push(Box::new(item));
-        i64::iden_any(self.0.joins, Field::U64(alias))
+        self.ast.aggr.push(Box::new(item));
+        i64::iden_any(self.joins, Field::U64(alias))
     }
 }
 
 pub fn new_query<F, R>(f: F) -> R
 where
-    F: for<'a, 'names> FnOnce(Exec<'names>, Query<'a, 'names>) -> R,
+    F: for<'a, 'names> FnOnce(Exec<'names>, &'names mut Query<'a, 'names>) -> R,
 {
     let e = Exec {
         phantom: PhantomData,
@@ -158,13 +149,13 @@ where
         alias: MyAlias::new(),
         joined: FrozenVec::new(),
     };
-    let q = Query {
+    let mut q = Query {
         phantom: PhantomData,
         phantom2: PhantomData,
         ast: &ast,
         joins: &joins,
     };
-    f(e, q)
+    f(e, &mut q)
 }
 
 pub struct Exec<'a> {
@@ -182,18 +173,11 @@ impl<'a, 'b> IntoQuery<'a, 'b> for Query<'a, 'b> {
     }
 }
 
-impl<'a, 'b> IntoQuery<'a, 'b> for Group<'a, 'b> {
-    fn into_query(self) -> Query<'a, 'b> {
-        self.0
-    }
-}
-
 impl<'names> Exec<'names> {
-    pub fn into_vec<'z, F, T>(&self, q: impl IntoQuery<'z, 'names>, mut f: F) -> Vec<T>
+    pub fn into_vec<'z, F, T>(&self, q: &Query<'z, 'names>, mut f: F) -> Vec<T>
     where
         F: FnMut(Row<'_, 'names>) -> T,
     {
-        let q = q.into_query();
         let inner_select = q.ast.build_select();
         let last = FrozenVec::new();
         let mut select = q.joins.wrap(&inner_select, 0, &last);
@@ -221,6 +205,7 @@ impl<'names> Exec<'names> {
 
             if updated.get() {
                 println!("UPDATING!");
+                let inner_select = q.ast.build_select();
                 select = q.joins.wrap(&inner_select, out.len(), &last);
                 let sql = select.to_string(SqliteQueryBuilder);
                 println!("{sql}");
@@ -231,6 +216,7 @@ impl<'names> Exec<'names> {
             }
         }
         out
+        // todo!()
     }
 }
 
