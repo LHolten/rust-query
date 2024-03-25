@@ -47,7 +47,7 @@ struct PlaylistTrackCount {
 
 fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     new_query(|e, mut q| {
-        let plt = q.table(PlaylistTrack);
+        let plt = q.flat_table(PlaylistTrack);
         let pl = q.all(&plt.playlist);
         let mut q = q.into_groups();
         let count = q.count_distinct(&plt.track);

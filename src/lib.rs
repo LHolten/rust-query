@@ -25,11 +25,14 @@ pub struct Query<'inner, 'outer> {
 
 pub trait Table {
     const NAME: &'static str;
-    const ID: &'static str;
     // these names are defined in `'query`
     type Dummy<'names>;
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_>;
+}
+
+pub trait HasId: Table {
+    const ID: &'static str;
 }
 
 pub struct Builder<'a> {
@@ -47,7 +50,7 @@ impl<'a> Builder<'a> {
 }
 
 impl<'inner, 'outer> Query<'inner, 'outer> {
-    pub fn table<T: Table>(&mut self, _t: T) -> Db<'inner, T> {
+    fn new_source<T: Table>(&mut self) -> &'inner Joins {
         let joins = Joins {
             alias: MyAlias::new(),
             joined: FrozenVec::new(),
@@ -56,6 +59,11 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         let Source::Table(_, joins) = self.ast.sources.push_get(source) else {
             unreachable!()
         };
+        joins
+    }
+
+    pub fn table<T: HasId>(&mut self, _t: T) -> Db<'inner, T> {
+        let joins = self.new_source::<T>();
         Db {
             info: FkInfo {
                 field: Field::Str(T::ID),
@@ -64,6 +72,11 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
                 inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
             },
         }
+    }
+
+    pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
+        let joins = self.new_source::<T>();
+        T::build(Builder::new(joins))
     }
 
     // join another query that is grouped by some value

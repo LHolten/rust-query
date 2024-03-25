@@ -9,7 +9,7 @@ use sea_query::{Expr, IntoColumnRef, SimpleExpr};
 
 use crate::{
     ast::{Joins, MyTable},
-    Builder, Table,
+    Builder, HasId,
 };
 
 pub trait Value: Sized {
@@ -152,7 +152,7 @@ pub(super) trait MyTableT<'t> {
     fn alias(&self) -> FieldAlias;
 }
 
-impl<'t, T: Table> MyTableT<'t> for FkInfo<'t, T> {
+impl<'t, T: HasId> MyTableT<'t> for FkInfo<'t, T> {
     fn unwrap(table: &'t Joins, field: Field) -> Self {
         FkInfo {
             field,
@@ -182,7 +182,7 @@ impl<'t> MyTableT<'t> for ValueInfo {
     }
 }
 
-pub(super) struct FkInfo<'t, T: Table> {
+pub(super) struct FkInfo<'t, T: HasId> {
     pub field: Field,
     pub table: &'t Joins, // the table that we join onto
     pub inner: OnceCell<Box<T::Dummy<'t>>>,
@@ -202,7 +202,7 @@ pub(super) trait MyIdenT: Sized {
     }
 }
 
-impl<T: Table> MyIdenT for T {
+impl<T: HasId> MyIdenT for T {
     type Info<'t> = FkInfo<'t, T>;
 }
 
@@ -234,7 +234,7 @@ where
 }
 impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
 
-impl<'a, T: Table> Db<'a, T> {
+impl<'a, T: HasId> Db<'a, T> {
     pub fn id(&self) -> Db<'a, i64> {
         Db {
             info: ValueInfo {
@@ -247,7 +247,7 @@ impl<'a, T: Table> Db<'a, T> {
     }
 }
 
-impl<'a, T: Table> Deref for Db<'a, T> {
+impl<'a, T: HasId> Deref for Db<'a, T> {
     type Target = T::Dummy<'a>;
 
     fn deref(&self) -> &Self::Target {

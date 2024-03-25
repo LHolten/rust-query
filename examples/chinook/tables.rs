@@ -1,4 +1,4 @@
-use rust_query::{value::Db, Builder, Table};
+use rust_query::{value::Db, Builder, HasId, Table};
 
 pub struct InvoiceLine;
 
@@ -11,7 +11,6 @@ pub struct InvoiceLineDummy<'a> {
 
 impl Table for InvoiceLine {
     const NAME: &'static str = "InvoiceLine";
-    const ID: &'static str = "InvoiceLineId";
 
     type Dummy<'names> = InvoiceLineDummy<'names>;
 
@@ -23,6 +22,10 @@ impl Table for InvoiceLine {
             quantity: f.iden("Quantity"),
         }
     }
+}
+
+impl HasId for InvoiceLine {
+    const ID: &'static str = "InvoiceLineId";
 }
 
 pub struct Track;
@@ -40,7 +43,6 @@ pub struct TrackDummy<'a> {
 
 impl Table for Track {
     const NAME: &'static str = "Track";
-    const ID: &'static str = "TrackId";
 
     type Dummy<'names> = TrackDummy<'names>;
 
@@ -58,6 +60,10 @@ impl Table for Track {
     }
 }
 
+impl HasId for Track {
+    const ID: &'static str = "TrackId";
+}
+
 pub struct Album;
 
 pub struct AlbumDummy<'a> {
@@ -67,7 +73,6 @@ pub struct AlbumDummy<'a> {
 
 impl Table for Album {
     const NAME: &'static str = "Album";
-    const ID: &'static str = "AlbumId";
 
     type Dummy<'names> = AlbumDummy<'names>;
 
@@ -79,6 +84,10 @@ impl Table for Album {
     }
 }
 
+impl HasId for Album {
+    const ID: &'static str = "AlbumId";
+}
+
 pub struct Artist;
 
 pub struct ArtistDummy<'a> {
@@ -87,7 +96,6 @@ pub struct ArtistDummy<'a> {
 
 impl Table for Artist {
     const NAME: &'static str = "Artist";
-    const ID: &'static str = "ArtistId";
 
     type Dummy<'names> = ArtistDummy<'names>;
 
@@ -98,6 +106,10 @@ impl Table for Artist {
     }
 }
 
+impl HasId for Artist {
+    const ID: &'static str = "ArtistId";
+}
+
 pub struct Playlist;
 
 pub struct PlaylistDummy<'t> {
@@ -106,7 +118,6 @@ pub struct PlaylistDummy<'t> {
 
 impl Table for Playlist {
     const NAME: &'static str = "Playlist";
-    const ID: &'static str = "PlaylistId";
 
     type Dummy<'names> = PlaylistDummy<'names>;
 
@@ -115,6 +126,10 @@ impl Table for Playlist {
             name: f.iden("Name"),
         }
     }
+}
+
+impl HasId for Playlist {
+    const ID: &'static str = "PlaylistId";
 }
 
 pub struct PlaylistTrack;
@@ -126,7 +141,6 @@ pub struct PlaylistTrackDummy<'t> {
 
 impl Table for PlaylistTrack {
     const NAME: &'static str = "PlaylistTrack";
-    const ID: &'static str = ""; //TODO: figure out how to fix this
 
     type Dummy<'names> = PlaylistTrackDummy<'names>;
 
@@ -156,7 +170,6 @@ pub struct CustomerDummy<'t> {
 
 impl Table for Customer {
     const NAME: &'static str = "Customer";
-    const ID: &'static str = "CustomerId";
 
     type Dummy<'names> = CustomerDummy<'names>;
 
@@ -176,6 +189,10 @@ impl Table for Customer {
             support_rep: f.iden("SupportRepId"),
         }
     }
+}
+
+impl HasId for Customer {
+    const ID: &'static str = "CustomerId";
 }
 
 pub struct Employee;
@@ -198,7 +215,6 @@ pub struct EmployeeDummy<'t> {
 
 impl Table for Employee {
     const NAME: &'static str = "Employee";
-    const ID: &'static str = "EmployeeId";
 
     type Dummy<'names> = EmployeeDummy<'names>;
 
@@ -222,6 +238,10 @@ impl Table for Employee {
     }
 }
 
+impl HasId for Employee {
+    const ID: &'static str = "EmployeeId";
+}
+
 pub struct Genre;
 pub struct GenreDummy<'t> {
     pub name: Db<'t, String>,
@@ -229,7 +249,6 @@ pub struct GenreDummy<'t> {
 
 impl Table for Genre {
     const NAME: &'static str = "Genre";
-    const ID: &'static str = "GenreId";
 
     type Dummy<'names> = GenreDummy<'names>;
 
@@ -238,6 +257,10 @@ impl Table for Genre {
             name: f.iden("Name"),
         }
     }
+}
+
+impl HasId for Genre {
+    const ID: &'static str = "GenreId";
 }
 
 pub struct Invoice;
@@ -254,7 +277,6 @@ pub struct InvoiceDummy<'t> {
 
 impl Table for Invoice {
     const NAME: &'static str = "Invoice";
-    const ID: &'static str = "InvoiceId";
 
     type Dummy<'names> = InvoiceDummy<'names>;
 
@@ -272,6 +294,10 @@ impl Table for Invoice {
     }
 }
 
+impl HasId for Invoice {
+    const ID: &'static str = "InvoiceId";
+}
+
 pub struct MediaType;
 pub struct MediaTypeDummy<'t> {
     pub name: Db<'t, String>,
@@ -279,7 +305,6 @@ pub struct MediaTypeDummy<'t> {
 
 impl Table for MediaType {
     const NAME: &'static str = "MediaType";
-    const ID: &'static str = "MediaTypeId";
 
     type Dummy<'names> = MediaTypeDummy<'names>;
 
@@ -288,4 +313,8 @@ impl Table for MediaType {
             name: f.iden("Name"),
         }
     }
+}
+
+impl HasId for MediaType {
+    const ID: &'static str = "MediaTypeId";
 }
