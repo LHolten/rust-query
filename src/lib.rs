@@ -83,7 +83,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     // join another query that is grouped by some value
     pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'inner mut Query<'a, 'inner>) -> R,
+        F: for<'a, 'b> FnOnce(&'inner mut Query<'a, 'b>) -> R,
     {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -109,7 +109,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
 
     // the values of which all variants need to be preserved
     // TODO: add a variant with ordering?
-    pub fn all<V: Value + 'inner>(&mut self, val: &V) -> Db<'outer, V::Typ> {
+    pub fn all<'out, V: Value + 'inner>(&'out mut self, val: &V) -> Db<'out, V::Typ> {
         let alias = MyAlias::new();
         let item = (alias, val.build_expr());
         self.ast.group.push(Box::new(item));

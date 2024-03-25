@@ -24,7 +24,8 @@ struct InvoiceInfo {
 fn invoice_info() -> Vec<InvoiceInfo> {
     new_query(|e, q| {
         let ivl = q.table(InvoiceLine);
-        let ivl = q.all(&ivl);
+        q.all(&ivl);
+        let ivl = q.any(&ivl);
 
         e.into_vec(q, |row| InvoiceInfo {
             track: row.get(ivl.track.name),
@@ -48,11 +49,11 @@ struct PlaylistTrackCount {
 fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     new_query(|e, q| {
         let plt = q.flat_table(PlaylistTrack);
-        let pl = q.all(&plt.playlist);
+        q.all(&plt.playlist);
         let count = q.count_distinct(&plt.track);
 
         e.into_vec(q, |row| PlaylistTrackCount {
-            playlist: row.get(pl.name),
+            playlist: row.get(q.any(&plt.playlist).name),
             track_count: row.get(count),
         })
     })
@@ -62,20 +63,28 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
     new_query(|e, q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
-            (q.all(&track.album), q.count_distinct(&track))
+            q.all(&track.album);
+            (q.any(&track.album), q.count_distinct(&track))
         });
-        let artist = q.all(&album.artist);
-        e.into_vec(q, |row| (row.get(artist.name), row.get(q.avg(track_count))))
+        q.all(&album.artist);
+        e.into_vec(q, |row| {
+            (
+                row.get(q.any(&album.artist).name),
+                row.get(q.avg(track_count)),
+            )
+        })
     })
 }
 
 fn count_reporting() -> Vec<(String, i64)> {
     new_query(|e, q| {
         let reporter = q.table(Employee);
-        let reports_to = q.all(&reporter.reports_to);
-        let report_count = q.count_distinct(&reporter);
+        q.all(&reporter.reports_to);
         e.into_vec(q, |row| {
-            (row.get(reports_to.last_name), row.get(report_count))
+            (
+                row.get(q.any(&reporter.reports_to).last_name),
+                row.get(q.count_distinct(&reporter)),
+            )
         })
     })
 }
