@@ -3,7 +3,10 @@ use std::fmt;
 use elsa::FrozenVec;
 use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
-use crate::value::{Field, FieldAlias, MyAlias};
+use crate::{
+    mymap::MyMap,
+    value::{Field, FieldAlias, MyAlias},
+};
 
 #[derive(Default)]
 pub struct MySelect {
@@ -14,9 +17,9 @@ pub struct MySelect {
     // distinct on
     pub(super) group: FrozenVec<Box<(MyAlias, SimpleExpr)>>,
     // calculating these agregates
-    pub(super) aggr: FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+    pub(super) aggr: MyMap<SimpleExpr, MyAlias>,
     // sort on value (and keep row with smallest value)
-    pub(super) sort: FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+    pub(super) sort: MyMap<SimpleExpr, MyAlias>,
 }
 
 pub struct MyTable {
@@ -121,11 +124,11 @@ impl MySelect {
             select.order_by(*alias, sea_query::Order::Asc);
         }
 
-        for (alias, aggr) in &self.aggr {
+        for (aggr, alias) in self.aggr.iter() {
             select.expr_as(aggr.clone(), *alias);
         }
 
-        for (alias, sort) in &self.sort {
+        for (sort, alias) in self.sort.iter() {
             select.expr_as(sort.clone(), *alias);
             select.order_by(*alias, sea_query::Order::Asc);
         }

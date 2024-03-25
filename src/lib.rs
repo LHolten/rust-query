@@ -1,6 +1,7 @@
 #![allow(private_bounds)]
 
 mod ast;
+mod mymap;
 pub mod value;
 
 use std::{
@@ -116,24 +117,20 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     pub fn any<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, V::Typ> {
-        let alias = MyAlias::new();
-        let item = (alias, val.build_expr());
-        self.ast.sort.push(Box::new(item));
-        V::Typ::iden_any(self.joins, Field::U64(alias))
+        let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
+        V::Typ::iden_any(self.joins, Field::U64(*alias))
     }
 
     pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> Db<'out, i64> {
-        let alias = MyAlias::new();
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        self.ast.aggr.push(Box::new((alias, expr.into())));
-        i64::iden_any(self.joins, Field::U64(alias))
+        let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        i64::iden_any(self.joins, Field::U64(*alias))
     }
 
     pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, i64> {
-        let alias = MyAlias::new();
-        let item = (alias, Func::count_distinct(val.build_expr()).into());
-        self.ast.aggr.push(Box::new(item));
-        i64::iden_any(self.joins, Field::U64(alias))
+        let expr = Func::count_distinct(val.build_expr());
+        let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        i64::iden_any(self.joins, Field::U64(*alias))
     }
 }
 
