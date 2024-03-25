@@ -68,6 +68,7 @@ impl Joins {
             select.expr_as(expr.clone(), *alias);
         }
 
+        // TODO: Figure out how to do this properly
         select.offset(offset as u64);
         select.limit(1000000000);
 

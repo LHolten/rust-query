@@ -123,6 +123,7 @@ impl sea_query::Iden for Field {
             Field::Str(name) => write!(s, "{}", name).unwrap(),
         }
     }
+    // TODO: remove
     fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
         self.unquoted(s)
     }
@@ -140,6 +141,7 @@ impl sea_query::Iden for MyAlias {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         write!(s, "_{}", self.name).unwrap()
     }
+    // TODO: remove
     fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
         self.unquoted(s)
     }
@@ -193,48 +195,27 @@ pub(super) struct ValueInfo {
 
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
-    fn new_join() -> Option<MyTable>;
-    fn iden(col: Self::Info<'_>) -> Db<'_, Self> {
-        Db { info: col }
-    }
     fn iden_any(col: &Joins, field: Field) -> Db<'_, Self> {
-        Self::iden(Self::Info::unwrap(col, field))
+        Db {
+            info: Self::Info::unwrap(col, field),
+        }
     }
 }
 
 impl<T: Table> MyIdenT for T {
     type Info<'t> = FkInfo<'t, T>;
-    fn new_join() -> Option<MyTable> {
-        Some(MyTable {
-            name: T::NAME,
-            id: T::ID,
-            joins: Joins {
-                alias: MyAlias::new(),
-                joined: FrozenVec::new(),
-            },
-        })
-    }
 }
 
 impl MyIdenT for i64 {
     type Info<'t> = ValueInfo;
-    fn new_join() -> Option<MyTable> {
-        None
-    }
 }
 
 impl MyIdenT for bool {
     type Info<'t> = ValueInfo;
-    fn new_join() -> Option<MyTable> {
-        None
-    }
 }
 
 impl MyIdenT for String {
     type Info<'t> = ValueInfo;
-    fn new_join() -> Option<MyTable> {
-        None
-    }
 }
 
 pub struct Db<'t, T: MyIdenT> {
