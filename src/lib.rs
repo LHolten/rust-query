@@ -15,12 +15,11 @@ use elsa::FrozenVec;
 use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
 use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
 
-pub struct Query<'inner, 'outer> {
+pub struct Query<'inner> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
-    phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
     ast: &'inner MySelect,
-    joins: &'outer Joins,
+    joins: &'inner Joins,
     // outer: PhantomData<>
 }
 
@@ -50,7 +49,7 @@ impl<'a> Builder<'a> {
     }
 }
 
-impl<'inner, 'outer> Query<'inner, 'outer> {
+impl<'inner> Query<'inner> {
     fn new_source<T: Table>(&mut self) -> &'inner Joins {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -83,7 +82,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     // join another query that is grouped by some value
     pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a, 'b> FnOnce(&'inner mut Query<'a, 'b>) -> R,
+        F: for<'a> FnOnce(&'inner mut Query<'a>) -> R,
     {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -96,7 +95,6 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
         };
         let inner = Box::leak(Box::new(Query {
             phantom: PhantomData,
-            phantom2: PhantomData,
             ast,
             joins,
         }));
@@ -108,14 +106,13 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
     }
 
     // the values of which all variants need to be preserved
-    // TODO: add a variant with ordering?
-    pub fn all<'out, V: Value + 'inner>(&'out mut self, val: &V) -> Db<'out, V::Typ> {
+    pub fn all<'out, V: Value + 'inner>(&'out mut self, val: &V) {
         let alias = MyAlias::new();
         let item = (alias, val.build_expr());
         self.ast.group.push(Box::new(item));
-        V::Typ::iden_any(self.joins, Field::U64(alias))
     }
 
+    // TODO: add a variant with ordering?
     pub fn any<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, V::Typ> {
         let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
         V::Typ::iden_any(self.joins, Field::U64(*alias))
@@ -136,7 +133,7 @@ impl<'inner, 'outer> Query<'inner, 'outer> {
 
 pub fn new_query<F, R>(f: F) -> R
 where
-    F: for<'a, 'names> FnOnce(Exec<'names>, &'names mut Query<'a, 'names>) -> R,
+    F: for<'a, 'names> FnOnce(Exec<'names>, &'names mut Query<'a>) -> R,
 {
     let e = Exec {
         phantom: PhantomData,
@@ -148,7 +145,6 @@ where
     };
     let mut q = Query {
         phantom: PhantomData,
-        phantom2: PhantomData,
         ast: &ast,
         joins: &joins,
     };
@@ -160,18 +156,8 @@ pub struct Exec<'a> {
     phantom: PhantomData<dyn Fn(&'a ())>,
 }
 
-trait IntoQuery<'a, 'b> {
-    fn into_query(self) -> Query<'a, 'b>;
-}
-
-impl<'a, 'b> IntoQuery<'a, 'b> for Query<'a, 'b> {
-    fn into_query(self) -> Query<'a, 'b> {
-        self
-    }
-}
-
 impl<'names> Exec<'names> {
-    pub fn into_vec<'z, F, T>(&self, q: &Query<'z, 'names>, mut f: F) -> Vec<T>
+    pub fn into_vec<'z, F, T>(&self, q: &'names Query<'z>, mut f: F) -> Vec<T>
     where
         F: FnMut(Row<'_, 'names>) -> T,
     {

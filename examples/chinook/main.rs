@@ -5,7 +5,10 @@ use rust_query::new_query;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
+    // let res = invoice_info();
+    // let res = playlist_track_count();
     let res = avg_album_track_count_for_artist();
+    // let res = count_reporting();
     println!("{res:#?}")
 }
 
@@ -50,11 +53,10 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     new_query(|e, q| {
         let plt = q.flat_table(PlaylistTrack);
         q.all(&plt.playlist);
-        let count = q.count_distinct(&plt.track);
 
         e.into_vec(q, |row| PlaylistTrackCount {
             playlist: row.get(q.any(&plt.playlist).name),
-            track_count: row.get(count),
+            track_count: row.get(q.count_distinct(&plt.track)),
         })
     })
 }

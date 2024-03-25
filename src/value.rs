@@ -218,6 +218,7 @@ impl MyIdenT for String {
     type Info<'t> = ValueInfo;
 }
 
+// invariant in `'t` because of the associated type
 pub struct Db<'t, T: MyIdenT> {
     pub(super) info: T::Info<'t>,
 }

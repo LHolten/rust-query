@@ -121,7 +121,6 @@ impl MySelect {
         for (alias, group) in self.group.iter() {
             select.expr_as(group.clone(), *alias);
             select.group_by_col(*alias);
-            select.order_by(*alias, sea_query::Order::Asc);
         }
 
         for (aggr, alias) in self.aggr.iter() {
