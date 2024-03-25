@@ -44,7 +44,7 @@ impl<'a> Builder<'a> {
         Builder { table }
     }
 
-    pub fn iden<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
+    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
         T::iden_any(self.table, Field::Str(name))
     }
 }

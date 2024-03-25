@@ -16,10 +16,10 @@ impl Table for InvoiceLine {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         InvoiceLineDummy {
-            invoice: f.iden("InvoiceId"),
-            track: f.iden("TrackId"),
-            unit_price: f.iden("UnitPrice"),
-            quantity: f.iden("Quantity"),
+            invoice: f.col("InvoiceId"),
+            track: f.col("TrackId"),
+            unit_price: f.col("UnitPrice"),
+            quantity: f.col("Quantity"),
         }
     }
 }
@@ -48,14 +48,14 @@ impl Table for Track {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         TrackDummy {
-            name: f.iden("Name"),
-            album: f.iden("AlbumId"),
-            media_type: f.iden("MediaTypeId"),
-            genre: f.iden("GenreId"),
-            composer: f.iden("Composer"),
-            milliseconds: f.iden("Milliseconds"),
-            bytes: f.iden("Bytes"),
-            unit_price: f.iden("UnitPrice"),
+            name: f.col("Name"),
+            album: f.col("AlbumId"),
+            media_type: f.col("MediaTypeId"),
+            genre: f.col("GenreId"),
+            composer: f.col("Composer"),
+            milliseconds: f.col("Milliseconds"),
+            bytes: f.col("Bytes"),
+            unit_price: f.col("UnitPrice"),
         }
     }
 }
@@ -78,8 +78,8 @@ impl Table for Album {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         AlbumDummy {
-            title: f.iden("Title"),
-            artist: f.iden("ArtistId"),
+            title: f.col("Title"),
+            artist: f.col("ArtistId"),
         }
     }
 }
@@ -101,7 +101,7 @@ impl Table for Artist {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         ArtistDummy {
-            name: f.iden("Name"),
+            name: f.col("Name"),
         }
     }
 }
@@ -123,7 +123,7 @@ impl Table for Playlist {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         PlaylistDummy {
-            name: f.iden("Name"),
+            name: f.col("Name"),
         }
     }
 }
@@ -146,8 +146,8 @@ impl Table for PlaylistTrack {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         PlaylistTrackDummy {
-            playlist: f.iden("PlaylistId"),
-            track: f.iden("TrackId"),
+            playlist: f.col("PlaylistId"),
+            track: f.col("TrackId"),
         }
     }
 }
@@ -175,18 +175,18 @@ impl Table for Customer {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         CustomerDummy {
-            first_name: f.iden("FirstName"),
-            last_name: f.iden("LastName"),
-            company: f.iden("Company"),
-            address: f.iden("Address"),
-            city: f.iden("City"),
-            state: f.iden("State"),
-            country: f.iden("Country"),
-            postal_code: f.iden("PostalCode"),
-            phone: f.iden("Phone"),
-            fax: f.iden("Fax"),
-            email: f.iden("Email"),
-            support_rep: f.iden("SupportRepId"),
+            first_name: f.col("FirstName"),
+            last_name: f.col("LastName"),
+            company: f.col("Company"),
+            address: f.col("Address"),
+            city: f.col("City"),
+            state: f.col("State"),
+            country: f.col("Country"),
+            postal_code: f.col("PostalCode"),
+            phone: f.col("Phone"),
+            fax: f.col("Fax"),
+            email: f.col("Email"),
+            support_rep: f.col("SupportRepId"),
         }
     }
 }
@@ -220,20 +220,20 @@ impl Table for Employee {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         EmployeeDummy {
-            last_name: f.iden("LastName"),
-            first_name: f.iden("FirstName"),
-            title: f.iden("Title"),
-            reports_to: f.iden("ReportsTo"),
-            birth_date: f.iden("BirthDate"),
-            hire_date: f.iden("HireDate"),
-            address: f.iden("Address"),
-            city: f.iden("City"),
-            state: f.iden("State"),
-            country: f.iden("Country"),
-            postal_code: f.iden("PostalCode"),
-            phone: f.iden("Phone"),
-            fax: f.iden("Fax"),
-            email: f.iden("Email"),
+            last_name: f.col("LastName"),
+            first_name: f.col("FirstName"),
+            title: f.col("Title"),
+            reports_to: f.col("ReportsTo"),
+            birth_date: f.col("BirthDate"),
+            hire_date: f.col("HireDate"),
+            address: f.col("Address"),
+            city: f.col("City"),
+            state: f.col("State"),
+            country: f.col("Country"),
+            postal_code: f.col("PostalCode"),
+            phone: f.col("Phone"),
+            fax: f.col("Fax"),
+            email: f.col("Email"),
         }
     }
 }
@@ -254,7 +254,7 @@ impl Table for Genre {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         GenreDummy {
-            name: f.iden("Name"),
+            name: f.col("Name"),
         }
     }
 }
@@ -282,14 +282,14 @@ impl Table for Invoice {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         InvoiceDummy {
-            customer: f.iden("CustomerId"),
-            invoice_date: f.iden("InvoiceDate"),
-            billing_address: f.iden("BillingAddress"),
-            billing_city: f.iden("BillingCity"),
-            billing_state: f.iden("BillingState"),
-            billing_country: f.iden("BillingCountry"),
-            billing_postal_code: f.iden("BillingPostalCode"),
-            total: f.iden("Total"),
+            customer: f.col("CustomerId"),
+            invoice_date: f.col("InvoiceDate"),
+            billing_address: f.col("BillingAddress"),
+            billing_city: f.col("BillingCity"),
+            billing_state: f.col("BillingState"),
+            billing_country: f.col("BillingCountry"),
+            billing_postal_code: f.col("BillingPostalCode"),
+            total: f.col("Total"),
         }
     }
 }
@@ -310,7 +310,7 @@ impl Table for MediaType {
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         MediaTypeDummy {
-            name: f.iden("Name"),
+            name: f.col("Name"),
         }
     }
 }
