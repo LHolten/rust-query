@@ -118,41 +118,70 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     //     self.ast.group.push(Box::new(item));
     // }
 
-    pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
+    pub fn select<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<V::Typ> {
         todo!()
     }
 
-    // pub fn group_old<'out, V: Value + 'inner>(&mut self, val: V) -> V {
+    // only one group can exist at a time
+    pub fn group<'out, T: HasId>(
+        &'out mut self,
+        val: &'inner Db<T>,
+    ) -> &'out Group<'outer, 'inner, T> {
+        todo!()
+    }
+
+    // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
     //     todo!()
     // }
 
-    // pub fn group<'out, V: Value + 'inner, F, R>(&'out mut self, val: V, f: F) -> R
+    // pub fn aggr<F, R>(&self, f: F) -> R
     // where
-    //     F: FnOnce(&'out Group<'inner, V>) -> R,
+    //     F: for<'a> FnOnce(&'a mut Aggr<'a, 'inner>) -> R,
     // {
     //     todo!()
     // }
-
-    // TODO: add a variant with ordering?
-    // pub fn any<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, V::Typ> {
-    //     let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
-    //     V::Typ::iden_any(self.joins, Field::U64(*alias))
-    // }
 }
-pub struct Group<'inner, V> {
+
+// pub struct Aggr<'inner, 'outer> {
+//     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
+//     phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
+// }
+
+// impl<'inner, 'outer> Aggr<'inner, 'outer> {
+//     pub fn flat_table<T: Table>(&mut self, _t: T) -> &'inner T::Dummy {
+//         // let joins = self.new_source::<T>();
+//         // T::build(Builder::new(joins))
+//         todo!()
+//     }
+
+//     pub fn filter_eq(&mut self, a: impl Value + 'inner, b: impl Value + 'inner) {
+//         // self.ast.filters.push(Box::new(prop.build_expr()));
+//         todo!()
+//     }
+
+//     pub fn count_distinct<V: Value + 'inner>(&'inner self, val: V) -> &'outer Db<i64> {
+//         // let expr = Func::count_distinct(val.build_expr());
+//         // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+//         // i64::iden_any(self.joins, Field::U64(*alias))
+//         todo!()
+//     }
+// }
+
+pub struct Group<'outer, 'inner, V> {
     // inner: &'out Query<'inner>,
     _phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner V>,
+    _phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer V>,
 }
 
-impl<'inner, V> Deref for Group<'inner, V> {
-    type Target = V;
+impl<'outer, 'inner, T: HasId> Deref for Group<'outer, 'inner, T> {
+    type Target = Db<T>;
 
     fn deref(&self) -> &Self::Target {
         todo!()
     }
 }
 
-impl<'inner, T> Group<'inner, T> {
+impl<'outer, 'inner, T> Group<'outer, 'inner, T> {
     pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> &'out Db<i64> {
         // let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
         // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
@@ -167,10 +196,18 @@ impl<'inner, T> Group<'inner, T> {
         todo!()
     }
 
+    // evil
     pub fn rank<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<i64> {
         // let expr = Func::count_distinct(val.build_expr());
         // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
         // i64::iden_any(self.joins, Field::U64(*alias))
+        todo!()
+    }
+
+    pub fn into_vec<F, R>(&self, f: F) -> Vec<R>
+    where
+        F: FnMut(Row<'_, 'outer>) -> R,
+    {
         todo!()
     }
 }

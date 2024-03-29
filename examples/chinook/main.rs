@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 mod tables;
 
+use std::ops::Deref;
+
 use rust_query::new_query;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
@@ -50,9 +52,8 @@ struct PlaylistTrackCount {
 fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     new_query(|q| {
         let plt = q.flat_table(PlaylistTrack);
-        let pl = q.window(&plt.playlist);
-
-        q.into_vec(|row| PlaylistTrackCount {
+        let pl = q.group(&plt.playlist);
+        pl.into_vec(|row| PlaylistTrackCount {
             playlist: row.get(&pl.name),
             track_count: row.get(pl.count_distinct(&plt.track)),
         })
@@ -63,19 +64,19 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
     new_query(|q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
-            let album = q.window(&track.album);
-            (**album, album.count_distinct(track))
+            let album = q.group(&track.album);
+            (album.deref(), album.count_distinct(track))
         });
-        let artist = q.window(&album.artist);
-        q.into_vec(|row| (row.get(&artist.name), row.get(artist.avg(track_count))))
+        let artist = q.group(&album.artist);
+        artist.into_vec(|row| (row.get(&artist.name), row.get(artist.avg(track_count))))
     })
 }
 
 fn count_reporting() -> Vec<(String, i64)> {
     new_query(|q| {
         let reporter = q.table(Employee);
-        let receiver = q.window(&reporter.reports_to);
-        q.into_vec(|row| {
+        let receiver = q.group(&reporter.reports_to);
+        receiver.into_vec(|row| {
             (
                 row.get(&receiver.last_name),
                 row.get(receiver.count_distinct(reporter)),
