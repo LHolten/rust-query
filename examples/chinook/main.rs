@@ -1,15 +1,17 @@
 #![allow(dead_code)]
 mod tables;
 
-use rust_query::new_query;
+use std::marker::PhantomData;
+
+use rust_query::{new_query, value::Value, Group, Query};
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
     // let res = invoice_info();
     // let res = playlist_track_count();
-    let res = avg_album_track_count_for_artist();
+    // let res = avg_album_track_count_for_artist();
     // let res = count_reporting();
-    println!("{res:#?}")
+    // println!("{res:#?}")
 }
 
 // -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.
@@ -25,14 +27,12 @@ struct InvoiceInfo {
 }
 
 fn invoice_info() -> Vec<InvoiceInfo> {
-    new_query(|e, q| {
+    new_query(|e, q, g| {
         let ivl = q.table(InvoiceLine);
-        q.all(&ivl);
-        let ivl = q.any(&ivl);
 
         e.into_vec(q, |row| InvoiceInfo {
-            track: row.get(ivl.track.name),
-            artist: row.get(ivl.track.album.artist.name),
+            track: row.get(&ivl.track.name),
+            artist: row.get(&ivl.track.album.artist.name),
             ivl_id: row.get(ivl.id()),
         })
     })
@@ -49,43 +49,79 @@ struct PlaylistTrackCount {
     track_count: i64,
 }
 
+// fn playlist_track_count() -> Vec<PlaylistTrackCount> {
+//     new_query(|e, q| {
+//         let plt = q.flat_table(PlaylistTrack);
+//         let pl = q.group_old(&plt.playlist);
+
+//         e.into_vec(q, |row| PlaylistTrackCount {
+//             playlist: row.get(&pl.name),
+//             track_count: row.get(q.count_distinct(&plt.track)),
+//         })
+//     })
+// }
+
+// fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
+//     new_query(|e, q| {
+//         let (album, track_count) = q.query(|q| {
+//             let track = q.table(Track);
+//             let album = q.group_old(&track.album);
+//             (album, q.count_distinct(track))
+//         });
+//         let artist = q.group_old(&album.artist);
+//         e.into_vec(q, |row| {
+//             (row.get(&artist.name), row.get(q.avg(track_count)))
+//         })
+//     })
+// }
+
+// fn count_reporting() -> Vec<(String, i64)> {
+//     new_query(|e, q| {
+//         let reporter = q.table(Employee);
+//         let receiver = q.group_old(&reporter.reports_to);
+//         e.into_vec(q, |row| {
+//             (
+//                 row.get(&receiver.last_name),
+//                 row.get(q.count_distinct(reporter)),
+//             )
+//         })
+//     })
+// }
+
 fn playlist_track_count() -> Vec<PlaylistTrackCount> {
-    new_query(|e, q| {
+    new_query(|e, q, g| {
         let plt = q.flat_table(PlaylistTrack);
-        q.all(&plt.playlist);
+        let pl = g.group(q, &plt.playlist);
 
         e.into_vec(q, |row| PlaylistTrackCount {
-            playlist: row.get(q.any(&plt.playlist).name),
-            track_count: row.get(q.count_distinct(&plt.track)),
+            playlist: row.get(&pl.name),
+            track_count: row.get(pl.count_distinct(&plt.track)),
         })
     })
 }
 
 fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
-    new_query(|e, q| {
-        let (album, track_count) = q.query(|q| {
+    new_query(|e, q, g| {
+        let (album, track_count) = q.query(|q, g| {
             let track = q.table(Track);
-            q.all(&track.album);
-            (q.any(&track.album), q.count_distinct(&track))
+            let album = g.group(q, &track.album);
+            (**album, album.count_distinct(track))
         });
-        q.all(&album.artist);
+        let artist = g.group(q, &album.artist);
         e.into_vec(q, |row| {
-            (
-                row.get(q.any(&album.artist).name),
-                row.get(q.avg(track_count)),
-            )
+            (row.get(&artist.name), row.get(artist.avg(track_count)))
         })
     })
 }
 
 fn count_reporting() -> Vec<(String, i64)> {
-    new_query(|e, q| {
+    new_query(|e, q, g| {
         let reporter = q.table(Employee);
-        q.all(&reporter.reports_to);
+        let receiver = g.group(q, &reporter.reports_to);
         e.into_vec(q, |row| {
             (
-                row.get(q.any(&reporter.reports_to).last_name),
-                row.get(q.count_distinct(&reporter)),
+                row.get(&receiver.last_name),
+                row.get(receiver.count_distinct(reporter)),
             )
         })
     })

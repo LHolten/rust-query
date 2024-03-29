@@ -7,6 +7,7 @@ pub mod value;
 use std::{
     cell::{Cell, OnceCell},
     marker::PhantomData,
+    ops::Deref,
 };
 
 use ast::{Joins, MySelect, Source};
@@ -26,9 +27,9 @@ pub struct Query<'inner> {
 pub trait Table {
     const NAME: &'static str;
     // these names are defined in `'query`
-    type Dummy<'names>;
+    type Dummy;
 
-    fn build(f: Builder<'_>) -> Self::Dummy<'_>;
+    fn build(f: Builder<'_>) -> Self::Dummy;
 }
 
 pub trait HasId: Table {
@@ -44,7 +45,7 @@ impl<'a> Builder<'a> {
         Builder { table }
     }
 
-    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
+    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<T> {
         T::iden_any(self.table, Field::Str(name))
     }
 }
@@ -62,27 +63,29 @@ impl<'inner> Query<'inner> {
         joins
     }
 
-    pub fn table<T: HasId>(&mut self, _t: T) -> Db<'inner, T> {
+    pub fn table<T: HasId>(&mut self, _t: T) -> &'inner Db<T> {
         let joins = self.new_source::<T>();
-        Db {
-            info: FkInfo {
-                field: Field::Str(T::ID),
-                table: joins,
-                // prevent unnecessary join
-                inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
-            },
-        }
+        // Db {
+        //     info: FkInfo {
+        //         field: Field::Str(T::ID),
+        //         table: joins,
+        //         // prevent unnecessary join
+        //         inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
+        //     },
+        // }
+        todo!()
     }
 
-    pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
-        let joins = self.new_source::<T>();
-        T::build(Builder::new(joins))
+    pub fn flat_table<T: Table>(&mut self, _t: T) -> &'inner T::Dummy {
+        // let joins = self.new_source::<T>();
+        // T::build(Builder::new(joins))
+        todo!()
     }
 
     // join another query that is grouped by some value
     pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'inner mut Query<'a>) -> R,
+        F: for<'a> FnOnce(&'inner mut Query<'a>, Grouper<'inner, 'a>) -> R,
     {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -98,42 +101,96 @@ impl<'inner> Query<'inner> {
             ast,
             joins,
         }));
-        f(inner)
+        // f(inner)
+        todo!()
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    // the values of which all variants need to be preserved
-    pub fn all<'out, V: Value + 'inner>(&'out mut self, val: &V) {
-        let alias = MyAlias::new();
-        let item = (alias, val.build_expr());
-        self.ast.group.push(Box::new(item));
+    // // the values of which all variants need to be preserved
+    // pub fn all<'out, V: Value + 'inner>(&'out mut self, val: &V) {
+    //     let alias = MyAlias::new();
+    //     let item = (alias, val.build_expr());
+    //     self.ast.group.push(Box::new(item));
+    // }
+
+    pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
+        todo!()
     }
+
+    // pub fn group_old<'out, V: Value + 'inner>(&mut self, val: V) -> V {
+    //     todo!()
+    // }
+
+    // pub fn group<'out, V: Value + 'inner, F, R>(&'out mut self, val: V, f: F) -> R
+    // where
+    //     F: FnOnce(&'out Group<'inner, V>) -> R,
+    // {
+    //     todo!()
+    // }
 
     // TODO: add a variant with ordering?
-    pub fn any<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, V::Typ> {
-        let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
-        V::Typ::iden_any(self.joins, Field::U64(*alias))
+    // pub fn any<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, V::Typ> {
+    //     let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
+    //     V::Typ::iden_any(self.joins, Field::U64(*alias))
+    // }
+}
+
+pub struct Grouper<'out, 'inner> {
+    inner: PhantomData<dyn Fn(&'inner ()) -> &'out ()>,
+}
+
+impl<'outer, 'inner> Grouper<'outer, 'inner> {
+    pub fn group<V: Value + 'inner>(
+        self,
+        q: &'outer Query<'inner>,
+        v: V,
+    ) -> &'outer Group<'inner, V> {
+        todo!()
+    }
+}
+
+pub struct Group<'inner, V> {
+    // inner: &'out Query<'inner>,
+    _phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner V>,
+}
+
+impl<'inner, V> Deref for Group<'inner, V> {
+    type Target = V;
+
+    fn deref(&self) -> &Self::Target {
+        todo!()
+    }
+}
+
+impl<'inner, T> Group<'inner, T> {
+    pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> &'out Db<i64> {
+        // let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
+        // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        // i64::iden_any(self.joins, Field::U64(*alias))
+        todo!()
     }
 
-    pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> Db<'out, i64> {
-        let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-        i64::iden_any(self.joins, Field::U64(*alias))
+    pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<i64> {
+        // let expr = Func::count_distinct(val.build_expr());
+        // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        // i64::iden_any(self.joins, Field::U64(*alias))
+        todo!()
     }
 
-    pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, i64> {
-        let expr = Func::count_distinct(val.build_expr());
-        let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-        i64::iden_any(self.joins, Field::U64(*alias))
+    pub fn rank<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<i64> {
+        // let expr = Func::count_distinct(val.build_expr());
+        // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        // i64::iden_any(self.joins, Field::U64(*alias))
+        todo!()
     }
 }
 
 pub fn new_query<F, R>(f: F) -> R
 where
-    F: for<'a, 'names> FnOnce(Exec<'names>, &'names mut Query<'a>) -> R,
+    F: for<'a, 'names> FnOnce(Exec<'names>, &'names mut Query<'a>, Grouper<'names, 'a>) -> R,
 {
     let e = Exec {
         phantom: PhantomData,
@@ -148,7 +205,8 @@ where
         ast: &ast,
         joins: &joins,
     };
-    f(e, &mut q)
+    // f(e, &mut q)
+    todo!()
 }
 
 pub struct Exec<'a> {

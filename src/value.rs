@@ -33,7 +33,7 @@ pub trait Value: Sized {
     }
 }
 
-impl<'t, T: MyIdenT> Value for Db<'t, T> {
+impl<T: MyIdenT> Value for &Db<T> {
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
         Expr::col(self.info.alias()).into()
@@ -185,7 +185,7 @@ impl<'t> MyTableT<'t> for ValueInfo {
 pub(super) struct FkInfo<'t, T: HasId> {
     pub field: Field,
     pub table: &'t Joins, // the table that we join onto
-    pub inner: OnceCell<Box<T::Dummy<'t>>>,
+    pub inner: OnceCell<Box<T::Dummy>>,
 }
 
 #[derive(Clone, Copy)]
@@ -194,62 +194,52 @@ pub(super) struct ValueInfo {
 }
 
 pub(super) trait MyIdenT: Sized {
-    type Info<'t>: MyTableT<'t>;
-    fn iden_any(col: &Joins, field: Field) -> Db<'_, Self> {
-        Db {
-            info: Self::Info::unwrap(col, field),
-        }
+    type Info: MyTableT<'static>;
+    fn iden_any(col: &Joins, field: Field) -> Db<Self> {
+        // Db {
+        //     info: Self::Info::unwrap(col, field),
+        // }
+        todo!()
     }
 }
 
 impl<T: HasId> MyIdenT for T {
-    type Info<'t> = FkInfo<'t, T>;
+    type Info = FkInfo<'static, T>;
 }
 
 impl MyIdenT for i64 {
-    type Info<'t> = ValueInfo;
+    type Info = ValueInfo;
 }
 
 impl MyIdenT for bool {
-    type Info<'t> = ValueInfo;
+    type Info = ValueInfo;
 }
 
 impl MyIdenT for String {
-    type Info<'t> = ValueInfo;
+    type Info = ValueInfo;
 }
 
 // invariant in `'t` because of the associated type
-pub struct Db<'t, T: MyIdenT> {
-    pub(super) info: T::Info<'t>,
+pub struct Db<T: MyIdenT> {
+    pub(super) info: T::Info,
 }
 
-impl<'t, T: MyIdenT> Clone for Db<'t, T>
-where
-    T::Info<'t>: Clone,
-{
-    fn clone(&self) -> Self {
-        Db {
-            info: self.info.clone(),
-        }
-    }
-}
-impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
-
-impl<'a, T: HasId> Db<'a, T> {
-    pub fn id(&self) -> Db<'a, i64> {
-        Db {
-            info: ValueInfo {
-                field: FieldAlias {
-                    table: self.info.table.alias,
-                    col: self.info.field,
-                },
-            },
-        }
+impl<T: HasId> Db<T> {
+    pub fn id(&self) -> &Db<i64> {
+        todo!()
+        // Db {
+        //     info: ValueInfo {
+        //         field: FieldAlias {
+        //             table: self.info.table.alias,
+        //             col: self.info.field,
+        //         },
+        //     },
+        // }
     }
 }
 
-impl<'a, T: HasId> Deref for Db<'a, T> {
-    type Target = T::Dummy<'a>;
+impl<T: HasId> Deref for Db<T> {
+    type Target = T::Dummy;
 
     fn deref(&self) -> &Self::Target {
         self.info.inner.get_or_init(|| {
