@@ -2,19 +2,19 @@ use rust_query::{value::Db, Builder, HasId, Table};
 
 pub struct InvoiceLine;
 
-pub struct InvoiceLineDummy {
-    pub invoice: Db<Invoice>,
-    pub track: Db<Track>,
-    pub unit_price: Db<i64>,
-    pub quantity: Db<i64>,
+pub struct InvoiceLineDummy<'a> {
+    pub invoice: Db<'a, Invoice>,
+    pub track: Db<'a, Track>,
+    pub unit_price: Db<'a, i64>,
+    pub quantity: Db<'a, i64>,
 }
 
 impl Table for InvoiceLine {
     const NAME: &'static str = "InvoiceLine";
 
-    type Dummy = InvoiceLineDummy;
+    type Dummy<'names> = InvoiceLineDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         InvoiceLineDummy {
             invoice: f.col("InvoiceId"),
             track: f.col("TrackId"),
@@ -30,23 +30,23 @@ impl HasId for InvoiceLine {
 
 pub struct Track;
 
-pub struct TrackDummy {
-    pub name: Db<String>,
-    pub album: Db<Album>,
-    pub media_type: Db<MediaType>,
-    pub genre: Db<Genre>,
-    pub composer: Db<String>,
-    pub milliseconds: Db<i64>,
-    pub bytes: Db<i64>,
-    pub unit_price: Db<i64>,
+pub struct TrackDummy<'a> {
+    pub name: Db<'a, String>,
+    pub album: Db<'a, Album>,
+    pub media_type: Db<'a, MediaType>,
+    pub genre: Db<'a, Genre>,
+    pub composer: Db<'a, String>,
+    pub milliseconds: Db<'a, i64>,
+    pub bytes: Db<'a, i64>,
+    pub unit_price: Db<'a, i64>,
 }
 
 impl Table for Track {
     const NAME: &'static str = "Track";
 
-    type Dummy = TrackDummy;
+    type Dummy<'names> = TrackDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         TrackDummy {
             name: f.col("Name"),
             album: f.col("AlbumId"),
@@ -66,17 +66,17 @@ impl HasId for Track {
 
 pub struct Album;
 
-pub struct AlbumDummy {
-    pub title: Db<String>,
-    pub artist: Db<Artist>,
+pub struct AlbumDummy<'a> {
+    pub title: Db<'a, String>,
+    pub artist: Db<'a, Artist>,
 }
 
 impl Table for Album {
     const NAME: &'static str = "Album";
 
-    type Dummy = AlbumDummy;
+    type Dummy<'names> = AlbumDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         AlbumDummy {
             title: f.col("Title"),
             artist: f.col("ArtistId"),
@@ -90,16 +90,16 @@ impl HasId for Album {
 
 pub struct Artist;
 
-pub struct ArtistDummy {
-    pub name: Db<String>,
+pub struct ArtistDummy<'a> {
+    pub name: Db<'a, String>,
 }
 
 impl Table for Artist {
     const NAME: &'static str = "Artist";
 
-    type Dummy = ArtistDummy;
+    type Dummy<'names> = ArtistDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         ArtistDummy {
             name: f.col("Name"),
         }
@@ -112,16 +112,16 @@ impl HasId for Artist {
 
 pub struct Playlist;
 
-pub struct PlaylistDummy {
-    pub name: Db<String>,
+pub struct PlaylistDummy<'t> {
+    pub name: Db<'t, String>,
 }
 
 impl Table for Playlist {
     const NAME: &'static str = "Playlist";
 
-    type Dummy = PlaylistDummy;
+    type Dummy<'names> = PlaylistDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         PlaylistDummy {
             name: f.col("Name"),
         }
@@ -134,17 +134,17 @@ impl HasId for Playlist {
 
 pub struct PlaylistTrack;
 
-pub struct PlaylistTrackDummy {
-    pub playlist: Db<Playlist>,
-    pub track: Db<Track>,
+pub struct PlaylistTrackDummy<'t> {
+    pub playlist: Db<'t, Playlist>,
+    pub track: Db<'t, Track>,
 }
 
 impl Table for PlaylistTrack {
     const NAME: &'static str = "PlaylistTrack";
 
-    type Dummy = PlaylistTrackDummy;
+    type Dummy<'names> = PlaylistTrackDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         PlaylistTrackDummy {
             playlist: f.col("PlaylistId"),
             track: f.col("TrackId"),
@@ -153,27 +153,27 @@ impl Table for PlaylistTrack {
 }
 
 pub struct Customer;
-pub struct CustomerDummy {
-    pub first_name: Db<String>,
-    pub last_name: Db<String>,
-    pub company: Db<String>,
-    pub address: Db<String>,
-    pub city: Db<String>,
-    pub state: Db<String>,
-    pub country: Db<String>,
-    pub postal_code: Db<String>,
-    pub phone: Db<String>,
-    pub fax: Db<String>,
-    pub email: Db<String>,
-    pub support_rep: Db<Employee>,
+pub struct CustomerDummy<'t> {
+    pub first_name: Db<'t, String>,
+    pub last_name: Db<'t, String>,
+    pub company: Db<'t, String>,
+    pub address: Db<'t, String>,
+    pub city: Db<'t, String>,
+    pub state: Db<'t, String>,
+    pub country: Db<'t, String>,
+    pub postal_code: Db<'t, String>,
+    pub phone: Db<'t, String>,
+    pub fax: Db<'t, String>,
+    pub email: Db<'t, String>,
+    pub support_rep: Db<'t, Employee>,
 }
 
 impl Table for Customer {
     const NAME: &'static str = "Customer";
 
-    type Dummy = CustomerDummy;
+    type Dummy<'names> = CustomerDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         CustomerDummy {
             first_name: f.col("FirstName"),
             last_name: f.col("LastName"),
@@ -196,29 +196,29 @@ impl HasId for Customer {
 }
 
 pub struct Employee;
-pub struct EmployeeDummy {
-    pub last_name: Db<String>,
-    pub first_name: Db<String>,
-    pub title: Db<String>,
-    pub reports_to: Db<Employee>,
-    pub birth_date: Db<String>,
-    pub hire_date: Db<String>,
-    pub address: Db<String>,
-    pub city: Db<String>,
-    pub state: Db<String>,
-    pub country: Db<String>,
-    pub postal_code: Db<String>,
-    pub phone: Db<String>,
-    pub fax: Db<String>,
-    pub email: Db<String>,
+pub struct EmployeeDummy<'t> {
+    pub last_name: Db<'t, String>,
+    pub first_name: Db<'t, String>,
+    pub title: Db<'t, String>,
+    pub reports_to: Db<'t, Employee>,
+    pub birth_date: Db<'t, String>,
+    pub hire_date: Db<'t, String>,
+    pub address: Db<'t, String>,
+    pub city: Db<'t, String>,
+    pub state: Db<'t, String>,
+    pub country: Db<'t, String>,
+    pub postal_code: Db<'t, String>,
+    pub phone: Db<'t, String>,
+    pub fax: Db<'t, String>,
+    pub email: Db<'t, String>,
 }
 
 impl Table for Employee {
     const NAME: &'static str = "Employee";
 
-    type Dummy = EmployeeDummy;
+    type Dummy<'names> = EmployeeDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         EmployeeDummy {
             last_name: f.col("LastName"),
             first_name: f.col("FirstName"),
@@ -243,16 +243,16 @@ impl HasId for Employee {
 }
 
 pub struct Genre;
-pub struct GenreDummy {
-    pub name: Db<String>,
+pub struct GenreDummy<'t> {
+    pub name: Db<'t, String>,
 }
 
 impl Table for Genre {
     const NAME: &'static str = "Genre";
 
-    type Dummy = GenreDummy;
+    type Dummy<'names> = GenreDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         GenreDummy {
             name: f.col("Name"),
         }
@@ -264,23 +264,23 @@ impl HasId for Genre {
 }
 
 pub struct Invoice;
-pub struct InvoiceDummy {
-    pub customer: Db<Customer>,
-    pub invoice_date: Db<String>,
-    pub billing_address: Db<String>,
-    pub billing_city: Db<String>,
-    pub billing_state: Db<String>,
-    pub billing_country: Db<String>,
-    pub billing_postal_code: Db<String>,
-    pub total: Db<i64>,
+pub struct InvoiceDummy<'t> {
+    pub customer: Db<'t, Customer>,
+    pub invoice_date: Db<'t, String>,
+    pub billing_address: Db<'t, String>,
+    pub billing_city: Db<'t, String>,
+    pub billing_state: Db<'t, String>,
+    pub billing_country: Db<'t, String>,
+    pub billing_postal_code: Db<'t, String>,
+    pub total: Db<'t, i64>,
 }
 
 impl Table for Invoice {
     const NAME: &'static str = "Invoice";
 
-    type Dummy = InvoiceDummy;
+    type Dummy<'names> = InvoiceDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         InvoiceDummy {
             customer: f.col("CustomerId"),
             invoice_date: f.col("InvoiceDate"),
@@ -299,16 +299,16 @@ impl HasId for Invoice {
 }
 
 pub struct MediaType;
-pub struct MediaTypeDummy {
-    pub name: Db<String>,
+pub struct MediaTypeDummy<'t> {
+    pub name: Db<'t, String>,
 }
 
 impl Table for MediaType {
     const NAME: &'static str = "MediaType";
 
-    type Dummy = MediaTypeDummy;
+    type Dummy<'names> = MediaTypeDummy<'names>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy {
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         MediaTypeDummy {
             name: f.col("Name"),
         }

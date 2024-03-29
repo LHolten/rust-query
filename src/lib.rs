@@ -28,9 +28,9 @@ pub struct Query<'outer, 'inner> {
 pub trait Table {
     const NAME: &'static str;
     // these names are defined in `'query`
-    type Dummy;
+    type Dummy<'t>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy;
+    fn build(f: Builder<'_>) -> Self::Dummy<'_>;
 }
 
 pub trait HasId: Table {
@@ -46,7 +46,7 @@ impl<'a> Builder<'a> {
         Builder { table }
     }
 
-    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<T> {
+    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
         T::iden_any(self.table, Field::Str(name))
     }
 }
@@ -64,23 +64,21 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         joins
     }
 
-    pub fn table<T: HasId>(&mut self, _t: T) -> &'inner Db<T> {
+    pub fn table<T: HasId>(&mut self, _t: T) -> Db<'inner, T> {
         let joins = self.new_source::<T>();
-        // Db {
-        //     info: FkInfo {
-        //         field: Field::Str(T::ID),
-        //         table: joins,
-        //         // prevent unnecessary join
-        //         inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
-        //     },
-        // }
-        todo!()
+        Db {
+            info: FkInfo {
+                field: Field::Str(T::ID),
+                table: joins,
+                // prevent unnecessary join
+                inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
+            },
+        }
     }
 
-    pub fn flat_table<T: Table>(&mut self, _t: T) -> &'inner T::Dummy {
-        // let joins = self.new_source::<T>();
-        // T::build(Builder::new(joins))
-        todo!()
+    pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
+        let joins = self.new_source::<T>();
+        T::build(Builder::new(joins))
     }
 
     // join another query that is grouped by some value
@@ -103,8 +101,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             ast,
             joins,
         }));
-        // f(inner)
-        todo!()
+        f(inner)
     }
 
     pub fn filter(&mut self, prop: impl Value + 'inner) {
@@ -125,7 +122,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     // only one group can exist at a time
     pub fn group<'out, T: HasId>(
         &'out mut self,
-        val: &'inner Db<T>,
+        val: &Db<'inner, T>,
     ) -> &'out Group<'outer, 'inner, T> {
         todo!()
     }
@@ -133,71 +130,36 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
     //     todo!()
     // }
-
-    // pub fn aggr<F, R>(&self, f: F) -> R
-    // where
-    //     F: for<'a> FnOnce(&'a mut Aggr<'a, 'inner>) -> R,
-    // {
-    //     todo!()
-    // }
 }
 
-// pub struct Aggr<'inner, 'outer> {
-//     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
-//     phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
-// }
-
-// impl<'inner, 'outer> Aggr<'inner, 'outer> {
-//     pub fn flat_table<T: Table>(&mut self, _t: T) -> &'inner T::Dummy {
-//         // let joins = self.new_source::<T>();
-//         // T::build(Builder::new(joins))
-//         todo!()
-//     }
-
-//     pub fn filter_eq(&mut self, a: impl Value + 'inner, b: impl Value + 'inner) {
-//         // self.ast.filters.push(Box::new(prop.build_expr()));
-//         todo!()
-//     }
-
-//     pub fn count_distinct<V: Value + 'inner>(&'inner self, val: V) -> &'outer Db<i64> {
-//         // let expr = Func::count_distinct(val.build_expr());
-//         // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-//         // i64::iden_any(self.joins, Field::U64(*alias))
-//         todo!()
-//     }
-// }
-
-pub struct Group<'outer, 'inner, V> {
-    // inner: &'out Query<'inner>,
-    _phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner V>,
-    _phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer V>,
+pub struct Group<'outer, 'inner, T: HasId> {
+    inner: &'outer mut Query<'outer, 'inner>,
+    value: Db<'outer, T>,
 }
 
 impl<'outer, 'inner, T: HasId> Deref for Group<'outer, 'inner, T> {
-    type Target = Db<T>;
+    type Target = Db<'outer, T>;
 
     fn deref(&self) -> &Self::Target {
-        todo!()
+        &self.value
     }
 }
 
-impl<'outer, 'inner, T> Group<'outer, 'inner, T> {
-    pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> &'out Db<i64> {
-        // let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-        // i64::iden_any(self.joins, Field::U64(*alias))
-        todo!()
+impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
+    pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> Db<'out, i64> {
+        let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
+        let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        i64::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<i64> {
-        // let expr = Func::count_distinct(val.build_expr());
-        // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-        // i64::iden_any(self.joins, Field::U64(*alias))
-        todo!()
+    pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, i64> {
+        let expr = Func::count_distinct(val.build_expr());
+        let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        i64::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
     // evil
-    pub fn rank<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<i64> {
+    pub fn rank<'out, V: Value + 'inner>(&'out self, val: V) -> Db<'out, i64> {
         // let expr = Func::count_distinct(val.build_expr());
         // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
         // i64::iden_any(self.joins, Field::U64(*alias))
@@ -208,7 +170,7 @@ impl<'outer, 'inner, T> Group<'outer, 'inner, T> {
     where
         F: FnMut(Row<'_, 'outer>) -> R,
     {
-        todo!()
+        self.inner.into_vec(f)
     }
 }
 
@@ -227,8 +189,7 @@ where
         ast: &ast,
         joins: &joins,
     };
-    // f(e, &mut q)
-    todo!()
+    f(&mut q)
 }
 
 impl<'outer, 'inner> Query<'outer, 'inner> {
