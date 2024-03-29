@@ -6,8 +6,8 @@ use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
     // let res = invoice_info();
-    let res = playlist_track_count();
-    // let res = avg_album_track_count_for_artist();
+    // let res = playlist_track_count();
+    let res = avg_album_track_count_for_artist();
     // let res = count_reporting();
     println!("{res:#?}")
 }
@@ -53,13 +53,13 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
         let plt = q.flat_table(PlaylistTrack);
         let pl = q.group(&plt.playlist);
         pl.into_vec(|row| PlaylistTrackCount {
-            playlist: row.get(pl.name),
+            playlist: row.get(pl.item().name),
             track_count: row.get(pl.count_distinct(&plt.track)),
         })
     })
 }
 
-fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
+fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
     new_query(|q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
@@ -67,7 +67,12 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
             (album.item(), album.count_distinct(&track))
         });
         let artist = &q.group(&album.artist);
-        artist.into_vec(|row| (row.get(artist.name), row.get(artist.avg(track_count))))
+        artist.into_vec(|row| {
+            (
+                row.get(artist.item().name),
+                row.get(artist.avg(track_count)),
+            )
+        })
     })
 }
 
@@ -77,7 +82,7 @@ fn count_reporting() -> Vec<(String, i64)> {
         let receiver = q.group(&reporter.reports_to);
         receiver.into_vec(|row| {
             (
-                row.get(receiver.last_name),
+                row.get(receiver.item().last_name),
                 row.get(receiver.count_distinct(&reporter)),
             )
         })

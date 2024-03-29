@@ -195,9 +195,9 @@ pub(super) struct ValueInfo {
 
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
-    fn iden_any(col: &Joins, field: Field) -> Db<'_, Self> {
+    fn iden_any(joins: &Joins, field: Field) -> Db<'_, Self> {
         Db {
-            info: Self::Info::unwrap(col, field),
+            info: Self::Info::unwrap(joins, field),
         }
     }
 }
@@ -216,6 +216,10 @@ impl MyIdenT for bool {
 
 impl MyIdenT for String {
     type Info<'t> = ValueInfo;
+}
+
+impl<T: MyIdenT> MyIdenT for Option<T> {
+    type Info<'t> = T::Info<'t>;
 }
 
 // invariant in `'t` because of the associated type

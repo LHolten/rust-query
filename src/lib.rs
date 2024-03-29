@@ -7,7 +7,6 @@ pub mod value;
 use std::{
     cell::{Cell, OnceCell},
     marker::PhantomData,
-    ops::Deref,
 };
 
 use ast::{Joins, MySelect, Source};
@@ -15,8 +14,6 @@ use ast::{Joins, MySelect, Source};
 use elsa::FrozenVec;
 use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
 use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
-
-use crate::ast::MyTable;
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -118,11 +115,14 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     // only one group can exist at a time
     pub fn group<T: HasId>(&'outer mut self, val: &Db<'inner, T>) -> Group<'outer, 'inner, T> {
         let alias = MyAlias::new();
-        let value = T::iden_any(self.joins, Field::U64(alias));
         self.ast
             .group
             .get_or_init(|| (val.build_expr(), T::NAME, T::ID, alias));
-        Group { inner: self, value }
+        Group {
+            inner: self,
+            alias,
+            phantom: PhantomData,
+        }
     }
 
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
@@ -132,34 +132,19 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
 pub struct Group<'outer, 'inner, T: HasId> {
     inner: &'outer mut Query<'outer, 'inner>,
-    value: Db<'outer, T>,
-}
-
-impl<'outer, 'inner, T: HasId> Deref for Group<'outer, 'inner, T> {
-    type Target = Db<'outer, T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
+    alias: MyAlias,
+    phantom: PhantomData<T>,
 }
 
 impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
     pub fn item(&self) -> Db<'outer, T> {
-        let joins = self.value.info.joins;
-        Db {
-            info: FkInfo {
-                field: Field::Str(T::ID),
-                joins,
-                // prevent unnecessary join
-                inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
-            },
-        }
+        T::iden_any(self.inner.joins, Field::U64(self.alias))
     }
 
-    pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, i64> {
+    pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
         let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-        i64::iden_any(self.inner.joins, Field::U64(*alias))
+        Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
     pub fn count_distinct<V: Value<'inner>>(&self, val: &V) -> Db<'outer, i64> {
