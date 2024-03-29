@@ -117,24 +117,11 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
     // only one group can exist at a time
     pub fn group<T: HasId>(&'outer mut self, val: &Db<'inner, T>) -> Group<'outer, 'inner, T> {
-        let table = MyTable {
-            name: T::NAME,
-            id: T::ID,
-            joins: Joins {
-                alias: MyAlias::new(),
-                joined: FrozenVec::new(),
-            },
-        };
-
-        let table = &self.ast.group.get_or_init(|| (val.build_expr(), table)).1;
-        let value = Db {
-            info: FkInfo {
-                field: Field::Str(T::ID),
-                joins: &table.joins,
-                // prevent unnecessary join
-                inner: OnceCell::from(Box::new(T::build(Builder::new(&table.joins)))),
-            },
-        };
+        let alias = MyAlias::new();
+        let value = T::iden_any(self.joins, Field::U64(alias));
+        self.ast
+            .group
+            .get_or_init(|| (val.build_expr(), T::NAME, T::ID, alias));
         Group { inner: self, value }
     }
 
