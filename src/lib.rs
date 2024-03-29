@@ -16,9 +16,10 @@ use elsa::FrozenVec;
 use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
 use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
 
-pub struct Query<'inner> {
+pub struct Query<'outer, 'inner> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
+    phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
     ast: &'inner MySelect,
     joins: &'inner Joins,
     // outer: PhantomData<>
@@ -50,7 +51,7 @@ impl<'a> Builder<'a> {
     }
 }
 
-impl<'inner> Query<'inner> {
+impl<'outer, 'inner> Query<'outer, 'inner> {
     fn new_source<T: Table>(&mut self) -> &'inner Joins {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -85,7 +86,7 @@ impl<'inner> Query<'inner> {
     // join another query that is grouped by some value
     pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'inner mut Query<'a>, Grouper<'inner, 'a>) -> R,
+        F: for<'a> FnOnce(&'inner mut Query<'inner, 'a>) -> R,
     {
         let joins = Joins {
             alias: MyAlias::new(),
@@ -98,6 +99,7 @@ impl<'inner> Query<'inner> {
         };
         let inner = Box::leak(Box::new(Query {
             phantom: PhantomData,
+            phantom2: PhantomData,
             ast,
             joins,
         }));
@@ -137,21 +139,6 @@ impl<'inner> Query<'inner> {
     //     V::Typ::iden_any(self.joins, Field::U64(*alias))
     // }
 }
-
-pub struct Grouper<'out, 'inner> {
-    inner: PhantomData<dyn Fn(&'inner ()) -> &'out ()>,
-}
-
-impl<'outer, 'inner> Grouper<'outer, 'inner> {
-    pub fn group<V: Value + 'inner>(
-        self,
-        q: &'outer Query<'inner>,
-        v: V,
-    ) -> &'outer Group<'inner, V> {
-        todo!()
-    }
-}
-
 pub struct Group<'inner, V> {
     // inner: &'out Query<'inner>,
     _phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner V>,
@@ -190,11 +177,8 @@ impl<'inner, T> Group<'inner, T> {
 
 pub fn new_query<F, R>(f: F) -> R
 where
-    F: for<'a, 'names> FnOnce(Exec<'names>, &'names mut Query<'a>, Grouper<'names, 'a>) -> R,
+    F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R,
 {
-    let e = Exec {
-        phantom: PhantomData,
-    };
     let ast = MySelect::default();
     let joins = Joins {
         alias: MyAlias::new(),
@@ -202,6 +186,7 @@ where
     };
     let mut q = Query {
         phantom: PhantomData,
+        phantom2: PhantomData,
         ast: &ast,
         joins: &joins,
     };
@@ -209,19 +194,14 @@ where
     todo!()
 }
 
-pub struct Exec<'a> {
-    // we are contravariant with respect to 'a
-    phantom: PhantomData<dyn Fn(&'a ())>,
-}
-
-impl<'names> Exec<'names> {
-    pub fn into_vec<'z, F, T>(&self, q: &'names Query<'z>, mut f: F) -> Vec<T>
+impl<'outer, 'inner> Query<'outer, 'inner> {
+    pub fn into_vec<F, T>(&self, mut f: F) -> Vec<T>
     where
-        F: FnMut(Row<'_, 'names>) -> T,
+        F: FnMut(Row<'_, 'outer>) -> T,
     {
-        let inner_select = q.ast.build_select();
+        let inner_select = self.ast.build_select();
         let last = FrozenVec::new();
-        let mut select = q.joins.wrap(&inner_select, 0, &last);
+        let mut select = self.joins.wrap(&inner_select, 0, &last);
         let sql = select.to_string(SqliteQueryBuilder);
 
         println!("{sql}");
@@ -236,8 +216,8 @@ impl<'names> Exec<'names> {
                 offset: out.len(),
                 inner: PhantomData,
                 row,
-                ast: q.ast,
-                joins: q.joins,
+                ast: self.ast,
+                joins: self.joins,
                 conn: &conn,
                 updated: &updated,
                 last: &last,
@@ -246,8 +226,8 @@ impl<'names> Exec<'names> {
 
             if updated.get() {
                 println!("UPDATING!");
-                let inner_select = q.ast.build_select();
-                select = q.joins.wrap(&inner_select, out.len(), &last);
+                let inner_select = self.ast.build_select();
+                select = self.joins.wrap(&inner_select, out.len(), &last);
                 let sql = select.to_string(SqliteQueryBuilder);
                 println!("{sql}");
 
