@@ -1,17 +1,15 @@
 #![allow(dead_code)]
 mod tables;
 
-use std::ops::Deref;
-
 use rust_query::new_query;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
     // let res = invoice_info();
-    // let res = playlist_track_count();
+    let res = playlist_track_count();
     // let res = avg_album_track_count_for_artist();
     // let res = count_reporting();
-    // println!("{res:#?}")
+    println!("{res:#?}")
 }
 
 // -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.
@@ -20,6 +18,7 @@ fn main() {
 // 	join track as t on i.trackid = t.trackid
 // 	join album as al on al.albumid = t.albumid
 // 	join artist as ar on ar.artistid = al.artistid
+#[derive(Debug)]
 struct InvoiceInfo {
     track: String,
     artist: String,
@@ -31,9 +30,9 @@ fn invoice_info() -> Vec<InvoiceInfo> {
         let ivl = q.table(InvoiceLine);
 
         q.into_vec(|row| InvoiceInfo {
-            track: row.get(ivl.track.name),
-            artist: row.get(ivl.track.album.artist.name),
-            ivl_id: row.get(ivl.id()),
+            track: row.get(q.select(ivl.track.name)),
+            artist: row.get(q.select(ivl.track.album.artist.name)),
+            ivl_id: row.get(q.select(ivl.quantity)),
         })
     })
 }
@@ -65,9 +64,9 @@ fn avg_album_track_count_for_artist() -> Vec<(String, i64)> {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
             let album = q.group(&track.album);
-            (album.deref(), album.count_distinct(&track))
+            (album.item(), album.count_distinct(&track))
         });
-        let artist = q.group(&album.artist);
+        let artist = &q.group(&album.artist);
         artist.into_vec(|row| (row.get(artist.name), row.get(artist.avg(track_count))))
     })
 }

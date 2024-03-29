@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{cell::OnceCell, fmt};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
@@ -15,7 +15,7 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
     // distinct on
-    pub(super) group: FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+    pub(super) group: OnceCell<(SimpleExpr, MyTable)>,
     // calculating these agregates
     pub(super) aggr: MyMap<SimpleExpr, MyAlias>,
     // sort on value (and keep row with smallest value)
@@ -118,11 +118,28 @@ impl MySelect {
             select.and_where(filter.clone());
         }
 
-        for (alias, group) in self.group.iter() {
-            select.expr_as(group.clone(), *alias);
-            select.group_by_col(*alias);
+        if let Some((group, table)) = self.group.get() {
+            let id_field = table.id_alias();
+            let filter = Expr::col(id_field).eq(group.clone());
+
+            select.join_as(
+                sea_query::JoinType::RightJoin,
+                Alias::new(table.name),
+                table.joins.alias,
+                Condition::all().add(filter),
+            );
+
+            for (col, table) in table.joins.joined.iter() {
+                let field = table.joins.col_alias(*col);
+                table.join(field, &mut select)
+            }
+
+            // let alias = MyAlias::new();
+            // select.expr_as(group.clone(), alias);
+            select.group_by_col(table.id_alias());
         }
 
+        select.expr_as(Expr::val(1), NullAlias);
         for (aggr, alias) in self.aggr.iter() {
             select.expr_as(aggr.clone(), *alias);
         }

@@ -12,11 +12,11 @@ use crate::{
     Builder, HasId,
 };
 
-pub trait Value: Sized {
+pub trait Value<'t>: Sized {
     type Typ: MyIdenT;
     fn build_expr(&self) -> SimpleExpr;
 
-    fn add<T: Value>(self, rhs: T) -> MyAdd<Self, T> {
+    fn add<T: Value<'t>>(self, rhs: T) -> MyAdd<Self, T> {
         MyAdd(self, rhs)
     }
 
@@ -24,7 +24,7 @@ pub trait Value: Sized {
         MyLt(self, rhs)
     }
 
-    fn eq<T: Value>(self, rhs: T) -> MyEq<Self, T> {
+    fn eq<T: Value<'t>>(self, rhs: T) -> MyEq<Self, T> {
         MyEq(self, rhs)
     }
 
@@ -33,7 +33,7 @@ pub trait Value: Sized {
     }
 }
 
-impl<'t, T: MyIdenT> Value for Db<'t, T> {
+impl<'t, T: MyIdenT> Value<'t> for Db<'t, T> {
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
         Expr::col(self.info.alias()).into()
@@ -43,7 +43,7 @@ impl<'t, T: MyIdenT> Value for Db<'t, T> {
 #[derive(Clone, Copy)]
 pub struct MyAdd<A, B>(A, B);
 
-impl<A: Value, B: Value> Value for MyAdd<A, B> {
+impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAdd<A, B> {
     type Typ = A::Typ;
     fn build_expr(&self) -> SimpleExpr {
         self.0.build_expr().add(self.1.build_expr())
@@ -53,7 +53,7 @@ impl<A: Value, B: Value> Value for MyAdd<A, B> {
 #[derive(Clone, Copy)]
 pub struct MyNot<T>(T);
 
-impl<T: Value> Value for MyNot<T> {
+impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
     type Typ = T::Typ;
     fn build_expr(&self) -> SimpleExpr {
         self.0.build_expr().not()
@@ -63,7 +63,7 @@ impl<T: Value> Value for MyNot<T> {
 #[derive(Clone, Copy)]
 pub struct MyLt<A>(A, i32);
 
-impl<A: Value> Value for MyLt<A> {
+impl<'t, A: Value<'t>> Value<'t> for MyLt<A> {
     type Typ = bool;
     fn build_expr(&self) -> SimpleExpr {
         Expr::expr(self.0.build_expr()).lt(self.1)
@@ -73,7 +73,7 @@ impl<A: Value> Value for MyLt<A> {
 #[derive(Clone, Copy)]
 pub struct MyEq<A, B>(A, B);
 
-impl<A: Value, B: Value> Value for MyEq<A, B> {
+impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
     type Typ = bool;
     fn build_expr(&self) -> SimpleExpr {
         self.0.build_expr().eq(self.1.build_expr())
@@ -83,7 +83,7 @@ impl<A: Value, B: Value> Value for MyEq<A, B> {
 #[derive(Clone, Copy)]
 pub struct Const<T>(pub T);
 
-impl<T: MyIdenT> Value for Const<T>
+impl<'t, T: MyIdenT> Value<'t> for Const<T>
 where
     T: Into<sea_query::value::Value> + Copy,
 {
@@ -156,13 +156,13 @@ impl<'t, T: HasId> MyTableT<'t> for FkInfo<'t, T> {
     fn unwrap(table: &'t Joins, field: Field) -> Self {
         FkInfo {
             field,
-            table,
+            joins: table,
             inner: OnceCell::new(),
         }
     }
     fn alias(&self) -> FieldAlias {
         FieldAlias {
-            table: self.table.alias,
+            table: self.joins.alias,
             col: self.field,
         }
     }
@@ -184,7 +184,7 @@ impl<'t> MyTableT<'t> for ValueInfo {
 
 pub(super) struct FkInfo<'t, T: HasId> {
     pub field: Field,
-    pub table: &'t Joins, // the table that we join onto
+    pub joins: &'t Joins, // the table that we join onto
     pub inner: OnceCell<Box<T::Dummy<'t>>>,
 }
 
@@ -240,7 +240,7 @@ impl<'a, T: HasId> Db<'a, T> {
         Db {
             info: ValueInfo {
                 field: FieldAlias {
-                    table: self.info.table.alias,
+                    table: self.info.joins.alias,
                     col: self.info.field,
                 },
             },
@@ -253,7 +253,7 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
 
     fn deref(&self) -> &Self::Target {
         self.info.inner.get_or_init(|| {
-            let t = self.info.table;
+            let t = self.info.joins;
             let name = self.info.field;
             let table = if let Some(item) = t.joined.iter().find(|item| item.0 == name) {
                 &item.1

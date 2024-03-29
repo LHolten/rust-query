@@ -16,6 +16,8 @@ use elsa::FrozenVec;
 use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
 use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
 
+use crate::ast::MyTable;
+
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
@@ -69,7 +71,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         Db {
             info: FkInfo {
                 field: Field::Str(T::ID),
-                table: joins,
+                joins,
                 // prevent unnecessary join
                 inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
             },
@@ -104,27 +106,36 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         f(inner)
     }
 
-    pub fn filter(&mut self, prop: impl Value + 'inner) {
+    pub fn filter(&mut self, prop: impl Value<'inner>) {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    // // the values of which all variants need to be preserved
-    // pub fn all<'out, V: Value + 'inner>(&'out mut self, val: &V) {
-    //     let alias = MyAlias::new();
-    //     let item = (alias, val.build_expr());
-    //     self.ast.group.push(Box::new(item));
-    // }
-
-    pub fn select<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Db<V::Typ> {
-        todo!()
+    pub fn select<V: Value<'inner>>(&'outer self, val: V) -> Db<'outer, V::Typ> {
+        let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
+        V::Typ::iden_any(self.joins, Field::U64(*alias))
     }
 
     // only one group can exist at a time
-    pub fn group<'out, T: HasId>(
-        &'out mut self,
-        val: &Db<'inner, T>,
-    ) -> &'out Group<'outer, 'inner, T> {
-        todo!()
+    pub fn group<T: HasId>(&'outer mut self, val: &Db<'inner, T>) -> Group<'outer, 'inner, T> {
+        let table = MyTable {
+            name: T::NAME,
+            id: T::ID,
+            joins: Joins {
+                alias: MyAlias::new(),
+                joined: FrozenVec::new(),
+            },
+        };
+
+        let table = &self.ast.group.get_or_init(|| (val.build_expr(), table)).1;
+        let value = Db {
+            info: FkInfo {
+                field: Field::Str(T::ID),
+                joins: &table.joins,
+                // prevent unnecessary join
+                inner: OnceCell::from(Box::new(T::build(Builder::new(&table.joins)))),
+            },
+        };
+        Group { inner: self, value }
     }
 
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
@@ -146,25 +157,37 @@ impl<'outer, 'inner, T: HasId> Deref for Group<'outer, 'inner, T> {
 }
 
 impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
-    pub fn avg<'out, V: Value<Typ = i64> + 'inner>(&'out self, val: V) -> Db<'out, i64> {
+    pub fn item(&self) -> Db<'outer, T> {
+        let joins = self.value.info.joins;
+        Db {
+            info: FkInfo {
+                field: Field::Str(T::ID),
+                joins,
+                // prevent unnecessary join
+                inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
+            },
+        }
+    }
+
+    pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, i64> {
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
         let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
         i64::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn count_distinct<'out, V: Value + 'inner>(&'out self, val: &V) -> Db<'out, i64> {
+    pub fn count_distinct<V: Value<'inner>>(&self, val: &V) -> Db<'outer, i64> {
         let expr = Func::count_distinct(val.build_expr());
         let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
         i64::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
     // evil
-    pub fn rank<'out, V: Value + 'inner>(&'out self, val: V) -> Db<'out, i64> {
-        // let expr = Func::count_distinct(val.build_expr());
-        // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-        // i64::iden_any(self.joins, Field::U64(*alias))
-        todo!()
-    }
+    // pub fn rank<V: Value<'inner>>(&self, val: V) -> Db<'outer, i64> {
+    //     // let expr = Func::count_distinct(val.build_expr());
+    //     // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+    //     // i64::iden_any(self.joins, Field::U64(*alias))
+    //     todo!()
+    // }
 
     pub fn into_vec<F, R>(&self, f: F) -> Vec<R>
     where
@@ -251,7 +274,7 @@ pub struct Row<'x, 'names> {
 }
 
 impl<'names> Row<'_, 'names> {
-    pub fn get<V: Value + 'names>(&self, val: V) -> V::Typ
+    pub fn get<V: Value<'names>>(&self, val: V) -> V::Typ
     where
         V::Typ: MyIdenT + rusqlite::types::FromSql,
     {
@@ -271,6 +294,8 @@ impl<'names> Row<'_, 'names> {
         select = self.joins.wrap(&select, self.offset, self.last);
 
         let sql = select.to_string(SqliteQueryBuilder);
+        println!("REQUERY");
+        println!("{sql}");
         let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
         self.updated.set(true);
