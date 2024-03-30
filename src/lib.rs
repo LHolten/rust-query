@@ -27,9 +27,9 @@ pub struct Query<'outer, 'inner> {
 pub trait Table {
     const NAME: &'static str;
     // these names are defined in `'query`
-    type Dummy<'t>;
+    type Dummy<'t, const NotNull: bool>;
 
-    fn build(f: Builder<'_>) -> Self::Dummy<'_>;
+    fn build<const NotNull: bool>(f: Builder<'_>) -> Self::Dummy<'_, NotNull>;
 }
 
 pub trait HasId: Table {
@@ -45,7 +45,7 @@ impl<'a> Builder<'a> {
         Builder { table }
     }
 
-    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
+    pub fn col<T: MyIdenT, const NotNull: bool>(&self, name: &'static str) -> Db<'a, T, NotNull> {
         T::iden_any(self.table, Field::Str(name))
     }
 }
@@ -75,7 +75,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         }
     }
 
-    pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
+    pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner, true> {
         let joins = self.new_source::<T>();
         T::build(Builder::new(joins))
     }

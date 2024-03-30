@@ -14,6 +14,7 @@ use crate::{
 
 pub trait Value<'t>: Sized {
     type Typ: MyIdenT;
+    const NotNull: bool;
     fn build_expr(&self) -> SimpleExpr;
 
     fn add<T: Value<'t>>(self, rhs: T) -> MyAdd<Self, T> {
@@ -33,8 +34,10 @@ pub trait Value<'t>: Sized {
     }
 }
 
-impl<'t, T: MyIdenT> Value<'t> for Db<'t, T> {
+impl<'t, T: MyIdenT, const NotNull: bool> Value<'t> for Db<'t, T, NotNull> {
     type Typ = T;
+    const NotNull: bool = NotNull;
+
     fn build_expr(&self) -> SimpleExpr {
         Expr::col(self.info.alias()).into()
     }
@@ -45,6 +48,7 @@ pub struct MyAdd<A, B>(A, B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAdd<A, B> {
     type Typ = A::Typ;
+    const NotNull: bool = A::NotNull & B::NotNull;
     fn build_expr(&self) -> SimpleExpr {
         self.0.build_expr().add(self.1.build_expr())
     }
@@ -55,6 +59,7 @@ pub struct MyNot<T>(T);
 
 impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
     type Typ = T::Typ;
+    const NotNull: bool = T::NotNull;
     fn build_expr(&self) -> SimpleExpr {
         self.0.build_expr().not()
     }
@@ -65,6 +70,7 @@ pub struct MyLt<A>(A, i32);
 
 impl<'t, A: Value<'t>> Value<'t> for MyLt<A> {
     type Typ = bool;
+    const NotNull: bool = A::NotNull;
     fn build_expr(&self) -> SimpleExpr {
         Expr::expr(self.0.build_expr()).lt(self.1)
     }
@@ -75,6 +81,7 @@ pub struct MyEq<A, B>(A, B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
     type Typ = bool;
+    const NotNull: bool = A::NotNull & B::NotNull;
     fn build_expr(&self) -> SimpleExpr {
         self.0.build_expr().eq(self.1.build_expr())
     }
@@ -88,6 +95,7 @@ where
     T: Into<sea_query::value::Value> + Copy,
 {
     type Typ = T;
+    const NotNull: bool = true;
     fn build_expr(&self) -> SimpleExpr {
         SimpleExpr::from(self.0)
     }
@@ -152,7 +160,7 @@ pub(super) trait MyTableT<'t> {
     fn alias(&self) -> FieldAlias;
 }
 
-impl<'t, T: HasId> MyTableT<'t> for FkInfo<'t, T> {
+impl<'t, T: HasId, const NotNull: bool> MyTableT<'t> for FkInfo<'t, T, NotNull> {
     fn unwrap(table: &'t Joins, field: Field) -> Self {
         FkInfo {
             field,
@@ -182,10 +190,10 @@ impl<'t> MyTableT<'t> for ValueInfo {
     }
 }
 
-pub(super) struct FkInfo<'t, T: HasId> {
+pub(super) struct FkInfo<'t, T: HasId, const NotNull: bool> {
     pub field: Field,
     pub joins: &'t Joins, // the table that we join onto
-    pub inner: OnceCell<Box<T::Dummy<'t>>>,
+    pub inner: OnceCell<Box<T::Dummy<'t, NotNull>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -194,8 +202,8 @@ pub(super) struct ValueInfo {
 }
 
 pub(super) trait MyIdenT: Sized {
-    type Info<'t>: MyTableT<'t>;
-    fn iden_any(joins: &Joins, field: Field) -> Db<'_, Self> {
+    type Info<'t, const NotNull: bool>: MyTableT<'t>;
+    fn iden_any<const NotNull: bool>(joins: &Joins, field: Field) -> Db<'_, Self, NotNull> {
         Db {
             info: Self::Info::unwrap(joins, field),
         }
@@ -203,33 +211,33 @@ pub(super) trait MyIdenT: Sized {
 }
 
 impl<T: HasId> MyIdenT for T {
-    type Info<'t> = FkInfo<'t, T>;
+    type Info<'t, const NotNull: bool> = FkInfo<'t, T, NotNull>;
 }
 
 impl MyIdenT for i64 {
-    type Info<'t> = ValueInfo;
+    type Info<'t, const NotNull: bool> = ValueInfo;
 }
 
 impl MyIdenT for bool {
-    type Info<'t> = ValueInfo;
+    type Info<'t, const NotNull: bool> = ValueInfo;
 }
 
 impl MyIdenT for String {
-    type Info<'t> = ValueInfo;
+    type Info<'t, const NotNull: bool> = ValueInfo;
 }
 
-impl<T: MyIdenT> MyIdenT for Option<T> {
-    type Info<'t> = T::Info<'t>;
-}
+// impl<T: MyIdenT> MyIdenT for Option<T> {
+//     type Info<'t, const NotNull: bool> = T::Info<'t>;
+// }
 
 // invariant in `'t` because of the associated type
-pub struct Db<'t, T: MyIdenT> {
-    pub(super) info: T::Info<'t>,
+pub struct Db<'t, T: MyIdenT, const NotNull: bool = true> {
+    pub(super) info: T::Info<'t, NotNull>,
 }
 
-impl<'t, T: MyIdenT> Clone for Db<'t, T>
+impl<'t, T: MyIdenT, const NotNull: bool> Clone for Db<'t, T, NotNull>
 where
-    T::Info<'t>: Clone,
+    T::Info<'t, NotNull>: Clone,
 {
     fn clone(&self) -> Self {
         Db {
@@ -237,7 +245,10 @@ where
         }
     }
 }
-impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
+impl<'t, T: MyIdenT, const NotNull: bool> Copy for Db<'t, T, NotNull> where
+    T::Info<'t, NotNull>: Copy
+{
+}
 
 impl<'a, T: HasId> Db<'a, T> {
     pub fn id(&self) -> Db<'a, i64> {
@@ -252,10 +263,8 @@ impl<'a, T: HasId> Db<'a, T> {
     }
 }
 
-impl<'a, T: HasId> Deref for Db<'a, T> {
-    type Target = T::Dummy<'a>;
-
-    fn deref(&self) -> &Self::Target {
+impl<'a, T: HasId, const NotNull: bool> Db<'a, T, NotNull> {
+    fn private_deref(&self) -> &T::Dummy<'a, NotNull> {
         self.info.inner.get_or_init(|| {
             let t = self.info.joins;
             let name = self.info.field;
@@ -275,5 +284,19 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
 
             Box::new(T::build(Builder::new(&table.joins)))
         })
+    }
+}
+
+impl<'a, T: HasId> Db<'a, T, false> {
+    pub fn opt(&self) -> &T::Dummy<'a, false> {
+        self.private_deref()
+    }
+}
+
+impl<'a, T: HasId> Deref for Db<'a, T, true> {
+    type Target = T::Dummy<'a, true>;
+
+    fn deref(&self) -> &Self::Target {
+        self.private_deref()
     }
 }

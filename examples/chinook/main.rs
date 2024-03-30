@@ -5,9 +5,9 @@ use rust_query::new_query;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
-    // let res = invoice_info();
+    let res = invoice_info();
     // let res = playlist_track_count();
-    let res = avg_album_track_count_for_artist();
+    // let res = avg_album_track_count_for_artist();
     // let res = count_reporting();
     println!("{res:#?}")
 }
@@ -21,17 +21,20 @@ fn main() {
 #[derive(Debug)]
 struct InvoiceInfo {
     track: String,
-    artist: String,
+    composer: Option<String>,
+    artist: Option<String>,
     ivl_id: i64,
 }
 
 fn invoice_info() -> Vec<InvoiceInfo> {
     new_query(|q| {
         let ivl = q.table(InvoiceLine);
+        let album = q.unwrap(&ivl.track.album);
 
         q.into_vec(|row| InvoiceInfo {
             track: row.get(q.select(ivl.track.name)),
-            artist: row.get(q.select(ivl.track.album.artist.name)),
+            composer: row.get(q.select(ivl.track.composer)),
+            artist: row.get(q.select(album.artist.name)),
             ivl_id: row.get(q.select(ivl.id())),
         })
     })
@@ -44,7 +47,7 @@ fn invoice_info() -> Vec<InvoiceInfo> {
 // group by playlist.playlistid
 #[derive(Debug)]
 struct PlaylistTrackCount {
-    playlist: String,
+    playlist: Option<String>,
     track_count: i64,
 }
 
@@ -59,11 +62,13 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     })
 }
 
-fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
+fn avg_album_track_count_for_artist() -> Vec<(Option<String>, Option<i64>)> {
     new_query(|q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
-            let album = q.project_on(&track.album);
+            // we only consider tracks that are part of an album
+            let album = q.unwrap(&track.album);
+            let album = q.project_on(&album);
             (album.select(), album.count_distinct(&track))
         });
         let artist = q.project_on(&album.artist);
@@ -79,7 +84,9 @@ fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
 fn count_reporting() -> Vec<(String, i64)> {
     new_query(|q| {
         let reporter = q.table(Employee);
-        let receiver = q.project_on(&reporter.reports_to);
+        // we only consider reporters that report to someone
+        let receiver = q.unwrap(&reporter.reports_to);
+        let receiver = q.project_on(&receiver);
         receiver.into_vec(|row| {
             (
                 row.get(receiver.select().last_name),
