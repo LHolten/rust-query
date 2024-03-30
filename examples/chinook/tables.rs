@@ -1,69 +1,5 @@
 use rust_query::{value::Db, Builder, HasId, Table};
 
-pub struct InvoiceLine;
-
-pub struct InvoiceLineDummy<'a> {
-    pub invoice: Db<'a, Invoice>,
-    pub track: Db<'a, Track>,
-    pub unit_price: Db<'a, i64>,
-    pub quantity: Db<'a, i64>,
-}
-
-impl Table for InvoiceLine {
-    const NAME: &'static str = "InvoiceLine";
-
-    type Dummy<'names> = InvoiceLineDummy<'names>;
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        InvoiceLineDummy {
-            invoice: f.col("InvoiceId"),
-            track: f.col("TrackId"),
-            unit_price: f.col("UnitPrice"),
-            quantity: f.col("Quantity"),
-        }
-    }
-}
-
-impl HasId for InvoiceLine {
-    const ID: &'static str = "InvoiceLineId";
-}
-
-pub struct Track;
-
-pub struct TrackDummy<'a> {
-    pub name: Db<'a, String>,
-    pub album: Db<'a, Album>,
-    pub media_type: Db<'a, MediaType>,
-    pub genre: Db<'a, Genre>,
-    pub composer: Db<'a, String>,
-    pub milliseconds: Db<'a, i64>,
-    pub bytes: Db<'a, i64>,
-    pub unit_price: Db<'a, i64>,
-}
-
-impl Table for Track {
-    const NAME: &'static str = "Track";
-
-    type Dummy<'names> = TrackDummy<'names>;
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        TrackDummy {
-            name: f.col("Name"),
-            album: f.col("AlbumId"),
-            media_type: f.col("MediaTypeId"),
-            genre: f.col("GenreId"),
-            composer: f.col("Composer"),
-            milliseconds: f.col("Milliseconds"),
-            bytes: f.col("Bytes"),
-            unit_price: f.col("UnitPrice"),
-        }
-    }
-}
-
-impl HasId for Track {
-    const ID: &'static str = "TrackId";
-}
-
 pub struct Album;
 
 pub struct AlbumDummy<'a> {
@@ -108,48 +44,6 @@ impl Table for Artist {
 
 impl HasId for Artist {
     const ID: &'static str = "ArtistId";
-}
-
-pub struct Playlist;
-
-pub struct PlaylistDummy<'t> {
-    pub name: Db<'t, String>,
-}
-
-impl Table for Playlist {
-    const NAME: &'static str = "Playlist";
-
-    type Dummy<'names> = PlaylistDummy<'names>;
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        PlaylistDummy {
-            name: f.col("Name"),
-        }
-    }
-}
-
-impl HasId for Playlist {
-    const ID: &'static str = "PlaylistId";
-}
-
-pub struct PlaylistTrack;
-
-pub struct PlaylistTrackDummy<'t> {
-    pub playlist: Db<'t, Playlist>,
-    pub track: Db<'t, Track>,
-}
-
-impl Table for PlaylistTrack {
-    const NAME: &'static str = "PlaylistTrack";
-
-    type Dummy<'names> = PlaylistTrackDummy<'names>;
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        PlaylistTrackDummy {
-            playlist: f.col("PlaylistId"),
-            track: f.col("TrackId"),
-        }
-    }
 }
 
 pub struct Customer;
@@ -298,6 +192,34 @@ impl HasId for Invoice {
     const ID: &'static str = "InvoiceId";
 }
 
+pub struct InvoiceLine;
+
+pub struct InvoiceLineDummy<'a> {
+    pub invoice: Db<'a, Invoice>,
+    pub track: Db<'a, Track>,
+    pub unit_price: Db<'a, i64>,
+    pub quantity: Db<'a, i64>,
+}
+
+impl Table for InvoiceLine {
+    const NAME: &'static str = "InvoiceLine";
+
+    type Dummy<'names> = InvoiceLineDummy<'names>;
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        InvoiceLineDummy {
+            invoice: f.col("InvoiceId"),
+            track: f.col("TrackId"),
+            unit_price: f.col("UnitPrice"),
+            quantity: f.col("Quantity"),
+        }
+    }
+}
+
+impl HasId for InvoiceLine {
+    const ID: &'static str = "InvoiceLineId";
+}
+
 pub struct MediaType;
 pub struct MediaTypeDummy<'t> {
     pub name: Db<'t, String>,
@@ -317,4 +239,82 @@ impl Table for MediaType {
 
 impl HasId for MediaType {
     const ID: &'static str = "MediaTypeId";
+}
+
+pub struct Playlist;
+
+pub struct PlaylistDummy<'t> {
+    pub name: Db<'t, String>,
+}
+
+impl Table for Playlist {
+    const NAME: &'static str = "Playlist";
+
+    type Dummy<'names> = PlaylistDummy<'names>;
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        PlaylistDummy {
+            name: f.col("Name"),
+        }
+    }
+}
+
+impl HasId for Playlist {
+    const ID: &'static str = "PlaylistId";
+}
+
+pub struct PlaylistTrack;
+
+pub struct PlaylistTrackDummy<'t> {
+    pub playlist: Db<'t, Playlist>,
+    pub track: Db<'t, Track>,
+}
+
+impl Table for PlaylistTrack {
+    const NAME: &'static str = "PlaylistTrack";
+
+    type Dummy<'names> = PlaylistTrackDummy<'names>;
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        PlaylistTrackDummy {
+            playlist: f.col("PlaylistId"),
+            track: f.col("TrackId"),
+        }
+    }
+}
+
+pub struct Track;
+
+pub struct TrackDummy<'a> {
+    pub name: Db<'a, String>,
+    pub album: Db<'a, Album>,
+    pub media_type: Db<'a, MediaType>,
+    pub genre: Db<'a, Genre>,
+    pub composer: Db<'a, String>,
+    pub milliseconds: Db<'a, i64>,
+    pub bytes: Db<'a, i64>,
+    pub unit_price: Db<'a, i64>,
+}
+
+impl Table for Track {
+    const NAME: &'static str = "Track";
+
+    type Dummy<'names> = TrackDummy<'names>;
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        TrackDummy {
+            name: f.col("Name"),
+            album: f.col("AlbumId"),
+            media_type: f.col("MediaTypeId"),
+            genre: f.col("GenreId"),
+            composer: f.col("Composer"),
+            milliseconds: f.col("Milliseconds"),
+            bytes: f.col("Bytes"),
+            unit_price: f.col("UnitPrice"),
+        }
+    }
+}
+
+impl HasId for Track {
+    const ID: &'static str = "TrackId";
 }
