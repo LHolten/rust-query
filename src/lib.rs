@@ -113,7 +113,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     }
 
     // only one group can exist at a time
-    pub fn group<T: HasId>(&'outer mut self, val: &Db<'inner, T>) -> Group<'outer, 'inner, T> {
+    pub fn project_on<T: HasId>(&'outer mut self, val: &Db<'inner, T>) -> Group<'outer, 'inner, T> {
         let alias = MyAlias::new();
         self.ast
             .group
@@ -137,7 +137,7 @@ pub struct Group<'outer, 'inner, T: HasId> {
 }
 
 impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
-    pub fn item(&self) -> Db<'outer, T> {
+    pub fn select(&self) -> Db<'outer, T> {
         T::iden_any(self.inner.joins, Field::U64(self.alias))
     }
 

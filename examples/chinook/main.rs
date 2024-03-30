@@ -32,7 +32,7 @@ fn invoice_info() -> Vec<InvoiceInfo> {
         q.into_vec(|row| InvoiceInfo {
             track: row.get(q.select(ivl.track.name)),
             artist: row.get(q.select(ivl.track.album.artist.name)),
-            ivl_id: row.get(q.select(ivl.quantity)),
+            ivl_id: row.get(q.select(ivl.id())),
         })
     })
 }
@@ -51,9 +51,9 @@ struct PlaylistTrackCount {
 fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     new_query(|q| {
         let plt = q.flat_table(PlaylistTrack);
-        let pl = q.group(&plt.playlist);
+        let pl = q.project_on(&plt.playlist);
         pl.into_vec(|row| PlaylistTrackCount {
-            playlist: row.get(pl.item().name),
+            playlist: row.get(pl.select().name),
             track_count: row.get(pl.count_distinct(&plt.track)),
         })
     })
@@ -63,13 +63,13 @@ fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
     new_query(|q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
-            let album = q.group(&track.album);
-            (album.item(), album.count_distinct(&track))
+            let album = q.project_on(&track.album);
+            (album.select(), album.count_distinct(&track))
         });
-        let artist = &q.group(&album.artist);
+        let artist = q.project_on(&album.artist);
         artist.into_vec(|row| {
             (
-                row.get(artist.item().name),
+                row.get(artist.select().name),
                 row.get(artist.avg(track_count)),
             )
         })
@@ -79,10 +79,10 @@ fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
 fn count_reporting() -> Vec<(String, i64)> {
     new_query(|q| {
         let reporter = q.table(Employee);
-        let receiver = q.group(&reporter.reports_to);
+        let receiver = q.project_on(&reporter.reports_to);
         receiver.into_vec(|row| {
             (
-                row.get(receiver.item().last_name),
+                row.get(receiver.select().last_name),
                 row.get(receiver.count_distinct(&reporter)),
             )
         })
