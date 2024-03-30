@@ -185,11 +185,11 @@ impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
     //     todo!()
     // }
 
-    pub fn into_vec<F, R>(&self, f: F) -> Vec<R>
+    pub fn into_vec<F, R>(&self, limit: usize, f: F) -> Vec<R>
     where
         F: FnMut(Row<'_, 'outer>) -> R,
     {
-        self.inner.into_vec(f)
+        self.inner.into_vec(limit, f)
     }
 }
 
@@ -212,12 +212,12 @@ where
 }
 
 impl<'outer, 'inner> Query<'outer, 'inner> {
-    pub fn into_vec<F, T>(&self, mut f: F) -> Vec<T>
+    pub fn into_vec<F, T>(&self, limit: usize, mut f: F) -> Vec<T>
     where
         F: FnMut(Row<'_, 'outer>) -> T,
     {
         let last = FrozenVec::new();
-        let mut select = self.joins.wrap(self.ast, 0, &last);
+        let mut select = self.joins.wrap(self.ast, 0, limit, &last);
         let sql = select.to_string(SqliteQueryBuilder);
 
         println!("{sql}");
@@ -230,6 +230,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             let updated = Cell::new(false);
             let row = Row {
                 offset: out.len(),
+                limit,
                 inner: PhantomData,
                 row,
                 ast: self.ast,
@@ -242,7 +243,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
             if updated.get() {
                 println!("UPDATING!");
-                select = self.joins.wrap(self.ast, out.len(), &last);
+                select = self.joins.wrap(self.ast, out.len(), limit, &last);
                 let sql = select.to_string(SqliteQueryBuilder);
                 println!("{sql}");
 
@@ -258,6 +259,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
 pub struct Row<'x, 'names> {
     offset: usize,
+    limit: usize,
     inner: PhantomData<dyn Fn(&'names ())>,
     row: &'x rusqlite::Row<'x>,
     ast: &'x MySelect,
@@ -284,7 +286,9 @@ impl<'names> Row<'_, 'names> {
     }
 
     fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
-        let select = self.joins.wrap(self.ast, self.offset, self.last);
+        let select = self
+            .joins
+            .wrap(self.ast, self.offset, self.limit, self.last);
 
         let sql = select.to_string(SqliteQueryBuilder);
         println!("REQUERY");

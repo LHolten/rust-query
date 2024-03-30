@@ -29,7 +29,7 @@ fn invoice_info() -> Vec<InvoiceInfo> {
     new_query(|q| {
         let ivl = q.table(InvoiceLine);
 
-        q.into_vec(|row| InvoiceInfo {
+        q.into_vec(10, |row| InvoiceInfo {
             track: row.get(q.select(ivl.track.name)),
             artist: row.get(q.select(ivl.track.album.artist.name)),
             ivl_id: row.get(q.select(ivl.id())),
@@ -52,7 +52,7 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
     new_query(|q| {
         let plt = q.flat_table(PlaylistTrack);
         let pl = q.project_on(&plt.playlist);
-        pl.into_vec(|row| PlaylistTrackCount {
+        pl.into_vec(10, |row| PlaylistTrackCount {
             playlist: row.get(pl.select().name),
             track_count: row.get(pl.count_distinct(&plt.track)),
         })
@@ -67,7 +67,7 @@ fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
             (album.select(), album.count_distinct(&track))
         });
         let artist = q.project_on(&album.artist);
-        artist.into_vec(|row| {
+        artist.into_vec(10, |row| {
             (
                 row.get(artist.select().name),
                 row.get(artist.avg(track_count)),
@@ -82,7 +82,7 @@ fn count_reporting() -> Vec<(String, i64)> {
         // only count employees that report to someone
         let receiver = q.unwrap(&reporter.reports_to);
         let receiver = q.project_on(&receiver);
-        receiver.into_vec(|row| {
+        receiver.into_vec(10, |row| {
             (
                 row.get(receiver.select().last_name),
                 row.get(receiver.count_distinct(&reporter)),

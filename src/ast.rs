@@ -54,6 +54,7 @@ impl Joins {
         &self,
         inner: &MySelect,
         offset: usize,
+        limit: usize,
         last: &FrozenVec<Box<(MyAlias, SimpleExpr)>>,
     ) -> SelectStatement {
         let mut select = SelectStatement::new();
@@ -70,7 +71,7 @@ impl Joins {
 
         // TODO: Figure out how to do this properly
         select.offset(offset as u64);
-        select.limit(1000000000);
+        select.limit(limit as u64);
 
         select
     }
