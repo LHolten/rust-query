@@ -118,7 +118,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     }
 
     pub fn select<V: Value<'inner>>(&'outer self, val: V) -> Db<'outer, V::Typ> {
-        let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
+        let alias = self.ast.select.get_or_init(val.build_expr(), MyAlias::new);
         V::Typ::iden_any(self.joins, Field::U64(*alias))
     }
 
@@ -158,13 +158,13 @@ impl<'outer, 'inner, T: MyIdenT> Group<'outer, 'inner, T> {
 
     pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
         Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
     pub fn count_distinct<V: Value<'inner>>(&self, val: V) -> Db<'outer, i64> {
         let expr = Func::count_distinct(val.build_expr());
-        let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
+        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
         i64::iden_any(self.inner.joins, Field::U64(*alias))
     }
 

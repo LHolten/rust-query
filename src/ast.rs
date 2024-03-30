@@ -17,9 +17,7 @@ pub struct MySelect {
     // distinct on
     pub(super) group: OnceCell<(SimpleExpr, &'static str, &'static str, MyAlias)>,
     // calculating these agregates
-    pub(super) aggr: MyMap<SimpleExpr, MyAlias>,
-    // sort on value (and keep row with smallest value)
-    pub(super) sort: MyMap<SimpleExpr, MyAlias>,
+    pub(super) select: MyMap<SimpleExpr, MyAlias>,
 }
 
 pub struct MyTable {
@@ -69,6 +67,7 @@ impl Joins {
         select.expr_as(Expr::val(1), NullAlias);
         for (alias, expr) in last.iter() {
             select.expr_as(expr.clone(), *alias);
+            select.order_by(*alias, sea_query::Order::Asc);
         }
 
         // TODO: Figure out how to do this properly
@@ -136,13 +135,8 @@ impl MySelect {
         }
 
         select.expr_as(Expr::val(1), NullAlias);
-        for (aggr, alias) in self.aggr.iter() {
+        for (aggr, alias) in self.select.iter() {
             select.expr_as(aggr.clone(), *alias);
-        }
-
-        for (sort, alias) in self.sort.iter() {
-            select.expr_as(sort.clone(), *alias);
-            select.order_by(*alias, sea_query::Order::Asc);
         }
 
         select
