@@ -107,6 +107,10 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
+    pub fn unwrap<T: MyIdenT>(&mut self, val: &impl Value<'inner, Typ = T>) -> Db<'inner, T> {
+        todo!()
+    }
+
     pub fn select<V: Value<'inner>>(&'outer self, val: V) -> Db<'outer, V::Typ> {
         let alias = self.ast.sort.get_or_init(val.build_expr(), MyAlias::new);
         V::Typ::iden_any(self.joins, Field::U64(*alias))
@@ -125,18 +129,34 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         }
     }
 
+    // // only one group can exist at a time
+    // pub fn project_on_maybe<T: HasId>(
+    //     &'outer mut self,
+    //     val: &Db<'inner, Option<T>>,
+    // ) -> Group<'outer, 'inner, Option<T>> {
+    //     let alias = MyAlias::new();
+    //     self.ast
+    //         .group
+    //         .get_or_init(|| (val.build_expr(), T::NAME, T::ID, alias));
+    //     Group {
+    //         inner: self,
+    //         alias,
+    //         phantom: PhantomData,
+    //     }
+    // }
+
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
     //     todo!()
     // }
 }
 
-pub struct Group<'outer, 'inner, T: HasId> {
+pub struct Group<'outer, 'inner, T> {
     inner: &'outer mut Query<'outer, 'inner>,
     alias: MyAlias,
     phantom: PhantomData<T>,
 }
 
-impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
+impl<'outer, 'inner, T: MyIdenT> Group<'outer, 'inner, T> {
     pub fn select(&self) -> Db<'outer, T> {
         T::iden_any(self.inner.joins, Field::U64(self.alias))
     }
