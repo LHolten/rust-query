@@ -4,16 +4,13 @@ mod ast;
 mod mymap;
 pub mod value;
 
-use std::{
-    cell::{Cell, OnceCell},
-    marker::PhantomData,
-};
+use std::{cell::Cell, marker::PhantomData};
 
-use ast::{Joins, MySelect, Source};
+use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
-use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Unwrapped, Value};
+use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, UnwrapOr, Unwrapped, Value};
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -37,23 +34,32 @@ pub trait HasId: Table {
 }
 
 pub struct Builder<'a> {
-    table: &'a Joins,
+    joined: &'a FrozenVec<Box<(Field, MyTable)>>,
+    table: MyAlias,
 }
 
 impl<'a> Builder<'a> {
-    fn new(table: &'a Joins) -> Self {
-        Builder { table }
+    fn new(joins: &'a Joins) -> Self {
+        Self::new_full(&joins.joined, joins.table)
+    }
+
+    fn new_full(joined: &'a FrozenVec<Box<(Field, MyTable)>>, table: MyAlias) -> Self {
+        Builder { joined, table }
     }
 
     pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
-        T::iden_any(self.table, Field::Str(name))
+        let field = FieldAlias {
+            table: self.table,
+            col: Field::Str(name),
+        };
+        T::iden_full(self.joined, field)
     }
 }
 
 impl<'outer, 'inner> Query<'outer, 'inner> {
     fn new_source<T: Table>(&mut self) -> &'inner Joins {
         let joins = Joins {
-            alias: MyAlias::new(),
+            table: MyAlias::new(),
             joined: FrozenVec::new(),
         };
         let source = Box::new(Source::Table(T::NAME, joins));
@@ -65,14 +71,11 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
     pub fn table<T: HasId>(&mut self, _t: T) -> Db<'inner, T> {
         let joins = self.new_source::<T>();
-        Db {
-            info: FkInfo {
-                field: Field::Str(T::ID),
-                joins,
-                // prevent unnecessary join
-                inner: OnceCell::from(Box::new(T::build(Builder::new(joins)))),
-            },
-        }
+        let field = FieldAlias {
+            table: joins.table,
+            col: Field::Str(T::ID),
+        };
+        FkInfo::joined(&joins.joined, field)
     }
 
     pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
@@ -86,7 +89,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         F: for<'a> FnOnce(&'inner mut Query<'inner, 'a>) -> R,
     {
         let joins = Joins {
-            alias: MyAlias::new(),
+            table: MyAlias::new(),
             joined: FrozenVec::new(),
         };
         let source = Source::Select(MySelect::default(), joins);
@@ -127,13 +130,14 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         &'outer mut self,
         val: impl Value<'inner, Typ = T>,
     ) -> Group<'outer, 'inner, T> {
+        let table_alias = MyAlias::new();
         let alias = MyAlias::new();
         self.ast
             .group
-            .get_or_init(|| (val.build_expr(), T::NAME, T::ID, alias));
+            .get_or_init(|| (val.build_expr(), T::NAME, T::ID, table_alias, alias));
         Group {
             inner: self,
-            alias,
+            table_alias,
             phantom: PhantomData,
         }
     }
@@ -145,15 +149,20 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
 pub struct Group<'outer, 'inner, T> {
     inner: &'outer mut Query<'outer, 'inner>,
-    alias: MyAlias,
+    table_alias: MyAlias,
     phantom: PhantomData<T>,
 }
 
 // if we have a single row that is null for all columns, then
 // this should be treated as if there are zero rows.
-impl<'outer, 'inner, T: MyIdenT> Group<'outer, 'inner, T> {
+impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
     pub fn select(&self) -> Db<'outer, T> {
-        T::iden_any(self.inner.joins, Field::U64(self.alias))
+        let joined = &self.inner.joins.joined;
+        let field = FieldAlias {
+            table: self.table_alias,
+            col: Field::Str(T::ID),
+        };
+        FkInfo::joined(joined, field)
     }
 
     pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
@@ -162,10 +171,10 @@ impl<'outer, 'inner, T: MyIdenT> Group<'outer, 'inner, T> {
         Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn count_distinct<V: Value<'inner>>(&self, val: V) -> Db<'outer, i64> {
+    pub fn count_distinct<V: Value<'inner>>(&self, val: V) -> UnwrapOr<Db<'outer, Option<i64>>> {
         let expr = Func::count_distinct(val.build_expr());
         let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        i64::iden_any(self.inner.joins, Field::U64(*alias))
+        UnwrapOr(Option::iden_any(self.inner.joins, Field::U64(*alias)), 0)
     }
 
     // evil
@@ -190,7 +199,7 @@ where
 {
     let ast = MySelect::default();
     let joins = Joins {
-        alias: MyAlias::new(),
+        table: MyAlias::new(),
         joined: FrozenVec::new(),
     };
     let mut q = Query {
@@ -207,9 +216,8 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     where
         F: FnMut(Row<'_, 'outer>) -> T,
     {
-        let inner_select = self.ast.build_select();
         let last = FrozenVec::new();
-        let mut select = self.joins.wrap(&inner_select, 0, &last);
+        let mut select = self.joins.wrap(self.ast, 0, &last);
         let sql = select.to_string(SqliteQueryBuilder);
 
         println!("{sql}");
@@ -234,8 +242,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
             if updated.get() {
                 println!("UPDATING!");
-                let inner_select = self.ast.build_select();
-                select = self.joins.wrap(&inner_select, out.len(), &last);
+                select = self.joins.wrap(self.ast, out.len(), &last);
                 let sql = select.to_string(SqliteQueryBuilder);
                 println!("{sql}");
 
@@ -277,8 +284,7 @@ impl<'names> Row<'_, 'names> {
     }
 
     fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
-        let mut select = self.ast.build_select();
-        select = self.joins.wrap(&select, self.offset, self.last);
+        let select = self.joins.wrap(self.ast, self.offset, self.last);
 
         let sql = select.to_string(SqliteQueryBuilder);
         println!("REQUERY");

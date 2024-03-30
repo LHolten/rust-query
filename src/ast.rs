@@ -15,7 +15,7 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
     // distinct on
-    pub(super) group: OnceCell<(SimpleExpr, &'static str, &'static str, MyAlias)>,
+    pub(super) group: OnceCell<(SimpleExpr, &'static str, &'static str, MyAlias, MyAlias)>,
     // calculating these agregates
     pub(super) select: MyMap<SimpleExpr, MyAlias>,
 }
@@ -29,7 +29,7 @@ pub struct MyTable {
 }
 
 pub(super) struct Joins {
-    pub(super) alias: MyAlias,
+    pub(super) table: MyAlias,
     pub(super) joined: FrozenVec<Box<(Field, MyTable)>>,
 }
 
@@ -52,19 +52,17 @@ pub(super) enum Source {
 impl Joins {
     pub fn wrap(
         &self,
-        inner: &SelectStatement,
+        inner: &MySelect,
         offset: usize,
         last: &FrozenVec<Box<(MyAlias, SimpleExpr)>>,
     ) -> SelectStatement {
         let mut select = SelectStatement::new();
-        select.from_subquery(inner.clone(), self.alias);
+        select.from_values([1], NullAlias);
+        inner.join(self, &mut select);
 
-        for (col, table) in self.joined.iter() {
-            let field = self.col_alias(*col);
-            table.join(field, &mut select)
+        if last.is_empty() {
+            select.expr_as(Expr::val(1), NullAlias);
         }
-
-        select.expr_as(Expr::val(1), NullAlias);
         for (alias, expr) in last.iter() {
             select.expr_as(expr.clone(), *alias);
             select.order_by(*alias, sea_query::Order::Asc);
@@ -79,29 +77,50 @@ impl Joins {
 }
 
 impl MySelect {
+    pub fn join(&self, joins: &Joins, select: &mut SelectStatement) {
+        if let Some((_group, table, id, table_alias, alias)) = self.group.get() {
+            select.join_as(
+                sea_query::JoinType::InnerJoin,
+                Alias::new(*table),
+                *table_alias,
+                Condition::all(),
+            );
+
+            let id_field = Expr::col((*table_alias, Alias::new(*id)));
+            let id_field2 = Expr::col((joins.table, *alias));
+            let filter = id_field.eq(id_field2);
+            select.join_subquery(
+                sea_query::JoinType::LeftJoin,
+                self.build_select(),
+                joins.table,
+                Condition::all().add(filter),
+            );
+        } else {
+            select.join_subquery(
+                sea_query::JoinType::InnerJoin,
+                self.build_select(),
+                joins.table,
+                Condition::all(),
+            );
+        }
+
+        for (col, table) in joins.joined.iter() {
+            let field = joins.col_alias(*col);
+            table.join(field, select)
+        }
+    }
+
     pub fn build_select(&self) -> SelectStatement {
         let mut select = SelectStatement::new();
         select.from_values([1], NullAlias);
         for source in self.sources.iter() {
             match source {
-                Source::Select(q, joins) => {
-                    select.join_subquery(
-                        sea_query::JoinType::InnerJoin,
-                        q.build_select(),
-                        joins.alias,
-                        Condition::all(),
-                    );
-
-                    for (col, table) in joins.joined.iter() {
-                        let field = joins.col_alias(*col);
-                        table.join(field, &mut select)
-                    }
-                }
+                Source::Select(q, joins) => q.join(joins, &mut select),
                 Source::Table(table, joins) => {
                     select.join_as(
                         sea_query::JoinType::InnerJoin,
                         Alias::new(*table),
-                        joins.alias,
+                        joins.table,
                         Condition::all(),
                     );
 
@@ -117,24 +136,14 @@ impl MySelect {
             select.and_where(filter.clone());
         }
 
-        if let Some((group, table, id, alias)) = self.group.get() {
-            let table_alias = MyAlias::new();
-
-            let id_field = Expr::col((table_alias, Alias::new(*id)));
-            let filter = id_field.clone().eq(group.clone());
-
-            select.join_as(
-                sea_query::JoinType::RightJoin,
-                Alias::new(*table),
-                table_alias,
-                Condition::all().add(filter),
-            );
-
-            select.expr_as(id_field, *alias);
+        if let Some((group, _table, _id, _table_alias, alias)) = self.group.get() {
+            select.expr_as(group.clone(), *alias);
             select.group_by_col(*alias);
         }
 
-        select.expr_as(Expr::val(1), NullAlias);
+        if self.select.is_empty() {
+            select.expr_as(Expr::val(1), NullAlias);
+        }
         for (aggr, alias) in self.select.iter() {
             select.expr_as(aggr.clone(), *alias);
         }
@@ -146,7 +155,7 @@ impl MySelect {
 impl Joins {
     pub fn col_alias(&self, col: Field) -> FieldAlias {
         FieldAlias {
-            table: self.alias,
+            table: self.table,
             col,
         }
     }
@@ -164,7 +173,7 @@ impl MyTable {
         select.join_as(
             sea_query::JoinType::LeftJoin,
             Alias::new(self.name),
-            self.joins.alias,
+            self.joins.table,
             Condition::all().add(filter),
         );
 

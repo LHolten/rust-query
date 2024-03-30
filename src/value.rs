@@ -111,6 +111,16 @@ impl<'t, T: MyIdenT, A: Value<'t, Typ = Option<T>>> Value<'t> for Unwrapped<A> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct UnwrapOr<T>(pub(crate) T, pub(crate) i64);
+
+impl<'t, A: Value<'t, Typ = Option<i64>>> Value<'t> for UnwrapOr<A> {
+    type Typ = i64;
+    fn build_expr(&self) -> SimpleExpr {
+        Expr::expr(A::build_expr(&self.0)).if_null(self.1)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct FieldAlias {
     pub table: MyAlias,
@@ -166,33 +176,16 @@ impl sea_query::Iden for MyAlias {
 }
 
 pub(super) trait MyTableT<'t> {
-    fn unwrap(val: &'t Joins, field: Field) -> Self;
+    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Self;
     fn alias(&self) -> FieldAlias;
 }
 
 impl<'t, T: HasId> MyTableT<'t> for FkInfo<'t, T> {
-    fn unwrap(table: &'t Joins, field: Field) -> Self {
+    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Self {
         FkInfo {
             field,
-            joins: table,
+            joined,
             inner: OnceCell::new(),
-        }
-    }
-    fn alias(&self) -> FieldAlias {
-        FieldAlias {
-            table: self.joins.alias,
-            col: self.field,
-        }
-    }
-}
-
-impl<'t> MyTableT<'t> for ValueInfo {
-    fn unwrap(table: &'t Joins, field: Field) -> Self {
-        ValueInfo {
-            field: FieldAlias {
-                table: table.alias,
-                col: field,
-            },
         }
     }
     fn alias(&self) -> FieldAlias {
@@ -200,10 +193,35 @@ impl<'t> MyTableT<'t> for ValueInfo {
     }
 }
 
+impl<'t> MyTableT<'t> for ValueInfo {
+    fn unwrap(_joined: &'t FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Self {
+        ValueInfo { field }
+    }
+    fn alias(&self) -> FieldAlias {
+        self.field
+    }
+}
+
 pub(super) struct FkInfo<'t, T: HasId> {
-    pub field: Field,
-    pub joins: &'t Joins, // the table that we join onto
+    pub field: FieldAlias,
+    pub joined: &'t FrozenVec<Box<(Field, MyTable)>>, // the table that we join onto
     pub inner: OnceCell<Box<T::Dummy<'t>>>,
+}
+
+impl<'t, T: HasId> FkInfo<'t, T> {
+    pub(crate) fn joined(
+        joined: &'t FrozenVec<Box<(Field, MyTable)>>,
+        field: FieldAlias,
+    ) -> Db<'t, T> {
+        Db {
+            info: FkInfo {
+                field,
+                joined,
+                // prevent unnecessary join
+                inner: OnceCell::from(Box::new(T::build(Builder::new_full(joined, field.table)))),
+            },
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -213,9 +231,16 @@ pub(super) struct ValueInfo {
 
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
-    fn iden_any(joins: &Joins, field: Field) -> Db<'_, Self> {
+    fn iden_any(joins: &Joins, col: Field) -> Db<'_, Self> {
+        let field = FieldAlias {
+            table: joins.table,
+            col,
+        };
+        Self::iden_full(&joins.joined, field)
+    }
+    fn iden_full(joined: &FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Db<'_, Self> {
         Db {
-            info: Self::Info::unwrap(joins, field),
+            info: Self::Info::unwrap(joined, field),
         }
     }
 }
@@ -261,10 +286,7 @@ impl<'a, T: HasId> Db<'a, T> {
     pub fn id(&self) -> Db<'a, i64> {
         Db {
             info: ValueInfo {
-                field: FieldAlias {
-                    table: self.info.joins.alias,
-                    col: self.info.field,
-                },
+                field: self.info.field,
             },
         }
     }
@@ -275,20 +297,20 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
 
     fn deref(&self) -> &Self::Target {
         self.info.inner.get_or_init(|| {
-            let t = self.info.joins;
-            let name = self.info.field;
-            let table = if let Some(item) = t.joined.iter().find(|item| item.0 == name) {
+            let joined = self.info.joined;
+            let name = self.info.field.col;
+            let table = if let Some(item) = joined.iter().find(|item| item.0 == name) {
                 &item.1
             } else {
                 let table = MyTable {
                     name: T::NAME,
                     id: T::ID,
                     joins: Joins {
-                        alias: MyAlias::new(),
+                        table: MyAlias::new(),
                         joined: FrozenVec::new(),
                     },
                 };
-                &t.joined.push_get(Box::new((name, table))).1
+                &joined.push_get(Box::new((name, table))).1
             };
 
             Box::new(T::build(Builder::new(&table.joins)))
