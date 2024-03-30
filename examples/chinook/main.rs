@@ -12,12 +12,6 @@ fn main() {
     println!("{res:#?}")
 }
 
-// -- 13. Provide a query that includes the purchased track name AND artist name with each invoice line item.
-// select i.*, t.name as 'track', ar.name as 'artist'
-// from invoiceline as i
-// 	join track as t on i.trackid = t.trackid
-// 	join album as al on al.albumid = t.albumid
-// 	join artist as ar on ar.artistid = al.artistid
 #[derive(Debug)]
 struct InvoiceInfo {
     track: String,
@@ -37,11 +31,6 @@ fn invoice_info() -> Vec<InvoiceInfo> {
     })
 }
 
-// -- 15. Provide a query that shows the total number of tracks in each playlist. The Playlist name should be include on the resultant table.
-// select *, count(trackid) as '# of tracks'
-// from playlisttrack, playlist
-// on playlisttrack.playlistid = playlist.playlistid
-// group by playlist.playlistid
 #[derive(Debug)]
 struct PlaylistTrackCount {
     playlist: String,
