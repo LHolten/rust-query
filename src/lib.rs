@@ -12,8 +12,8 @@ use std::{
 use ast::{Joins, MySelect, Source};
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Func, Iden, SimpleExpr, SqliteQueryBuilder};
-use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value};
+use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
+use value::{Db, Field, FkInfo, MyAlias, MyIdenT, Unwrapped, Value};
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -107,8 +107,14 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    pub fn unwrap<T: MyIdenT>(&mut self, val: &impl Value<'inner, Typ = T>) -> Db<'inner, T> {
-        todo!()
+    pub fn unwrap<T: MyIdenT>(
+        &mut self,
+        val: impl Value<'inner, Typ = Option<T>>,
+    ) -> impl Value<'inner, Typ = T> {
+        self.ast
+            .filters
+            .push(Box::new(Expr::expr(val.build_expr())).is_not_null().into());
+        Unwrapped(val)
     }
 
     pub fn select<V: Value<'inner>>(&'outer self, val: V) -> Db<'outer, V::Typ> {
@@ -117,7 +123,10 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     }
 
     // only one group can exist at a time
-    pub fn project_on<T: HasId>(&'outer mut self, val: &Db<'inner, T>) -> Group<'outer, 'inner, T> {
+    pub fn project_on<T: HasId>(
+        &'outer mut self,
+        val: impl Value<'inner, Typ = T>,
+    ) -> Group<'outer, 'inner, T> {
         let alias = MyAlias::new();
         self.ast
             .group
@@ -128,22 +137,6 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             phantom: PhantomData,
         }
     }
-
-    // // only one group can exist at a time
-    // pub fn project_on_maybe<T: HasId>(
-    //     &'outer mut self,
-    //     val: &Db<'inner, Option<T>>,
-    // ) -> Group<'outer, 'inner, Option<T>> {
-    //     let alias = MyAlias::new();
-    //     self.ast
-    //         .group
-    //         .get_or_init(|| (val.build_expr(), T::NAME, T::ID, alias));
-    //     Group {
-    //         inner: self,
-    //         alias,
-    //         phantom: PhantomData,
-    //     }
-    // }
 
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
     //     todo!()
@@ -156,6 +149,8 @@ pub struct Group<'outer, 'inner, T> {
     phantom: PhantomData<T>,
 }
 
+// if we have a single row that is null for all columns, then
+// this should be treated as if there are zero rows.
 impl<'outer, 'inner, T: MyIdenT> Group<'outer, 'inner, T> {
     pub fn select(&self) -> Db<'outer, T> {
         T::iden_any(self.inner.joins, Field::U64(self.alias))
@@ -167,7 +162,7 @@ impl<'outer, 'inner, T: MyIdenT> Group<'outer, 'inner, T> {
         Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn count_distinct<V: Value<'inner>>(&self, val: &V) -> Db<'outer, i64> {
+    pub fn count_distinct<V: Value<'inner>>(&self, val: V) -> Db<'outer, i64> {
         let expr = Func::count_distinct(val.build_expr());
         let alias = self.inner.ast.aggr.get_or_init(expr.into(), MyAlias::new);
         i64::iden_any(self.inner.joins, Field::U64(*alias))

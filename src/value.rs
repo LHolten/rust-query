@@ -33,6 +33,14 @@ pub trait Value<'t>: Sized {
     }
 }
 
+impl<'t, T: Value<'t>> Value<'t> for &'_ T {
+    type Typ = T::Typ;
+
+    fn build_expr(&self) -> SimpleExpr {
+        T::build_expr(self)
+    }
+}
+
 impl<'t, T: MyIdenT> Value<'t> for Db<'t, T> {
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
@@ -90,6 +98,16 @@ where
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
         SimpleExpr::from(self.0)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Unwrapped<T>(pub(crate) T);
+
+impl<'t, T: MyIdenT, A: Value<'t, Typ = Option<T>>> Value<'t> for Unwrapped<A> {
+    type Typ = T;
+    fn build_expr(&self) -> SimpleExpr {
+        A::build_expr(&self.0)
     }
 }
 

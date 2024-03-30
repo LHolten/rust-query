@@ -125,7 +125,7 @@ impl MySelect {
             let filter = id_field.clone().eq(group.clone());
 
             select.join_as(
-                sea_query::JoinType::FullOuterJoin,
+                sea_query::JoinType::RightJoin,
                 Alias::new(*table),
                 table_alias,
                 Condition::all().add(filter),
@@ -168,7 +168,7 @@ impl MyTable {
         let filter = Expr::col(id_field).equals(filter);
 
         select.join_as(
-            sea_query::JoinType::InnerJoin,
+            sea_query::JoinType::LeftJoin,
             Alias::new(self.name),
             self.joins.alias,
             Condition::all().add(filter),

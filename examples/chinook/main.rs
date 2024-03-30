@@ -79,7 +79,9 @@ fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
 fn count_reporting() -> Vec<(String, i64)> {
     new_query(|q| {
         let reporter = q.table(Employee);
-        let receiver = q.project_on(&reporter.reports_to);
+        // only count employees that report to someone
+        let receiver = q.unwrap(&reporter.reports_to);
+        let receiver = q.project_on(&receiver);
         receiver.into_vec(|row| {
             (
                 row.get(receiver.select().last_name),
