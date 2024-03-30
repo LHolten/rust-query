@@ -125,7 +125,7 @@ impl MySelect {
             let filter = id_field.clone().eq(group.clone());
 
             select.join_as(
-                sea_query::JoinType::RightJoin,
+                sea_query::JoinType::FullOuterJoin,
                 Alias::new(*table),
                 table_alias,
                 Condition::all().add(filter),
