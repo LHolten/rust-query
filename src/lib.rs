@@ -2,6 +2,7 @@
 
 mod ast;
 mod mymap;
+pub mod pragma;
 pub mod value;
 
 use std::{cell::Cell, marker::PhantomData};
@@ -22,15 +23,18 @@ pub struct Query<'outer, 'inner> {
 }
 
 pub trait Table {
-    const NAME: &'static str;
+    // const NAME: &'static str;
     // these names are defined in `'query`
     type Dummy<'t>;
+
+    fn name(&self) -> String;
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_>;
 }
 
 pub trait HasId: Table {
     const ID: &'static str;
+    const NAME: &'static str;
 }
 
 pub struct Builder<'a> {
@@ -57,20 +61,20 @@ impl<'a> Builder<'a> {
 }
 
 impl<'outer, 'inner> Query<'outer, 'inner> {
-    fn new_source<T: Table>(&mut self) -> &'inner Joins {
+    fn new_source<T: Table>(&mut self, t: T) -> &'inner Joins {
         let joins = Joins {
             table: MyAlias::new(),
             joined: FrozenVec::new(),
         };
-        let source = Box::new(Source::Table(T::NAME, joins));
+        let source = Box::new(Source::Table(t.name(), joins));
         let Source::Table(_, joins) = self.ast.sources.push_get(source) else {
             unreachable!()
         };
         joins
     }
 
-    pub fn table<T: HasId>(&mut self, _t: T) -> Db<'inner, T> {
-        let joins = self.new_source::<T>();
+    pub fn table<T: HasId>(&mut self, t: T) -> Db<'inner, T> {
+        let joins = self.new_source(t);
         let field = FieldAlias {
             table: joins.table,
             col: Field::Str(T::ID),
@@ -78,8 +82,8 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         FkInfo::joined(&joins.joined, field)
     }
 
-    pub fn flat_table<T: Table>(&mut self, _t: T) -> T::Dummy<'inner> {
-        let joins = self.new_source::<T>();
+    pub fn flat_table<T: Table>(&mut self, t: T) -> T::Dummy<'inner> {
+        let joins = self.new_source(t);
         T::build(Builder::new(joins))
     }
 
@@ -185,7 +189,7 @@ impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
     //     todo!()
     // }
 
-    pub fn into_vec<F, R>(&self, limit: usize, f: F) -> Vec<R>
+    pub fn into_vec<F, R>(&self, limit: u32, f: F) -> Vec<R>
     where
         F: FnMut(Row<'_, 'outer>) -> R,
     {
@@ -212,7 +216,7 @@ where
 }
 
 impl<'outer, 'inner> Query<'outer, 'inner> {
-    pub fn into_vec<F, T>(&self, limit: usize, mut f: F) -> Vec<T>
+    pub fn into_vec<F, T>(&self, limit: u32, mut f: F) -> Vec<T>
     where
         F: FnMut(Row<'_, 'outer>) -> T,
     {
@@ -220,7 +224,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         let mut select = self.joins.wrap(self.ast, 0, limit, &last);
         let sql = select.to_string(SqliteQueryBuilder);
 
-        println!("{sql}");
+        eprintln!("{sql}");
         let conn = rusqlite::Connection::open("examples/Chinook_Sqlite.sqlite").unwrap();
         let mut statement = conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
@@ -242,10 +246,10 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             out.push(f(row));
 
             if updated.get() {
-                println!("UPDATING!");
+                eprintln!("UPDATING!");
                 select = self.joins.wrap(self.ast, out.len(), limit, &last);
                 let sql = select.to_string(SqliteQueryBuilder);
-                println!("{sql}");
+                eprintln!("{sql}");
 
                 drop(rows);
                 statement = conn.prepare(&sql).unwrap();
@@ -259,7 +263,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
 pub struct Row<'x, 'names> {
     offset: usize,
-    limit: usize,
+    limit: u32,
     inner: PhantomData<dyn Fn(&'names ())>,
     row: &'x rusqlite::Row<'x>,
     ast: &'x MySelect,
@@ -291,8 +295,8 @@ impl<'names> Row<'_, 'names> {
             .wrap(self.ast, self.offset, self.limit, self.last);
 
         let sql = select.to_string(SqliteQueryBuilder);
-        println!("REQUERY");
-        println!("{sql}");
+        eprintln!("REQUERY");
+        eprintln!("{sql}");
         let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
         self.updated.set(true);

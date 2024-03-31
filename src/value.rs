@@ -5,7 +5,7 @@ use std::{
 };
 
 use elsa::FrozenVec;
-use sea_query::{Expr, IntoColumnRef, SimpleExpr};
+use sea_query::{Expr, Iden, IntoColumnRef, SimpleExpr};
 
 use crate::{
     ast::{Joins, MyTable},
@@ -93,11 +93,11 @@ pub struct Const<T>(pub T);
 
 impl<'t, T: MyIdenT> Value<'t> for Const<T>
 where
-    T: Into<sea_query::value::Value> + Copy,
+    T: Into<sea_query::value::Value> + Clone,
 {
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
-        SimpleExpr::from(self.0)
+        SimpleExpr::from(self.0.clone())
     }
 }
 
@@ -315,5 +315,16 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
 
             Box::new(T::build(Builder::new(&table.joins)))
         })
+    }
+}
+
+pub(crate) struct RawAlias(pub(crate) String);
+
+impl Iden for RawAlias {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "{}", self.0).unwrap()
+    }
+    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
+        self.unquoted(s)
     }
 }

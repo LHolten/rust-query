@@ -5,7 +5,7 @@ use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
     mymap::MyMap,
-    value::{Field, FieldAlias, MyAlias},
+    value::{Field, FieldAlias, MyAlias, RawAlias},
 };
 
 #[derive(Default)]
@@ -46,7 +46,7 @@ impl fmt::Debug for MyTable {
 pub(super) enum Source {
     Select(MySelect, Joins),
     // table and pk
-    Table(&'static str, Joins),
+    Table(String, Joins),
 }
 
 impl Joins {
@@ -54,7 +54,7 @@ impl Joins {
         &self,
         inner: &MySelect,
         offset: usize,
-        limit: usize,
+        limit: u32,
         last: &FrozenVec<Box<(MyAlias, SimpleExpr)>>,
     ) -> SelectStatement {
         let mut select = SelectStatement::new();
@@ -71,7 +71,7 @@ impl Joins {
 
         // TODO: Figure out how to do this properly
         select.offset(offset as u64);
-        select.limit(limit as u64);
+        select.limit((limit as u64).min(18446744073709551610));
 
         select
     }
@@ -120,7 +120,7 @@ impl MySelect {
                 Source::Table(table, joins) => {
                     select.join_as(
                         sea_query::JoinType::InnerJoin,
-                        Alias::new(*table),
+                        RawAlias(table.clone()),
                         joins.table,
                         Condition::all(),
                     );

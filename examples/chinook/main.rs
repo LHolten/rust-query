@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 mod tables;
 
-use rust_query::new_query;
+use rust_query::{
+    new_query, pragma,
+    value::{Const, Value},
+};
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
