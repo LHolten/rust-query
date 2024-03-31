@@ -4,15 +4,13 @@ mod tables {
     include!(concat!(env!("OUT_DIR"), "/tables.rs"));
 }
 
-use std::fs;
-
 use rust_query::client::Client;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {
     let client = Client::open_in_memory();
-    client.execute_batch(&fs::read_to_string("Chinook_Sqlite.sql").unwrap());
-    client.execute_batch(&fs::read_to_string("migrate.sql").unwrap());
+    client.execute_batch(include_str!("../Chinook_Sqlite.sql"));
+    client.execute_batch(include_str!("../migrate.sql"));
 
     // let res = invoice_info(&client);
     // let res = playlist_track_count(&client);
