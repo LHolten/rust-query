@@ -1,10 +1,10 @@
 #![allow(dead_code)]
-mod tables;
 
-use rust_query::{
-    new_query, pragma,
-    value::{Const, Value},
-};
+mod tables {
+    include!(concat!(env!("OUT_DIR"), "/tables.rs"));
+}
+
+use rust_query::new_query;
 use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
 
 fn main() {

@@ -1,5 +1,3 @@
-use sea_query::Expr;
-
 use crate::{value::Db, Builder, Table};
 
 pub struct TableList;
@@ -34,6 +32,13 @@ impl Table for TableList {
 
 pub struct TableInfo(pub String);
 
+pub struct TableInfoDummy<'a> {
+    pub name: Db<'a, String>,
+    pub r#type: Db<'a, String>,
+    pub notnull: Db<'a, i64>,
+    pub pk: Db<'a, i64>,
+}
+
 impl Table for TableInfo {
     type Dummy<'t> = TableInfoDummy<'t>;
 
@@ -50,9 +55,26 @@ impl Table for TableInfo {
         }
     }
 }
-pub struct TableInfoDummy<'a> {
-    pub name: Db<'a, String>,
-    pub r#type: Db<'a, String>,
-    pub notnull: Db<'a, i64>,
-    pub pk: Db<'a, i64>,
+pub struct ForeignKeyList(pub String);
+
+pub struct ForeignKeyListDummy<'a> {
+    pub table: Db<'a, String>,
+    pub from: Db<'a, String>,
+    pub to: Db<'a, String>,
+}
+
+impl Table for ForeignKeyList {
+    type Dummy<'t> = ForeignKeyListDummy<'t>;
+
+    fn name(&self) -> String {
+        format!(r#"pragma_foreign_key_list("{}", "main")"#, self.0)
+    }
+
+    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
+        ForeignKeyListDummy {
+            table: f.col("table"),
+            from: f.col("from"),
+            to: f.col("to"),
+        }
+    }
 }

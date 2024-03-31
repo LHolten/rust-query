@@ -1,3 +1,4 @@
+workspace = { members = ["chinook"] }
 [package]
 name = "rust-query"
 version = "0.1.0"
@@ -9,5 +10,8 @@ edition = "2021"
 elsa = "1.10.0"
 sea-query = "0.30"
 rusqlite = "0.30"
+quote = "1.0.35"
+proc-macro2 = "1.0.79"
+heck = "0.5.0"
 
 [dev-dependencie]

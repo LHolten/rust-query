@@ -151,10 +151,6 @@ impl sea_query::Iden for Field {
             Field::Str(name) => write!(s, "{}", name).unwrap(),
         }
     }
-    // TODO: remove
-    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
-        self.unquoted(s)
-    }
 }
 
 impl MyAlias {
@@ -168,10 +164,6 @@ impl MyAlias {
 impl sea_query::Iden for MyAlias {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         write!(s, "_{}", self.name).unwrap()
-    }
-    // TODO: remove
-    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
-        self.unquoted(s)
     }
 }
 

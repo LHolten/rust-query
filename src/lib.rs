@@ -3,6 +3,7 @@
 mod ast;
 mod mymap;
 pub mod pragma;
+pub mod schema;
 pub mod value;
 
 use std::{cell::Cell, marker::PhantomData};
@@ -225,7 +226,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         let sql = select.to_string(SqliteQueryBuilder);
 
         eprintln!("{sql}");
-        let conn = rusqlite::Connection::open("examples/Chinook_Sqlite.sqlite").unwrap();
+        let conn = rusqlite::Connection::open("Chinook_Sqlite.sqlite").unwrap();
         let mut statement = conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
 
