@@ -5,18 +5,19 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
 use crate::{
-    new_query, pragma,
+    client::Client,
+    pragma,
     value::{Const, Value},
 };
 
-pub fn generate() -> String {
+pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
     output.extend(quote! {
         use rust_query::{value::Db, Builder, HasId, Table};
         use std::marker::PhantomData;
     });
 
-    let tables = new_query(|q| {
+    let tables = client.new_query(|q| {
         let table = q.flat_table(pragma::TableList);
         q.filter(table.schema.eq(Const::new("main")));
         q.filter(table.r#type.eq(Const::new("table")));
@@ -25,7 +26,7 @@ pub fn generate() -> String {
     });
 
     for table in &tables {
-        let columns = new_query(|q| {
+        let columns = client.new_query(|q| {
             let table = q.flat_table(pragma::TableInfo(table.to_owned()));
 
             q.into_vec(u32::MAX, |row| {
@@ -37,14 +38,15 @@ pub fn generate() -> String {
             })
         });
 
-        let fks: HashMap<_, _> = new_query(|q| {
-            let fk = q.flat_table(pragma::ForeignKeyList(table.to_owned()));
-            q.into_vec(u32::MAX, |row| {
-                (row.get(q.select(fk.from)), row.get(q.select(fk.table)))
+        let fks: HashMap<_, _> = client
+            .new_query(|q| {
+                let fk = q.flat_table(pragma::ForeignKeyList(table.to_owned()));
+                q.into_vec(u32::MAX, |row| {
+                    (row.get(q.select(fk.from)), row.get(q.select(fk.table)))
+                })
             })
-        })
-        .into_iter()
-        .collect();
+            .into_iter()
+            .collect();
 
         let mut ids = columns.iter().filter(|x| x.2);
         let mut has_id = ids.next().cloned();
@@ -70,7 +72,7 @@ pub fn generate() -> String {
                         quote!(i64)
                     }
                 }
-                x if x.starts_with("NVARCHAR") => quote!(String),
+                "TEXT" => quote!(String),
                 _ => return None,
             })
         };

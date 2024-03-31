@@ -1,6 +1,7 @@
 #![allow(private_bounds)]
 
 mod ast;
+pub mod client;
 mod mymap;
 pub mod pragma;
 pub mod schema;
@@ -20,6 +21,7 @@ pub struct Query<'outer, 'inner> {
     phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
     ast: &'inner MySelect,
     joins: &'inner Joins,
+    client: &'inner rusqlite::Connection,
     // outer: PhantomData<>
 }
 
@@ -107,6 +109,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             phantom2: PhantomData,
             ast,
             joins,
+            client: self.client,
         }));
         f(inner)
     }
@@ -201,24 +204,6 @@ impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
     }
 }
 
-pub fn new_query<F, R>(f: F) -> R
-where
-    F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R,
-{
-    let ast = MySelect::default();
-    let joins = Joins {
-        table: MyAlias::new(),
-        joined: FrozenVec::new(),
-    };
-    let mut q = Query {
-        phantom: PhantomData,
-        phantom2: PhantomData,
-        ast: &ast,
-        joins: &joins,
-    };
-    f(&mut q)
-}
-
 impl<'outer, 'inner> Query<'outer, 'inner> {
     pub fn into_vec<F, T>(&self, limit: u32, mut f: F) -> Vec<T>
     where
@@ -229,7 +214,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         let sql = select.to_string(SqliteQueryBuilder);
 
         eprintln!("{sql}");
-        let conn = rusqlite::Connection::open("Chinook_Sqlite.sqlite").unwrap();
+        let conn = self.client;
         let mut statement = conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
 
@@ -243,7 +228,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
                 row,
                 ast: self.ast,
                 joins: self.joins,
-                conn: &conn,
+                conn,
                 updated: &updated,
                 last: &last,
             };
