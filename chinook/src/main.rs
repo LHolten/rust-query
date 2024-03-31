@@ -25,10 +25,10 @@ struct InvoiceInfo {
 fn invoice_info() -> Vec<InvoiceInfo> {
     new_query(|q| {
         let ivl = q.table(InvoiceLine);
-
+        let album = q.unwrap(ivl.track.album); // schema is not accurate
         q.into_vec(10, |row| InvoiceInfo {
             track: row.get(q.select(ivl.track.name)),
-            artist: row.get(q.select(ivl.track.album.artist.name)),
+            artist: row.get(q.select(album.artist.name)).unwrap(), // schema is not accurate
             ivl_id: row.get(q.select(ivl.id())),
         })
     })
@@ -45,7 +45,7 @@ fn playlist_track_count() -> Vec<PlaylistTrackCount> {
         let plt = q.flat_table(PlaylistTrack);
         let pl = q.project_on(&plt.playlist);
         pl.into_vec(10, |row| PlaylistTrackCount {
-            playlist: row.get(pl.select().name),
+            playlist: row.get(pl.select().name).unwrap(), // schema is not accurate
             track_count: row.get(pl.count_distinct(&plt.track)),
         })
     })
@@ -55,13 +55,14 @@ fn avg_album_track_count_for_artist() -> Vec<(String, Option<i64>)> {
     new_query(|q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
-            let album = q.project_on(&track.album);
+            let album = q.unwrap(track.album); // schema is not accurate
+            let album = q.project_on(&album);
             (album.select(), album.count_distinct(&track))
         });
         let artist = q.project_on(&album.artist);
         artist.into_vec(10, |row| {
             (
-                row.get(artist.select().name),
+                row.get(artist.select().name).unwrap(), // schema is not accurate
                 row.get(artist.avg(track_count)),
             )
         })
@@ -72,7 +73,7 @@ fn count_reporting() -> Vec<(String, i64)> {
     new_query(|q| {
         let reporter = q.table(Employee);
         // only count employees that report to someone
-        let receiver = q.unwrap(&reporter.reports_to);
+        let receiver = q.unwrap(reporter.reports_to); // schema is not accurate
         let receiver = q.project_on(&receiver);
         receiver.into_vec(10, |row| {
             (

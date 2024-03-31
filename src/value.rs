@@ -33,6 +33,14 @@ pub trait Value<'t>: Sized {
     }
 }
 
+pub trait ValueOpt<'t>: Value<'t, Typ = Option<Self::Inner>> {
+    type Inner: MyIdenT;
+
+    fn unwrap_or<T: Value<'t, Typ = Self::Inner>>(self, rhs: T) -> UnwrapOr<Self, T> {
+        UnwrapOr(self, rhs)
+    }
+}
+
 impl<'t, T: Value<'t>> Value<'t> for &'_ T {
     type Typ = T::Typ;
 
@@ -44,8 +52,12 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
 impl<'t, T: MyIdenT> Value<'t> for Db<'t, T> {
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
-        Expr::col(self.info.alias()).into()
+        Expr::col(self.field).into()
     }
+}
+
+impl<'t, T: MyIdenT> ValueOpt<'t> for Db<'t, Option<T>> {
+    type Inner = T;
 }
 
 #[derive(Clone, Copy)]
@@ -89,7 +101,13 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
 }
 
 #[derive(Clone, Copy)]
-pub struct Const<T>(pub T);
+pub struct Const<T>(T);
+
+impl<T> Const<T> {
+    pub fn new<V: ToOwned<Owned = T> + ?Sized>(val: &V) -> Self {
+        Self(val.to_owned())
+    }
+}
 
 impl<'t, T: MyIdenT> Value<'t> for Const<T>
 where
@@ -102,22 +120,14 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub struct Unwrapped<T>(pub(crate) T);
+pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
 
-impl<'t, T: MyIdenT, A: Value<'t, Typ = Option<T>>> Value<'t> for Unwrapped<A> {
+impl<'t, T: MyIdenT, A: ValueOpt<'t, Inner = T>, B: Value<'t, Typ = T>> Value<'t>
+    for UnwrapOr<A, B>
+{
     type Typ = T;
     fn build_expr(&self) -> SimpleExpr {
-        A::build_expr(&self.0)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct UnwrapOr<T>(pub(crate) T, pub(crate) i64);
-
-impl<'t, A: Value<'t, Typ = Option<i64>>> Value<'t> for UnwrapOr<A> {
-    type Typ = i64;
-    fn build_expr(&self) -> SimpleExpr {
-        Expr::expr(A::build_expr(&self.0)).if_null(self.1)
+        Expr::expr(self.0.build_expr()).if_null(self.1.build_expr())
     }
 }
 
@@ -168,34 +178,25 @@ impl sea_query::Iden for MyAlias {
 }
 
 pub(super) trait MyTableT<'t> {
-    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Self;
-    fn alias(&self) -> FieldAlias;
+    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self;
 }
 
 impl<'t, T: HasId> MyTableT<'t> for FkInfo<'t, T> {
-    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Self {
+    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self {
         FkInfo {
-            field,
             joined,
             inner: OnceCell::new(),
         }
     }
-    fn alias(&self) -> FieldAlias {
-        self.field
-    }
 }
 
 impl<'t> MyTableT<'t> for ValueInfo {
-    fn unwrap(_joined: &'t FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Self {
-        ValueInfo { field }
-    }
-    fn alias(&self) -> FieldAlias {
-        self.field
+    fn unwrap(_joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self {
+        ValueInfo {}
     }
 }
 
 pub(super) struct FkInfo<'t, T: HasId> {
-    pub field: FieldAlias,
     pub joined: &'t FrozenVec<Box<(Field, MyTable)>>, // the table that we join onto
     pub inner: OnceCell<Box<T::Dummy<'t>>>,
 }
@@ -207,19 +208,17 @@ impl<'t, T: HasId> FkInfo<'t, T> {
     ) -> Db<'t, T> {
         Db {
             info: FkInfo {
-                field,
                 joined,
                 // prevent unnecessary join
                 inner: OnceCell::from(Box::new(T::build(Builder::new_full(joined, field.table)))),
             },
+            field,
         }
     }
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct ValueInfo {
-    pub field: FieldAlias,
-}
+pub(super) struct ValueInfo {}
 
 pub(super) trait MyIdenT: Sized {
     type Info<'t>: MyTableT<'t>;
@@ -232,7 +231,8 @@ pub(super) trait MyIdenT: Sized {
     }
     fn iden_full(joined: &FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Db<'_, Self> {
         Db {
-            info: Self::Info::unwrap(joined, field),
+            info: Self::Info::unwrap(joined),
+            field,
         }
     }
 }
@@ -254,12 +254,13 @@ impl MyIdenT for String {
 }
 
 impl<T: MyIdenT> MyIdenT for Option<T> {
-    type Info<'t> = T::Info<'t>;
+    type Info<'t> = ValueInfo;
 }
 
 // invariant in `'t` because of the associated type
 pub struct Db<'t, T: MyIdenT> {
     pub(super) info: T::Info<'t>,
+    pub(super) field: FieldAlias,
 }
 
 impl<'t, T: MyIdenT> Clone for Db<'t, T>
@@ -269,6 +270,7 @@ where
     fn clone(&self) -> Self {
         Db {
             info: self.info.clone(),
+            field: self.field,
         }
     }
 }
@@ -277,9 +279,8 @@ impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
 impl<'a, T: HasId> Db<'a, T> {
     pub fn id(&self) -> Db<'a, i64> {
         Db {
-            info: ValueInfo {
-                field: self.info.field,
-            },
+            info: ValueInfo {},
+            field: self.field,
         }
     }
 }
@@ -290,7 +291,7 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
     fn deref(&self) -> &Self::Target {
         self.info.inner.get_or_init(|| {
             let joined = self.info.joined;
-            let name = self.info.field.col;
+            let name = self.field.col;
             let table = if let Some(item) = joined.iter().find(|item| item.0 == name) {
                 &item.1
             } else {

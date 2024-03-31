@@ -12,7 +12,7 @@ use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
-use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, UnwrapOr, Unwrapped, Value};
+use value::{Const, Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, UnwrapOr, Value};
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -115,14 +115,11 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    pub fn unwrap<T: MyIdenT>(
-        &mut self,
-        val: impl Value<'inner, Typ = Option<T>>,
-    ) -> impl Value<'inner, Typ = T> {
+    pub fn unwrap<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
             .filters
             .push(Box::new(Expr::expr(val.build_expr())).is_not_null().into());
-        Unwrapped(val)
+        T::iden_full(&self.joins.joined, val.field)
     }
 
     pub fn select<V: Value<'inner>>(&'outer self, val: V) -> Db<'outer, V::Typ> {
@@ -176,10 +173,16 @@ impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
         Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn count_distinct<V: Value<'inner>>(&self, val: V) -> UnwrapOr<Db<'outer, Option<i64>>> {
+    pub fn count_distinct<V: Value<'inner>>(
+        &self,
+        val: V,
+    ) -> UnwrapOr<Db<'outer, Option<i64>>, Const<i64>> {
         let expr = Func::count_distinct(val.build_expr());
         let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        UnwrapOr(Option::iden_any(self.inner.joins, Field::U64(*alias)), 0)
+        UnwrapOr(
+            Option::iden_any(self.inner.joins, Field::U64(*alias)),
+            Const::new(&0),
+        )
     }
 
     // evil

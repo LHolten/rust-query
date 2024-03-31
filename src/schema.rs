@@ -18,9 +18,9 @@ pub fn generate() -> String {
 
     let tables = new_query(|q| {
         let table = q.flat_table(pragma::TableList);
-        q.filter(table.schema.eq(Const("main".to_owned())));
-        q.filter(table.r#type.eq(Const("table".to_owned())));
-        q.filter(table.name.eq(Const("sqlite_schema".to_owned())).not());
+        q.filter(table.schema.eq(Const::new("main")));
+        q.filter(table.r#type.eq(Const::new("table")));
+        q.filter(table.name.eq(Const::new("sqlite_schema")).not());
         q.into_vec(u32::MAX, |row| row.get(q.select(&table.name)))
     });
 
