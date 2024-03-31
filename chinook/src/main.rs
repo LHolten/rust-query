@@ -85,3 +85,34 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
         })
     })
 }
+
+struct FilteredTrack {
+    track_name: String,
+    album_name: String,
+}
+
+/// Tip: use [rust_query::Const::new] and [rust_query::Query::filter]
+fn employee_genre(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
+    todo!()
+}
+
+struct GenreStats {
+    genre_name: String,
+    byte_average: i64,
+    milis_average: i64,
+}
+
+/// Tip: use [rust_query::Query::project_on] and [rust_query::Group::avg]
+fn genre_statistics(client: &Client) -> Vec<GenreStats> {
+    todo!()
+}
+
+struct CustomerSpending {
+    customer_name: String,
+    total_spending: i64,
+}
+
+/// Tip: use [rust_query::Query::project_on] and [rust_query::Group::sum]
+fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
+    todo!()
+}
