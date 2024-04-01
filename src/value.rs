@@ -24,7 +24,7 @@ pub trait Value<'t>: Sized {
         MyLt(self, rhs)
     }
 
-    fn eq<T: Value<'t>>(self, rhs: T) -> MyEq<Self, T> {
+    fn eq<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> MyEq<Self, T> {
         MyEq(self, rhs)
     }
 

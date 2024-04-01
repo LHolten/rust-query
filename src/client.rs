@@ -26,6 +26,21 @@ impl Client {
     where
         F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R,
     {
+        self.inner.new_query(f)
+    }
+}
+
+pub trait QueryBuilder {
+    fn new_query<F, R>(&self, f: F) -> R
+    where
+        F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R;
+}
+
+impl QueryBuilder for rusqlite::Connection {
+    fn new_query<F, R>(&self, f: F) -> R
+    where
+        F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R,
+    {
         let ast = MySelect::default();
         let joins = Joins {
             table: MyAlias::new(),
@@ -36,7 +51,7 @@ impl Client {
             phantom2: PhantomData,
             ast: &ast,
             joins: &joins,
-            client: &self.inner,
+            client: self,
         };
         f(&mut q)
     }
