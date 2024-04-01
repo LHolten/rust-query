@@ -245,6 +245,10 @@ impl MyIdenT for i64 {
     type Info<'t> = ValueInfo;
 }
 
+impl MyIdenT for f64 {
+    type Info<'t> = ValueInfo;
+}
+
 impl MyIdenT for bool {
     type Info<'t> = ValueInfo;
 }

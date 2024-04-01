@@ -176,15 +176,15 @@ impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
         Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn sum<V: Value<'inner, Typ = i64>>(
+    pub fn sum<V: Value<'inner, Typ = f64>>(
         &self,
         val: V,
-    ) -> UnwrapOr<Db<'outer, Option<i64>>, Const<i64>> {
+    ) -> UnwrapOr<Db<'outer, Option<f64>>, Const<f64>> {
         let expr = Func::cast_as(Func::sum(val.build_expr()), Alias::new("integer"));
         let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
         UnwrapOr(
             Option::iden_any(self.inner.joins, Field::U64(*alias)),
-            Const::new(&0),
+            Const::new(&0.),
         )
     }
 

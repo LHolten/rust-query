@@ -4,8 +4,13 @@ mod tables {
     include!(concat!(env!("OUT_DIR"), "/tables.rs"));
 }
 
-use rust_query::client::Client;
-use tables::{Employee, InvoiceLine, PlaylistTrack, Track};
+use rust_query::{
+    client::Client,
+    value::{Const, Value},
+};
+use tables::{Employee, Invoice, InvoiceLine, PlaylistTrack, Track};
+
+use crate::tables::Genre;
 
 fn main() {
     let client = Client::open_in_memory();
@@ -14,8 +19,12 @@ fn main() {
 
     // let res = invoice_info(&client);
     // let res = playlist_track_count(&client);
-    let res = avg_album_track_count_for_artist(&client);
+    // let res = avg_album_track_count_for_artist(&client);
     // let res = count_reporting(&client);
+    let res = list_all_genres(&client);
+    // let res = filtered_track(&client, "Metal", 1000 * 60);
+    // let res = genre_statistics(&client);
+    // let res = customer_spending(&client);
     println!("{res:#?}")
 }
 
@@ -86,9 +95,16 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     })
 }
 
+/// Tip: use [rust_query::Query::table] and [rust_query::Query::select]
+fn list_all_genres(client: &Client) -> Vec<String> {
+    todo!()
+}
+
+#[derive(Debug)]
 struct FilteredTrack {
     track_name: String,
     album_name: String,
+    milis: i64,
 }
 
 /// Tip: use [rust_query::Const::new] and [rust_query::Query::filter]
@@ -96,6 +112,7 @@ fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredT
     todo!()
 }
 
+#[derive(Debug)]
 struct GenreStats {
     genre_name: String,
     byte_average: i64,
@@ -107,9 +124,10 @@ fn genre_statistics(client: &Client) -> Vec<GenreStats> {
     todo!()
 }
 
+#[derive(Debug)]
 struct CustomerSpending {
     customer_name: String,
-    total_spending: i64,
+    total_spending: f64,
 }
 
 /// Tip: use [rust_query::Query::project_on] and [rust_query::Group::sum]

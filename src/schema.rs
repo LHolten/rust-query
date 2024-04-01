@@ -73,6 +73,7 @@ pub fn generate(client: Client) -> String {
                     }
                 }
                 "TEXT" => quote!(String),
+                "REAL" => quote!(f64),
                 _ => return None,
             })
         };
