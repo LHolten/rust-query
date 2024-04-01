@@ -92,7 +92,7 @@ struct FilteredTrack {
 }
 
 /// Tip: use [rust_query::Const::new] and [rust_query::Query::filter]
-fn employee_genre(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
+fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     todo!()
 }
 
