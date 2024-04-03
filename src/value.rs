@@ -14,6 +14,7 @@ use crate::{
 
 pub trait Value<'t>: Sized {
     type Typ: MyIdenT;
+    #[doc(hidden)]
     fn build_expr(&self) -> SimpleExpr;
 
     fn add<T: Value<'t>>(self, rhs: T) -> MyAdd<Self, T> {
@@ -263,8 +264,10 @@ impl<T: MyIdenT> MyIdenT for Option<T> {
 
 // invariant in `'t` because of the associated type
 pub struct Db<'t, T: MyIdenT> {
-    pub(super) info: T::Info<'t>,
-    pub(super) field: FieldAlias,
+    #[doc(hidden)]
+    pub(crate) info: T::Info<'t>,
+    #[doc(hidden)]
+    pub(crate) field: FieldAlias,
 }
 
 impl<'t, T: MyIdenT> Clone for Db<'t, T>

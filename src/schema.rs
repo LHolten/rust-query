@@ -89,6 +89,7 @@ pub fn generate(client: Client) -> String {
             let ident = make_field(name);
             Some(quote!(pub #ident: Db<'t, #typ>))
         });
+        let mut defs = defs.peekable();
 
         let inits = columns.iter().filter_map(|(name, typ, pk, _notnull)| {
             if has_id.is_some() && *pk {
@@ -111,16 +112,16 @@ pub fn generate(client: Client) -> String {
             )
         });
 
+        let lifetime_def = defs.peek().map(|_| quote!(<'t>));
         output.extend(quote! {
             pub struct #table_ident;
 
-            pub struct #dummy_ident<'t> {
-                _phantom: PhantomData<dyn Fn(&'t ()) -> &'t ()>,
+            pub struct #dummy_ident #lifetime_def {
                 #(#defs,)*
             }
 
             impl Table for #table_ident {
-                type Dummy<'t> = #dummy_ident<'t>;
+                type Dummy<'t> = #dummy_ident #lifetime_def;
 
                 fn name(&self) -> String {
                     #table.to_owned()
@@ -128,7 +129,6 @@ pub fn generate(client: Client) -> String {
 
                 fn build(f: Builder<'_>) -> Self::Dummy<'_> {
                     #dummy_ident {
-                        _phantom: PhantomData,
                         #(#inits,)*
                     }
                 }
