@@ -15,7 +15,8 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
     // distinct on
-    pub(super) group: OnceCell<(SimpleExpr, &'static str, &'static str, MyAlias, MyAlias)>,
+    pub(super) group:
+        OnceCell<FrozenVec<Box<(SimpleExpr, &'static str, &'static str, MyAlias, MyAlias)>>>,
     // calculating these agregates
     pub(super) select: MyMap<SimpleExpr, MyAlias>,
 }
@@ -79,22 +80,27 @@ impl Joins {
 
 impl MySelect {
     pub fn join(&self, joins: &Joins, select: &mut SelectStatement) {
-        if let Some((_group, table, id, table_alias, alias)) = self.group.get() {
-            select.join_as(
-                sea_query::JoinType::InnerJoin,
-                Alias::new(*table),
-                *table_alias,
-                Condition::all(),
-            );
+        if let Some(projections) = self.group.get() {
+            let mut cond = Condition::all();
+            for (_group, table, id, table_alias, alias) in projections.iter() {
+                select.join_as(
+                    sea_query::JoinType::InnerJoin,
+                    Alias::new(*table),
+                    *table_alias,
+                    Condition::all(),
+                );
 
-            let id_field = Expr::col((*table_alias, Alias::new(*id)));
-            let id_field2 = Expr::col((joins.table, *alias));
-            let filter = id_field.eq(id_field2);
+                let id_field = Expr::col((*table_alias, Alias::new(*id)));
+                let id_field2 = Expr::col((joins.table, *alias));
+                let filter = id_field.eq(id_field2);
+                cond = cond.add(filter);
+            }
+
             select.join_subquery(
                 sea_query::JoinType::LeftJoin,
                 self.build_select(),
                 joins.table,
-                Condition::all().add(filter),
+                cond,
             );
         } else {
             select.join_subquery(
@@ -137,9 +143,11 @@ impl MySelect {
             select.and_where(filter.clone());
         }
 
-        if let Some((group, _table, _id, _table_alias, alias)) = self.group.get() {
-            select.expr_as(group.clone(), *alias);
-            select.group_by_col(*alias);
+        if let Some(projections) = self.group.get() {
+            for (group, _table, _id, _table_alias, alias) in projections.iter() {
+                select.expr_as(group.clone(), *alias);
+                select.group_by_col(*alias);
+            }
         }
 
         if self.select.is_empty() {

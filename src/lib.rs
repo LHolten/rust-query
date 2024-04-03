@@ -130,20 +130,12 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         V::Typ::iden_any(self.joins, Field::U64(*alias))
     }
 
-    // only one group can exist at a time
-    pub fn project_on<T: HasId>(
-        &'outer mut self,
-        val: impl Value<'inner, Typ = T>,
-    ) -> Group<'outer, 'inner, T> {
-        let table_alias = MyAlias::new();
-        let alias = MyAlias::new();
-        self.ast
-            .group
-            .get_or_init(|| (val.build_expr(), T::NAME, T::ID, table_alias, alias));
+    // only one Group can exist at a time
+    pub fn group(&'outer mut self) -> Group<'outer, 'inner> {
+        let groups = self.ast.group.get_or_init(FrozenVec::new);
         Group {
             inner: self,
-            table_alias,
-            phantom: PhantomData,
+            groups,
         }
     }
 
@@ -152,19 +144,29 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     // }
 }
 
-pub struct Group<'outer, 'inner, T> {
+pub struct Group<'outer, 'inner> {
     inner: &'outer mut Query<'outer, 'inner>,
-    table_alias: MyAlias,
-    phantom: PhantomData<T>,
+    // might not need to be boxed?
+    groups: &'outer FrozenVec<Box<(SimpleExpr, &'static str, &'static str, MyAlias, MyAlias)>>,
 }
 
 // if we have a single row that is null for all columns, then
 // this should be treated as if there are zero rows.
-impl<'outer, 'inner, T: HasId> Group<'outer, 'inner, T> {
-    pub fn select(&self) -> Db<'outer, T> {
+impl<'outer, 'inner> Group<'outer, 'inner> {
+    pub fn project_on<T: HasId>(&mut self, val: impl Value<'inner, Typ = T>) -> Db<'outer, T> {
+        let table_alias = MyAlias::new();
+        let alias = MyAlias::new();
+        self.groups.push(Box::new((
+            val.build_expr(),
+            T::NAME,
+            T::ID,
+            table_alias,
+            alias,
+        )));
+
         let joined = &self.inner.joins.joined;
         let field = FieldAlias {
-            table: self.table_alias,
+            table: table_alias,
             col: Field::Str(T::ID),
         };
         FkInfo::joined(joined, field)

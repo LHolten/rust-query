@@ -29,15 +29,24 @@ pub trait Value<'t>: Sized {
         MyEq(self, rhs)
     }
 
-    fn not(self) -> MyNot<Self> {
+    fn not(self) -> MyNot<Self>
+    where
+        Self: Value<'t, Typ = bool>,
+    {
         MyNot(self)
     }
-}
 
-pub trait ValueOpt<'t>: Value<'t, Typ = Option<Self::Inner>> {
-    type Inner: MyIdenT;
+    fn and<T: Value<'t, Typ = bool>>(self, rhs: T) -> MyAnd<Self, T>
+    where
+        Self: Value<'t, Typ = bool>,
+    {
+        MyAnd(self, rhs)
+    }
 
-    fn unwrap_or<T: Value<'t, Typ = Self::Inner>>(self, rhs: T) -> UnwrapOr<Self, T> {
+    fn unwrap_or<T: Value<'t>>(self, rhs: T) -> UnwrapOr<Self, T>
+    where
+        Self: Value<'t, Typ = Option<T::Typ>>,
+    {
         UnwrapOr(self, rhs)
     }
 }
@@ -55,10 +64,6 @@ impl<'t, T: MyIdenT> Value<'t> for Db<'t, T> {
     fn build_expr(&self) -> SimpleExpr {
         Expr::col(self.field).into()
     }
-}
-
-impl<'t, T: MyIdenT> ValueOpt<'t> for Db<'t, Option<T>> {
-    type Inner = T;
 }
 
 #[derive(Clone, Copy)]
@@ -81,6 +86,15 @@ impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct MyAnd<A, B>(A, B);
+
+impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAnd<A, B> {
+    type Typ = A::Typ;
+    fn build_expr(&self) -> SimpleExpr {
+        self.0.build_expr().and(self.1.build_expr())
+    }
+}
 #[derive(Clone, Copy)]
 pub struct MyLt<A>(A, i32);
 
@@ -123,10 +137,8 @@ where
 #[derive(Clone, Copy)]
 pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
 
-impl<'t, T: MyIdenT, A: ValueOpt<'t, Inner = T>, B: Value<'t, Typ = T>> Value<'t>
-    for UnwrapOr<A, B>
-{
-    type Typ = T;
+impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
+    type Typ = B::Typ;
     fn build_expr(&self) -> SimpleExpr {
         Expr::expr(self.0.build_expr()).if_null(self.1.build_expr())
     }

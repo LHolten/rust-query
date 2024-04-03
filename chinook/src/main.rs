@@ -54,11 +54,12 @@ struct PlaylistTrackCount {
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     client.new_query(|q| {
-        let plt = q.flat_table(PlaylistTrack);
+        let plt = q.table(PlaylistTrack);
+        let mut q = q.group();
         let pl = q.project_on(&plt.playlist);
-        pl.into_vec(u32::MAX, |row| PlaylistTrackCount {
-            playlist: row.get(pl.select().name),
-            track_count: row.get(pl.count_distinct(&plt.track)),
+        q.into_vec(u32::MAX, |row| PlaylistTrackCount {
+            playlist: row.get(pl.name),
+            track_count: row.get(q.count_distinct(&plt.track)),
         })
     })
 }
@@ -67,15 +68,14 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
     client.new_query(|q| {
         let (album, track_count) = q.query(|q| {
             let track = q.table(Track);
+            let mut q = q.group();
             let album = q.project_on(&track.album);
-            (album.select(), album.count_distinct(&track))
+            (album, q.count_distinct(&track))
         });
+        let mut q = q.group();
         let artist = q.project_on(&album.artist);
-        artist.into_vec(u32::MAX, |row| {
-            (
-                row.get(artist.select().name),
-                row.get(artist.avg(track_count)),
-            )
+        q.into_vec(u32::MAX, |row| {
+            (row.get(artist.name), row.get(q.avg(track_count)))
         })
     })
 }
@@ -85,11 +85,12 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
         let reporter = q.table(Employee);
         // only count employees that report to someone
         let receiver = q.filter_some(reporter.reports_to);
+        let mut q = q.group();
         let receiver = q.project_on(&receiver);
-        receiver.into_vec(u32::MAX, |row| {
+        q.into_vec(u32::MAX, |row| {
             (
-                row.get(receiver.select().last_name),
-                row.get(receiver.count_distinct(&reporter)),
+                row.get(receiver.last_name),
+                row.get(q.count_distinct(&reporter)),
             )
         })
     })
