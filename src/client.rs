@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use elsa::FrozenVec;
+use rusqlite::config::DbConfig;
 
 use crate::{
     ast::{Joins, MySelect},
@@ -15,6 +16,16 @@ pub struct Client {
 impl Client {
     pub fn open_in_memory() -> Self {
         let inner = rusqlite::Connection::open_in_memory().unwrap();
+        inner.pragma_update(None, "journal_mode", "WAL").unwrap();
+        inner.pragma_update(None, "synchronous", "NORMAL").unwrap();
+        inner.pragma_update(None, "foreign_keys", "ON").unwrap();
+        inner
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)
+            .unwrap();
+        inner
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)
+            .unwrap();
+
         Client { inner }
     }
 

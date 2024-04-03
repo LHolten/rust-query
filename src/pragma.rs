@@ -43,7 +43,7 @@ impl Table for TableInfo {
     type Dummy<'t> = TableInfoDummy<'t>;
 
     fn name(&self) -> String {
-        format!(r#"pragma_table_info("{}", "main")"#, self.0)
+        format!("pragma_table_info('{}', 'main')", self.0)
     }
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
@@ -67,7 +67,7 @@ impl Table for ForeignKeyList {
     type Dummy<'t> = ForeignKeyListDummy<'t>;
 
     fn name(&self) -> String {
-        format!(r#"pragma_foreign_key_list("{}", "main")"#, self.0)
+        format!("pragma_foreign_key_list('{}', 'main')", self.0)
     }
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
