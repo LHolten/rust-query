@@ -9,7 +9,7 @@ pub mod value;
 
 use std::{cell::Cell, marker::PhantomData};
 
-use ast::{Joins, MySelect, MyTable, Source};
+use ast::{Joins, MyGroupOn, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
@@ -147,7 +147,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 pub struct Group<'outer, 'inner> {
     inner: &'outer mut Query<'outer, 'inner>,
     // might not need to be boxed?
-    groups: &'outer FrozenVec<Box<(SimpleExpr, &'static str, &'static str, MyAlias, MyAlias)>>,
+    groups: &'outer FrozenVec<Box<(SimpleExpr, MyAlias, MyGroupOn)>>,
 }
 
 // if we have a single row that is null for all columns, then
@@ -156,13 +156,9 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
     pub fn project_on<T: HasId>(&mut self, val: impl Value<'inner, Typ = T>) -> Db<'outer, T> {
         let table_alias = MyAlias::new();
         let alias = MyAlias::new();
-        self.groups.push(Box::new((
-            val.build_expr(),
-            T::NAME,
-            T::ID,
-            table_alias,
-            alias,
-        )));
+        let group_on = MyGroupOn::NewTable(T::NAME, T::ID, table_alias);
+        self.groups
+            .push(Box::new((val.build_expr(), alias, group_on)));
 
         let joined = &self.inner.joins.joined;
         let field = FieldAlias {
@@ -170,6 +166,17 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
             col: Field::Str(T::ID),
         };
         FkInfo::joined(joined, field)
+    }
+
+    pub fn project_eq<T: MyIdenT>(
+        &mut self,
+        val: impl Value<'inner, Typ = T>,
+        on: impl Value<'outer, Typ = T>,
+    ) {
+        let alias = MyAlias::new();
+        let group_on = MyGroupOn::Outer(on.build_expr());
+        self.groups
+            .push(Box::new((val.build_expr(), alias, group_on)));
     }
 
     pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {

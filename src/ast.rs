@@ -8,6 +8,11 @@ use crate::{
     value::{Field, FieldAlias, MyAlias, RawAlias},
 };
 
+pub enum MyGroupOn {
+    NewTable(&'static str, &'static str, MyAlias),
+    Outer(SimpleExpr),
+}
+
 #[derive(Default)]
 pub struct MySelect {
     // the sources to use
@@ -15,8 +20,7 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
     // distinct on
-    pub(super) group:
-        OnceCell<FrozenVec<Box<(SimpleExpr, &'static str, &'static str, MyAlias, MyAlias)>>>,
+    pub(super) group: OnceCell<FrozenVec<Box<(SimpleExpr, MyAlias, MyGroupOn)>>>,
     // calculating these agregates
     pub(super) select: MyMap<SimpleExpr, MyAlias>,
 }
@@ -82,15 +86,19 @@ impl MySelect {
     pub fn join(&self, joins: &Joins, select: &mut SelectStatement) {
         if let Some(projections) = self.group.get() {
             let mut cond = Condition::all();
-            for (_group, table, id, table_alias, alias) in projections.iter() {
-                select.join_as(
-                    sea_query::JoinType::InnerJoin,
-                    Alias::new(*table),
-                    *table_alias,
-                    Condition::all(),
-                );
-
-                let id_field = Expr::col((*table_alias, Alias::new(*id)));
+            for (_, alias, grouping) in projections.iter() {
+                let id_field = match grouping {
+                    MyGroupOn::NewTable(table, id, table_alias) => {
+                        select.join_as(
+                            sea_query::JoinType::InnerJoin,
+                            Alias::new(*table),
+                            *table_alias,
+                            Condition::all(),
+                        );
+                        Expr::col((*table_alias, Alias::new(*id)))
+                    }
+                    MyGroupOn::Outer(outer_value) => Expr::expr(outer_value.clone()),
+                };
                 let id_field2 = Expr::col((joins.table, *alias));
                 let filter = id_field.eq(id_field2);
                 cond = cond.add(filter);
@@ -144,7 +152,7 @@ impl MySelect {
         }
 
         if let Some(projections) = self.group.get() {
-            for (group, _table, _id, _table_alias, alias) in projections.iter() {
+            for (group, alias, _) in projections.iter() {
                 select.expr_as(group.clone(), *alias);
                 select.group_by_col(*alias);
             }
