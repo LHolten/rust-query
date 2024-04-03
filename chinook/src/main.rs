@@ -84,7 +84,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     client.new_query(|q| {
         let reporter = q.table(Employee);
         // only count employees that report to someone
-        let receiver = q.unwrap(reporter.reports_to);
+        let receiver = q.filter_some(reporter.reports_to);
         let receiver = q.project_on(&receiver);
         receiver.into_vec(u32::MAX, |row| {
             (
