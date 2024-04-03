@@ -2,10 +2,9 @@
 PRAGMA foreign_keys = OFF;
 
 CREATE TABLE [Album2] (
-    [AlbumId] INTEGER NOT NULL,
+    [AlbumId] INTEGER PRIMARY KEY,
     [Title] TEXT NOT NULL,
     [ArtistId] INTEGER NOT NULL,
-    CONSTRAINT [PK_Album] PRIMARY KEY ([AlbumId]),
     FOREIGN KEY ([ArtistId]) REFERENCES [Artist] ([ArtistId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) STRICT;
 
@@ -22,9 +21,8 @@ ALTER TABLE
     Album2 RENAME TO Album;
 
 CREATE TABLE [Artist2] (
-    [ArtistId] INTEGER NOT NULL,
-    [Name] TEXT NOT NULL,
-    CONSTRAINT [PK_Artist] PRIMARY KEY ([ArtistId])
+    [ArtistId] INTEGER PRIMARY KEY,
+    [Name] TEXT NOT NULL
 ) STRICT;
 
 INSERT INTO
@@ -40,7 +38,7 @@ ALTER TABLE
     Artist2 RENAME TO Artist;
 
 CREATE TABLE [Customer2] (
-    [CustomerId] INTEGER NOT NULL,
+    [CustomerId] INTEGER PRIMARY KEY,
     [FirstName] TEXT NOT NULL,
     [LastName] TEXT NOT NULL,
     [Company] TEXT,
@@ -53,7 +51,6 @@ CREATE TABLE [Customer2] (
     [Fax] TEXT,
     [Email] TEXT NOT NULL,
     [SupportRepId] INTEGER NOT NULL,
-    CONSTRAINT [PK_Customer] PRIMARY KEY ([CustomerId]),
     FOREIGN KEY ([SupportRepId]) REFERENCES [Employee] ([EmployeeId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) STRICT;
 
@@ -70,7 +67,7 @@ ALTER TABLE
     Customer2 RENAME TO Customer;
 
 CREATE TABLE [Employee2] (
-    [EmployeeId] INTEGER NOT NULL,
+    [EmployeeId] INTEGER PRIMARY KEY,
     [LastName] TEXT NOT NULL,
     [FirstName] TEXT NOT NULL,
     [Title] TEXT,
@@ -85,7 +82,6 @@ CREATE TABLE [Employee2] (
     [Phone] TEXT,
     [Fax] TEXT,
     [Email] TEXT NOT NULL,
-    CONSTRAINT [PK_Employee] PRIMARY KEY ([EmployeeId]),
     FOREIGN KEY ([ReportsTo]) REFERENCES [Employee] ([EmployeeId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) STRICT;
 
@@ -102,9 +98,8 @@ ALTER TABLE
     Employee2 RENAME TO Employee;
 
 CREATE TABLE [Genre2] (
-    [GenreId] INTEGER NOT NULL,
-    [Name] TEXT NOT NULL,
-    CONSTRAINT [PK_Genre] PRIMARY KEY ([GenreId])
+    [GenreId] INTEGER PRIMARY KEY,
+    [Name] TEXT NOT NULL
 ) STRICT;
 
 INSERT INTO
@@ -120,7 +115,7 @@ ALTER TABLE
     Genre2 RENAME TO Genre;
 
 CREATE TABLE [Invoice2] (
-    [InvoiceId] INTEGER NOT NULL,
+    [InvoiceId] INTEGER PRIMARY KEY,
     [CustomerId] INTEGER NOT NULL,
     [InvoiceDate] TEXT NOT NULL,
     [BillingAddress] TEXT,
@@ -129,7 +124,6 @@ CREATE TABLE [Invoice2] (
     [BillingCountry] TEXT,
     [BillingPostalCode] TEXT,
     [Total] REAL NOT NULL,
-    CONSTRAINT [PK_Invoice] PRIMARY KEY ([InvoiceId]),
     FOREIGN KEY ([CustomerId]) REFERENCES [Customer] ([CustomerId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) STRICT;
 
@@ -146,12 +140,11 @@ ALTER TABLE
     Invoice2 RENAME TO Invoice;
 
 CREATE TABLE [InvoiceLine2] (
-    [InvoiceLineId] INTEGER NOT NULL,
+    [InvoiceLineId] INTEGER PRIMARY KEY,
     [InvoiceId] INTEGER NOT NULL,
     [TrackId] INTEGER NOT NULL,
     [UnitPrice] REAL NOT NULL,
     [Quantity] INTEGER NOT NULL,
-    CONSTRAINT [PK_InvoiceLine] PRIMARY KEY ([InvoiceLineId]),
     FOREIGN KEY ([InvoiceId]) REFERENCES [Invoice] ([InvoiceId]) ON DELETE NO ACTION ON UPDATE NO ACTION,
     FOREIGN KEY ([TrackId]) REFERENCES [Track] ([TrackId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) STRICT;
@@ -169,9 +162,8 @@ ALTER TABLE
     InvoiceLine2 RENAME TO InvoiceLine;
 
 CREATE TABLE [MediaType2] (
-    [MediaTypeId] INTEGER NOT NULL,
-    [Name] TEXT NOT NULL,
-    CONSTRAINT [PK_MediaType] PRIMARY KEY ([MediaTypeId])
+    [MediaTypeId] INTEGER PRIMARY KEY,
+    [Name] TEXT NOT NULL
 ) STRICT;
 
 INSERT INTO
@@ -187,9 +179,8 @@ ALTER TABLE
     MediaType2 RENAME TO MediaType;
 
 CREATE TABLE [Playlist2] (
-    [PlaylistId] INTEGER NOT NULL,
-    [Name] TEXT NOT NULL,
-    CONSTRAINT [PK_Playlist] PRIMARY KEY ([PlaylistId])
+    [PlaylistId] INTEGER PRIMARY KEY,
+    [Name] TEXT NOT NULL
 ) STRICT;
 
 INSERT INTO
@@ -205,9 +196,10 @@ ALTER TABLE
     Playlist2 RENAME TO Playlist;
 
 CREATE TABLE [PlaylistTrack2] (
+    [PlaylistTrackId] INTEGER PRIMARY KEY,
     [PlaylistId] INTEGER NOT NULL,
     [TrackId] INTEGER NOT NULL,
-    CONSTRAINT [PK_PlaylistTrack] PRIMARY KEY ([PlaylistId], [TrackId]),
+    CONSTRAINT [PlaylistTrackUnique] UNIQUE ([PlaylistId], [TrackId]),
     FOREIGN KEY ([PlaylistId]) REFERENCES [Playlist] ([PlaylistId]) ON DELETE NO ACTION ON UPDATE NO ACTION,
     FOREIGN KEY ([TrackId]) REFERENCES [Track] ([TrackId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) STRICT;
@@ -215,7 +207,9 @@ CREATE TABLE [PlaylistTrack2] (
 INSERT INTO
     PlaylistTrack2
 SELECT
-    *
+    ROWID,
+    PlaylistId,
+    TrackId
 FROM
     PlaylistTrack;
 
@@ -225,7 +219,7 @@ ALTER TABLE
     PlaylistTrack2 RENAME TO PlaylistTrack;
 
 CREATE TABLE [Track2] (
-    [TrackId] INTEGER NOT NULL,
+    [TrackId] INTEGER PRIMARY KEY,
     [Name] TEXT NOT NULL,
     [AlbumId] INTEGER NOT NULL,
     [MediaTypeId] INTEGER NOT NULL,
@@ -234,7 +228,6 @@ CREATE TABLE [Track2] (
     [Milliseconds] INTEGER NOT NULL,
     [Bytes] INTEGER NOT NULL,
     [UnitPrice] REAL NOT NULL,
-    CONSTRAINT [PK_Track] PRIMARY KEY ([TrackId]),
     FOREIGN KEY ([AlbumId]) REFERENCES [Album] ([AlbumId]) ON DELETE NO ACTION ON UPDATE NO ACTION,
     FOREIGN KEY ([GenreId]) REFERENCES [Genre] ([GenreId]) ON DELETE NO ACTION ON UPDATE NO ACTION,
     FOREIGN KEY ([MediaTypeId]) REFERENCES [MediaType] ([MediaTypeId]) ON DELETE NO ACTION ON UPDATE NO ACTION
