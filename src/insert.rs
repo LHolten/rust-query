@@ -1,5 +1,5 @@
 use elsa::FrozenVec;
-use sea_query::{Alias, Expr, InsertStatement, SimpleExpr, SqliteQueryBuilder};
+use sea_query::{Alias, Expr, InsertStatement, OnConflict, SimpleExpr, SqliteQueryBuilder};
 
 use crate::{
     value::{Db, Field, MyIdenT},
@@ -29,6 +29,8 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         T::read(val, Reader { parts: last });
 
         let mut insert = InsertStatement::new();
+        // TODO: make this configurable
+        insert.on_conflict(OnConflict::new().do_nothing().to_owned());
         insert.into_table(Alias::new(T::NAME));
 
         let names = last.iter().map(|(name, _field)| *name);

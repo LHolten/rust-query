@@ -5,7 +5,7 @@ use std::{
 };
 
 use elsa::FrozenVec;
-use sea_query::{Expr, Iden, IntoColumnRef, SimpleExpr};
+use sea_query::{Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
 
 use crate::{
     ast::{Joins, MyTable},
@@ -60,6 +60,38 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
 
     fn build_expr(&self) -> SimpleExpr {
         T::build_expr(self)
+    }
+}
+
+impl<'t, T: Value<'t> + Nullable> Value<'t> for Option<T> {
+    type Typ = Option<T::Typ>;
+
+    fn build_expr(&self) -> SimpleExpr {
+        self.as_ref().map(T::build_expr).unwrap_or(T::null().into())
+    }
+}
+
+impl<'t> Value<'t> for &str {
+    type Typ = String;
+
+    fn build_expr(&self) -> SimpleExpr {
+        SimpleExpr::from(*self)
+    }
+}
+
+impl<'t> Value<'t> for i64 {
+    type Typ = i64;
+
+    fn build_expr(&self) -> SimpleExpr {
+        SimpleExpr::from(*self)
+    }
+}
+
+impl<'t> Value<'t> for f64 {
+    type Typ = f64;
+
+    fn build_expr(&self) -> SimpleExpr {
+        SimpleExpr::from(*self)
     }
 }
 
@@ -120,25 +152,6 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
 }
 
 #[derive(Clone, Copy)]
-pub struct Const<T>(T);
-
-impl<T> Const<T> {
-    pub fn new<V: ToOwned<Owned = T> + ?Sized>(val: &V) -> Self {
-        Self(val.to_owned())
-    }
-}
-
-impl<'t, T: MyIdenT> Value<'t> for Const<T>
-where
-    T: Into<sea_query::value::Value> + Clone,
-{
-    type Typ = T;
-    fn build_expr(&self) -> SimpleExpr {
-        SimpleExpr::from(self.0.clone())
-    }
-}
-
-#[derive(Clone, Copy)]
 pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
@@ -155,6 +168,16 @@ impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
     type Typ = bool;
     fn build_expr(&self) -> SimpleExpr {
         Expr::expr(self.0.build_expr()).is_not_null()
+    }
+}
+
+pub struct UnixEpoch;
+
+impl<'t> Value<'t> for UnixEpoch {
+    type Typ = i64;
+
+    fn build_expr(&self) -> SimpleExpr {
+        Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
     }
 }
 

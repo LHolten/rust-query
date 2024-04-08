@@ -4,11 +4,7 @@ use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
-use crate::{
-    client::Client,
-    pragma,
-    value::{Const, Value},
-};
+use crate::{client::Client, pragma, value::Value};
 
 pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
@@ -18,9 +14,9 @@ pub fn generate(client: Client) -> String {
 
     let tables = client.new_query(|q| {
         let table = q.flat_table(pragma::TableList);
-        q.filter(table.schema.eq(Const::new("main")));
-        q.filter(table.r#type.eq(Const::new("table")));
-        q.filter(table.name.eq(Const::new("sqlite_schema")).not());
+        q.filter(table.schema.eq("main"));
+        q.filter(table.r#type.eq("table"));
+        q.filter(table.name.eq("sqlite_schema").not());
         q.into_vec(u32::MAX, |row| row.get(q.select(&table.name)))
     });
 

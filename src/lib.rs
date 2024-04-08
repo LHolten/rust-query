@@ -14,7 +14,7 @@ use ast::{Joins, MyGroupOn, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
-use value::{Const, Db, Field, FieldAlias, FkInfo, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value};
+use value::{Db, Field, FieldAlias, FkInfo, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value};
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -119,18 +119,18 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    pub fn filter_eq<T: MyIdenT>(
-        &mut self,
-        val: impl Value<'inner, Typ = T>,
-        on: impl Value<'outer, Typ = T>,
-    ) {
-        let alias = MyAlias::new();
-        let group_on = MyGroupOn::Outer(on.build_expr());
-        // self.groups
-        //     .push(Box::new((val.build_expr(), alias, group_on)));
+    // pub fn filter_eq<T: MyIdenT>(
+    //     &mut self,
+    //     val: impl Value<'inner, Typ = T>,
+    //     on: impl Value<'outer, Typ = T>,
+    // ) {
+    //     let alias = MyAlias::new();
+    //     let group_on = MyGroupOn::Outer(on.build_expr());
+    //     // self.groups
+    //     //     .push(Box::new((val.build_expr(), alias, group_on)));
 
-        todo!()
-    }
+    //     todo!()
+    // }
 
     pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
@@ -167,20 +167,21 @@ pub struct Group<'outer, 'inner> {
 // if we have a single row that is null for all columns, then
 // this should be treated as if there are zero rows.
 impl<'outer, 'inner> Group<'outer, 'inner> {
-    pub fn project_on<T: HasId>(&mut self, val: impl Value<'inner, Typ = T>) -> Db<'outer, T> {
-        let table_alias = MyAlias::new();
-        let alias = MyAlias::new();
-        let group_on = MyGroupOn::NewTable(T::NAME, T::ID, table_alias);
-        self.groups
-            .push(Box::new((val.build_expr(), alias, group_on)));
+    // pub fn project_on<T: HasId>(&mut self, val: impl Value<'inner, Typ = T>) -> Db<'outer, T> {
+    //     let table_alias = MyAlias::new();
+    //     let alias = MyAlias::new();
+    //     let group_on = MyGroupOn::NewTable(T::NAME, T::ID, table_alias);
+    //     self.groups
+    //         .push(Box::new((val.build_expr(), alias, group_on)));
 
-        let joined = &self.inner.joins.joined;
-        let field = FieldAlias {
-            table: table_alias,
-            col: Field::Str(T::ID),
-        };
-        FkInfo::joined(joined, field)
-    }
+    //     let joined = &self.inner.joins.joined;
+    //     let field = FieldAlias {
+    //         table: table_alias,
+    //         col: Field::Str(T::ID),
+    //     };
+    //     // TODO: joined is not correct here
+    //     FkInfo::joined(joined, field)
+    // }
 
     pub fn project_eq<T: MyIdenT>(
         &mut self,
@@ -202,25 +203,19 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
     pub fn sum<V: Value<'inner, Typ = f64>>(
         &self,
         val: V,
-    ) -> UnwrapOr<Db<'outer, Option<f64>>, Const<f64>> {
+    ) -> UnwrapOr<Db<'outer, Option<f64>>, f64> {
         let expr = Func::cast_as(Func::sum(val.build_expr()), Alias::new("integer"));
         let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        UnwrapOr(
-            Option::iden_any(self.inner.joins, Field::U64(*alias)),
-            Const::new(&0.),
-        )
+        UnwrapOr(Option::iden_any(self.inner.joins, Field::U64(*alias)), 0.)
     }
 
     pub fn count_distinct<V: Value<'inner>>(
         &self,
         val: V,
-    ) -> UnwrapOr<Db<'outer, Option<i64>>, Const<i64>> {
+    ) -> UnwrapOr<Db<'outer, Option<i64>>, i64> {
         let expr = Func::count_distinct(val.build_expr());
         let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        UnwrapOr(
-            Option::iden_any(self.inner.joins, Field::U64(*alias)),
-            Const::new(&0),
-        )
+        UnwrapOr(Option::iden_any(self.inner.joins, Field::U64(*alias)), 0)
     }
 
     pub fn exists(&self) -> IsNotNull<Db<'outer, i64>> {
