@@ -17,7 +17,7 @@ pub fn generate(client: Client) -> String {
         q.filter(table.schema.eq("main"));
         q.filter(table.r#type.eq("table"));
         q.filter(table.name.eq("sqlite_schema").not());
-        q.into_vec(u32::MAX, |row| row.get(q.select(&table.name)))
+        q.into_vec(u32::MAX, |row| row.get(&table.name))
     });
 
     for table in &tables {
@@ -25,10 +25,10 @@ pub fn generate(client: Client) -> String {
             let table = q.flat_table(pragma::TableInfo(table.to_owned()));
 
             q.into_vec(u32::MAX, |row| {
-                let name = row.get(q.select(table.name));
-                let typ = row.get(q.select(table.r#type));
-                let pk = row.get(q.select(table.pk)) != 0;
-                let notnull = row.get(q.select(table.notnull)) != 0;
+                let name = row.get(table.name);
+                let typ = row.get(table.r#type);
+                let pk = row.get(table.pk) != 0;
+                let notnull = row.get(table.notnull) != 0;
                 (name, typ, pk, notnull)
             })
         });
@@ -38,7 +38,7 @@ pub fn generate(client: Client) -> String {
                 let fk = q.flat_table(pragma::ForeignKeyList(table.to_owned()));
                 q.into_vec(u32::MAX, |row| {
                     // we just assume that the to column is the primary key..
-                    (row.get(q.select(fk.from)), row.get(q.select(fk.table)))
+                    (row.get(fk.from), row.get(fk.table))
                 })
             })
             .into_iter()

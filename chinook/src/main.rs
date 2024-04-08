@@ -42,9 +42,9 @@ fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
     client.new_query(|q| {
         let ivl = q.table(InvoiceLine);
         q.into_vec(u32::MAX, |row| InvoiceInfo {
-            track: row.get(q.select(ivl.track.name)),
-            artist: row.get(q.select(ivl.track.album.artist.name)),
-            ivl_id: row.get(q.select(ivl.id())),
+            track: row.get(ivl.track.name),
+            artist: row.get(ivl.track.album.artist.name),
+            ivl_id: row.get(ivl.id()),
         })
     })
 }
@@ -65,8 +65,8 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
         });
 
         q.into_vec(u32::MAX, |row| PlaylistTrackCount {
-            playlist: row.get(q.select(pl.name)),
-            track_count: row.get(q.select(count)),
+            playlist: row.get(pl.name),
+            track_count: row.get(count),
         })
     })
 }
@@ -85,10 +85,7 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
             q.group().avg(track_count)
         });
         q.into_vec(u32::MAX, |row| {
-            (
-                row.get(q.select(artist.name)),
-                row.get(q.select(avg_track_count)),
-            )
+            (row.get(artist.name), row.get(avg_track_count))
         })
     })
 }
@@ -105,10 +102,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
         });
 
         q.into_vec(u32::MAX, |row| {
-            (
-                row.get(q.select(receiver.last_name)),
-                row.get(q.select(report_count)),
-            )
+            (row.get(receiver.last_name), row.get(report_count))
         })
     })
 }

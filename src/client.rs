@@ -6,7 +6,7 @@ use rusqlite::config::DbConfig;
 use crate::{
     ast::{Joins, MySelect},
     value::MyAlias,
-    Query,
+    Exec, Query,
 };
 
 pub struct Client {
@@ -35,7 +35,7 @@ impl Client {
 
     pub fn new_query<F, R>(&self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R,
+        F: for<'a, 'names> FnOnce(&'names mut Exec<'names, 'a>) -> R,
     {
         self.inner.new_query(f)
     }
@@ -44,26 +44,26 @@ impl Client {
 pub trait QueryBuilder {
     fn new_query<F, R>(&self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R;
+        F: for<'a, 'names> FnOnce(&'names mut Exec<'names, 'a>) -> R;
 }
 
 impl QueryBuilder for rusqlite::Connection {
     fn new_query<F, R>(&self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'names mut Query<'names, 'a>) -> R,
+        F: for<'a, 'names> FnOnce(&'names mut Exec<'names, 'a>) -> R,
     {
         let ast = MySelect::default();
         let joins = Joins {
             table: MyAlias::new(),
             joined: FrozenVec::new(),
         };
-        let mut q = Query {
+        let q = Query {
             phantom: PhantomData,
             phantom2: PhantomData,
             ast: &ast,
             joins: &joins,
             client: self,
         };
-        f(&mut q)
+        f(&mut Exec { q })
     }
 }

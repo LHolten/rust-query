@@ -8,13 +8,35 @@ pub mod pragma;
 pub mod schema;
 pub mod value;
 
-use std::{cell::Cell, marker::PhantomData};
+use std::{
+    cell::Cell,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
+use sea_query::{Alias, Expr, Func, Iden, SqliteQueryBuilder};
 use value::{Db, Field, FieldAlias, FkInfo, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value};
+
+pub struct Exec<'outer, 'inner> {
+    q: Query<'outer, 'inner>,
+}
+
+impl<'outer, 'inner> Deref for Exec<'outer, 'inner> {
+    type Target = Query<'outer, 'inner>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.q
+    }
+}
+
+impl<'outer, 'inner> DerefMut for Exec<'outer, 'inner> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.q
+    }
+}
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -197,22 +219,14 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
     //     // i64::iden_any(self.joins, Field::U64(*alias))
     //     todo!()
     // }
-
-    pub fn into_vec<F, R>(&self, limit: u32, f: F) -> Vec<R>
-    where
-        F: FnMut(Row<'_, 'outer>) -> R,
-    {
-        self.inner.into_vec(limit, f)
-    }
 }
 
-impl<'outer, 'inner> Query<'outer, 'inner> {
+impl<'outer, 'inner> Exec<'outer, 'inner> {
     pub fn into_vec<F, T>(&self, limit: u32, mut f: F) -> Vec<T>
     where
-        F: FnMut(Row<'_, 'outer>) -> T,
+        F: FnMut(Row<'_, 'inner>) -> T,
     {
-        let last = FrozenVec::new();
-        let mut select = self.joins.wrap(self.ast, 0, limit, &last);
+        let mut select = self.ast.simple(0, limit);
         let sql = select.to_string(SqliteQueryBuilder);
 
         eprintln!("{sql}");
@@ -229,16 +243,15 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
                 inner: PhantomData,
                 row,
                 ast: self.ast,
-                joins: self.joins,
                 conn,
                 updated: &updated,
-                last: &last,
             };
             out.push(f(row));
 
             if updated.get() {
                 eprintln!("UPDATING!");
-                select = self.joins.wrap(self.ast, out.len(), limit, &last);
+
+                select = self.ast.simple(out.len(), limit);
                 let sql = select.to_string(SqliteQueryBuilder);
                 eprintln!("{sql}");
 
@@ -258,10 +271,8 @@ pub struct Row<'x, 'names> {
     inner: PhantomData<dyn Fn(&'names ())>,
     row: &'x rusqlite::Row<'x>,
     ast: &'x MySelect,
-    joins: &'x Joins,
     conn: &'x rusqlite::Connection,
     updated: &'x Cell<bool>,
-    last: &'x FrozenVec<Box<(Field, SimpleExpr)>>,
 }
 
 impl<'names> Row<'_, 'names> {
@@ -270,9 +281,10 @@ impl<'names> Row<'_, 'names> {
         V::Typ: MyIdenT + rusqlite::types::FromSql,
     {
         let expr = val.build_expr();
-        let Some((alias, _)) = self.last.iter().find(|x| x.1 == expr) else {
-            let alias = Field::U64(MyAlias::new());
-            self.last.push(Box::new((alias, expr)));
+        let Some((_, alias)) = self.ast.select.iter().find(|x| x.0 == expr) else {
+            let alias = MyAlias::new();
+
+            self.ast.select.push(Box::new((expr, alias)));
             return self.requery(alias);
         };
 
@@ -280,11 +292,8 @@ impl<'names> Row<'_, 'names> {
         self.row.get_unwrap(idx)
     }
 
-    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: Field) -> T {
-        let select = self
-            .joins
-            .wrap(self.ast, self.offset, self.limit, self.last);
-
+    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
+        let select = self.ast.simple(self.offset, self.limit);
         let sql = select.to_string(SqliteQueryBuilder);
         eprintln!("REQUERY");
         eprintln!("{sql}");

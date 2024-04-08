@@ -80,6 +80,25 @@ impl Joins {
 }
 
 impl MySelect {
+    pub fn simple(&self, offset: usize, limit: u32) -> SelectStatement {
+        let mut select = self.build_select();
+
+        let mut cond = Condition::all();
+        for (inner_value, _alias, outer_value) in self.filter_on.iter() {
+            let id_field = Expr::expr(outer_value.clone());
+            let id_field2 = Expr::expr(inner_value.clone());
+            let filter = id_field.eq(id_field2);
+            cond = cond.add(filter);
+        }
+        select.cond_where(cond);
+
+        // TODO: Figure out how to do this properly
+        select.offset(offset as u64);
+        select.limit((limit as u64).min(18446744073709551610));
+
+        select
+    }
+
     pub fn join(&self, joins: &Joins, select: &mut SelectStatement) {
         let mut cond = Condition::all();
         for (_, alias, outer_value) in self.filter_on.iter() {
