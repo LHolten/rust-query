@@ -9,7 +9,7 @@ use crate::{client::Client, pragma, value::Value};
 pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
     output.extend(quote! {
-        use rust_query::{value::Db, Builder, HasId, Table, insert::{Reader, TableWrite}};
+        use rust_query::{value::Db, Builder, HasId, Table, insert::{Reader, Writable}};
     });
 
     let tables = client.new_query(|q| {
@@ -101,7 +101,7 @@ pub fn generate(client: Client) -> String {
                 return None;
             }
             let ident = make_field(name);
-            Some(quote!(f.col(#name, val.#ident)))
+            Some(quote!(f.col(#name, self.#ident)))
         });
 
         let table_ident = format_ident!("{}", table.to_upper_camel_case());
@@ -138,8 +138,9 @@ pub fn generate(client: Client) -> String {
                 }
             }
 
-            impl TableWrite for #table_ident {
-                fn read<'a>(val: Self::Dummy<'a>, f: Reader<'a>) {
+            impl<'a> Writable<'a> for #dummy_ident<'a> {
+                type T = #table_ident;
+                fn read(self, f: Reader<'a>) {
                     #(#reads;)*
                 }
             }

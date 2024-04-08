@@ -1,13 +1,14 @@
 use elsa::FrozenVec;
-use sea_query::{Alias, Expr, InsertStatement, OnConflict, SimpleExpr, SqliteQueryBuilder};
+use sea_query::{Alias, InsertStatement, OnConflict, SimpleExpr, SqliteQueryBuilder};
 
 use crate::{
-    value::{Db, Field, MyIdenT},
-    HasId, Query, Table,
+    value::{Field, Value},
+    Exec, HasId,
 };
 
-pub trait TableWrite: Table {
-    fn read<'a>(val: Self::Dummy<'a>, f: Reader<'a>);
+pub trait Writable<'a> {
+    type T: HasId;
+    fn read(self, f: Reader<'a>);
 }
 
 pub struct Reader<'a> {
@@ -15,23 +16,23 @@ pub struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
-    pub fn col<T: MyIdenT>(&self, name: &'static str, val: Db<'a, T>) {
+    pub fn col(&self, name: &'static str, val: impl Value<'a>) {
         let field = Field::Str(name);
-        let expr = Expr::col(val.field).into();
+        let expr = val.build_expr();
         self.parts.push(Box::new((field, expr)))
     }
 }
 
-impl<'outer, 'inner> Query<'outer, 'inner> {
-    pub fn insert<T: HasId + TableWrite>(&'outer self, val: T::Dummy<'outer>) {
+impl<'outer, 'inner> Exec<'outer, 'inner> {
+    pub fn insert<V: Writable<'outer>>(&'outer self, val: V) {
         // TODO: fix this leak
         let last = Box::leak(Box::new(FrozenVec::new()));
-        T::read(val, Reader { parts: last });
+        V::read(val, Reader { parts: last });
 
         let mut insert = InsertStatement::new();
         // TODO: make this configurable
         insert.on_conflict(OnConflict::new().do_nothing().to_owned());
-        insert.into_table(Alias::new(T::NAME));
+        insert.into_table(Alias::new(V::T::NAME));
 
         let names = last.iter().map(|(name, _field)| *name);
         insert.columns(names);
@@ -45,3 +46,20 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.client.execute(&sql, []).unwrap();
     }
 }
+
+// let parts = Box::leak(Box::new(FrozenVec::new()));
+// V::read(val, Reader { parts });
+
+// let mut insert = InsertStatement::new();
+// // TODO: make this configurable
+// insert.on_conflict(OnConflict::new().do_nothing().to_owned());
+// insert.into_table(Alias::new(V::T::NAME));
+
+// let names = parts.iter().map(|(name, _expr)| *name);
+// insert.columns(names);
+
+// let mut select = self.ast.simple(0, u32::MAX);
+// select.clear_selects();
+
+// let values = parts.iter().map(|(_name, expr)| expr.clone());
+// select.exprs(values);

@@ -15,7 +15,7 @@ fn main() {
     client.execute_batch(include_str!("../migrate.sql"));
 
     client.new_query(|q| {
-        q.insert::<Genre>(GenreDummy {
+        q.insert(GenreDummy {
             name: q.select("my cool genre"),
         })
     });
@@ -58,7 +58,7 @@ struct PlaylistTrackCount {
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     client.new_query(|q| {
         let pl = q.table(Playlist);
-        let count = q.query(|q| {
+        let track_count = q.query(|q| {
             let plt = q.table(PlaylistTrack);
             q.filter_on(&plt.playlist, &pl);
             q.group().count_distinct(plt)
@@ -66,7 +66,7 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
 
         q.into_vec(u32::MAX, |row| PlaylistTrackCount {
             playlist: row.get(pl.name),
-            track_count: row.get(count),
+            track_count: row.get(track_count),
         })
     })
 }
@@ -77,9 +77,11 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
         let avg_track_count = q.query(|q| {
             let album = q.table(Album);
             q.filter_on(&album.artist, &artist);
+
             let track_count = q.query(|q| {
                 let track = q.table(Track);
                 q.filter_on(&track.album, album);
+
                 q.group().count_distinct(track)
             });
             q.group().avg(track_count)
