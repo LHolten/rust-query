@@ -49,6 +49,10 @@ pub trait Value<'t>: Sized {
     {
         UnwrapOr(self, rhs)
     }
+
+    fn is_not_null(self) -> IsNotNull<Self> {
+        IsNotNull(self)
+    }
 }
 
 impl<'t, T: Value<'t>> Value<'t> for &'_ T {
@@ -141,6 +145,16 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
     type Typ = B::Typ;
     fn build_expr(&self) -> SimpleExpr {
         Expr::expr(self.0.build_expr()).if_null(self.1.build_expr())
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct IsNotNull<A>(pub(crate) A);
+
+impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
+    type Typ = bool;
+    fn build_expr(&self) -> SimpleExpr {
+        Expr::expr(self.0.build_expr()).is_not_null()
     }
 }
 

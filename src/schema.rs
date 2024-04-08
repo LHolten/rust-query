@@ -13,8 +13,7 @@ use crate::{
 pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
     output.extend(quote! {
-        use rust_query::{value::Db, Builder, HasId, Table};
-        use std::marker::PhantomData;
+        use rust_query::{value::Db, Builder, HasId, Table, insert::{Reader, TableWrite}};
     });
 
     let tables = client.new_query(|q| {
@@ -42,6 +41,7 @@ pub fn generate(client: Client) -> String {
             .new_query(|q| {
                 let fk = q.flat_table(pragma::ForeignKeyList(table.to_owned()));
                 q.into_vec(u32::MAX, |row| {
+                    // we just assume that the to column is the primary key..
                     (row.get(q.select(fk.from)), row.get(q.select(fk.table)))
                 })
             })
@@ -100,6 +100,14 @@ pub fn generate(client: Client) -> String {
             Some(quote!(#ident: f.col(#name)))
         });
 
+        let reads = columns.iter().flat_map(|(name, _typ, pk, _notnull)| {
+            if has_id.is_some() && *pk {
+                return None;
+            }
+            let ident = make_field(name);
+            Some(quote!(f.col(#name, val.#ident)))
+        });
+
         let table_ident = format_ident!("{}", table.to_upper_camel_case());
         let dummy_ident = format_ident!("{}Dummy", table.to_upper_camel_case());
 
@@ -131,6 +139,12 @@ pub fn generate(client: Client) -> String {
                     #dummy_ident {
                         #(#inits,)*
                     }
+                }
+            }
+
+            impl TableWrite for #table_ident {
+                fn read<'a>(val: Self::Dummy<'a>, f: Reader<'a>) {
+                    #(#reads;)*
                 }
             }
 

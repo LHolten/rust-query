@@ -60,7 +60,7 @@ impl Joins {
         inner: &MySelect,
         offset: usize,
         limit: u32,
-        last: &FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+        last: &FrozenVec<Box<(Field, SimpleExpr)>>,
     ) -> SelectStatement {
         let mut select = SelectStatement::new();
         select.from_values([1], NullAlias);

@@ -2,6 +2,7 @@
 
 mod ast;
 pub mod client;
+pub mod insert;
 mod mymap;
 pub mod pragma;
 pub mod schema;
@@ -13,7 +14,7 @@ use ast::{Joins, MyGroupOn, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
-use value::{Const, Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, UnwrapOr, Value};
+use value::{Const, Db, Field, FieldAlias, FkInfo, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value};
 
 pub struct Query<'outer, 'inner> {
     // we might store 'inner
@@ -118,6 +119,19 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
+    pub fn filter_eq<T: MyIdenT>(
+        &mut self,
+        val: impl Value<'inner, Typ = T>,
+        on: impl Value<'outer, Typ = T>,
+    ) {
+        let alias = MyAlias::new();
+        let group_on = MyGroupOn::Outer(on.build_expr());
+        // self.groups
+        //     .push(Box::new((val.build_expr(), alias, group_on)));
+
+        todo!()
+    }
+
     pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
             .filters
@@ -209,6 +223,12 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
         )
     }
 
+    pub fn exists(&self) -> IsNotNull<Db<'outer, i64>> {
+        let expr = Expr::val(1);
+        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
+        IsNotNull(i64::iden_any(self.inner.joins, Field::U64(*alias)))
+    }
+
     // evil
     // pub fn rank<V: Value<'inner>>(&self, val: V) -> Db<'outer, i64> {
     //     // let expr = Func::count_distinct(val.build_expr());
@@ -280,7 +300,7 @@ pub struct Row<'x, 'names> {
     joins: &'x Joins,
     conn: &'x rusqlite::Connection,
     updated: &'x Cell<bool>,
-    last: &'x FrozenVec<Box<(MyAlias, SimpleExpr)>>,
+    last: &'x FrozenVec<Box<(Field, SimpleExpr)>>,
 }
 
 impl<'names> Row<'_, 'names> {
@@ -290,7 +310,7 @@ impl<'names> Row<'_, 'names> {
     {
         let expr = val.build_expr();
         let Some((alias, _)) = self.last.iter().find(|x| x.1 == expr) else {
-            let alias = MyAlias::new();
+            let alias = Field::U64(MyAlias::new());
             self.last.push(Box::new((alias, expr)));
             return self.requery(alias);
         };
@@ -299,7 +319,7 @@ impl<'names> Row<'_, 'names> {
         self.row.get_unwrap(idx)
     }
 
-    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
+    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: Field) -> T {
         let select = self
             .joins
             .wrap(self.ast, self.offset, self.limit, self.last);
