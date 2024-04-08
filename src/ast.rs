@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, fmt};
+use std::{cell::Cell, fmt};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
@@ -8,21 +8,18 @@ use crate::{
     value::{Field, FieldAlias, MyAlias, RawAlias},
 };
 
-pub enum MyGroupOn {
-    NewTable(&'static str, &'static str, MyAlias),
-    Outer(SimpleExpr),
-}
-
 #[derive(Default)]
 pub struct MySelect {
     // the sources to use
     pub(super) sources: FrozenVec<Box<Source>>,
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
-    // distinct on
-    pub(super) group: OnceCell<FrozenVec<Box<(SimpleExpr, MyAlias, MyGroupOn)>>>,
     // calculating these agregates
     pub(super) select: MyMap<SimpleExpr, MyAlias>,
+    // values that must be returned/ filtered on
+    pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias, SimpleExpr)>>,
+    // is this a grouping select
+    pub(super) group: Cell<bool>,
 }
 
 pub struct MyTable {
@@ -84,26 +81,15 @@ impl Joins {
 
 impl MySelect {
     pub fn join(&self, joins: &Joins, select: &mut SelectStatement) {
-        if let Some(projections) = self.group.get() {
-            let mut cond = Condition::all();
-            for (_, alias, grouping) in projections.iter() {
-                let id_field = match grouping {
-                    MyGroupOn::NewTable(table, id, table_alias) => {
-                        select.join_as(
-                            sea_query::JoinType::InnerJoin,
-                            Alias::new(*table),
-                            *table_alias,
-                            Condition::all(),
-                        );
-                        Expr::col((*table_alias, Alias::new(*id)))
-                    }
-                    MyGroupOn::Outer(outer_value) => Expr::expr(outer_value.clone()),
-                };
-                let id_field2 = Expr::col((joins.table, *alias));
-                let filter = id_field.eq(id_field2);
-                cond = cond.add(filter);
-            }
+        let mut cond = Condition::all();
+        for (_, alias, outer_value) in self.filter_on.iter() {
+            let id_field = Expr::expr(outer_value.clone());
+            let id_field2 = Expr::col((joins.table, *alias));
+            let filter = id_field.eq(id_field2);
+            cond = cond.add(filter);
+        }
 
+        if self.group.get() {
             select.join_subquery(
                 sea_query::JoinType::LeftJoin,
                 self.build_select(),
@@ -115,7 +101,7 @@ impl MySelect {
                 sea_query::JoinType::InnerJoin,
                 self.build_select(),
                 joins.table,
-                Condition::all(),
+                cond,
             );
         }
 
@@ -151,18 +137,23 @@ impl MySelect {
             select.and_where(filter.clone());
         }
 
-        if let Some(projections) = self.group.get() {
-            for (group, alias, _) in projections.iter() {
-                select.expr_as(group.clone(), *alias);
+        let mut any_expr = false;
+        for (group, alias, _) in self.filter_on.iter() {
+            any_expr = true;
+
+            select.expr_as(group.clone(), *alias);
+            if self.group.get() {
                 select.group_by_col(*alias);
             }
         }
 
-        if self.select.is_empty() {
-            select.expr_as(Expr::val(1), NullAlias);
-        }
         for (aggr, alias) in self.select.iter() {
+            any_expr = true;
             select.expr_as(aggr.clone(), *alias);
+        }
+
+        if !any_expr {
+            select.expr_as(Expr::val(1), NullAlias);
         }
 
         select

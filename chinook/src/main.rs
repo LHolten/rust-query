@@ -4,18 +4,21 @@ mod tables {
     include!(concat!(env!("OUT_DIR"), "/tables.rs"));
 }
 
-use rust_query::{
-    client::Client,
-    value::{Const, Value},
-};
-use tables::{Employee, Invoice, InvoiceLine, PlaylistTrack, Track};
+use rust_query::{client::Client, value::Value};
+use tables::{Album, Artist, Employee, InvoiceLine, Playlist, PlaylistTrack, Track};
 
-use crate::tables::Genre;
+use crate::tables::{Genre, GenreDummy};
 
 fn main() {
     let client = Client::open_in_memory();
     client.execute_batch(include_str!("../Chinook_Sqlite.sql"));
     client.execute_batch(include_str!("../migrate.sql"));
+
+    client.new_query(|q| {
+        q.insert::<Genre>(GenreDummy {
+            name: q.select("my cool genre"),
+        })
+    });
 
     // let res = invoice_info(&client);
     // let res = playlist_track_count(&client);
@@ -54,43 +57,57 @@ struct PlaylistTrackCount {
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     client.new_query(|q| {
-        let plt = q.table(PlaylistTrack);
-        let mut q = q.group();
-        let pl = q.project_on(&plt.playlist);
+        let pl = q.table(Playlist);
+        let count = q.query(|q| {
+            let plt = q.table(PlaylistTrack);
+            q.filter_on(&plt.playlist, &pl);
+            q.group().count_distinct(plt)
+        });
+
         q.into_vec(u32::MAX, |row| PlaylistTrackCount {
-            playlist: row.get(pl.name),
-            track_count: row.get(q.count_distinct(&plt.track)),
+            playlist: row.get(q.select(pl.name)),
+            track_count: row.get(q.select(count)),
         })
     })
 }
 
 fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
     client.new_query(|q| {
-        let (album, track_count) = q.query(|q| {
-            let track = q.table(Track);
-            let mut q = q.group();
-            let album = q.project_on(&track.album);
-            (album, q.count_distinct(&track))
+        let artist = q.table(Artist);
+        let avg_track_count = q.query(|q| {
+            let album = q.table(Album);
+            q.filter_on(&album.artist, &artist);
+            let track_count = q.query(|q| {
+                let track = q.table(Track);
+                q.filter_on(&track.album, album);
+                q.group().count_distinct(track)
+            });
+            q.group().avg(track_count)
         });
-        let mut q = q.group();
-        let artist = q.project_on(&album.artist);
         q.into_vec(u32::MAX, |row| {
-            (row.get(artist.name), row.get(q.avg(track_count)))
+            (
+                row.get(q.select(artist.name)),
+                row.get(q.select(avg_track_count)),
+            )
         })
     })
 }
 
 fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     client.new_query(|q| {
-        let reporter = q.table(Employee);
-        // only count employees that report to someone
-        let receiver = q.filter_some(reporter.reports_to);
-        let mut q = q.group();
-        let receiver = q.project_on(&receiver);
+        let receiver = q.table(Employee);
+        let report_count = q.query(|q| {
+            let reporter = q.table(Employee);
+            // only count employees that report to someone
+            let reports_to = q.filter_some(reporter.reports_to);
+            q.filter_on(reports_to, &receiver);
+            q.group().count_distinct(reporter)
+        });
+
         q.into_vec(u32::MAX, |row| {
             (
-                row.get(receiver.last_name),
-                row.get(q.count_distinct(&reporter)),
+                row.get(q.select(receiver.last_name)),
+                row.get(q.select(report_count)),
             )
         })
     })

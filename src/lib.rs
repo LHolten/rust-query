@@ -10,7 +10,7 @@ pub mod value;
 
 use std::{cell::Cell, marker::PhantomData};
 
-use ast::{Joins, MyGroupOn, MySelect, MyTable, Source};
+use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use sea_query::{Alias, Expr, Func, Iden, SimpleExpr, SqliteQueryBuilder};
@@ -119,18 +119,16 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    // pub fn filter_eq<T: MyIdenT>(
-    //     &mut self,
-    //     val: impl Value<'inner, Typ = T>,
-    //     on: impl Value<'outer, Typ = T>,
-    // ) {
-    //     let alias = MyAlias::new();
-    //     let group_on = MyGroupOn::Outer(on.build_expr());
-    //     // self.groups
-    //     //     .push(Box::new((val.build_expr(), alias, group_on)));
-
-    //     todo!()
-    // }
+    pub fn filter_on<T: MyIdenT>(
+        &mut self,
+        val: impl Value<'inner, Typ = T>,
+        on: impl Value<'outer, Typ = T>,
+    ) {
+        let alias = MyAlias::new();
+        self.ast
+            .filter_on
+            .push(Box::new((val.build_expr(), alias, on.build_expr())))
+    }
 
     pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
@@ -146,11 +144,8 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
     // only one Group can exist at a time
     pub fn group(&'outer mut self) -> Group<'outer, 'inner> {
-        let groups = self.ast.group.get_or_init(FrozenVec::new);
-        Group {
-            inner: self,
-            groups,
-        }
+        self.ast.group.set(true);
+        Group { inner: self }
     }
 
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
@@ -160,40 +155,11 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 
 pub struct Group<'outer, 'inner> {
     inner: &'outer mut Query<'outer, 'inner>,
-    // might not need to be boxed?
-    groups: &'outer FrozenVec<Box<(SimpleExpr, MyAlias, MyGroupOn)>>,
 }
 
 // if we have a single row that is null for all columns, then
 // this should be treated as if there are zero rows.
 impl<'outer, 'inner> Group<'outer, 'inner> {
-    // pub fn project_on<T: HasId>(&mut self, val: impl Value<'inner, Typ = T>) -> Db<'outer, T> {
-    //     let table_alias = MyAlias::new();
-    //     let alias = MyAlias::new();
-    //     let group_on = MyGroupOn::NewTable(T::NAME, T::ID, table_alias);
-    //     self.groups
-    //         .push(Box::new((val.build_expr(), alias, group_on)));
-
-    //     let joined = &self.inner.joins.joined;
-    //     let field = FieldAlias {
-    //         table: table_alias,
-    //         col: Field::Str(T::ID),
-    //     };
-    //     // TODO: joined is not correct here
-    //     FkInfo::joined(joined, field)
-    // }
-
-    pub fn project_eq<T: MyIdenT>(
-        &mut self,
-        val: impl Value<'inner, Typ = T>,
-        on: impl Value<'outer, Typ = T>,
-    ) {
-        let alias = MyAlias::new();
-        let group_on = MyGroupOn::Outer(on.build_expr());
-        self.groups
-            .push(Box::new((val.build_expr(), alias, group_on)));
-    }
-
     pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
         let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
