@@ -1,7 +1,7 @@
 use std::{cell::Cell, fmt};
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
+use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
     mymap::MyMap,
@@ -157,11 +157,13 @@ impl MySelect {
         }
 
         let mut any_expr = false;
+        let mut any_group = false;
         for (group, alias, _) in self.filter_on.iter() {
             any_expr = true;
 
             select.expr_as(group.clone(), *alias);
             if self.group.get() {
+                any_group = true;
                 select.group_by_col(*alias);
             }
         }
@@ -173,6 +175,10 @@ impl MySelect {
 
         if !any_expr {
             select.expr_as(Expr::val(1), NullAlias);
+        }
+
+        if !any_group && self.group.get() {
+            select.expr_as(Expr::count(Expr::col(Asterisk)), NullAlias);
         }
 
         select
