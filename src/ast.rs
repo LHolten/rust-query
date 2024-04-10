@@ -171,6 +171,7 @@ impl MySelect {
         for (aggr, alias) in self.select.iter() {
             any_expr = true;
             select.expr_as(aggr.clone(), *alias);
+            select.order_by_expr(Expr::col(*alias).into(), sea_query::Order::Asc);
         }
 
         if !any_expr {
