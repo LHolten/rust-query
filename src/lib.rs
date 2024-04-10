@@ -188,7 +188,13 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
         Option::iden_any(self.inner.joins, Field::U64(*alias))
     }
 
-    pub fn sum<V: Value<'inner, Typ = f64>>(
+    pub fn max<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
+        let expr = Func::max(val.build_expr());
+        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
+        Option::iden_any(self.inner.joins, Field::U64(*alias))
+    }
+
+    pub fn sum_float<V: Value<'inner, Typ = f64>>(
         &self,
         val: V,
     ) -> UnwrapOr<Db<'outer, Option<f64>>, f64> {
