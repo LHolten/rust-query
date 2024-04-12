@@ -294,8 +294,13 @@ impl<'names> Row<'_, 'names> {
             return self.requery(alias);
         };
 
-        let idx = &*alias.to_string();
-        self.row.get_unwrap(idx)
+        if self.updated.get() {
+            // self.row is not up to date
+            self.requery(*alias)
+        } else {
+            let idx = &*alias.to_string();
+            self.row.get_unwrap(idx)
+        }
     }
 
     fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
