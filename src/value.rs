@@ -79,6 +79,14 @@ impl<'t> Value<'t> for &str {
     }
 }
 
+impl<'t> Value<'t> for bool {
+    type Typ = bool;
+
+    fn build_expr(&self) -> SimpleExpr {
+        SimpleExpr::from(*self)
+    }
+}
+
 impl<'t> Value<'t> for i64 {
     type Typ = i64;
 
