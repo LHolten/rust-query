@@ -235,7 +235,7 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
         let mut select = self.ast.simple(0, limit);
         let sql = select.to_string(SqliteQueryBuilder);
 
-        eprintln!("{sql}");
+        // eprintln!("{sql}");
         let conn = self.client;
         let mut statement = conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
@@ -255,11 +255,11 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
             out.push(f(row));
 
             if updated.get() {
-                eprintln!("UPDATING!");
+                // eprintln!("UPDATING!");
 
                 select = self.ast.simple(out.len(), limit);
                 let sql = select.to_string(SqliteQueryBuilder);
-                eprintln!("{sql}");
+                // eprintln!("{sql}");
 
                 drop(rows);
                 statement = conn.prepare(&sql).unwrap();
@@ -306,8 +306,8 @@ impl<'names> Row<'_, 'names> {
     fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
         let select = self.ast.simple(self.offset, self.limit);
         let sql = select.to_string(SqliteQueryBuilder);
-        eprintln!("REQUERY");
-        eprintln!("{sql}");
+        // eprintln!("REQUERY");
+        // eprintln!("{sql}");
         let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
         self.updated.set(true);
