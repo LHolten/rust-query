@@ -5,7 +5,9 @@ mod tables {
 }
 
 use rust_query::{client::Client, value::Value};
-use tables::{Album, Artist, Employee, InvoiceLine, Playlist, PlaylistTrack, Track};
+use tables::{
+    Album, Artist, Customer, Employee, Invoice, InvoiceLine, Playlist, PlaylistTrack, Track,
+};
 
 use crate::tables::{Genre, GenreDummy};
 
@@ -16,7 +18,7 @@ fn main() {
 
     client.new_query(|q| {
         q.insert(GenreDummy {
-            name: q.select("my cool genre"),
+            name: "my cool genre",
         })
     });
 

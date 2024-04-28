@@ -1,7 +1,7 @@
-use elsa::FrozenVec;
 use sea_query::{Alias, InsertStatement, OnConflict, SimpleExpr, SqliteQueryBuilder};
 
 use crate::{
+    mymap::MyMap,
     value::{Field, Value},
     Exec, HasId,
 };
@@ -12,32 +12,35 @@ pub trait Writable<'a> {
 }
 
 pub struct Reader<'a> {
-    parts: &'a FrozenVec<Box<(Field, SimpleExpr)>>,
+    parts: &'a MyMap<SimpleExpr, Field>,
 }
 
 impl<'a> Reader<'a> {
     pub fn col(&self, name: &'static str, val: impl Value<'a>) {
         let field = Field::Str(name);
         let expr = val.build_expr();
-        self.parts.push(Box::new((field, expr)))
+        self.parts.push(Box::new((expr, field)))
     }
 }
 
 impl<'outer, 'inner> Exec<'outer, 'inner> {
-    pub fn insert<V: Writable<'outer>>(&'inner self, val: V) {
-        // TODO: fix this leak
-        let last = Box::leak(Box::new(FrozenVec::new()));
-        V::read(val, Reader { parts: last });
+    pub fn insert<V: Writable<'inner>>(&'inner mut self, val: V) {
+        // insert can be used only once, and can not be used with select or group
+        // this means that `self.ast.select` will contain exactly our columns
+        let reader = Reader {
+            parts: &self.ast.select,
+        };
+        V::read(val, reader);
 
         let mut insert = InsertStatement::new();
         // TODO: make this configurable
         insert.on_conflict(OnConflict::new().do_nothing().to_owned());
         insert.into_table(Alias::new(V::T::NAME));
 
-        let names = last.iter().map(|(name, _field)| *name);
+        let names = self.ast.select.iter().map(|(_field, name)| *name);
         insert.columns(names);
 
-        let select = self.joins.wrap(self.ast, 0, u32::MAX, last);
+        let select = self.ast.simple(0, u32::MAX);
 
         insert.select_from(select).unwrap();
         let sql = insert.to_string(SqliteQueryBuilder);

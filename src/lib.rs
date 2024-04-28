@@ -38,7 +38,10 @@ impl<'outer, 'inner> DerefMut for Exec<'outer, 'inner> {
     }
 }
 
-pub struct Query<'outer, 'inner> {
+pub struct Query<'outer, 'inner>
+where
+    'outer: 'inner,
+{
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
     phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
@@ -152,10 +155,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             .push(Box::new((val.build_expr(), alias, on.build_expr())))
     }
 
-    pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T>
-    where
-        'outer: 'inner,
-    {
+    pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
             .filters
             .push(Box::new(Expr::expr(val.build_expr())).is_not_null().into());
@@ -163,8 +163,8 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     }
 
     pub fn select<V: Value<'inner>>(&'inner self, val: V) -> Db<'outer, V::Typ> {
-        let alias = self.ast.select.get_or_init(val.build_expr(), MyAlias::new);
-        V::Typ::iden_any(self.joins, Field::U64(*alias))
+        let alias = self.ast.select.get_or_init(val.build_expr(), Field::new);
+        V::Typ::iden_any(self.joins, *alias)
     }
 
     // only one Group can exist at a time
@@ -187,14 +187,14 @@ pub struct Group<'outer, 'inner> {
 impl<'outer, 'inner> Group<'outer, 'inner> {
     pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
         let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        Option::iden_any(self.inner.joins, Field::U64(*alias))
+        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
+        Option::iden_any(self.inner.joins, *alias)
     }
 
     pub fn max<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
         let expr = Func::max(val.build_expr());
-        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        Option::iden_any(self.inner.joins, Field::U64(*alias))
+        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
+        Option::iden_any(self.inner.joins, *alias)
     }
 
     pub fn sum_float<V: Value<'inner, Typ = f64>>(
@@ -202,8 +202,8 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
         val: V,
     ) -> UnwrapOr<Db<'outer, Option<f64>>, f64> {
         let expr = Func::cast_as(Func::sum(val.build_expr()), Alias::new("integer"));
-        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        UnwrapOr(Option::iden_any(self.inner.joins, Field::U64(*alias)), 0.)
+        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
+        UnwrapOr(Option::iden_any(self.inner.joins, *alias), 0.)
     }
 
     pub fn count_distinct<V: Value<'inner>>(
@@ -211,14 +211,14 @@ impl<'outer, 'inner> Group<'outer, 'inner> {
         val: V,
     ) -> UnwrapOr<Db<'outer, Option<i64>>, i64> {
         let expr = Func::count_distinct(val.build_expr());
-        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        UnwrapOr(Option::iden_any(self.inner.joins, Field::U64(*alias)), 0)
+        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
+        UnwrapOr(Option::iden_any(self.inner.joins, *alias), 0)
     }
 
     pub fn exists(&self) -> IsNotNull<Db<'outer, i64>> {
         let expr = Expr::val(1);
-        let alias = self.inner.ast.select.get_or_init(expr.into(), MyAlias::new);
-        IsNotNull(i64::iden_any(self.inner.joins, Field::U64(*alias)))
+        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
+        IsNotNull(i64::iden_any(self.inner.joins, *alias))
     }
 
     // evil
@@ -291,7 +291,7 @@ impl<'names> Row<'_, 'names> {
     {
         let expr = val.build_expr();
         let Some((_, alias)) = self.ast.select.iter().find(|x| x.0 == expr) else {
-            let alias = MyAlias::new();
+            let alias = Field::new();
 
             self.ast.select.push(Box::new((expr, alias)));
             return self.requery(alias);
@@ -306,7 +306,7 @@ impl<'names> Row<'_, 'names> {
         }
     }
 
-    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: MyAlias) -> T {
+    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: Field) -> T {
         let select = self.ast.simple(self.offset, self.limit);
         let sql = select.to_string(SqliteQueryBuilder);
         // eprintln!("REQUERY");

@@ -229,6 +229,12 @@ impl MyAlias {
     }
 }
 
+impl Field {
+    pub fn new() -> Self {
+        Field::U64(MyAlias::new())
+    }
+}
+
 impl sea_query::Iden for MyAlias {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         write!(s, "_{}", self.name).unwrap()

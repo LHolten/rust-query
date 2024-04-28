@@ -15,7 +15,7 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
     // calculating these agregates
-    pub(super) select: MyMap<SimpleExpr, MyAlias>,
+    pub(super) select: MyMap<SimpleExpr, Field>,
     // values that must be returned/ filtered on
     pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias, SimpleExpr)>>,
     // is this a grouping select
@@ -49,34 +49,6 @@ pub(super) enum Source {
     Select(MySelect, Joins),
     // table and pk
     Table(String, Joins),
-}
-
-impl Joins {
-    pub fn wrap(
-        &self,
-        inner: &MySelect,
-        offset: usize,
-        limit: u32,
-        last: &FrozenVec<Box<(Field, SimpleExpr)>>,
-    ) -> SelectStatement {
-        let mut select = SelectStatement::new();
-        select.from_values([1], NullAlias);
-        inner.join(self, &mut select);
-
-        if last.is_empty() {
-            select.expr_as(Expr::val(1), NullAlias);
-        }
-        for (alias, expr) in last.iter() {
-            select.expr_as(expr.clone(), *alias);
-            select.order_by(*alias, sea_query::Order::Asc);
-        }
-
-        // TODO: Figure out how to do this properly
-        select.offset(offset as u64);
-        select.limit((limit as u64).min(18446744073709551610));
-
-        select
-    }
 }
 
 impl MySelect {

@@ -9,7 +9,7 @@ use crate::{client::Client, pragma, value::Value};
 pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
     output.extend(quote! {
-        use rust_query::{value::Db, Builder, HasId, Table, insert::{Reader, Writable}};
+        use rust_query::{value::{Db, Value}, Builder, HasId, Table, insert::{Reader, Writable}};
     });
 
     let tables = client.new_query(|q| {
@@ -58,6 +58,14 @@ pub fn generate(client: Client) -> String {
             format_ident!("{normalized}")
         };
 
+        let make_generic = |name: &str| {
+            let mut normalized = &*name.to_upper_camel_case();
+            if fks.contains_key(name) {
+                normalized = normalized.trim_end_matches("Id");
+            }
+            format_ident!("_{normalized}")
+        };
+
         let make_type = |typ: &str, name: &str| {
             Some(match typ {
                 "INTEGER" => {
@@ -74,7 +82,16 @@ pub fn generate(client: Client) -> String {
             })
         };
 
-        let defs = columns.iter().filter_map(|(name, typ, pk, notnull)| {
+        let defs = columns.iter().filter_map(|(name, _typ, pk, _notnull)| {
+            if has_id.is_some() && *pk {
+                return None;
+            }
+            let ident = make_field(name);
+            let generic = make_generic(name);
+            Some(quote!(pub #ident: #generic))
+        });
+
+        let typs = columns.iter().filter_map(|(name, typ, pk, notnull)| {
             if has_id.is_some() && *pk {
                 return None;
             }
@@ -82,10 +99,40 @@ pub fn generate(client: Client) -> String {
             if !notnull {
                 typ = quote!(Option<#typ>);
             }
-            let ident = make_field(name);
-            Some(quote!(pub #ident: Db<'t, #typ>))
+            Some(quote!(Db<'t, #typ>))
         });
-        let mut defs = defs.peekable();
+
+        let generics = columns.iter().filter_map(|(name, _typ, pk, _notnull)| {
+            if has_id.is_some() && *pk {
+                return None;
+            }
+            let generic = make_generic(name);
+            Some(quote!(#generic))
+        });
+
+        let generics_defs = columns.iter().filter_map(|(name, _typ, pk, _notnull)| {
+            if has_id.is_some() && *pk {
+                return None;
+            }
+            // let mut typ = make_type(typ, name)?;
+            // if !notnull {
+            //     typ = quote!(Option<#typ>);
+            // }
+            let generic = make_generic(name);
+            Some(quote!(#generic))
+        });
+
+        let read_bounds = columns.iter().filter_map(|(name, typ, pk, notnull)| {
+            if has_id.is_some() && *pk {
+                return None;
+            }
+            let mut typ = make_type(typ, name)?;
+            if !notnull {
+                typ = quote!(Option<#typ>);
+            }
+            let generic = make_generic(name);
+            Some(quote!(#generic: Value<'t, Typ=#typ>))
+        });
 
         let inits = columns.iter().filter_map(|(name, typ, pk, _notnull)| {
             if has_id.is_some() && *pk {
@@ -116,16 +163,15 @@ pub fn generate(client: Client) -> String {
             )
         });
 
-        let lifetime_def = defs.peek().map(|_| quote!(<'t>));
         output.extend(quote! {
             pub struct #table_ident;
 
-            pub struct #dummy_ident #lifetime_def {
+            pub struct #dummy_ident<#(#generics_defs),*> {
                 #(#defs,)*
             }
 
             impl Table for #table_ident {
-                type Dummy<'t> = #dummy_ident #lifetime_def;
+                type Dummy<'t> = #dummy_ident<#(#typs),*>;
 
                 fn name(&self) -> String {
                     #table.to_owned()
@@ -138,9 +184,9 @@ pub fn generate(client: Client) -> String {
                 }
             }
 
-            impl<'a> Writable<'a> for #dummy_ident<'a> {
+            impl<'t, #(#read_bounds),*> Writable<'t> for #dummy_ident<#(#generics),*> {
                 type T = #table_ident;
-                fn read(self, f: Reader<'a>) {
+                fn read(self, f: Reader<'t>) {
                     #(#reads;)*
                 }
             }
