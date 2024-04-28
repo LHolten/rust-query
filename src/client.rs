@@ -35,7 +35,7 @@ impl Client {
 
     pub fn new_query<F, R>(&self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'names mut Exec<'names, 'a>) -> R,
+        F: for<'a, 'names> FnOnce(&'a mut Exec<'names, 'a>) -> R,
     {
         self.inner.new_query(f)
     }
@@ -44,13 +44,13 @@ impl Client {
 pub trait QueryBuilder {
     fn new_query<F, R>(&self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'names mut Exec<'names, 'a>) -> R;
+        F: for<'a, 'names> FnOnce(&'a mut Exec<'names, 'a>) -> R;
 }
 
 impl QueryBuilder for rusqlite::Connection {
     fn new_query<F, R>(&self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'names mut Exec<'names, 'a>) -> R,
+        F: for<'a, 'names> FnOnce(&'a mut Exec<'names, 'a>) -> R,
     {
         let ast = MySelect::default();
         let joins = Joins {

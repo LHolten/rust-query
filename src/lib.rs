@@ -43,7 +43,7 @@ pub struct Query<'outer, 'inner> {
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
     phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
     ast: &'inner MySelect,
-    joins: &'inner Joins,
+    joins: &'outer Joins,
     client: &'inner rusqlite::Connection,
     // outer: PhantomData<>
 }
@@ -116,7 +116,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     // join another query that is grouped by some value
     pub fn query<F, R>(&mut self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'inner mut Query<'inner, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Query<'inner, 'a>) -> R,
     {
         let joins = Joins {
             table: MyAlias::new(),
@@ -127,14 +127,14 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         let Source::Select(ast, joins) = source else {
             unreachable!()
         };
-        let inner = Box::leak(Box::new(Query {
+        let mut inner = Query {
             phantom: PhantomData,
             phantom2: PhantomData,
             ast,
             joins,
             client: self.client,
-        }));
-        f(inner)
+        };
+        f(&mut inner)
     }
 
     pub fn filter(&mut self, prop: impl Value<'inner>) {
@@ -152,20 +152,23 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
             .push(Box::new((val.build_expr(), alias, on.build_expr())))
     }
 
-    pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
+    pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T>
+    where
+        'outer: 'inner,
+    {
         self.ast
             .filters
             .push(Box::new(Expr::expr(val.build_expr())).is_not_null().into());
         T::iden_full(&self.joins.joined, val.field)
     }
 
-    pub fn select<V: Value<'inner>>(&'outer self, val: V) -> Db<'outer, V::Typ> {
+    pub fn select<V: Value<'inner>>(&'inner self, val: V) -> Db<'outer, V::Typ> {
         let alias = self.ast.select.get_or_init(val.build_expr(), MyAlias::new);
         V::Typ::iden_any(self.joins, Field::U64(*alias))
     }
 
     // only one Group can exist at a time
-    pub fn group(&'outer mut self) -> Group<'outer, 'inner> {
+    pub fn group(&'inner mut self) -> Group<'outer, 'inner> {
         self.ast.group.set(true);
         Group { inner: self }
     }
@@ -176,7 +179,7 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
 }
 
 pub struct Group<'outer, 'inner> {
-    inner: &'outer mut Query<'outer, 'inner>,
+    inner: &'inner mut Query<'outer, 'inner>,
 }
 
 // if we have a single row that is null for all columns, then

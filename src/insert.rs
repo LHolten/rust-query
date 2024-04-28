@@ -24,7 +24,7 @@ impl<'a> Reader<'a> {
 }
 
 impl<'outer, 'inner> Exec<'outer, 'inner> {
-    pub fn insert<V: Writable<'outer>>(&'outer self, val: V) {
+    pub fn insert<V: Writable<'outer>>(&'inner self, val: V) {
         // TODO: fix this leak
         let last = Box::leak(Box::new(FrozenVec::new()));
         V::read(val, Reader { parts: last });
@@ -46,20 +46,3 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
         self.client.execute(&sql, []).unwrap();
     }
 }
-
-// let parts = Box::leak(Box::new(FrozenVec::new()));
-// V::read(val, Reader { parts });
-
-// let mut insert = InsertStatement::new();
-// // TODO: make this configurable
-// insert.on_conflict(OnConflict::new().do_nothing().to_owned());
-// insert.into_table(Alias::new(V::T::NAME));
-
-// let names = parts.iter().map(|(name, _expr)| *name);
-// insert.columns(names);
-
-// let mut select = self.ast.simple(0, u32::MAX);
-// select.clear_selects();
-
-// let values = parts.iter().map(|(_name, expr)| expr.clone());
-// select.exprs(values);
