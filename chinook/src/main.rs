@@ -63,7 +63,7 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
         let track_count = q.query(|q| {
             let plt = q.table(PlaylistTrack);
             q.filter_on(&plt.playlist, &pl);
-            q.group().count_distinct(plt)
+            q.count_distinct(plt)
         });
 
         q.into_vec(u32::MAX, |row| PlaylistTrackCount {
@@ -84,9 +84,9 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
                 let track = q.table(Track);
                 q.filter_on(&track.album, album);
 
-                q.group().count_distinct(track)
+                q.count_distinct(track)
             });
-            q.group().avg(track_count)
+            q.avg(track_count)
         });
         q.into_vec(u32::MAX, |row| {
             (row.get(artist.name), row.get(avg_track_count))
@@ -102,7 +102,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
             // only count employees that report to someone
             let reports_to = q.filter_some(reporter.reports_to);
             q.filter_on(reports_to, &receiver);
-            q.group().count_distinct(reporter)
+            q.count_distinct(reporter)
         });
 
         q.into_vec(u32::MAX, |row| {

@@ -2,6 +2,7 @@
 
 mod ast;
 pub mod client;
+mod group;
 pub mod insert;
 mod mymap;
 pub mod pragma;
@@ -17,8 +18,9 @@ use std::{
 use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
-use sea_query::{Alias, Expr, Func, Iden, SqliteQueryBuilder};
-use value::{Db, Field, FieldAlias, FkInfo, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value};
+use group::GroupQuery;
+use sea_query::{Expr, Iden, SqliteQueryBuilder};
+use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 
 pub struct Exec<'outer, 'inner> {
     q: Query<'outer, 'inner>,
@@ -117,9 +119,9 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
     }
 
     // join another query that is grouped by some value
-    pub fn query<F, R>(&mut self, f: F) -> R
+    pub fn query<F, R>(&self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Query<'inner, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut GroupQuery<'inner, 'a>) -> R,
     {
         let joins = Joins {
             table: MyAlias::new(),
@@ -130,29 +132,19 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         let Source::Select(ast, joins) = source else {
             unreachable!()
         };
-        let mut inner = Query {
+        let inner = Query {
             phantom: PhantomData,
             phantom2: PhantomData,
             ast,
             joins,
             client: self.client,
         };
-        f(&mut inner)
+        let mut group = GroupQuery { query: inner };
+        f(&mut group)
     }
 
     pub fn filter(&mut self, prop: impl Value<'inner>) {
         self.ast.filters.push(Box::new(prop.build_expr()));
-    }
-
-    pub fn filter_on<T: MyIdenT>(
-        &mut self,
-        val: impl Value<'inner, Typ = T>,
-        on: impl Value<'outer, Typ = T>,
-    ) {
-        let alias = MyAlias::new();
-        self.ast
-            .filter_on
-            .push(Box::new((val.build_expr(), alias, on.build_expr())))
     }
 
     pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
@@ -162,70 +154,12 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         T::iden_full(&self.joins.joined, val.field)
     }
 
-    pub fn select<V: Value<'inner>>(&'inner self, val: V) -> Db<'outer, V::Typ> {
-        let alias = self.ast.select.get_or_init(val.build_expr(), Field::new);
-        V::Typ::iden_any(self.joins, *alias)
-    }
-
-    // only one Group can exist at a time
-    pub fn group(&'inner mut self) -> Group<'outer, 'inner> {
-        self.ast.group.set(true);
-        Group { inner: self }
-    }
+    // pub fn select<V: Value<'inner>>(&'inner self, val: V) -> Db<'outer, V::Typ> {
+    //     let alias = self.ast.select.get_or_init(val.build_expr(), Field::new);
+    //     V::Typ::iden_any(self.joins, *alias)
+    // }
 
     // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
-    //     todo!()
-    // }
-}
-
-pub struct Group<'outer, 'inner> {
-    inner: &'inner mut Query<'outer, 'inner>,
-}
-
-// if we have a single row that is null for all columns, then
-// this should be treated as if there are zero rows.
-impl<'outer, 'inner> Group<'outer, 'inner> {
-    pub fn avg<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
-        let expr = Func::cast_as(Func::avg(val.build_expr()), Alias::new("integer"));
-        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
-        Option::iden_any(self.inner.joins, *alias)
-    }
-
-    pub fn max<V: Value<'inner, Typ = i64>>(&self, val: V) -> Db<'outer, Option<i64>> {
-        let expr = Func::max(val.build_expr());
-        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
-        Option::iden_any(self.inner.joins, *alias)
-    }
-
-    pub fn sum_float<V: Value<'inner, Typ = f64>>(
-        &self,
-        val: V,
-    ) -> UnwrapOr<Db<'outer, Option<f64>>, f64> {
-        let expr = Func::cast_as(Func::sum(val.build_expr()), Alias::new("integer"));
-        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
-        UnwrapOr(Option::iden_any(self.inner.joins, *alias), 0.)
-    }
-
-    pub fn count_distinct<V: Value<'inner>>(
-        &self,
-        val: V,
-    ) -> UnwrapOr<Db<'outer, Option<i64>>, i64> {
-        let expr = Func::count_distinct(val.build_expr());
-        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
-        UnwrapOr(Option::iden_any(self.inner.joins, *alias), 0)
-    }
-
-    pub fn exists(&self) -> IsNotNull<Db<'outer, i64>> {
-        let expr = Expr::val(1);
-        let alias = self.inner.ast.select.get_or_init(expr.into(), Field::new);
-        IsNotNull(i64::iden_any(self.inner.joins, *alias))
-    }
-
-    // evil
-    // pub fn rank<V: Value<'inner>>(&self, val: V) -> Db<'outer, i64> {
-    //     // let expr = Func::count_distinct(val.build_expr());
-    //     // let alias = self.ast.aggr.get_or_init(expr.into(), MyAlias::new);
-    //     // i64::iden_any(self.joins, Field::U64(*alias))
     //     todo!()
     // }
 }
