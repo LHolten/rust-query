@@ -6,6 +6,14 @@ use quote::{format_ident, quote, ToTokens};
 
 use crate::{client::Client, pragma, value::Value};
 
+#[derive(Clone)]
+struct Column {
+    name: String,
+    typ: String,
+    pk: bool,
+    notnull: bool,
+}
+
 pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
     output.extend(quote! {
@@ -21,15 +29,14 @@ pub fn generate(client: Client) -> String {
     });
 
     for table in &tables {
-        let columns = client.new_query(|q| {
+        let mut columns = client.new_query(|q| {
             let table = q.flat_table(pragma::TableInfo(table.to_owned()));
 
-            q.into_vec(u32::MAX, |row| {
-                let name = row.get(table.name);
-                let typ = row.get(table.r#type);
-                let pk = row.get(table.pk) != 0;
-                let notnull = row.get(table.notnull) != 0;
-                (name, typ, pk, notnull)
+            q.into_vec(u32::MAX, |row| Column {
+                name: row.get(table.name),
+                typ: row.get(table.r#type),
+                pk: row.get(table.pk) != 0,
+                notnull: row.get(table.notnull) != 0,
             })
         });
 
@@ -44,7 +51,7 @@ pub fn generate(client: Client) -> String {
             .into_iter()
             .collect();
 
-        let mut ids = columns.iter().filter(|x| x.2);
+        let mut ids = columns.iter().filter(|x| x.pk);
         let mut has_id = ids.next().cloned();
         if ids.next().is_some() {
             has_id = None;
@@ -66,10 +73,10 @@ pub fn generate(client: Client) -> String {
             format_ident!("_{normalized}")
         };
 
-        let make_type = |typ: &str, name: &str| {
-            Some(match typ {
+        let make_type = |col: &Column| {
+            let mut typ = match col.typ.as_str() {
                 "INTEGER" => {
-                    if let Some(other) = fks.get(name) {
+                    if let Some(other) = fks.get(&col.name) {
                         let other_ident = format_ident!("{}", other.to_upper_camel_case());
                         other_ident.to_token_stream()
                     } else {
@@ -79,82 +86,68 @@ pub fn generate(client: Client) -> String {
                 "TEXT" => quote!(String),
                 "REAL" => quote!(f64),
                 _ => return None,
-            })
+            };
+            if !col.notnull {
+                typ = quote!(Option<#typ>);
+            }
+            Some(typ)
         };
 
-        let defs = columns.iter().filter_map(|(name, _typ, pk, _notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
+        // we only care about columns that are not a unique id and for which we know the type
+        columns.retain(|col| {
+            if has_id.is_some() && col.pk {
+                return false;
             }
-            let ident = make_field(name);
-            let generic = make_generic(name);
-            Some(quote!(pub #ident: #generic))
+            if make_type(col).is_none() {
+                return false;
+            }
+            true
         });
 
-        let typs = columns.iter().filter_map(|(name, typ, pk, notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
-            }
-            let mut typ = make_type(typ, name)?;
-            if !notnull {
-                typ = quote!(Option<#typ>);
-            }
-            Some(quote!(Db<'t, #typ>))
+        let defs = columns.iter().map(|col| {
+            let ident = make_field(&col.name);
+            let generic = make_generic(&col.name);
+            quote!(pub #ident: #generic)
         });
 
-        let generics = columns.iter().filter_map(|(name, _typ, pk, _notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
-            }
-            let generic = make_generic(name);
-            Some(quote!(#generic))
+        let typs = columns.iter().map(|col| {
+            let typ = make_type(col).unwrap();
+            quote!(Db<'t, #typ>)
         });
 
-        let generics_defs = columns.iter().filter_map(|(name, _typ, pk, _notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
-            }
-            // let mut typ = make_type(typ, name)?;
-            // if !notnull {
-            //     typ = quote!(Option<#typ>);
-            // }
-            let generic = make_generic(name);
-            Some(quote!(#generic))
+        let generics = columns.iter().map(|col| {
+            let generic = make_generic(&col.name);
+            quote!(#generic)
         });
 
-        let read_bounds = columns.iter().filter_map(|(name, typ, pk, notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
-            }
-            let mut typ = make_type(typ, name)?;
-            if !notnull {
-                typ = quote!(Option<#typ>);
-            }
-            let generic = make_generic(name);
-            Some(quote!(#generic: Value<'t, Typ=#typ>))
+        let generics_defs = columns.iter().map(|col| {
+            let generic = make_generic(&col.name);
+            quote!(#generic)
         });
 
-        let inits = columns.iter().filter_map(|(name, typ, pk, _notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
-            }
-            make_type(typ, name)?;
-            let ident = make_field(name);
-            Some(quote!(#ident: f.col(#name)))
+        let read_bounds = columns.iter().map(|col| {
+            let typ = make_type(col).unwrap();
+            let generic = make_generic(&col.name);
+            quote!(#generic: Value<'t, Typ=#typ>)
         });
 
-        let reads = columns.iter().flat_map(|(name, _typ, pk, _notnull)| {
-            if has_id.is_some() && *pk {
-                return None;
-            }
-            let ident = make_field(name);
-            Some(quote!(f.col(#name, self.#ident)))
+        let inits = columns.iter().map(|col| {
+            let ident = make_field(&col.name);
+            let name: &String = &col.name;
+            quote!(#ident: f.col(#name))
+        });
+
+        let reads = columns.iter().map(|col| {
+            let ident = make_field(&col.name);
+            let name: &String = &col.name;
+            quote!(f.col(#name, self.#ident))
         });
 
         let table_ident = format_ident!("{}", table.to_upper_camel_case());
         let dummy_ident = format_ident!("{}Dummy", table.to_upper_camel_case());
 
-        let has_id = has_id.as_ref().map(|(name, _typ, _pk, _notnull)| {
+        let has_id = has_id.as_ref().map(|col| {
+            let name: &String = &col.name;
             quote!(
                 impl HasId for #table_ident {
                     const ID: &'static str = #name;
