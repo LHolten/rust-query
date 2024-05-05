@@ -23,11 +23,12 @@ use sea_query::{Expr, Iden, SqliteQueryBuilder};
 use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 
 pub struct Exec<'outer, 'inner> {
-    q: Query<'outer, 'inner>,
+    phantom: PhantomData<&'outer ()>,
+    q: Query<'inner>,
 }
 
 impl<'outer, 'inner> Deref for Exec<'outer, 'inner> {
-    type Target = Query<'outer, 'inner>;
+    type Target = Query<'inner>;
 
     fn deref(&self) -> &Self::Target {
         &self.q
@@ -40,15 +41,11 @@ impl<'outer, 'inner> DerefMut for Exec<'outer, 'inner> {
     }
 }
 
-pub struct Query<'outer, 'inner>
-where
-    'outer: 'inner,
-{
+pub struct Query<'inner> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
-    phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
     ast: &'inner MySelect,
-    joins: &'outer Joins,
+    // joins: &'inner Joins,
     client: &'inner rusqlite::Connection,
     // outer: PhantomData<>
 }
@@ -91,7 +88,7 @@ impl<'a> Builder<'a> {
     }
 }
 
-impl<'outer, 'inner> Query<'outer, 'inner> {
+impl<'inner> Query<'inner> {
     fn new_source<T: Table>(&mut self, t: T) -> &'inner Joins {
         let joins = Joins {
             table: MyAlias::new(),
@@ -134,12 +131,14 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         };
         let inner = Query {
             phantom: PhantomData,
-            phantom2: PhantomData,
             ast,
-            joins,
             client: self.client,
         };
-        let mut group = GroupQuery { query: inner };
+        let mut group = GroupQuery {
+            query: inner,
+            joins,
+            phantom2: PhantomData,
+        };
         f(&mut group)
     }
 
@@ -147,11 +146,14 @@ impl<'outer, 'inner> Query<'outer, 'inner> {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
-    pub fn filter_some<T: MyIdenT>(&mut self, val: Db<'inner, Option<T>>) -> Db<'inner, T> {
+    pub fn filter_some<T: MyIdenT>(&mut self, val: &Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
             .filters
             .push(Box::new(Expr::expr(val.build_expr())).is_not_null().into());
-        T::iden_full(&self.joins.joined, val.field)
+        Db {
+            info: val.info.clone(),
+            field: val.field,
+        }
     }
 
     // pub fn select<V: Value<'inner>>(&'inner self, val: V) -> Db<'outer, V::Typ> {

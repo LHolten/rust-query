@@ -16,9 +16,10 @@ fn main() {
     client.execute_batch(include_str!("../Chinook_Sqlite.sql"));
     client.execute_batch(include_str!("../migrate.sql"));
 
+    let genre_name = "my cool genre".to_string();
     client.new_query(|q| {
         q.insert(GenreDummy {
-            name: "my cool genre",
+            name: genre_name.as_str(),
         })
     });
 
@@ -100,7 +101,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
         let report_count = q.query(|q| {
             let reporter = q.table(Employee);
             // only count employees that report to someone
-            let reports_to = q.filter_some(reporter.reports_to);
+            let reports_to = q.filter_some(&reporter.reports_to);
             q.filter_on(reports_to, &receiver);
             q.count_distinct(reporter)
         });

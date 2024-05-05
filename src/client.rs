@@ -1,13 +1,8 @@
 use std::marker::PhantomData;
 
-use elsa::FrozenVec;
 use rusqlite::config::DbConfig;
 
-use crate::{
-    ast::{Joins, MySelect},
-    value::MyAlias,
-    Exec, Query,
-};
+use crate::{ast::MySelect, Exec, Query};
 
 pub struct Client {
     inner: rusqlite::Connection,
@@ -33,37 +28,34 @@ impl Client {
         self.inner.execute_batch(sql).unwrap();
     }
 
-    pub fn new_query<F, R>(&self, f: F) -> R
+    pub fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'a mut Exec<'names, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
     {
         self.inner.new_query(f)
     }
 }
 
 pub trait QueryBuilder {
-    fn new_query<F, R>(&self, f: F) -> R
+    fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'a mut Exec<'names, 'a>) -> R;
+        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R;
 }
 
 impl QueryBuilder for rusqlite::Connection {
-    fn new_query<F, R>(&self, f: F) -> R
+    fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a, 'names> FnOnce(&'a mut Exec<'names, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
     {
         let ast = MySelect::default();
-        let joins = Joins {
-            table: MyAlias::new(),
-            joined: FrozenVec::new(),
-        };
         let q = Query {
             phantom: PhantomData,
-            phantom2: PhantomData,
             ast: &ast,
-            joins: &joins,
             client: self,
         };
-        f(&mut Exec { q })
+        f(&mut Exec {
+            q,
+            phantom: PhantomData,
+        })
     }
 }

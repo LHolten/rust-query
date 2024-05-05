@@ -27,6 +27,8 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
     pub fn insert<V: Writable<'inner>>(&'inner mut self, val: V) {
         // insert can be used only once, and can not be used with select or group
         // this means that `self.ast.select` will contain exactly our columns
+        // TODO: instead of directly inserting, might be better to make new names
+        // and assign those (also i think INSERT doesn't care about the names)
         let reader = Reader {
             parts: &self.ast.select,
         };
@@ -45,7 +47,7 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
         insert.select_from(select).unwrap();
         let sql = insert.to_string(SqliteQueryBuilder);
 
-        println!("{sql}");
+        // println!("{sql}");
         self.client.execute(&sql, []).unwrap();
     }
 }

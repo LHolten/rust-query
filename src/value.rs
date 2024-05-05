@@ -1,6 +1,7 @@
 use std::{
     cell::OnceCell,
     ops::Deref,
+    rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -241,7 +242,7 @@ impl sea_query::Iden for MyAlias {
     }
 }
 
-pub(super) trait MyTableT<'t> {
+pub(super) trait MyTableT<'t>: Clone {
     fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self;
 }
 
@@ -262,7 +263,16 @@ impl<'t> MyTableT<'t> for ValueInfo {
 
 pub(super) struct FkInfo<'t, T: HasId> {
     pub joined: &'t FrozenVec<Box<(Field, MyTable)>>, // the table that we join onto
-    pub inner: OnceCell<Box<T::Dummy<'t>>>,
+    pub inner: OnceCell<Rc<T::Dummy<'t>>>,
+}
+
+impl<'t, T: HasId> Clone for FkInfo<'t, T> {
+    fn clone(&self) -> Self {
+        Self {
+            joined: self.joined,
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<'t, T: HasId> FkInfo<'t, T> {
@@ -274,7 +284,7 @@ impl<'t, T: HasId> FkInfo<'t, T> {
             info: FkInfo {
                 joined,
                 // prevent unnecessary join
-                inner: OnceCell::from(Box::new(T::build(Builder::new_full(joined, field.table)))),
+                inner: OnceCell::from(Rc::new(T::build(Builder::new_full(joined, field.table)))),
             },
             field,
         }
@@ -322,7 +332,7 @@ impl MyIdenT for String {
 }
 
 impl<T: MyIdenT> MyIdenT for Option<T> {
-    type Info<'t> = ValueInfo;
+    type Info<'t> = T::Info<'t>;
 }
 
 // invariant in `'t` because of the associated type
@@ -333,10 +343,7 @@ pub struct Db<'t, T: MyIdenT> {
     pub(crate) field: FieldAlias,
 }
 
-impl<'t, T: MyIdenT> Clone for Db<'t, T>
-where
-    T::Info<'t>: Clone,
-{
+impl<'t, T: MyIdenT> Clone for Db<'t, T> {
     fn clone(&self) -> Self {
         Db {
             info: self.info.clone(),
@@ -376,7 +383,7 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
                 &joined.push_get(Box::new((name, table))).1
             };
 
-            Box::new(T::build(Builder::new(&table.joins)))
+            Rc::new(T::build(Builder::new(&table.joins)))
         })
     }
 }

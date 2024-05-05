@@ -1,18 +1,24 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use sea_query::{Alias, Expr, Func};
 
 use crate::{
+    ast::Joins,
     value::{Db, Field, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value},
     Query,
 };
 
 pub struct GroupQuery<'outer, 'inner> {
-    pub(crate) query: Query<'outer, 'inner>,
+    pub(crate) query: Query<'inner>,
+    pub(crate) joins: &'outer Joins,
+    pub(crate) phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
 }
 
 impl<'outer, 'inner> Deref for GroupQuery<'outer, 'inner> {
-    type Target = Query<'outer, 'inner>;
+    type Target = Query<'inner>;
 
     fn deref(&self) -> &Self::Target {
         &self.query
