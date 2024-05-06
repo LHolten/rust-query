@@ -1,3 +1,0 @@
-- Document that joins are implicit for stuff like track.genre.name
-- Rename and document `project_on`, it should be clear what the purpose is
-- 

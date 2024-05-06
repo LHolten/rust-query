@@ -169,7 +169,7 @@ impl<'inner> Query<'inner> {
 }
 
 impl<'outer, 'inner> Exec<'outer, 'inner> {
-    /// Turn a database query into a rust [Vec<T>] of results.
+    /// Turn a database query into a rust [Vec] of results.
     /// The callback is called exactly once for each row.
     /// The callback argument [Row] can be used to turn dummies into rust values.
     pub fn into_vec<F, T>(&self, limit: u32, mut f: F) -> Vec<T>

@@ -1,6 +1,9 @@
+[workspace]
+members = ["chinook"]
+
 [package]
 name = "rust-query"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A query builder using rust concepts."
 categories = ["database"]
@@ -12,7 +15,7 @@ license = "Apache-2.0"
 [dependencies]
 elsa = "1.10.0"
 sea-query = "0.30"
-rusqlite = { version = "0.30", features = ["modern_sqlite", "buildtime_bindgen"] }
+rusqlite = { version = "0.31", features = ["modern_sqlite"] }
 quote = "1.0.35"
 proc-macro2 = "1.0.79"
 heck = "0.5.0"
