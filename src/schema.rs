@@ -14,6 +14,8 @@ struct Column {
     notnull: bool,
 }
 
+/// Generate rust bindings for a SQLite schema.
+/// Use this in your `build.rs` file.
 pub fn generate(client: Client) -> String {
     let mut output = TokenStream::new();
     output.extend(quote! {

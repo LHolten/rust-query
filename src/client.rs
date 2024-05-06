@@ -4,11 +4,15 @@ use rusqlite::config::DbConfig;
 
 use crate::{ast::MySelect, Exec, Query};
 
+/// This is a wrapper for [rusqlite::Connection].
+/// It's main purpose is to remove the need to depend on rusqlite in the future.
+/// Right now it is mostly used in the tests.
 pub struct Client {
     inner: rusqlite::Connection,
 }
 
 impl Client {
+    /// Create a new client with recommended settings.
     pub fn open_in_memory() -> Self {
         let inner = rusqlite::Connection::open_in_memory().unwrap();
         inner.pragma_update(None, "journal_mode", "WAL").unwrap();
@@ -24,10 +28,12 @@ impl Client {
         Client { inner }
     }
 
+    /// Execute a raw sql statement, useful for loading a schema.
     pub fn execute_batch(&self, sql: &str) {
         self.inner.execute_batch(sql).unwrap();
     }
 
+    /// Execute a new query.
     pub fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
@@ -36,6 +42,7 @@ impl Client {
     }
 }
 
+/// Extension trait to use this library with [rusqlite::Connection] directly.
 pub trait QueryBuilder {
     fn new_query<'s, F, R>(&'s self, f: F) -> R
     where

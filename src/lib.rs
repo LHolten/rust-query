@@ -2,10 +2,11 @@
 
 mod ast;
 pub mod client;
-mod group;
+pub mod group;
+#[doc(hidden)]
 pub mod insert;
 mod mymap;
-pub mod pragma;
+mod pragma;
 pub mod schema;
 pub mod value;
 
@@ -22,6 +23,8 @@ use group::GroupQuery;
 use sea_query::{Expr, Iden, SqliteQueryBuilder};
 use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 
+/// This is the top level query type and dereferences to [Query].
+/// It has methods for turning queries into vectors and for inserting in the database.
 pub struct Exec<'outer, 'inner> {
     phantom: PhantomData<&'outer ()>,
     q: Query<'inner>,
@@ -41,15 +44,16 @@ impl<'outer, 'inner> DerefMut for Exec<'outer, 'inner> {
     }
 }
 
+/// This is the base type for other query types like [GroupQuery] and [Exec].
+/// It contains most query functionality like joining tables and doing sub-queries.
 pub struct Query<'inner> {
     // we might store 'inner
     phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
     ast: &'inner MySelect,
-    // joins: &'inner Joins,
     client: &'inner rusqlite::Connection,
-    // outer: PhantomData<>
 }
 
+#[doc(hidden)]
 pub trait Table {
     // const NAME: &'static str;
     // these names are defined in `'query`
@@ -60,11 +64,13 @@ pub trait Table {
     fn build(f: Builder<'_>) -> Self::Dummy<'_>;
 }
 
+#[doc(hidden)]
 pub trait HasId: Table {
     const ID: &'static str;
     const NAME: &'static str;
 }
 
+#[doc(hidden)]
 pub struct Builder<'a> {
     joined: &'a FrozenVec<Box<(Field, MyTable)>>,
     table: MyAlias,
@@ -101,6 +107,7 @@ impl<'inner> Query<'inner> {
         joins
     }
 
+    /// Join a table, this is like [Iterator::flat_map] but for queries.
     pub fn table<T: HasId>(&mut self, t: T) -> Db<'inner, T> {
         let joins = self.new_source(t);
         let field = FieldAlias {
@@ -110,12 +117,14 @@ impl<'inner> Query<'inner> {
         FkInfo::joined(&joins.joined, field)
     }
 
+    /// Join a table that has no integer primary key.
+    /// Refer to [Query::table] for more information about joining tables.
     pub fn flat_table<T: Table>(&mut self, t: T) -> T::Dummy<'inner> {
         let joins = self.new_source(t);
         T::build(Builder::new(joins))
     }
 
-    // join another query that is grouped by some value
+    /// Perform a sub-query that returns a single result for each of the current rows.
     pub fn query<F, R>(&self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut GroupQuery<'inner, 'a>) -> R,
@@ -142,10 +151,12 @@ impl<'inner> Query<'inner> {
         f(&mut group)
     }
 
+    /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl Value<'inner>) {
         self.ast.filters.push(Box::new(prop.build_expr()));
     }
 
+    /// Filter out rows where this column is [None].
     pub fn filter_some<T: MyIdenT>(&mut self, val: &Db<'inner, Option<T>>) -> Db<'inner, T> {
         self.ast
             .filters
@@ -155,18 +166,12 @@ impl<'inner> Query<'inner> {
             field: val.field,
         }
     }
-
-    // pub fn select<V: Value<'inner>>(&'inner self, val: V) -> Db<'outer, V::Typ> {
-    //     let alias = self.ast.select.get_or_init(val.build_expr(), Field::new);
-    //     V::Typ::iden_any(self.joins, *alias)
-    // }
-
-    // pub fn window<'out, V: Value + 'inner>(&'out self, val: V) -> &'out Group<'inner, V> {
-    //     todo!()
-    // }
 }
 
 impl<'outer, 'inner> Exec<'outer, 'inner> {
+    /// Turn a database query into a rust [Vec<T>] of results
+    /// The callback is called exactly once for each row.
+    /// The callback argument [Row] can be used to turn dummies into rust values.
     pub fn into_vec<F, T>(&self, limit: u32, mut f: F) -> Vec<T>
     where
         F: FnMut(Row<'_, 'inner>) -> T,
@@ -210,6 +215,7 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
     }
 }
 
+/// This is the type used by [Exec::into_vec] to allow turning dummies into rust values.
 pub struct Row<'x, 'names> {
     offset: usize,
     limit: u32,
@@ -221,6 +227,7 @@ pub struct Row<'x, 'names> {
 }
 
 impl<'names> Row<'_, 'names> {
+    // Turn a dummy into a rust value.
     pub fn get<V: Value<'names>>(&self, val: V) -> V::Typ
     where
         V::Typ: MyIdenT + rusqlite::types::FromSql,

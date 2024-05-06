@@ -24,6 +24,7 @@ impl<'a> Reader<'a> {
 }
 
 impl<'outer, 'inner> Exec<'outer, 'inner> {
+    /// Insert a new row for every row in the query.
     pub fn insert<V: Writable<'inner>>(&'inner mut self, val: V) {
         // insert can be used only once, and can not be used with select or group
         // this means that `self.ast.select` will contain exactly our columns

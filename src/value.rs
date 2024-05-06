@@ -13,6 +13,8 @@ use crate::{
     Builder, HasId,
 };
 
+/// Trait for all values that can be used in queries.
+/// This includes dummies from queries and rust values.
 pub trait Value<'t>: Sized {
     type Typ: MyIdenT;
     #[doc(hidden)]
@@ -180,6 +182,7 @@ impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
     }
 }
 
+/// Use this a value in a query to get the current datetime as a number.
 pub struct UnixEpoch;
 
 impl<'t> Value<'t> for UnixEpoch {
@@ -335,11 +338,12 @@ impl<T: MyIdenT> MyIdenT for Option<T> {
     type Info<'t> = T::Info<'t>;
 }
 
-// invariant in `'t` because of the associated type
+/// This is a dummy database column reference.
+/// If the column has a foreign key constraint,
+/// it can be dereferenced to join the table.
 pub struct Db<'t, T: MyIdenT> {
-    #[doc(hidden)]
+    // invariant in `'t` because of the associated type
     pub(crate) info: T::Info<'t>,
-    #[doc(hidden)]
     pub(crate) field: FieldAlias,
 }
 
