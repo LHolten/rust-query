@@ -1,8 +1,11 @@
-workspace = { members = ["chinook"] }
 [package]
 name = "rust-query"
 version = "0.1.0"
 edition = "2021"
+description = "A query builder using rust concepts."
+categories = ["database"]
+repository = "https://github.com/LHolten/rust-query/"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
