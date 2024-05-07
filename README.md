@@ -11,6 +11,7 @@ Using the full expressiveness of the rust type system like this allows us to wri
 
 ## Current limitations
 This is a WIP project and thus has a number of limitations.
+- Only supports sqlite (with rusqlite).
 - Only support for select and insert statements.
 - Very small number of operators.
 - No support for window functions.
@@ -18,7 +19,11 @@ This is a WIP project and thus has a number of limitations.
 
 Despite these limitations, I am dogfooding this query builder and using it in my own project: [advent-of-wasm](https://github.com/LHolten/advent-of-wasm).
 
-## Practice/Tutorial
+## How to Use
+- Use `schema::generate` in your `build.rs` file to create bindings for your schema. (for an example see below),
+- Use the `new_query` functions on either `Client` or `rusqlite::Connection` to start writing queries!
+
+## Example/Practice
 First download the `Chinook_Sqlite.sql` from here https://github.com/lerocha/chinook-database/releases and put it in the `chinook` folder.
 
 Then you can run with `cd chinook` && `cargo run`

@@ -3,7 +3,7 @@ members = ["chinook"]
 
 [package]
 name = "rust-query"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "A query builder using rust concepts."
 categories = ["database"]

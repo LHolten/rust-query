@@ -226,7 +226,7 @@ pub struct Row<'x, 'names> {
 }
 
 impl<'names> Row<'_, 'names> {
-    // Turn a dummy into a rust value.
+    /// Turn a dummy into a rust value.
     pub fn get<V: Value<'names>>(&self, val: V) -> V::Typ
     where
         V::Typ: MyIdenT + rusqlite::types::FromSql,
