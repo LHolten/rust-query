@@ -1,15 +1,44 @@
 #![allow(dead_code)]
+#![feature(closure_lifetime_binder)]
+#![feature(lazy_cell)]
 
 mod tables {
     include!(concat!(env!("OUT_DIR"), "/tables.rs"));
 }
 
-use rust_query::{client::Client, value::Value};
+use std::sync::{LazyLock, OnceLock};
+
+use rust_query::{
+    client::Client,
+    insert::Writable,
+    migrate::migrate_table,
+    value::{Db, Value},
+    Row, Table,
+};
 use tables::{
     Album, Artist, Customer, Employee, Invoice, InvoiceLine, Playlist, PlaylistTrack, Track,
 };
 
-use crate::tables::{Genre, GenreDummy};
+use crate::tables::{AlbumDummy, ArtistDummy, Genre, GenreDummy};
+
+struct Tables {
+    genre: Genre,
+    album: Album,
+}
+
+static TABLES: LazyLock<Tables> = LazyLock::new(|| Tables {
+    genre: migrate_table(|t| {
+        let name = t.new_column(|_row| "jazz");
+        Box::new(GenreDummy { name })
+    }),
+    album: migrate_table(|t| {
+        let artist = t.initial_column();
+        t.version(1);
+        let title = t.new_column(|_| "space");
+        t.version(2);
+        Box::new(AlbumDummy { artist, title })
+    }),
+});
 
 fn main() {
     let client = Client::open_in_memory();

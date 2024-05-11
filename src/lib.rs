@@ -5,6 +5,7 @@ pub mod client;
 pub mod group;
 #[doc(hidden)]
 pub mod insert;
+pub mod migrate;
 mod mymap;
 mod pragma;
 pub mod schema;
