@@ -1,6 +1,6 @@
 use std::{env, fs, path::Path};
 
-use rust_query::{client::Client, schema::generate, Pragma};
+use rust_query::{client::Client, schema::generate};
 
 fn main() {
     let out_dir = env::var_os("OUT_DIR").unwrap();

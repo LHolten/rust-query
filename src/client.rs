@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use rusqlite::config::DbConfig;
 
-use crate::{ast::MySelect, Exec, Query};
+use crate::{ast::MySelect, migrate::Migrator, Exec, Query};
 
 /// This is a wrapper for [rusqlite::Connection].
 /// It's main purpose is to remove the need to depend on rusqlite in the future.
@@ -39,6 +39,10 @@ impl Client {
         F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
     {
         self.inner.new_query(f)
+    }
+
+    pub fn migrator<S>(&self) -> Migrator<'_, S> {
+        todo!()
     }
 }
 

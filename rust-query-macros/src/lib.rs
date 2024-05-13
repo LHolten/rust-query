@@ -90,16 +90,22 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         
         let mut mod_output = TokenStream::new();
         for (i, table) in item.variants.iter().enumerate() {
+            let range = parse_version(&table.attrs)?;
+            if !range.includes(version) {
+                continue;
+            }
+
             let mut columns = BTreeMap::new();
             for (i, field) in table.fields.iter().enumerate() {
-                let range = parse_version(&field.attrs).unwrap();
-                if range.includes(version) {
-                    let col = Column {
-                        name: field.ident.clone().unwrap(),
-                        typ: field.ty.clone(),
-                    };
-                    columns.insert(i, col);
+                let range = parse_version(&field.attrs)?;
+                if !range.includes(version) {
+                    continue;
                 }
+                let col = Column {
+                    name: field.ident.clone().unwrap(),
+                    typ: field.ty.clone(),
+                };
+                columns.insert(i, col);
             }
         
             let table_ident = &table.ident;
@@ -270,7 +276,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     type S = #schema;
                 }
 
-                impl ::rust_query::migrate::Schema for #schema {}
+                // impl ::rust_query::migrate::Schema for #schema {}
 
                 #mod_output
             }

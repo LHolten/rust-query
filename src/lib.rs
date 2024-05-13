@@ -23,7 +23,6 @@ use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use group::GroupQuery;
-use migrate::Schema;
 use sea_query::{Expr, Iden, SqliteQueryBuilder};
 use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 

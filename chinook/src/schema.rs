@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::migrate::Schema as _;
+use rust_query::client::Client;
 use rust_query_macros::schema;
 
 #[schema]
@@ -37,9 +37,10 @@ enum Schema {
     },
 }
 
-pub fn migrate() -> v3::Schema {
+pub fn migrate(client: &Client) -> v2::Schema {
     let artist_title = HashMap::from([("a", "b")]);
-    ().migrate(|()| v0::M {})
+    client
+        .migrator()
         .migrate(|_schema| v1::M {
             album: |row, album| {
                 let artist = row.get(album.artist.name);
@@ -55,5 +56,5 @@ pub fn migrate() -> v3::Schema {
                 })
             },
         })
-        .migrate(|_| v3::M {})
+        .check()
 }
