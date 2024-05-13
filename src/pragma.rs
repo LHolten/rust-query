@@ -2,15 +2,15 @@ use crate::{migrate::Schema, value::Db, Builder, Table};
 
 pub struct Pragma;
 impl Schema for Pragma {
-    const SQL: &'static str = "";
+    // const SQL: &'static str = "";
 
-    type Prev = ();
+    // type Prev = ();
 
-    type Migration = ();
+    // type Migration = ();
 
-    fn new((): Self::Prev, (): Self::Migration) -> Self {
-        Pragma
-    }
+    // fn new((): Self::Prev, (): Self::Migration) -> Self {
+    //     Pragma
+    // }
 }
 
 pub struct TableList;
