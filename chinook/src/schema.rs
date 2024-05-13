@@ -37,17 +37,11 @@ enum Schema {
     },
 }
 
-// #[schema(prev = Empty)]
-// struct Schema {
-//     artist: Artist,
-//     album: Album,
-// }
-
-pub fn migrate() {
-    ().migrate(|_schema| v0::M {})
+pub fn migrate() -> v3::Schema {
+    let artist_title = HashMap::from([("a", "b")]);
+    ().migrate(|()| v0::M {})
         .migrate(|_schema| v1::M {
             album: |row, album| {
-                let artist_title = HashMap::from([("a", "b")]);
                 let artist = row.get(album.artist.name);
                 Box::new(v1::MAlbum {
                     title: artist_title.get(&*artist).copied().unwrap_or("unknown"),
@@ -60,5 +54,6 @@ pub fn migrate() {
                     phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
                 })
             },
-        });
+        })
+        .migrate(|_| v3::M {})
 }

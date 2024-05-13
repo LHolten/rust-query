@@ -249,15 +249,12 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 let table_generic = make_generic(table_name);
                 let table_lower = to_lower(table_name);
                 table_defs.push(quote! {
-                    pub #table_lower: for<'x, 'a> fn(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, super::#mod_prev_ident::#table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, T = #table_name>>
-                })
-                // table_defs.push(quote! {
-                //     pub #table_lower: #table_generic
-                // });
-                // table_constraints.push(quote! {
-                //     #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, super::#mod_prev_ident::#table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, T = #table_name>>
-                // });
-                // table_generics.push(table_generic);
+                    pub #table_lower: #table_generic
+                });
+                table_constraints.push(quote! {
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, super::#mod_prev_ident::#table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, T = #table_name>>
+                });
+                table_generics.push(table_generic);
             }
         }
     
@@ -265,7 +262,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             pub mod #mod_ident {
                 pub struct #schema (());
 
-                pub struct M<#(#table_generics),*> {
+                pub struct M<#(#table_constraints),*> {
                     #(#table_defs,)*
                 }
 

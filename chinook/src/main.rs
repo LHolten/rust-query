@@ -2,6 +2,8 @@
 #![feature(closure_lifetime_binder)]
 #![feature(lazy_cell)]
 
+mod schema;
+
 mod tables {
     include!(concat!(env!("OUT_DIR"), "/tables.rs"));
 }

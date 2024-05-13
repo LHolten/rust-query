@@ -15,3 +15,31 @@ pub trait Schema: Sized {
 }
 
 impl Schema for () {}
+
+#[cfg(test)]
+mod tests {
+    use crate::Row;
+
+    use super::*;
+
+    struct M<X: for<'x, 'a> FnMut(Row<'x, 'a>)> {
+        x: X,
+    }
+
+    struct M2 {
+        x: for<'x, 'a> fn(Row<'x, 'a>),
+    }
+
+    impl<X: for<'x, 'a> FnMut(Row<'x, 'a>)> Migration<()> for M<X> {
+        type S = ();
+    }
+
+    impl Migration<()> for M2 {
+        type S = ();
+    }
+
+    #[test]
+    fn test_name() {
+        ().migrate(|schema| M { x: |_x| () });
+    }
+}
