@@ -1,4 +1,17 @@
-use crate::{value::Db, Builder, Table};
+use crate::{migrate::Schema, value::Db, Builder, Table};
+
+pub struct Pragma;
+impl Schema for Pragma {
+    const SQL: &'static str = "";
+
+    type Prev = ();
+
+    type Migration = ();
+
+    fn new((): Self::Prev, (): Self::Migration) -> Self {
+        Pragma
+    }
+}
 
 pub struct TableList;
 
@@ -12,11 +25,12 @@ pub struct TableListDummy<'a> {
 }
 
 impl Table for TableList {
+    type Dummy<'names> = TableListDummy<'names>;
+    type Schema = Pragma;
+
     fn name(&self) -> String {
         "pragma_table_list".to_owned()
     }
-
-    type Dummy<'names> = TableListDummy<'names>;
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_> {
         TableListDummy {
@@ -41,6 +55,7 @@ pub struct TableInfoDummy<'a> {
 
 impl Table for TableInfo {
     type Dummy<'t> = TableInfoDummy<'t>;
+    type Schema = Pragma;
 
     fn name(&self) -> String {
         format!("pragma_table_info('{}', 'main')", self.0)
@@ -65,6 +80,7 @@ pub struct ForeignKeyListDummy<'a> {
 
 impl Table for ForeignKeyList {
     type Dummy<'t> = ForeignKeyListDummy<'t>;
+    type Schema = Pragma;
 
     fn name(&self) -> String {
         format!("pragma_foreign_key_list('{}', 'main')", self.0)

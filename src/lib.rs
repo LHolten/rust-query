@@ -11,6 +11,8 @@ mod pragma;
 pub mod schema;
 pub mod value;
 
+pub use pragma::Pragma;
+
 use std::{
     cell::Cell,
     marker::PhantomData,
@@ -21,6 +23,7 @@ use ast::{Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use group::GroupQuery;
+use migrate::Schema;
 use sea_query::{Expr, Iden, SqliteQueryBuilder};
 use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 
@@ -60,10 +63,25 @@ pub trait Table {
     // these names are defined in `'query`
     type Dummy<'t>;
 
+    type Schema;
+
     fn name(&self) -> String;
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_>;
 }
+
+// TODO: maybe remove this trait?
+#[doc(hidden)]
+pub trait ValidInSchema<S> {}
+
+impl<S> ValidInSchema<S> for String {}
+impl<S> ValidInSchema<S> for i64 {}
+impl<S> ValidInSchema<S> for f64 {}
+impl<S, T: ValidInSchema<S>> ValidInSchema<S> for Option<T> {}
+impl<T: Table> ValidInSchema<T::Schema> for T {}
+
+#[doc(hidden)]
+pub fn valid_in_schema<S, T: ValidInSchema<S>>() {}
 
 #[doc(hidden)]
 pub trait HasId: Table {
@@ -124,6 +142,11 @@ impl<'inner> Query<'inner> {
         let joins = self.new_source(t);
         T::build(Builder::new(joins))
     }
+
+    /// Join a vector of values.
+    // pub fn vec<V: Value<'inner>>(&mut self, vec: Vec<V>) -> Db<'inner, V::Typ> {
+    //     todo!()
+    // }
 
     /// Perform a sub-query that returns a single result for each of the current rows.
     pub fn query<F, R>(&self, f: F) -> R

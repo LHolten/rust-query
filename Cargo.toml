@@ -1,5 +1,5 @@
 [workspace]
-members = ["chinook"]
+members = ["chinook", "rust-query-macros"]
 
 [package]
 name = "rust-query"
