@@ -19,7 +19,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use ast::{Joins, MySelect, MyTable, Source};
+use ast::{add_table, Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use group::GroupQuery;
@@ -113,28 +113,16 @@ impl<'a> Builder<'a> {
 }
 
 impl<'inner> Query<'inner> {
-    fn new_source<T: Table>(&mut self, t: T) -> &'inner Joins {
-        let joins = Joins {
-            table: MyAlias::new(),
-            joined: FrozenVec::new(),
-        };
-        let source = Box::new(Source::Table(t.name(), joins));
-        let Source::Table(_, joins) = self.ast.sources.push_get(source) else {
-            unreachable!()
-        };
-        joins
-    }
-
     /// Join a table, this is like [Iterator::flat_map] but for queries.
     pub fn table<T: HasId>(&mut self, t: T) -> Db<'inner, T> {
-        let joins = self.new_source(t);
+        let joins = add_table(&self.ast.sources, t.name());
         FkInfo::joined(joins, Field::Str(T::ID))
     }
 
     /// Join a table that has no integer primary key.
     /// Refer to [Query::table] for more information about joining tables.
     pub fn flat_table<T: Table>(&mut self, t: T) -> T::Dummy<'inner> {
-        let joins = self.new_source(t);
+        let joins = add_table(&self.ast.sources, t.name());
         T::build(Builder::new(joins))
     }
 

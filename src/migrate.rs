@@ -7,7 +7,7 @@ use sea_query::{
 };
 
 use crate::{
-    ast::{Joins, MySelect, Source},
+    ast::{add_table, MySelect},
     insert::{Reader, Writable},
     mymap::MyMap,
     value::{Db, Field, FkInfo, MyAlias, Value},
@@ -39,23 +39,13 @@ impl<'x> SchemaBuilder<'x> {
             group: Cell::new(false),
         };
 
-        let table = MyAlias::new();
-        let Source::Table(_, joins) = ast.sources.push_get(Box::new(Source::Table(
-            A::NAME.to_owned(),
-            Joins {
-                table,
-                joined: FrozenVec::new(),
-            },
-        ))) else {
-            panic!()
-        };
+        let joins = add_table(&ast.sources, A::NAME.to_owned());
         let db = FkInfo::<A>::joined(joins, Field::Str(A::ID));
 
         let mut select = ast.simple(0, u32::MAX);
         let sql = select.to_string(SqliteQueryBuilder);
 
-        let conn = self.conn;
-        let mut statement = conn.prepare(&sql).unwrap();
+        let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
 
         let mut offset = 0;
@@ -68,7 +58,7 @@ impl<'x> SchemaBuilder<'x> {
                 inner: PhantomData,
                 row,
                 ast: &ast,
-                conn,
+                conn: self.conn,
                 updated: &updated,
             };
 
@@ -96,7 +86,7 @@ impl<'x> SchemaBuilder<'x> {
                 insert.select_from(new_select).unwrap();
 
                 let sql = insert.to_string(SqliteQueryBuilder);
-                conn.execute(&sql, []).unwrap();
+                self.conn.execute(&sql, []).unwrap();
 
                 self.drop
                     .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
@@ -114,7 +104,7 @@ impl<'x> SchemaBuilder<'x> {
                 let sql = select.to_string(SqliteQueryBuilder);
 
                 drop(rows);
-                statement = conn.prepare(&sql).unwrap();
+                statement = self.conn.prepare(&sql).unwrap();
                 rows = statement.query([]).unwrap();
             }
         }
@@ -140,7 +130,7 @@ impl<'x> SchemaBuilder<'x> {
 pub trait Migration<From> {
     type S;
 
-    fn tables(b: SchemaBuilder);
+    fn tables(self, b: &mut SchemaBuilder) -> Self::S;
 }
 
 pub struct Migrator<'x, S> {
@@ -149,11 +139,33 @@ pub struct Migrator<'x, S> {
 }
 
 impl<'a, S> Migrator<'a, S> {
-    pub fn migrate<M: Migration<S>>(self, _f: impl FnOnce(&Self) -> M) -> Migrator<'a, M::S> {
+    pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<'a, M::S> {
+        if let Some(s) = self.schema {
+            let res = f(&s);
+            let mut builder = SchemaBuilder {
+                conn: self.conn,
+                drop: vec![],
+                rename: vec![],
+            };
+            let res = res.tables(&mut builder);
+            for drop in builder.drop {
+                let sql = drop.to_string(SqliteQueryBuilder);
+                self.conn.execute(&sql, []).unwrap();
+            }
+            for rename in builder.rename {
+                let sql = rename.to_string(SqliteQueryBuilder);
+                self.conn.execute(&sql, []).unwrap();
+            }
+
+            return Migrator {
+                schema: Some(res),
+                conn: self.conn,
+            };
+        }
         todo!()
     }
 
     pub fn check(self) -> S {
-        todo!()
+        self.schema.unwrap()
     }
 }

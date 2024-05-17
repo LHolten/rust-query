@@ -156,10 +156,18 @@ impl MySelect {
 
         select
     }
+}
 
-    pub fn add_select(&self, expr: impl Into<SimpleExpr>) -> &Field {
-        self.select.get_or_init(expr.into(), Field::new)
-    }
+pub fn add_table(sources: &FrozenVec<Box<Source>>, name: String) -> &Joins {
+    let joins = Joins {
+        table: MyAlias::new(),
+        joined: FrozenVec::new(),
+    };
+    let source = Box::new(Source::Table(name, joins));
+    let Source::Table(_, joins) = sources.push_get(source) else {
+        unreachable!()
+    };
+    joins
 }
 
 impl Joins {
