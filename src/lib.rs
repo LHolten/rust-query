@@ -128,11 +128,7 @@ impl<'inner> Query<'inner> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
     pub fn table<T: HasId>(&mut self, t: T) -> Db<'inner, T> {
         let joins = self.new_source(t);
-        let field = FieldAlias {
-            table: joins.table,
-            col: Field::Str(T::ID),
-        };
-        FkInfo::joined(&joins.joined, field)
+        FkInfo::joined(joins, Field::Str(T::ID))
     }
 
     /// Join a table that has no integer primary key.
@@ -238,6 +234,7 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
 }
 
 /// This is the type used by [Exec::into_vec] to allow turning dummies into rust values.
+#[derive(Clone, Copy)]
 pub struct Row<'x, 'names> {
     offset: usize,
     limit: u32,

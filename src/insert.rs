@@ -1,25 +1,33 @@
+use std::marker::PhantomData;
+
+use elsa::FrozenVec;
 use sea_query::{Alias, InsertStatement, OnConflict, SimpleExpr, SqliteQueryBuilder};
 
 use crate::{
+    ast::MySelect,
     mymap::MyMap,
-    value::{Field, Value},
+    value::{Field, MyAlias, Value},
     Exec, HasId,
 };
 
 pub trait Writable<'a> {
     type T: HasId;
-    fn read(self, f: Reader<'a>);
+    fn read(self: Box<Self>, f: Reader<'_, 'a>);
 }
 
-pub struct Reader<'a> {
-    parts: &'a MyMap<SimpleExpr, Field>,
+pub struct Reader<'x, 'a> {
+    pub(crate) _phantom: PhantomData<dyn Fn(&'a ()) -> &'a ()>,
+    pub(crate) ast: &'x MySelect,
+    pub(crate) out: &'x FrozenVec<Box<(&'x Field, &'static str)>>,
 }
 
-impl<'a> Reader<'a> {
+impl<'x, 'a> Reader<'x, 'a> {
     pub fn col(&self, name: &'static str, val: impl Value<'a>) {
-        let field = Field::Str(name);
+        // let field = Field::Str(name);
         let expr = val.build_expr();
-        self.parts.push(Box::new((expr, field)))
+        // self.parts.push(Box::new((expr, field)))
+        let field = self.ast.select.get_or_init(expr, Field::new);
+        self.out.push(Box::new((field, name)));
     }
 }
 
@@ -31,9 +39,9 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
         // TODO: instead of directly inserting, might be better to make new names
         // and assign those (also i think INSERT doesn't care about the names)
         let reader = Reader {
-            parts: &self.ast.select,
+            ast: &self.ast.select,
         };
-        V::read(val, reader);
+        V::read(Box::new(val), reader);
 
         let mut insert = InsertStatement::new();
         // TODO: make this configurable

@@ -279,18 +279,18 @@ impl<'t, T: HasId> Clone for FkInfo<'t, T> {
 }
 
 impl<'t, T: HasId> FkInfo<'t, T> {
-    pub(crate) fn joined(
-        joined: &'t FrozenVec<Box<(Field, MyTable)>>,
-        field: FieldAlias,
-    ) -> Db<'t, T> {
-        Db {
-            info: FkInfo {
-                joined,
-                // prevent unnecessary join
-                inner: OnceCell::from(Rc::new(T::build(Builder::new_full(joined, field.table)))),
-            },
-            field,
-        }
+    pub(crate) fn joined(joins: &'t Joins, field: Field) -> Db<'t, T> {
+        let field = FieldAlias {
+            table: joins.table,
+            col: field,
+        };
+        let value = T::build(Builder::new_full(&joins.joined, field.table));
+        let info = FkInfo {
+            joined: &joins.joined,
+            // prevent unnecessary join
+            inner: OnceCell::from(Rc::new(value)),
+        };
+        Db { info, field }
     }
 }
 

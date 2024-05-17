@@ -156,6 +156,10 @@ impl MySelect {
 
         select
     }
+
+    pub fn add_select(&self, expr: impl Into<SimpleExpr>) -> &Field {
+        self.select.get_or_init(expr.into(), Field::new)
+    }
 }
 
 impl Joins {
