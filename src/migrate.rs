@@ -1,32 +1,18 @@
-use std::{cell::Cell, marker::PhantomData};
+use std::{cell::Cell, marker::PhantomData, mem::take};
 
 use elsa::FrozenVec;
 use rusqlite::Connection;
 use sea_query::{
-    Alias, InsertStatement, SchemaStatement, SelectStatement, SqliteQueryBuilder,
-    TableCreateStatement, TableDropStatement, TableRenameStatement, TableStatement,
+    Alias, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement, TableRenameStatement,
 };
 
 use crate::{
     ast::{Joins, MySelect, Source},
-    client::QueryBuilder,
     insert::{Reader, Writable},
     mymap::MyMap,
-    value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value},
-    HasId, Row, Table,
+    value::{Db, Field, FkInfo, MyAlias, Value},
+    HasId, Row,
 };
-
-// pub struct TableBuilder<'a>(PhantomData<dyn Fn(&'a ()) -> &'a ()>);
-
-// impl<'a> TableBuilder<'a> {
-//     pub fn new_column(&self, name: &'static str, v: impl Value<'a>) {
-//         todo!()
-//     }
-
-//     pub fn drop_column(&self, name: &'static str) {
-//         todo!()
-//     }
-// }
 
 pub trait TableMigration<'a, A: HasId> {
     type T;
@@ -36,24 +22,22 @@ pub trait TableMigration<'a, A: HasId> {
 
 pub struct SchemaBuilder<'x> {
     conn: &'x Connection,
-    create: Vec<TableCreateStatement>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
 }
 
 impl<'x> SchemaBuilder<'x> {
-    pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, name: &'static str, mut m: M)
+    pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, mut m: M)
     where
         M: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Box<dyn TableMigration<'a, A, T = B>>,
     {
-        let ast = MySelect {
+        let mut ast = MySelect {
             sources: FrozenVec::new(),
             filters: FrozenVec::new(),
             select: MyMap::default(),
             filter_on: FrozenVec::new(),
             group: Cell::new(false),
         };
-        let limit = u32::MAX;
 
         let table = MyAlias::new();
         let Source::Table(_, joins) = ast.sources.push_get(Box::new(Source::Table(
@@ -67,68 +51,66 @@ impl<'x> SchemaBuilder<'x> {
         };
         let db = FkInfo::<A>::joined(joins, Field::Str(A::ID));
 
-        let mut select = ast.simple(0, limit);
+        let mut select = ast.simple(0, u32::MAX);
         let sql = select.to_string(SqliteQueryBuilder);
 
         let conn = self.conn;
         let mut statement = conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
 
-        // let mut out = vec![];
         let mut offset = 0;
         while let Some(row) = rows.next().unwrap() {
             let updated = Cell::new(false);
 
+            let row = Row {
+                offset,
+                limit: u32::MAX,
+                inner: PhantomData,
+                row,
+                ast: &ast,
+                conn,
+                updated: &updated,
+            };
+
+            let res = m(row, db.clone());
+            let id = row.get(db.id());
+            let res = res.into_new(db.clone());
+
+            let old_select = take(&mut ast.select);
             {
-                let row = Row {
-                    offset,
-                    limit,
-                    inner: PhantomData,
-                    row,
-                    ast: &ast,
-                    conn,
-                    updated: &updated,
-                };
-
-                let res = m(row, db.clone());
-                let res = res.into_new(db.clone());
-
-                let columns = FrozenVec::new();
-                let field = ast.add_select(db.id().build_expr());
-                columns.push(Box::new((field, B::NAME)));
+                ast.select
+                    .get_or_init(Expr::val(id).into(), || Field::Str(B::ID));
                 res.read(Reader {
                     _phantom: PhantomData,
                     ast: &ast,
-                    out: &columns,
                 });
 
-                let table = MyAlias::new();
-                let new_select = ast.simple(offset, 1);
+                let mut new_select = ast.simple(0, u32::MAX);
+                new_select.and_where(db.id().build_expr().eq(id));
 
+                let new_table = MyAlias::new();
                 let mut insert = InsertStatement::new();
-                let names = columns.iter().map(|(_field, name)| Alias::new(*name));
-                let vals = columns.iter().map(|(field, _name)| FieldAlias {
-                    table,
-                    col: **field,
-                });
+                let names = ast.select.iter().map(|(_field, name)| *name);
+                insert.into_table(new_table);
                 insert.columns(names);
-                insert
-                    .select_from(
-                        SelectStatement::new()
-                            .from_subquery(new_select, table)
-                            .columns(vals)
-                            .take(),
-                    )
-                    .unwrap();
+                insert.select_from(new_select).unwrap();
 
                 let sql = insert.to_string(SqliteQueryBuilder);
-
                 conn.execute(&sql, []).unwrap();
+
+                self.drop
+                    .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
+                self.rename.push(
+                    sea_query::Table::rename()
+                        .table(new_table, Alias::new(B::NAME))
+                        .take(),
+                );
             }
+            ast.select = old_select;
 
             offset += 1;
             if updated.get() {
-                select = ast.simple(offset, limit);
+                select = ast.simple(offset, u32::MAX);
                 let sql = select.to_string(SqliteQueryBuilder);
 
                 drop(rows);
@@ -136,11 +118,10 @@ impl<'x> SchemaBuilder<'x> {
                 rows = statement.query([]).unwrap();
             }
         }
-        // out
     }
 
     pub fn drop_table(&mut self, name: &'static str) {
-        let name = sea_query::Alias::new(name);
+        let name = Alias::new(name);
         let step = sea_query::Table::drop().table(name).take();
         self.drop.push(step);
     }
