@@ -3,7 +3,8 @@ use std::{cell::Cell, marker::PhantomData, mem::take};
 use elsa::FrozenVec;
 use rusqlite::Connection;
 use sea_query::{
-    Alias, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement, TableRenameStatement,
+    Alias, ColumnDef, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement,
+    TableRenameStatement,
 };
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
     insert::Reader,
     mymap::MyMap,
     value::{Db, Field, FkInfo, MyAlias, Value},
-    HasId, Row,
+    HasId, Row, Table,
 };
 
 #[doc(hidden)]
@@ -55,6 +56,17 @@ impl<'x> SchemaBuilder<'x> {
         let mut select = ast.simple(0, u32::MAX);
         let sql = select.to_string(SqliteQueryBuilder);
 
+        let new_table_name = MyAlias::new();
+        new_table::<B>(self.conn, new_table_name);
+
+        self.drop
+            .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
+        self.rename.push(
+            sea_query::Table::rename()
+                .table(new_table_name, Alias::new(B::NAME))
+                .take(),
+        );
+
         let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
 
@@ -88,23 +100,15 @@ impl<'x> SchemaBuilder<'x> {
                 let mut new_select = ast.simple(0, u32::MAX);
                 new_select.and_where(db.id().build_expr().eq(id));
 
-                let new_table = MyAlias::new();
                 let mut insert = InsertStatement::new();
                 let names = ast.select.iter().map(|(_field, name)| *name);
-                insert.into_table(new_table);
+                insert.into_table(new_table_name);
                 insert.columns(names);
                 insert.select_from(new_select).unwrap();
 
                 let sql = insert.to_string(SqliteQueryBuilder);
+                eprintln!("{sql}");
                 self.conn.execute(&sql, []).unwrap();
-
-                self.drop
-                    .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
-                self.rename.push(
-                    sea_query::Table::rename()
-                        .table(new_table, Alias::new(B::NAME))
-                        .take(),
-                );
             }
             ast.select = old_select;
 
@@ -120,21 +124,34 @@ impl<'x> SchemaBuilder<'x> {
         }
     }
 
-    pub fn drop_table(&mut self, name: &'static str) {
-        let name = Alias::new(name);
-        let step = sea_query::Table::drop().table(name).take();
-        self.drop.push(step);
-    }
+    // pub fn drop_table(&mut self, name: &'static str) {
+    //     let name = Alias::new(name);
+    //     let step = sea_query::Table::drop().table(name).take();
+    //     self.drop.push(step);
+    // }
 
-    pub fn new_table(&mut self, name: &'static str) {
-        // let name = sea_query::Alias::new(name);
-        // sea_query::Table::create()
-        //     .table(name)
-        //     .col(column)
-        //     .primary_key(sea_query::Index::create().col("id"));
+    // pub fn new_table(&mut self, name: &'static str) {
+    //     // let name = sea_query::Alias::new(name);
+    //     // sea_query::Table::create()
+    //     //     .table(name)
+    //     //     .col(column)
+    //     //     .primary_key(sea_query::Index::create().col("id"));
 
-        todo!()
-    }
+    //     todo!()
+    // }
+}
+
+fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {
+    let mut f = crate::TypBuilder {
+        ast: sea_query::Table::create(),
+    };
+    T::typs(&mut f);
+    f.ast
+        .table(alias)
+        .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
+    let mut sql = f.ast.to_string(SqliteQueryBuilder);
+    sql.push_str(" STRICT");
+    conn.execute(&sql, []).unwrap();
 }
 
 pub trait Migration<From> {
@@ -159,14 +176,21 @@ impl<'a, S: Schema> Migrator<'a, S> {
                 rename: vec![],
             };
             let res = res.tables(&mut builder);
+
+            self.conn
+                .pragma_update(None, "foreign_keys", "OFF")
+                .unwrap();
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
+                eprintln!("{sql}");
                 self.conn.execute(&sql, []).unwrap();
             }
             for rename in builder.rename {
                 let sql = rename.to_string(SqliteQueryBuilder);
                 self.conn.execute(&sql, []).unwrap();
             }
+            self.conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+            self.conn.execute_batch("PRAGMA foreign_key_check").unwrap();
 
             Migrator {
                 schema: Some(res),

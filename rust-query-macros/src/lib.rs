@@ -24,7 +24,6 @@ pub fn schema(
 struct Column {
     name: Ident,
     typ: Type,
-    // old_typ
 }
 
 
@@ -155,15 +154,18 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 quote!(f.col(#name, self.#ident))
             });
 
-            // let migrations = 
+            let def_typs = columns.values().map(|col| {
+                let name: &String = &col.name.to_string();
+                let typ = &col.typ;
+                quote!(f.col::<#typ>(#name))
+            });
         
             let dummy_ident = format_ident!("{}Dummy", table_ident);
         
             let table_name: &String = &table_ident.to_string();
-            let name: &String = &format!("{table_ident}Id");
             let has_id = quote!(
                 impl ::rust_query::HasId for #table_ident {
-                    const ID: &'static str = #name;
+                    const ID: &'static str = "id";
                     const NAME: &'static str = #table_name;
                 }
             );
@@ -187,6 +189,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #dummy_ident {
                             #(#inits,)*
                         }
+                    }
+
+                    fn typs(f: &mut ::rust_query::TypBuilder) {
+                        #(#def_typs;)*
                     }
                 }
         

@@ -23,7 +23,9 @@ use ast::{add_table, Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use group::GroupQuery;
-use sea_query::{Expr, Iden, SqliteQueryBuilder};
+use sea_query::{
+    Alias, ColumnDef, Expr, ForeignKey, Iden, SqliteQueryBuilder, TableCreateStatement,
+};
 use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 
 /// This is the top level query type and dereferences to [Query].
@@ -56,6 +58,29 @@ pub struct Query<'inner> {
     client: &'inner rusqlite::Connection,
 }
 
+pub struct TypBuilder {
+    ast: TableCreateStatement,
+}
+
+impl TypBuilder {
+    pub fn col<T: MyIdenT>(&mut self, name: &'static str) {
+        let mut def = ColumnDef::new_with_type(Alias::new(name), T::TYP);
+        if T::NULLABLE {
+            def.null();
+        } else {
+            def.not_null();
+        }
+        self.ast.col(&mut def);
+        if let Some((table, fk)) = T::FK {
+            self.ast.foreign_key(
+                ForeignKey::create()
+                    .to(Alias::new(table), Alias::new(fk))
+                    .from_col(Alias::new(name)),
+            );
+        }
+    }
+}
+
 #[doc(hidden)]
 pub trait Table {
     // const NAME: &'static str;
@@ -67,6 +92,8 @@ pub trait Table {
     fn name(&self) -> String;
 
     fn build(f: Builder<'_>) -> Self::Dummy<'_>;
+
+    fn typs(f: &mut TypBuilder);
 }
 
 // TODO: maybe remove this trait?

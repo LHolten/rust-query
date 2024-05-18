@@ -31,6 +31,8 @@ impl Table for TableList {
             strict: f.col("strict"),
         }
     }
+
+    fn typs(f: &mut crate::TypBuilder) {}
 }
 
 pub struct TableInfo(pub String);
@@ -58,6 +60,8 @@ impl Table for TableInfo {
             pk: f.col("pk"),
         }
     }
+
+    fn typs(f: &mut crate::TypBuilder) {}
 }
 pub struct ForeignKeyList(pub String);
 
@@ -82,4 +86,6 @@ impl Table for ForeignKeyList {
             to: f.col("to"),
         }
     }
+
+    fn typs(f: &mut crate::TypBuilder) {}
 }

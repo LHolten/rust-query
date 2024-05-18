@@ -6,7 +6,7 @@ use std::{
 };
 
 use elsa::FrozenVec;
-use sea_query::{Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
+use sea_query::{ColumnType, Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
 
 use crate::{
     ast::{Joins, MyTable},
@@ -313,30 +313,42 @@ pub(super) trait MyIdenT: Sized {
             field,
         }
     }
+    const NULLABLE: bool = false;
+    const TYP: ColumnType;
+    const FK: Option<(&'static str, &'static str)> = None;
 }
 
 impl<T: HasId> MyIdenT for T {
     type Info<'t> = FkInfo<'t, T>;
+    const TYP: ColumnType = ColumnType::Integer;
+    const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
 }
 
 impl MyIdenT for i64 {
     type Info<'t> = ValueInfo;
+    const TYP: ColumnType = ColumnType::Integer;
 }
 
 impl MyIdenT for f64 {
     type Info<'t> = ValueInfo;
+    const TYP: ColumnType = ColumnType::Float;
 }
 
 impl MyIdenT for bool {
     type Info<'t> = ValueInfo;
+    const TYP: ColumnType = ColumnType::Boolean;
 }
 
 impl MyIdenT for String {
     type Info<'t> = ValueInfo;
+    const TYP: ColumnType = ColumnType::String(None);
 }
 
 impl<T: MyIdenT> MyIdenT for Option<T> {
     type Info<'t> = T::Info<'t>;
+
+    const TYP: ColumnType = T::TYP;
+    const NULLABLE: bool = true;
 }
 
 /// This is a dummy database column reference.
