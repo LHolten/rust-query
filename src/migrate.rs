@@ -40,7 +40,7 @@ pub struct SchemaBuilder<'x> {
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Box<dyn TableMigration<'a, A, T = B>>,
+        M: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Box<dyn TableMigration<'a, A, T = B> + 'a>,
     {
         let mut ast = MySelect {
             sources: FrozenVec::new(),
@@ -123,21 +123,22 @@ impl<'x> SchemaBuilder<'x> {
         }
     }
 
-    // pub fn drop_table(&mut self, name: &'static str) {
-    //     let name = Alias::new(name);
-    //     let step = sea_query::Table::drop().table(name).take();
-    //     self.drop.push(step);
-    // }
+    pub fn drop_table<T: HasId>(&mut self) {
+        let name = Alias::new(T::NAME);
+        let step = sea_query::Table::drop().table(name).take();
+        self.drop.push(step);
+    }
 
-    // pub fn new_table(&mut self, name: &'static str) {
-    //     // let name = sea_query::Alias::new(name);
-    //     // sea_query::Table::create()
-    //     //     .table(name)
-    //     //     .col(column)
-    //     //     .primary_key(sea_query::Index::create().col("id"));
+    pub fn new_table<T: HasId>(&mut self) {
+        let new_table_name = MyAlias::new();
+        new_table::<T>(self.conn, new_table_name);
 
-    //     todo!()
-    // }
+        self.rename.push(
+            sea_query::Table::rename()
+                .table(new_table_name, Alias::new(T::NAME))
+                .take(),
+        );
+    }
 }
 
 fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {

@@ -226,8 +226,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let mut table_generics: Vec<Ident> = vec![];
         let mut table_constraints: Vec<TokenStream> = vec![];
         let mut tables = vec![];
-        for (i, (table, _)) in &new_tables {
-            if let Some((prev_columns, table_name)) = prev_tables.get(i) {
+        for (i, (table, table_name)) in &new_tables {
+            if let Some((prev_columns, _)) = prev_tables.remove(i) {
 
                 let mut defs = vec![];
                 let mut generics = vec![];
@@ -237,16 +237,17 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 for (i, col) in table {
                     let name = &col.name;
                     let name_str = col.name.to_string();
-                    if prev_columns.get(i).is_none() {
+                    if prev_columns.contains_key(i) {
+                        into_new.push(quote!{reader.col(#name_str, prev.#name.clone())});
+                    } else {
                         let generic = make_generic(name);
+                        // TODO: need to change this to use old foreign keys somehow
                         let typ = &col.typ;
 
                         defs.push(quote!{pub #name: #generic});
                         constraints.push(quote!{#generic: ::rust_query::value::Value<'a, Typ = #typ>});
                         generics.push(generic);
                         into_new.push(quote!{reader.col(#name_str, self.#name.clone())});
-                    } else {
-                        into_new.push(quote!{reader.col(#name_str, prev.#name.clone())});
                     }
                 }
 
@@ -262,7 +263,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(#defs,)*
                     }
 
-                    impl<'a, #(#constraints),*> ::rust_query::migrate::TableMigration<'a, #prev_table_name> for #migration_name<#(#generics)*> {
+                    impl<'a, #(#constraints),*> ::rust_query::migrate::TableMigration<'a, #prev_table_name> for #migration_name<#(#generics),*> {
                         type T = #table_name;
 
                         fn into_new(self: Box<Self>, prev: ::rust_query::value::Db<'a, #prev_table_name>, reader: ::rust_query::insert::Reader<'_, 'a>) {
@@ -277,11 +278,16 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, #prev_table_name, T = #table_name>>
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, #prev_table_name, T = #table_name> + 'a>
                 });
                 table_generics.push(table_generic);
                 tables.push(quote!{b.migrate_table(self.#table_lower)});
+            } else {
+                tables.push(quote!{b.new_table::<#table_name>()})
             }
+        }
+        for (_, table_ident) in prev_tables.into_values() {
+            tables.push(quote!{b.drop_table::<super::#mod_prev_ident::#table_ident>()})
         }
     
         let version_i64 = version as i64;
