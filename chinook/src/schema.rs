@@ -8,6 +8,7 @@ use rust_query_macros::schema;
 enum Schema {
     Album {
         #[version(1..)]
+        something: String,
         title: String,
         artist: Artist,
     },
@@ -45,7 +46,7 @@ pub fn migrate(client: &Client) -> v2::Schema {
             album: |row, album| {
                 let artist = row.get(album.artist.name);
                 Box::new(v1::MAlbum {
-                    title: artist_title.get(&*artist).copied().unwrap_or("unknown"),
+                    something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
                 })
             },
         })

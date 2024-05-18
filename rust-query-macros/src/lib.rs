@@ -24,6 +24,7 @@ pub fn schema(
 struct Column {
     name: Ident,
     typ: Type,
+    // old_typ
 }
 
 
@@ -229,6 +230,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                 for (i, col) in table {
                     let name = &col.name;
+                    let name_str = col.name.to_string();
                     if prev_columns.get(i).is_none() {
                         let generic = make_generic(name);
                         let typ = &col.typ;
@@ -236,9 +238,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         defs.push(quote!{pub #name: #generic});
                         constraints.push(quote!{#generic: ::rust_query::value::Value<'a, Typ = #typ>});
                         generics.push(generic);
-                        into_new.push(quote!{#name: self.#name});
+                        into_new.push(quote!{reader.col(#name_str, self.#name.clone())});
                     } else {
-                        into_new.push(quote!{#name: prev.#name});
+                        into_new.push(quote!{reader.col(#name_str, prev.#name.clone())});
                     }
                 }
 
@@ -246,7 +248,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     continue;
                 }
 
-                let dummy_ident = format_ident!("{}Dummy", table_name);
                 let prev_table_name = quote! {super::#mod_prev_ident::#table_name};
 
                 let migration_name = format_ident!("M{table_name}");
@@ -258,10 +259,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     impl<'a, #(#constraints),*> ::rust_query::migrate::TableMigration<'a, #prev_table_name> for #migration_name<#(#generics)*> {
                         type T = #table_name;
 
-                        fn into_new(self: Box<Self>, prev: ::rust_query::value::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::insert::Writable<'a, T = Self::T>> {
-                            Box::new(#dummy_ident {
-                                #(#into_new,)*
-                            })
+                        fn into_new(self: Box<Self>, prev: ::rust_query::value::Db<'a, #prev_table_name>, reader: ::rust_query::insert::Reader<'_, 'a>) {
+                            #(#into_new;)*
                         }
                     }
                 });
@@ -279,9 +278,17 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             }
         }
     
+        let version_i64 = version as i64;
         output.extend(quote! {
             pub mod #mod_ident {
                 pub struct #schema (());
+
+                impl ::rust_query::migrate::Schema for #schema {
+                    const VERSION: i64 = #version_i64;
+                    fn new() -> Self {
+                        #schema (())
+                    }
+                }
 
                 pub struct M<#(#table_constraints),*> {
                     #(#table_defs,)*

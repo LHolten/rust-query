@@ -8,16 +8,26 @@ use sea_query::{
 
 use crate::{
     ast::{add_table, MySelect},
-    insert::{Reader, Writable},
+    insert::Reader,
     mymap::MyMap,
     value::{Db, Field, FkInfo, MyAlias, Value},
     HasId, Row,
 };
 
+#[doc(hidden)]
+pub trait Schema: Sized {
+    const VERSION: i64;
+    fn new() -> Self;
+
+    fn new_checked(conn: &Connection) -> Option<Self> {
+        (user_version(conn).unwrap() == Self::VERSION).then(Self::new)
+    }
+}
+
 pub trait TableMigration<'a, A: HasId> {
     type T;
 
-    fn into_new(self: Box<Self>, prev: Db<'a, A>) -> Box<dyn Writable<'a, T = Self::T>>;
+    fn into_new(self: Box<Self>, prev: Db<'a, A>, reader: Reader<'_, 'a>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -64,16 +74,16 @@ impl<'x> SchemaBuilder<'x> {
 
             let res = m(row, db.clone());
             let id = row.get(db.id());
-            let res = res.into_new(db.clone());
 
             let old_select = take(&mut ast.select);
             {
                 ast.select
                     .get_or_init(Expr::val(id).into(), || Field::Str(B::ID));
-                res.read(Reader {
+                let reader = Reader {
                     _phantom: PhantomData,
                     ast: &ast,
-                });
+                };
+                res.into_new(db.clone(), reader);
 
                 let mut new_select = ast.simple(0, u32::MAX);
                 new_select.and_where(db.id().build_expr().eq(id));
@@ -134,12 +144,13 @@ pub trait Migration<From> {
 }
 
 pub struct Migrator<'x, S> {
-    schema: Option<S>,
-    conn: &'x Connection,
+    pub(crate) schema: Option<S>,
+    pub(crate) conn: &'x Connection,
 }
 
-impl<'a, S> Migrator<'a, S> {
-    pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<'a, M::S> {
+impl<'a, S: Schema> Migrator<'a, S> {
+    pub fn migrate<M: Migration<S>>(mut self, f: impl FnOnce(&S) -> M) -> Migrator<'a, M::S> {
+        self.schema = self.schema.or_else(|| S::new_checked(self.conn));
         if let Some(s) = self.schema {
             let res = f(&s);
             let mut builder = SchemaBuilder {
@@ -157,15 +168,29 @@ impl<'a, S> Migrator<'a, S> {
                 self.conn.execute(&sql, []).unwrap();
             }
 
-            return Migrator {
+            Migrator {
                 schema: Some(res),
                 conn: self.conn,
-            };
+            }
+        } else {
+            Migrator {
+                schema: None,
+                conn: self.conn,
+            }
         }
-        todo!()
     }
 
     pub fn check(self) -> S {
         self.schema.unwrap()
     }
+}
+
+// Read user version field from the SQLite db
+fn user_version(conn: &Connection) -> Result<i64, rusqlite::Error> {
+    conn.query_row("PRAGMA user_version", [], |row| row.get(0))
+}
+
+// Set user version field from the SQLite db
+fn set_user_version(conn: &Connection, v: i64) -> Result<(), rusqlite::Error> {
+    conn.pragma_update(None, "user_version", v)
 }

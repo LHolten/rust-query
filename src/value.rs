@@ -15,7 +15,7 @@ use crate::{
 
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
-pub trait Value<'t>: Sized {
+pub trait Value<'t>: Sized + Clone {
     type Typ: MyIdenT;
     #[doc(hidden)]
     fn build_expr(&self) -> SimpleExpr;
@@ -183,6 +183,7 @@ impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
 }
 
 /// Use this a value in a query to get the current datetime as a number.
+#[derive(Clone)]
 pub struct UnixEpoch;
 
 impl<'t> Value<'t> for UnixEpoch {

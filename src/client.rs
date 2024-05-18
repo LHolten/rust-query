@@ -42,8 +42,17 @@ impl Client {
     }
 
     pub fn migrator<S>(&self) -> Migrator<'_, S> {
-        todo!()
+        Migrator {
+            schema: None,
+            conn: &self.inner,
+        }
     }
+
+    // pub fn user_version(&self) -> i64 {
+    //     self.inner
+    //         .query_row("PRAGMA user_version", [], |row| row.get(0))
+    //         .unwrap()
+    // }
 }
 
 /// Extension trait to use this library with [rusqlite::Connection] directly.
