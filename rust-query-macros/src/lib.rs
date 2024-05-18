@@ -191,7 +191,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         
                 impl<'t, #(#read_bounds),*> ::rust_query::insert::Writable<'t> for #dummy_ident<#(#generics),*> {
                     type T = #table_ident;
-                    fn read(self, f: ::rust_query::insert::Reader<'t>) {
+                    fn read(self: Box<Self>, f: ::rust_query::insert::Reader<'_, 't>) {
                         #(#reads;)*
                     }
                 }
@@ -218,22 +218,27 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let mut table_defs = vec![];
         let mut table_generics: Vec<Ident> = vec![];
         let mut table_constraints: Vec<TokenStream> = vec![];
+        let mut tables = vec![];
         for (i, (table, _)) in &new_tables {
             if let Some((prev_columns, table_name)) = prev_tables.get(i) {
 
                 let mut defs = vec![];
                 let mut generics = vec![];
                 let mut constraints = vec![];
+                let mut into_new = vec![];
 
                 for (i, col) in table {
+                    let name = &col.name;
                     if prev_columns.get(i).is_none() {
-                        let name = &col.name;
                         let generic = make_generic(name);
                         let typ = &col.typ;
 
                         defs.push(quote!{pub #name: #generic});
                         constraints.push(quote!{#generic: ::rust_query::value::Value<'a, Typ = #typ>});
                         generics.push(generic);
+                        into_new.push(quote!{#name: self.#name});
+                    } else {
+                        into_new.push(quote!{#name: prev.#name});
                     }
                 }
 
@@ -241,14 +246,23 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     continue;
                 }
 
+                let dummy_ident = format_ident!("{}Dummy", table_name);
+                let prev_table_name = quote! {super::#mod_prev_ident::#table_name};
+
                 let migration_name = format_ident!("M{table_name}");
                 mod_output.extend(quote!{
                     pub struct #migration_name<#(#generics),*> {
                         #(#defs,)*
                     }
 
-                    impl<'a, #(#constraints),*> ::rust_query::migrate::TableMigration<'a> for #migration_name<#(#generics)*> {
+                    impl<'a, #(#constraints),*> ::rust_query::migrate::TableMigration<'a, #prev_table_name> for #migration_name<#(#generics)*> {
                         type T = #table_name;
+
+                        fn into_new(self: Box<Self>, prev: ::rust_query::value::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::insert::Writable<'a, T = Self::T>> {
+                            Box::new(#dummy_ident {
+                                #(#into_new,)*
+                            })
+                        }
                     }
                 });
 
@@ -258,9 +272,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, super::#mod_prev_ident::#table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, T = #table_name>>
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, #prev_table_name, T = #table_name>>
                 });
                 table_generics.push(table_generic);
+                tables.push(quote!{b.migrate_table(self.#table_lower)});
             }
         }
     
@@ -274,6 +289,11 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                 impl<#(#table_constraints),*> ::rust_query::migrate::Migration<#prev_schema> for M<#(#table_generics),*> {
                     type S = #schema;
+                    
+                    fn tables(self, b: &mut ::rust_query::migrate::SchemaBuilder) -> Self::S {
+                        #(#tables;)*
+                        #schema (())
+                    }
                 }
 
                 // impl ::rust_query::migrate::Schema for #schema {}
