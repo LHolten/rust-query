@@ -107,7 +107,6 @@ impl<'x> SchemaBuilder<'x> {
                 insert.select_from(new_select).unwrap();
 
                 let sql = insert.to_string(SqliteQueryBuilder);
-                eprintln!("{sql}");
                 self.conn.execute(&sql, []).unwrap();
             }
             ast.select = old_select;
@@ -182,7 +181,6 @@ impl<'a, S: Schema> Migrator<'a, S> {
                 .unwrap();
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
-                eprintln!("{sql}");
                 self.conn.execute(&sql, []).unwrap();
             }
             for rename in builder.rename {
