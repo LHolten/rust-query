@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::client::Client;
+use rust_query::migrate::Migrator;
 use rust_query_macros::schema;
 
 #[schema]
@@ -9,9 +9,6 @@ enum Schema {
     Album {
         #[version(1..)]
         something: String,
-        #[version(1..)]
-        new_title: String,
-        #[version(..1)]
         title: String,
         artist: Artist,
     },
@@ -51,7 +48,6 @@ enum Schema {
         fax: Option<String>,
         email: String,
     },
-    #[version(..2)]
     Genre {
         name: String,
     },
@@ -85,7 +81,6 @@ enum Schema {
         name: String,
         album: Album,
         media_type: MediaType,
-        #[version(..2)]
         genre: Genre,
         composer: Option<String>,
         milliseconds: i64,
@@ -94,25 +89,26 @@ enum Schema {
     },
 }
 
-pub fn migrate(client: &Client) -> v2::Schema {
+pub fn migrate() -> Migrator<v2::Schema> {
     let artist_title = HashMap::from([("a", "b")]);
-    client
-        .migrator()
-        .migrate(|_schema| v1::M {
-            album: |row, album| {
-                let artist = row.get(album.artist.name);
-                Box::new(v1::MAlbum {
-                    something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
-                    new_title: album.title,
-                })
-            },
-        })
-        .migrate(|_schema| v2::M {
-            customer: |row, customer| {
-                Box::new(v2::MCustomer {
-                    phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
-                })
-            },
-        })
-        .check()
+    let m = Migrator::<v0::Schema>::open_in_memory();
+    m.execute_batch(include_str!("../Chinook_Sqlite.sql"));
+    m.execute_batch(include_str!("../migrate.sql"));
+
+    m.migrate(|_schema| v1::M {
+        album: |row, album| {
+            let artist = row.get(album.artist.name);
+            Box::new(v1::MAlbum {
+                something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
+                // new_title: album.title,
+            })
+        },
+    })
+    .migrate(|_schema| v2::M {
+        customer: |row, customer| {
+            Box::new(v2::MCustomer {
+                phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
+            })
+        },
+    })
 }

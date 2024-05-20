@@ -4,53 +4,19 @@
 
 mod schema;
 
-mod tables {
-    include!(concat!(env!("OUT_DIR"), "/tables.rs"));
-}
+use rust_query::{migrate::Migrator, value::Value};
+use schema::migrate;
+use schema::v2::*;
 
-use std::sync::{LazyLock, OnceLock};
-
-use rust_query::{
-    client::Client,
-    insert::Writable,
-    migrate::migrate_table,
-    value::{Db, Value},
-    Row, Table,
-};
-use tables::{
-    Album, Artist, Customer, Employee, Invoice, InvoiceLine, Playlist, PlaylistTrack, Track,
-};
-
-use crate::tables::{AlbumDummy, ArtistDummy, Genre, GenreDummy};
-
-struct Tables {
-    genre: Genre,
-    album: Album,
-}
-
-static TABLES: LazyLock<Tables> = LazyLock::new(|| Tables {
-    genre: migrate_table(|t| {
-        let name = t.new_column(|_row| "jazz");
-        Box::new(GenreDummy { name })
-    }),
-    album: migrate_table(|t| {
-        let artist = t.initial_column();
-        t.version(1);
-        let title = t.new_column(|_| "space");
-        t.version(2);
-        Box::new(AlbumDummy { artist, title })
-    }),
-});
+type Client = Migrator<schema::v2::Schema>;
 
 fn main() {
-    let client = Client::open_in_memory();
-    client.execute_batch(include_str!("../Chinook_Sqlite.sql"));
-    client.execute_batch(include_str!("../migrate.sql"));
+    let client = migrate();
 
-    let genre_name = "my cool genre".to_string();
+    let artist_name = "my cool artist".to_string();
     client.new_query(|q| {
-        q.insert(GenreDummy {
-            name: genre_name.as_str(),
+        q.insert(ArtistDummy {
+            name: artist_name.as_str(),
         })
     });
 
@@ -74,7 +40,7 @@ struct InvoiceInfo {
 
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
     client.new_query(|q| {
-        let ivl = q.table(InvoiceLine);
+        let ivl = q.table(&client.invoice_line);
         q.into_vec(u32::MAX, |row| InvoiceInfo {
             track: row.get(ivl.track.name),
             artist: row.get(ivl.track.album.artist.name),
@@ -91,9 +57,9 @@ struct PlaylistTrackCount {
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     client.new_query(|q| {
-        let pl = q.table(Playlist);
+        let pl = q.table(&client.playlist);
         let track_count = q.query(|q| {
-            let plt = q.table(PlaylistTrack);
+            let plt = q.table(&client.playlist_track);
             q.filter_on(&plt.playlist, &pl);
             q.count_distinct(plt)
         });
@@ -107,13 +73,13 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
 
 fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
     client.new_query(|q| {
-        let artist = q.table(Artist);
+        let artist = q.table(&client.artist);
         let avg_track_count = q.query(|q| {
-            let album = q.table(Album);
+            let album = q.table(&client.album);
             q.filter_on(&album.artist, &artist);
 
             let track_count = q.query(|q| {
-                let track = q.table(Track);
+                let track = q.table(&client.track);
                 q.filter_on(&track.album, album);
 
                 q.count_distinct(track)
@@ -128,9 +94,9 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
 
 fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     client.new_query(|q| {
-        let receiver = q.table(Employee);
+        let receiver = q.table(&client.employee);
         let report_count = q.query(|q| {
-            let reporter = q.table(Employee);
+            let reporter = q.table(&client.employee);
             // only count employees that report to someone
             let reports_to = q.filter_some(&reporter.reports_to);
             q.filter_on(reports_to, &receiver);
@@ -156,6 +122,7 @@ struct FilteredTrack {
 }
 
 /// Tip: use [rust_query::Const::new] and [rust_query::Query::filter]
+/// Tip2: use implicit joins! something like `track.genre.name`
 fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     todo!()
 }

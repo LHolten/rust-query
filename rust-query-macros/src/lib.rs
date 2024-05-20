@@ -171,7 +171,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             );
         
             mod_output.extend(quote! {
-                pub struct #table_ident;
+                pub struct #table_ident(());
         
                 pub struct #dummy_ident<#(#generics_defs),*> {
                     #(#defs,)*
@@ -222,11 +222,19 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             quote! {super::#mod_prev_ident::#schema}
         };
 
+        let mut schema_table_defs = vec![];
+        let mut schema_table_inits = vec![];
+
         let mut table_defs = vec![];
         let mut table_generics: Vec<Ident> = vec![];
         let mut table_constraints: Vec<TokenStream> = vec![];
         let mut tables = vec![];
         for (i, (table, table_name)) in &new_tables {
+            let table_lower = to_lower(table_name);
+
+            schema_table_defs.push(quote!{pub #table_lower: #table_name});
+            schema_table_inits.push(quote!{#table_lower: #table_name(())});
+            
             if let Some((prev_columns, _)) = prev_tables.remove(i) {
 
                 let mut defs = vec![];
@@ -273,7 +281,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 });
 
                 let table_generic = make_generic(table_name);
-                let table_lower = to_lower(table_name);
                 table_defs.push(quote! {
                     pub #table_lower: #table_generic
                 });
@@ -293,12 +300,16 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let version_i64 = version as i64;
         output.extend(quote! {
             pub mod #mod_ident {
-                pub struct #schema (());
+                pub struct #schema {
+                    #(#schema_table_defs,)*
+                }
 
                 impl ::rust_query::migrate::Schema for #schema {
                     const VERSION: i64 = #version_i64;
                     fn new() -> Self {
-                        #schema (())
+                        #schema {
+                            #(#schema_table_inits,)* 
+                        }
                     }
                 }
 
@@ -309,9 +320,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 impl<#(#table_constraints),*> ::rust_query::migrate::Migration<#prev_schema> for M<#(#table_generics),*> {
                     type S = #schema;
                     
-                    fn tables(self, b: &mut ::rust_query::migrate::SchemaBuilder) -> Self::S {
+                    fn tables(self, b: &mut ::rust_query::migrate::SchemaBuilder) {
                         #(#tables;)*
-                        #schema (())
                     }
                 }
 

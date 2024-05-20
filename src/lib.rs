@@ -141,7 +141,7 @@ impl<'a> Builder<'a> {
 
 impl<'inner> Query<'inner> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
-    pub fn table<T: HasId>(&mut self, t: T) -> Db<'inner, T> {
+    pub fn table<T: HasId>(&mut self, t: &T) -> Db<'inner, T> {
         let joins = add_table(&self.ast.sources, t.name());
         FkInfo::joined(joins, Field::Str(T::ID))
     }

@@ -1,7 +1,7 @@
-use std::{cell::Cell, marker::PhantomData, mem::take};
+use std::{cell::Cell, marker::PhantomData, mem::take, ops::Deref, sync::atomic::AtomicBool};
 
 use elsa::FrozenVec;
-use rusqlite::Connection;
+use rusqlite::{config::DbConfig, Connection};
 use sea_query::{
     Alias, ColumnDef, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
@@ -9,10 +9,11 @@ use sea_query::{
 
 use crate::{
     ast::{add_table, MySelect},
+    client::QueryBuilder,
     insert::Reader,
     mymap::MyMap,
     value::{Db, Field, FkInfo, MyAlias, Value},
-    HasId, Row, Table,
+    Exec, HasId, Row, Table,
 };
 
 #[doc(hidden)]
@@ -155,27 +156,72 @@ fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {
 }
 
 pub trait Migration<From> {
-    type S;
+    type S: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder) -> Self::S;
+    fn tables(self, b: &mut SchemaBuilder);
 }
 
-pub struct Migrator<'x, S> {
+pub struct Migrator<S> {
     pub(crate) schema: Option<S>,
-    pub(crate) conn: &'x Connection,
+    pub(crate) conn: Connection,
 }
 
-impl<'a, S: Schema> Migrator<'a, S> {
-    pub fn migrate<M: Migration<S>>(mut self, f: impl FnOnce(&S) -> M) -> Migrator<'a, M::S> {
-        self.schema = self.schema.or_else(|| S::new_checked(self.conn));
+impl<S: Schema> Migrator<S> {
+    /// Create a new [Migrator] with recommended settings.
+    /// This can only be called once
+    pub fn open_in_memory() -> Self {
+        static ALLOWED: AtomicBool = AtomicBool::new(true);
+        assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
+
+        let inner = rusqlite::Connection::open_in_memory().unwrap();
+        inner.pragma_update(None, "journal_mode", "WAL").unwrap();
+        inner.pragma_update(None, "synchronous", "NORMAL").unwrap();
+        inner.pragma_update(None, "foreign_keys", "ON").unwrap();
+        inner
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)
+            .unwrap();
+        inner
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)
+            .unwrap();
+
+        Migrator {
+            schema: S::new_checked(&inner),
+            conn: inner,
+        }
+    }
+
+    /// Execute a raw sql statement, useful for loading a schema.
+    pub fn execute_batch(&self, sql: &str) {
+        self.conn.execute_batch(sql).unwrap();
+    }
+
+    /// Execute a new query.
+    pub fn new_query<'s, F, R>(&'s self, f: F) -> R
+    where
+        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
+    {
+        self.conn.new_query(f)
+    }
+}
+
+impl<S> Deref for Migrator<S> {
+    type Target = S;
+
+    fn deref(&self) -> &Self::Target {
+        self.schema.as_ref().unwrap()
+    }
+}
+
+impl<S: Schema> Migrator<S> {
+    pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<M::S> {
         if let Some(s) = self.schema {
             let res = f(&s);
             let mut builder = SchemaBuilder {
-                conn: self.conn,
+                conn: &self.conn,
                 drop: vec![],
                 rename: vec![],
             };
-            let res = res.tables(&mut builder);
+            res.tables(&mut builder);
 
             self.conn
                 .pragma_update(None, "foreign_keys", "OFF")
@@ -190,21 +236,18 @@ impl<'a, S: Schema> Migrator<'a, S> {
             }
             self.conn.pragma_update(None, "foreign_keys", "ON").unwrap();
             self.conn.execute_batch("PRAGMA foreign_key_check").unwrap();
+            set_user_version(&self.conn, M::S::VERSION).unwrap();
 
             Migrator {
-                schema: Some(res),
+                schema: Some(<M as Migration<S>>::S::new()),
                 conn: self.conn,
             }
         } else {
             Migrator {
-                schema: None,
+                schema: <M as Migration<S>>::S::new_checked(&self.conn),
                 conn: self.conn,
             }
         }
-    }
-
-    pub fn check(self) -> S {
-        self.schema.unwrap()
     }
 }
 
