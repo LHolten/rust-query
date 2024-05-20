@@ -192,7 +192,9 @@ impl<S: Schema> Migrator<S> {
 
     /// Execute a raw sql statement, useful for loading a schema.
     pub fn execute_batch(&self, sql: &str) {
-        self.conn.execute_batch(sql).unwrap();
+        if self.schema.is_some() {
+            self.conn.execute_batch(sql).unwrap();
+        }
     }
 
     /// Execute a new query.

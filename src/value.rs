@@ -1,5 +1,6 @@
 use std::{
     cell::OnceCell,
+    marker::PhantomData,
     ops::Deref,
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
@@ -191,6 +192,28 @@ impl<'t> Value<'t> for UnixEpoch {
 
     fn build_expr(&self) -> SimpleExpr {
         Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
+    }
+}
+
+pub struct Null<T>(PhantomData<T>);
+
+impl<T> Default for Null<T> {
+    fn default() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<T> Clone for Null<T> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl<'t, T: MyIdenT> Value<'t> for Null<T> {
+    type Typ = Option<T>;
+
+    fn build_expr(&self) -> SimpleExpr {
+        Expr::value(None::<i64>)
     }
 }
 

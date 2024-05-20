@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::migrate::Migrator;
+use rust_query::{migrate::Migrator, value::Null};
 use rust_query_macros::schema;
 
 #[schema]
@@ -67,6 +67,7 @@ enum Schema {
         unit_price: f64,
         quantity: i64,
     },
+    #[version(..2)]
     MediaType {
         name: String,
     },
@@ -80,12 +81,23 @@ enum Schema {
     Track {
         name: String,
         album: Album,
+        #[version(..2)]
         media_type: MediaType,
+        #[version(2..)]
+        media_type: String,
         genre: Genre,
         composer: Option<String>,
+        #[version(2..)]
+        composer_table: Option<Composer>,
         milliseconds: i64,
         bytes: i64,
         unit_price: f64,
+        #[version(2..)]
+        byte_price: f64,
+    },
+    #[version(2..)]
+    Composer {
+        name: String,
     },
 }
 
@@ -108,6 +120,13 @@ pub fn migrate() -> Migrator<v2::Schema> {
         customer: |row, customer| {
             Box::new(v2::MCustomer {
                 phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
+            })
+        },
+        track: |row, track| {
+            Box::new(v2::MTrack {
+                media_type: track.media_type.name,
+                composer_table: Null::<v2::Composer>::default(),
+                byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
             })
         },
     })
