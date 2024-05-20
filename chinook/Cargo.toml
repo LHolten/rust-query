@@ -6,6 +6,3 @@ edition = "2021"
 [dependencies]
 rust-query = {path = "../"}
 rust-query-macros = {path = "../rust-query-macros"}
-
-[build-dependencies]
-rust-query = {path = "../"}
