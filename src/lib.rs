@@ -79,6 +79,14 @@ impl TypBuilder {
             );
         }
     }
+
+    pub fn unique(&mut self, cols: &[&'static str]) {
+        let mut index = sea_query::Index::create().unique().take();
+        for col in cols {
+            index.col(Alias::new(*col));
+        }
+        self.ast.index(&mut index);
+    }
 }
 
 #[doc(hidden)]

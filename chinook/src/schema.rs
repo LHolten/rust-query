@@ -74,6 +74,7 @@ enum Schema {
     Playlist {
         name: String,
     },
+    #[unique(playlist, track)]
     PlaylistTrack {
         playlist: Playlist,
         track: Track,

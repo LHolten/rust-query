@@ -32,7 +32,7 @@ impl Table for TableList {
         }
     }
 
-    fn typs(f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut crate::TypBuilder) {}
 }
 
 pub struct TableInfo(pub String);
@@ -61,7 +61,7 @@ impl Table for TableInfo {
         }
     }
 
-    fn typs(f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut crate::TypBuilder) {}
 }
 pub struct ForeignKeyList(pub String);
 
@@ -87,5 +87,5 @@ impl Table for ForeignKeyList {
         }
     }
 
-    fn typs(f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut crate::TypBuilder) {}
 }

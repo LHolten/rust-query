@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Attribute, Ident, ItemEnum, Token, Type};
+use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, Token, Type};
 
 #[proc_macro_attribute]
 pub fn schema(
@@ -70,18 +70,19 @@ fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
     versions.parse_args()
 }
 
+fn make_generic(name: &Ident) -> Ident {
+    let normalized = name.to_string().to_upper_camel_case();
+    format_ident!("_{normalized}")
+}
+
+fn to_lower(name: &Ident) -> Ident {
+    let normalized = name.to_string().to_snek_case();
+    format_ident!("{normalized}")
+}
+
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let range = parse_version(&item.attrs)?;
     let schema = &item.ident ;
-    
-    let make_generic = |name: &Ident| {
-        let normalized = name.to_string().to_upper_camel_case();
-        format_ident!("_{normalized}")
-    };
-    let to_lower = |name: &Ident| {
-        let normalized = name.to_string().to_snek_case();
-        format_ident!("{normalized}")
-    };
     
     let mut output = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, (BTreeMap<usize, Column>, Ident)> = BTreeMap::new();
@@ -90,7 +91,21 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         
         let mut mod_output = TokenStream::new();
         for (i, table) in item.variants.iter().enumerate() {
-            let range = parse_version(&table.attrs)?;
+            let mut other_attrs = vec![];
+            let mut uniques = vec![];
+            for attr in &table.attrs {
+                if attr.path().is_ident("unique") {
+                    let idents = attr.parse_args_with(
+                        Punctuated::<Ident, Token![,]>::parse_separated_nonempty
+                    ).unwrap();
+                    let idents = idents.into_iter().map(|x|x.to_string());
+                    uniques.push(quote!{f.unique(&[#(#idents),*])});
+                } else {
+                    other_attrs.push(attr.clone());
+                }
+            }
+
+            let range = parse_version(&other_attrs)?;
             if !range.includes(version) {
                 continue;
             }
@@ -193,6 +208,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                     fn typs(f: &mut ::rust_query::TypBuilder) {
                         #(#def_typs;)*
+                        #(#uniques;)*
                     }
                 }
         
