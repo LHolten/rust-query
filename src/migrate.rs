@@ -1,6 +1,7 @@
 use std::{cell::Cell, marker::PhantomData, mem::take, ops::Deref, sync::atomic::AtomicBool};
 
 use elsa::FrozenVec;
+
 use rusqlite::{config::DbConfig, Connection};
 use sea_query::{
     Alias, ColumnDef, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement,
@@ -10,19 +11,34 @@ use sea_query::{
 use crate::{
     ast::{add_table, MySelect},
     client::QueryBuilder,
+    hash::{self, hash_schema},
     insert::Reader,
     mymap::MyMap,
     value::{Db, Field, FkInfo, MyAlias, Value},
     Exec, HasId, Row, Table,
 };
 
-#[doc(hidden)]
+#[derive(Default)]
+pub struct TypBuilder {
+    pub(crate) ast: hash::Schema,
+}
+
+impl TypBuilder {
+    pub fn table<T: Table>(&mut self, name: &'static str) {
+        let mut b = crate::TypBuilder::default();
+        T::typs(&mut b);
+        self.ast.tables.insert((name.to_owned(), b.ast));
+    }
+}
+
 pub trait Schema: Sized {
     const VERSION: i64;
+    #[doc(hidden)]
     fn new() -> Self;
-
-    fn new_checked(conn: &Connection) -> Option<Self> {
-        (user_version(conn).unwrap() == Self::VERSION).then(Self::new)
+    #[doc(hidden)]
+    fn typs(b: &mut TypBuilder);
+    fn assert_hash(expect: expect_test::Expect) {
+        expect.assert_eq(&hash_schema::<Self>())
     }
 }
 
@@ -143,14 +159,12 @@ impl<'x> SchemaBuilder<'x> {
 }
 
 fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {
-    let mut f = crate::TypBuilder {
-        ast: sea_query::Table::create(),
-    };
+    let mut f = crate::TypBuilder::default();
     T::typs(&mut f);
-    f.ast
-        .table(alias)
+    let mut ast = f.ast.create();
+    ast.table(alias)
         .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
-    let mut sql = f.ast.to_string(SqliteQueryBuilder);
+    let mut sql = ast.to_string(SqliteQueryBuilder);
     sql.push_str(" STRICT");
     conn.execute(&sql, []).unwrap();
 }
@@ -185,7 +199,7 @@ impl<S: Schema> Migrator<S> {
             .unwrap();
 
         Migrator {
-            schema: S::new_checked(&inner),
+            schema: new_checked::<S>(&inner),
             conn: inner,
         }
     }
@@ -246,7 +260,7 @@ impl<S: Schema> Migrator<S> {
             }
         } else {
             Migrator {
-                schema: <M as Migration<S>>::S::new_checked(&self.conn),
+                schema: new_checked::<<M as Migration<S>>::S>(&self.conn),
                 conn: self.conn,
             }
         }
@@ -261,4 +275,8 @@ fn user_version(conn: &Connection) -> Result<i64, rusqlite::Error> {
 // Set user version field from the SQLite db
 fn set_user_version(conn: &Connection, v: i64) -> Result<(), rusqlite::Error> {
     conn.pragma_update(None, "user_version", v)
+}
+
+fn new_checked<T: Schema>(conn: &Connection) -> Option<T> {
+    (user_version(conn).unwrap() == T::VERSION).then(T::new)
 }

@@ -32,6 +32,12 @@ enum Schema {
         email: String,
         support_rep: Employee,
     },
+    #[version(1..)]
+    #[unique(employee, artist)]
+    ListensTo {
+        employee: Employee,
+        artist: Artist,
+    },
     Employee {
         last_name: String,
         first_name: String,
@@ -131,4 +137,16 @@ pub fn migrate() -> Migrator<v2::Schema> {
             })
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_query::{expect, migrate::Schema};
+
+    #[test]
+    fn backwards_compat() {
+        v0::Schema::assert_hash(expect!["38f654ce24217792"]);
+        v1::Schema::assert_hash(expect!["d9962ef27f0ea2e8"]);
+    }
 }

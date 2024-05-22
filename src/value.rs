@@ -7,11 +7,11 @@ use std::{
 };
 
 use elsa::FrozenVec;
-use sea_query::{ColumnType, Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
+use sea_query::{Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
 
 use crate::{
     ast::{Joins, MyTable},
-    Builder, HasId,
+    hash, Builder, HasId,
 };
 
 /// Trait for all values that can be used in queries.
@@ -67,6 +67,7 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
     }
 }
 
+// FIXME: don't allow nested options!
 impl<'t, T: Value<'t> + Nullable> Value<'t> for Option<T> {
     type Typ = Option<T::Typ>;
 
@@ -337,40 +338,40 @@ pub(super) trait MyIdenT: Sized {
         }
     }
     const NULLABLE: bool = false;
-    const TYP: ColumnType;
+    const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
 }
 
 impl<T: HasId> MyIdenT for T {
     type Info<'t> = FkInfo<'t, T>;
-    const TYP: ColumnType = ColumnType::Integer;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
 }
 
 impl MyIdenT for i64 {
     type Info<'t> = ValueInfo;
-    const TYP: ColumnType = ColumnType::Integer;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
 }
 
 impl MyIdenT for f64 {
     type Info<'t> = ValueInfo;
-    const TYP: ColumnType = ColumnType::Float;
+    const TYP: hash::ColumnType = hash::ColumnType::Float;
 }
 
 impl MyIdenT for bool {
     type Info<'t> = ValueInfo;
-    const TYP: ColumnType = ColumnType::Boolean;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
 }
 
 impl MyIdenT for String {
     type Info<'t> = ValueInfo;
-    const TYP: ColumnType = ColumnType::String(None);
+    const TYP: hash::ColumnType = hash::ColumnType::String;
 }
 
 impl<T: MyIdenT> MyIdenT for Option<T> {
     type Info<'t> = T::Info<'t>;
 
-    const TYP: ColumnType = T::TYP;
+    const TYP: hash::ColumnType = T::TYP;
     const NULLABLE: bool = true;
 }
 

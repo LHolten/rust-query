@@ -240,6 +240,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let mut schema_table_defs = vec![];
         let mut schema_table_inits = vec![];
+        let mut schema_table_typs = vec![];
 
         let mut table_defs = vec![];
         let mut table_generics: Vec<Ident> = vec![];
@@ -247,9 +248,11 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let mut tables = vec![];
         for (i, (table, table_name)) in &new_tables {
             let table_lower = to_lower(table_name);
+            let table_str: &String = &table_name.to_string();
 
             schema_table_defs.push(quote!{pub #table_lower: #table_name});
             schema_table_inits.push(quote!{#table_lower: #table_name(())});
+            schema_table_typs.push(quote!{b.table::<#table_name>(#table_str)});
             
             if let Some((prev_columns, _)) = prev_tables.remove(i) {
 
@@ -326,6 +329,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #schema {
                             #(#schema_table_inits,)* 
                         }
+                    }
+
+                    fn typs(b: &mut ::rust_query::migrate::TypBuilder) {
+                        #(#schema_table_typs;)*
                     }
                 }
 

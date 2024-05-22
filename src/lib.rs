@@ -3,6 +3,7 @@
 mod ast;
 pub mod client;
 pub mod group;
+mod hash;
 #[doc(hidden)]
 pub mod insert;
 pub mod migrate;
@@ -10,6 +11,8 @@ mod mymap;
 mod pragma;
 pub mod schema;
 pub mod value;
+
+pub use expect_test::expect;
 
 pub use pragma::Pragma;
 
@@ -23,9 +26,7 @@ use ast::{add_table, Joins, MySelect, MyTable, Source};
 
 use elsa::FrozenVec;
 use group::GroupQuery;
-use sea_query::{
-    Alias, ColumnDef, Expr, ForeignKey, Iden, SqliteQueryBuilder, TableCreateStatement,
-};
+use sea_query::{Expr, Iden, SqliteQueryBuilder};
 use value::{Db, Field, FieldAlias, FkInfo, MyAlias, MyIdenT, Value};
 
 /// This is the top level query type and dereferences to [Query].
@@ -58,34 +59,31 @@ pub struct Query<'inner> {
     client: &'inner rusqlite::Connection,
 }
 
+#[derive(Default)]
 pub struct TypBuilder {
-    ast: TableCreateStatement,
+    ast: hash::Table,
 }
 
 impl TypBuilder {
     pub fn col<T: MyIdenT>(&mut self, name: &'static str) {
-        let mut def = ColumnDef::new_with_type(Alias::new(name), T::TYP);
-        if T::NULLABLE {
-            def.null();
-        } else {
-            def.not_null();
-        }
-        self.ast.col(&mut def);
+        let mut item = hash::Column {
+            name: name.to_owned(),
+            typ: T::TYP,
+            nullable: T::NULLABLE,
+            fk: None,
+        };
         if let Some((table, fk)) = T::FK {
-            self.ast.foreign_key(
-                ForeignKey::create()
-                    .to(Alias::new(table), Alias::new(fk))
-                    .from_col(Alias::new(name)),
-            );
+            item.fk = Some((table.to_owned(), fk.to_owned()))
         }
+        self.ast.columns.insert(item)
     }
 
     pub fn unique(&mut self, cols: &[&'static str]) {
-        let mut index = sea_query::Index::create().unique().take();
-        for col in cols {
-            index.col(Alias::new(*col));
+        let mut unique = hash::Unique::default();
+        for &col in cols {
+            unique.columns.insert(col.to_owned());
         }
-        self.ast.index(&mut index);
+        self.ast.uniques.insert(unique);
     }
 }
 
