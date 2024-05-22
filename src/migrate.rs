@@ -14,6 +14,7 @@ use crate::{
     hash::{self, hash_schema},
     insert::Reader,
     mymap::MyMap,
+    pragma::read_schema,
     value::{Db, Field, FkInfo, MyAlias, Value},
     Exec, HasId, Row, Table,
 };
@@ -175,16 +176,14 @@ pub trait Migration<From> {
     fn tables(self, b: &mut SchemaBuilder);
 }
 
-pub struct Migrator<S> {
-    pub(crate) schema: Option<S>,
+pub struct TestPrepare {
     pub(crate) conn: Connection,
 }
 
-impl<S: Schema> Migrator<S> {
-    /// Create a new [Migrator] with recommended settings.
-    /// This can only be called once
+static ALLOWED: AtomicBool = AtomicBool::new(true);
+
+impl TestPrepare {
     pub fn open_in_memory() -> Self {
-        static ALLOWED: AtomicBool = AtomicBool::new(true);
         assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
 
         let inner = rusqlite::Connection::open_in_memory().unwrap();
@@ -198,26 +197,25 @@ impl<S: Schema> Migrator<S> {
             .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)
             .unwrap();
 
-        Migrator {
-            schema: new_checked::<S>(&inner),
-            conn: inner,
-        }
+        Self { conn: inner }
     }
 
-    /// Execute a raw sql statement, useful for loading a schema.
+    /// Execute a raw sql statement.
     pub fn execute_batch(&self, sql: &str) {
-        if self.schema.is_some() {
-            self.conn.execute_batch(sql).unwrap();
-        }
+        self.conn.execute_batch(sql).unwrap();
     }
 
-    /// Execute a new query.
-    pub fn new_query<'s, F, R>(&'s self, f: F) -> R
-    where
-        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
-    {
-        self.conn.new_query(f)
+    pub fn migrator<S: Schema>(self) -> Migrator<S> {
+        Migrator {
+            schema: new_checked::<S>(&self.conn),
+            conn: self.conn,
+        }
     }
+}
+
+pub struct Migrator<S> {
+    pub(crate) schema: Option<S>,
+    pub(crate) conn: Connection,
 }
 
 impl<S> Deref for Migrator<S> {
@@ -229,6 +227,14 @@ impl<S> Deref for Migrator<S> {
 }
 
 impl<S: Schema> Migrator<S> {
+    /// Execute a new query.
+    pub fn new_query<'s, F, R>(&'s self, f: F) -> R
+    where
+        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
+    {
+        self.conn.new_query(f)
+    }
+
     pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<M::S> {
         if let Some(s) = self.schema {
             let res = f(&s);
@@ -237,11 +243,10 @@ impl<S: Schema> Migrator<S> {
                 drop: vec![],
                 rename: vec![],
             };
-            res.tables(&mut builder);
-
             self.conn
                 .pragma_update(None, "foreign_keys", "OFF")
                 .unwrap();
+            res.tables(&mut builder);
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
                 self.conn.execute(&sql, []).unwrap();
@@ -278,5 +283,17 @@ fn set_user_version(conn: &Connection, v: i64) -> Result<(), rusqlite::Error> {
 }
 
 fn new_checked<T: Schema>(conn: &Connection) -> Option<T> {
-    (user_version(conn).unwrap() == T::VERSION).then(T::new)
+    if user_version(conn).unwrap() != T::VERSION {
+        return None;
+    }
+
+    let mut b = TypBuilder::default();
+    T::typs(&mut b);
+    assert_eq!(
+        b.ast,
+        read_schema(conn),
+        "user version is equal, but schema is different"
+    );
+
+    Some(T::new())
 }

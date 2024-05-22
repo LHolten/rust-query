@@ -9,10 +9,10 @@ pub mod insert;
 pub mod migrate;
 mod mymap;
 mod pragma;
-pub mod schema;
 pub mod value;
 
 pub use expect_test::expect;
+pub use rust_query_macros::schema;
 
 pub use pragma::Pragma;
 

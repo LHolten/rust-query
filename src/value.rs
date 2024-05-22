@@ -373,6 +373,7 @@ impl<T: MyIdenT> MyIdenT for Option<T> {
 
     const TYP: hash::ColumnType = T::TYP;
     const NULLABLE: bool = true;
+    const FK: Option<(&'static str, &'static str)> = T::FK;
 }
 
 /// This is a dummy database column reference.

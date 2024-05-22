@@ -46,7 +46,6 @@ name = "chinook"
 version = "0.1.0"
 dependencies = [
  "rust-query",
- "rust-query-macros",
 ]
 
 [[package]]
@@ -257,6 +256,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rusqlite",
+ "rust-query-macros",
  "sea-query",
 ]
 

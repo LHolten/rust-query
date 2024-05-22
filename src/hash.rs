@@ -14,7 +14,7 @@ use k12::{
 };
 use sea_query::TableCreateStatement;
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
     Integer = 0,
     Float = 1,
@@ -32,7 +32,7 @@ impl ColumnType {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Column {
     pub name: String,
     pub typ: ColumnType,
@@ -40,19 +40,19 @@ pub struct Column {
     pub fk: Option<(String, String)>,
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Unique {
     pub columns: MyVec<String>,
 }
 
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Table {
     pub columns: MyVec<Column>,
     pub uniques: MyVec<Unique>,
 }
 
 /// Special [Vec] wrapper with a hash that is independent of the item order
-#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MyVec<T> {
     inner: Vec<T>,
 }
@@ -112,7 +112,7 @@ impl Table {
     }
 }
 
-#[derive(Hash, Default)]
+#[derive(Debug, Hash, Default, PartialEq, Eq)]
 pub struct Schema {
     pub tables: MyVec<(String, Table)>,
 }

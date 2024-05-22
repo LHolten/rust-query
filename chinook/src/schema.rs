@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
-use rust_query::{migrate::Migrator, value::Null};
-use rust_query_macros::schema;
+use rust_query::{
+    migrate::{Migrator, TestPrepare},
+    schema,
+    value::Null,
+};
 
 #[schema]
 #[version(0..3)]
@@ -23,8 +26,8 @@ enum Schema {
         first_name: String,
         last_name: String,
         company: Option<String>,
-        address: Option<String>,
-        city: Option<String>,
+        address: String,
+        city: String,
         state: Option<String>,
         country: String,
         postal_code: Option<String>,
@@ -110,33 +113,34 @@ enum Schema {
 
 pub fn migrate() -> Migrator<v2::Schema> {
     let artist_title = HashMap::from([("a", "b")]);
-    let m = Migrator::<v0::Schema>::open_in_memory();
+    let m = TestPrepare::open_in_memory();
     m.execute_batch(include_str!("../Chinook_Sqlite.sql"));
     m.execute_batch(include_str!("../migrate.sql"));
 
-    m.migrate(|_schema| v1::M {
-        album: |row, album| {
-            let artist = row.get(album.artist.name);
-            Box::new(v1::MAlbum {
-                something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
-                // new_title: album.title,
-            })
-        },
-    })
-    .migrate(|_schema| v2::M {
-        customer: |row, customer| {
-            Box::new(v2::MCustomer {
-                phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
-            })
-        },
-        track: |row, track| {
-            Box::new(v2::MTrack {
-                media_type: track.media_type.name,
-                composer_table: Null::<v2::Composer>::default(),
-                byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
-            })
-        },
-    })
+    m.migrator::<v0::Schema>()
+        .migrate(|_schema| v1::M {
+            album: |row, album| {
+                let artist = row.get(album.artist.name);
+                Box::new(v1::MAlbum {
+                    something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
+                    // new_title: album.title,
+                })
+            },
+        })
+        .migrate(|_schema| v2::M {
+            customer: |row, customer| {
+                Box::new(v2::MCustomer {
+                    phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
+                })
+            },
+            track: |row, track| {
+                Box::new(v2::MTrack {
+                    media_type: track.media_type.name,
+                    composer_table: Null::<v2::Composer>::default(),
+                    byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
+                })
+            },
+        })
 }
 
 #[cfg(test)]
