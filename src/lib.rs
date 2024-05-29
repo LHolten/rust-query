@@ -178,6 +178,7 @@ impl<'inner> Query<'inner> {
         let Source::Select(ast, joins) = source else {
             unreachable!()
         };
+        ast.group.set(true);
         let inner = Query {
             phantom: PhantomData,
             ast,
