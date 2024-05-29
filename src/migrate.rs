@@ -1,4 +1,4 @@
-use std::{cell::Cell, marker::PhantomData, mem::take, sync::atomic::AtomicBool};
+use std::{cell::Cell, marker::PhantomData, mem::take, path::Path, sync::atomic::AtomicBool};
 
 use elsa::FrozenVec;
 
@@ -177,7 +177,7 @@ pub trait Migration<From> {
     fn tables(self, b: &mut SchemaBuilder);
 }
 
-pub struct TestPrepare {
+pub struct Prepare {
     pub(crate) conn: Connection,
 }
 
@@ -191,11 +191,19 @@ pub(crate) struct OwnedTransaction {
     pub(crate) transaction: Transaction<'this>,
 }
 
-impl TestPrepare {
-    pub fn open_in_memory() -> Self {
-        assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
+impl Prepare {
+    pub fn open(p: impl AsRef<Path>) -> Self {
+        let inner = rusqlite::Connection::open(p).unwrap();
+        Self::open_internal(inner)
+    }
 
+    pub fn open_in_memory() -> Self {
         let inner = rusqlite::Connection::open_in_memory().unwrap();
+        Self::open_internal(inner)
+    }
+
+    fn open_internal(inner: rusqlite::Connection) -> Self {
+        assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
         inner.pragma_update(None, "journal_mode", "WAL").unwrap();
         inner.pragma_update(None, "synchronous", "NORMAL").unwrap();
         inner.pragma_update(None, "foreign_keys", "ON").unwrap();
