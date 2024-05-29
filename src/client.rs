@@ -1,15 +1,23 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 use crate::{ast::MySelect, Exec, Query};
 
 /// This is a wrapper for [rusqlite::Connection].
 /// It's main purpose is to remove the need to depend on rusqlite in the future.
-/// Right now it is mostly used in the tests.
-pub struct Client {
-    pub(crate) inner: &'static rusqlite::Connection,
+pub struct Client<S> {
+    pub(crate) inner: rusqlite::Connection,
+    pub(crate) schema: S,
 }
 
-impl Client {
+impl<S> Deref for Client<S> {
+    type Target = S;
+
+    fn deref(&self) -> &Self::Target {
+        &self.schema
+    }
+}
+
+impl<S> Client<S> {
     /// Execute a new query.
     pub fn new_query<'s, F, R>(&'s self, f: F) -> R
     where

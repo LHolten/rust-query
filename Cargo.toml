@@ -22,5 +22,6 @@ heck = "0.5.0"
 expect-test = "1"
 k12 = "0.3"
 rust-query-macros = {path = "rust-query-macros"}
+ouroboros = "0.18.4"
 
 [dev-dependencie]

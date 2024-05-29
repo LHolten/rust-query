@@ -1,14 +1,13 @@
 #![allow(dead_code)]
 #![feature(closure_lifetime_binder)]
-#![feature(lazy_cell)]
 
 mod schema;
 
-use rust_query::{migrate::Migrator, value::Value};
+use rust_query::value::Value;
 use schema::migrate;
 use schema::v2::*;
 
-type Client = Migrator<schema::v2::Schema>;
+type Client = rust_query::client::Client<schema::v2::Schema>;
 
 fn main() {
     let client = migrate();

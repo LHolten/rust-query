@@ -1,8 +1,9 @@
-use std::{cell::Cell, marker::PhantomData, mem::take, ops::Deref, sync::atomic::AtomicBool};
+use std::{cell::Cell, marker::PhantomData, mem::take, sync::atomic::AtomicBool};
 
 use elsa::FrozenVec;
 
-use rusqlite::{config::DbConfig, Connection};
+use ouroboros::self_referencing;
+use rusqlite::{config::DbConfig, Connection, Transaction};
 use sea_query::{
     Alias, ColumnDef, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
@@ -10,7 +11,7 @@ use sea_query::{
 
 use crate::{
     ast::{add_table, MySelect},
-    client::QueryBuilder,
+    client::{Client, QueryBuilder},
     hash::{self, hash_schema},
     insert::Reader,
     mymap::MyMap,
@@ -182,6 +183,14 @@ pub struct TestPrepare {
 
 static ALLOWED: AtomicBool = AtomicBool::new(true);
 
+#[self_referencing]
+pub(crate) struct OwnedTransaction {
+    pub(crate) conn: Connection,
+    #[borrows(mut conn)]
+    #[covariant]
+    pub(crate) transaction: Transaction<'this>,
+}
+
 impl TestPrepare {
     pub fn open_in_memory() -> Self {
         assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
@@ -206,24 +215,27 @@ impl TestPrepare {
     }
 
     pub fn migrator<S: Schema>(self) -> Migrator<S> {
+        let schema = new_checked::<S>(&self.conn);
+
+        self.conn
+            .pragma_update(None, "foreign_keys", "OFF")
+            .unwrap();
+
+        let owned = OwnedTransaction::new(self.conn, |x| {
+            x.transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
+                .unwrap()
+        });
+
         Migrator {
-            schema: new_checked::<S>(&self.conn),
-            conn: self.conn,
+            schema,
+            transaction: owned,
         }
     }
 }
 
 pub struct Migrator<S> {
     pub(crate) schema: Option<S>,
-    pub(crate) conn: Connection,
-}
-
-impl<S> Deref for Migrator<S> {
-    type Target = S;
-
-    fn deref(&self) -> &Self::Target {
-        self.schema.as_ref().unwrap()
-    }
+    pub(crate) transaction: OwnedTransaction,
 }
 
 impl<S: Schema> Migrator<S> {
@@ -232,42 +244,55 @@ impl<S: Schema> Migrator<S> {
     where
         F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
     {
-        self.conn.new_query(f)
+        self.transaction.borrow_transaction().new_query(f)
     }
 
     pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<M::S> {
+        let conn = self.transaction.borrow_transaction();
         if let Some(s) = self.schema {
             let res = f(&s);
             let mut builder = SchemaBuilder {
-                conn: &self.conn,
+                conn,
                 drop: vec![],
                 rename: vec![],
             };
-            self.conn
-                .pragma_update(None, "foreign_keys", "OFF")
-                .unwrap();
             res.tables(&mut builder);
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
-                self.conn.execute(&sql, []).unwrap();
+                conn.execute(&sql, []).unwrap();
             }
             for rename in builder.rename {
                 let sql = rename.to_string(SqliteQueryBuilder);
-                self.conn.execute(&sql, []).unwrap();
+                conn.execute(&sql, []).unwrap();
             }
-            self.conn.pragma_update(None, "foreign_keys", "ON").unwrap();
-            self.conn.execute_batch("PRAGMA foreign_key_check").unwrap();
-            set_user_version(&self.conn, M::S::VERSION).unwrap();
+            conn.execute_batch("PRAGMA foreign_key_check").unwrap();
+            set_user_version(conn, M::S::VERSION).unwrap();
 
             Migrator {
                 schema: Some(<M as Migration<S>>::S::new()),
-                conn: self.conn,
+                transaction: self.transaction,
             }
         } else {
             Migrator {
-                schema: new_checked::<<M as Migration<S>>::S>(&self.conn),
-                conn: self.conn,
+                schema: new_checked::<<M as Migration<S>>::S>(conn),
+                transaction: self.transaction,
             }
+        }
+    }
+
+    pub fn finish(mut self) -> Client<S> {
+        self.transaction
+            .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
+
+        let heads = self.transaction.into_heads();
+        heads
+            .conn
+            .pragma_update(None, "foreign_keys", "ON")
+            .unwrap();
+
+        Client {
+            inner: heads.conn,
+            schema: self.schema.unwrap(),
         }
     }
 }
