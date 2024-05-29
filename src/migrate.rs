@@ -26,10 +26,10 @@ pub struct TypBuilder {
 }
 
 impl TypBuilder {
-    pub fn table<T: Table>(&mut self, name: &'static str) {
+    pub fn table<T: HasId>(&mut self) {
         let mut b = crate::TypBuilder::default();
         T::typs(&mut b);
-        self.ast.tables.insert((name.to_owned(), b.ast));
+        self.ast.tables.insert((T::NAME.to_owned(), b.ast));
     }
 }
 
@@ -288,7 +288,7 @@ impl<S: Schema> Migrator<S> {
         }
     }
 
-    pub fn finish(mut self) -> Client<S> {
+    pub fn finish(mut self) -> (Client, S) {
         self.transaction
             .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
@@ -298,10 +298,7 @@ impl<S: Schema> Migrator<S> {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        Client {
-            inner: heads.conn,
-            schema: self.schema.unwrap(),
-        }
+        (Client { inner: heads.conn }, self.schema.unwrap())
     }
 }
 

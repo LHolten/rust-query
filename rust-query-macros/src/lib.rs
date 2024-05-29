@@ -64,7 +64,7 @@ fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
         return Ok(Range {start:0, end: None})
     }
     let [versions] = attrs else {
-        panic!()
+        panic!("got unexpected attribute")
     };
     assert!(versions.path().is_ident("version"));
     versions.parse_args()
@@ -177,7 +177,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         
             let dummy_ident = format_ident!("{}Dummy", table_ident);
         
-            let table_name: &String = &table_ident.to_string();
+            let table_name: &String = &table_ident.to_string().to_snek_case();
             let has_id = quote!(
                 impl ::rust_query::HasId for #table_ident {
                     const ID: &'static str = "id";
@@ -248,11 +248,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let mut tables = vec![];
         for (i, (table, table_name)) in &new_tables {
             let table_lower = to_lower(table_name);
-            let table_str: &String = &table_name.to_string();
 
             schema_table_defs.push(quote!{pub #table_lower: #table_name});
             schema_table_inits.push(quote!{#table_lower: #table_name(())});
-            schema_table_typs.push(quote!{b.table::<#table_name>(#table_str)});
+            schema_table_typs.push(quote!{b.table::<#table_name>()});
             
             if let Some((prev_columns, _)) = prev_tables.remove(i) {
 
