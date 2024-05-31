@@ -1,11 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{
-    client::Client,
-    migrate::TestPrepare,
-    schema,
-    value::Null,
-};
+use rust_query::{client::Client, migrate::Prepare, schema, value::Null};
 
 #[schema]
 #[version(0..3)]
@@ -112,9 +107,9 @@ enum Schema {
     },
 }
 
-pub fn migrate() -> Client<v2::Schema> {
+pub fn migrate() -> (Client, v2::Schema) {
     let artist_title = HashMap::from([("a", "b")]);
-    let m = TestPrepare::open_in_memory();
+    let m = Prepare::open_in_memory();
     m.execute_batch(include_str!("../Chinook_Sqlite.sql"));
     m.execute_batch(include_str!("../migrate.sql"));
 

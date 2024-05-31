@@ -5,7 +5,7 @@ CREATE TABLE [Album2] (
     [id] INTEGER PRIMARY KEY,
     [title] TEXT NOT NULL,
     [artist] INTEGER NOT NULL,
-    FOREIGN KEY ([artist]) REFERENCES [Artist] ([id])
+    FOREIGN KEY ([artist]) REFERENCES [artist] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -18,7 +18,7 @@ FROM
 DROP TABLE Album;
 
 ALTER TABLE
-    Album2 RENAME TO Album;
+    Album2 RENAME TO album;
 
 CREATE TABLE [Artist2] (
     [id] INTEGER PRIMARY KEY,
@@ -35,7 +35,7 @@ FROM
 DROP TABLE Artist;
 
 ALTER TABLE
-    Artist2 RENAME TO Artist;
+    Artist2 RENAME TO artist;
 
 CREATE TABLE [Customer2] (
     [id] INTEGER PRIMARY KEY,
@@ -51,7 +51,7 @@ CREATE TABLE [Customer2] (
     [fax] TEXT,
     [email] TEXT NOT NULL,
     [support_rep] INTEGER NOT NULL,
-    FOREIGN KEY ([support_rep]) REFERENCES [Employee] ([id])
+    FOREIGN KEY ([support_rep]) REFERENCES [employee] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -64,7 +64,7 @@ FROM
 DROP TABLE Customer;
 
 ALTER TABLE
-    Customer2 RENAME TO Customer;
+    Customer2 RENAME TO customer;
 
 CREATE TABLE [Employee2] (
     [id] INTEGER PRIMARY KEY,
@@ -82,7 +82,7 @@ CREATE TABLE [Employee2] (
     [phone] TEXT,
     [fax] TEXT,
     [email] TEXT NOT NULL,
-    FOREIGN KEY ([reports_to]) REFERENCES [Employee] ([id])
+    FOREIGN KEY ([reports_to]) REFERENCES [employee] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -95,7 +95,7 @@ FROM
 DROP TABLE Employee;
 
 ALTER TABLE
-    Employee2 RENAME TO Employee;
+    Employee2 RENAME TO employee;
 
 CREATE TABLE [Genre2] (
     [id] INTEGER PRIMARY KEY,
@@ -112,7 +112,7 @@ FROM
 DROP TABLE Genre;
 
 ALTER TABLE
-    Genre2 RENAME TO Genre;
+    Genre2 RENAME TO genre;
 
 CREATE TABLE [Invoice2] (
     [id] INTEGER PRIMARY KEY,
@@ -124,7 +124,7 @@ CREATE TABLE [Invoice2] (
     [billing_country] TEXT,
     [billing_postal_code] TEXT,
     [total] REAL NOT NULL,
-    FOREIGN KEY ([customer]) REFERENCES [Customer] ([id])
+    FOREIGN KEY ([customer]) REFERENCES [customer] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -137,7 +137,7 @@ FROM
 DROP TABLE Invoice;
 
 ALTER TABLE
-    Invoice2 RENAME TO Invoice;
+    Invoice2 RENAME TO invoice;
 
 CREATE TABLE [InvoiceLine2] (
     [id] INTEGER PRIMARY KEY,
@@ -145,8 +145,8 @@ CREATE TABLE [InvoiceLine2] (
     [track] INTEGER NOT NULL,
     [unit_price] REAL NOT NULL,
     [quantity] INTEGER NOT NULL,
-    FOREIGN KEY ([invoice]) REFERENCES [Invoice] ([id]),
-    FOREIGN KEY ([track]) REFERENCES [Track] ([id])
+    FOREIGN KEY ([invoice]) REFERENCES [invoice] ([id]),
+    FOREIGN KEY ([track]) REFERENCES [track] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -159,7 +159,7 @@ FROM
 DROP TABLE InvoiceLine;
 
 ALTER TABLE
-    InvoiceLine2 RENAME TO InvoiceLine;
+    InvoiceLine2 RENAME TO invoice_line;
 
 CREATE TABLE [MediaType2] (
     [id] INTEGER PRIMARY KEY,
@@ -176,7 +176,7 @@ FROM
 DROP TABLE MediaType;
 
 ALTER TABLE
-    MediaType2 RENAME TO MediaType;
+    MediaType2 RENAME TO media_type;
 
 CREATE TABLE [Playlist2] (
     [id] INTEGER PRIMARY KEY,
@@ -193,15 +193,15 @@ FROM
 DROP TABLE Playlist;
 
 ALTER TABLE
-    Playlist2 RENAME TO Playlist;
+    Playlist2 RENAME TO playlist;
 
 CREATE TABLE [PlaylistTrack2] (
     [id] INTEGER PRIMARY KEY,
     [playlist] INTEGER NOT NULL,
     [track] INTEGER NOT NULL,
     CONSTRAINT [PlaylistTrackUnique] UNIQUE ([playlist], [track]),
-    FOREIGN KEY ([playlist]) REFERENCES [Playlist] ([id]),
-    FOREIGN KEY ([track]) REFERENCES [Track] ([id])
+    FOREIGN KEY ([playlist]) REFERENCES [playlist] ([id]),
+    FOREIGN KEY ([track]) REFERENCES [track] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -216,7 +216,7 @@ FROM
 DROP TABLE PlaylistTrack;
 
 ALTER TABLE
-    PlaylistTrack2 RENAME TO PlaylistTrack;
+    PlaylistTrack2 RENAME TO playlist_track;
 
 CREATE TABLE [Track2] (
     [id] INTEGER PRIMARY KEY,
@@ -228,9 +228,9 @@ CREATE TABLE [Track2] (
     [milliseconds] INTEGER NOT NULL,
     [bytes] INTEGER NOT NULL,
     [unit_price] REAL NOT NULL,
-    FOREIGN KEY ([album]) REFERENCES [Album] ([id]),
-    FOREIGN KEY ([genre]) REFERENCES [Genre] ([id]),
-    FOREIGN KEY ([media_type]) REFERENCES [MediaType] ([id])
+    FOREIGN KEY ([album]) REFERENCES [album] ([id]),
+    FOREIGN KEY ([genre]) REFERENCES [genre] ([id]),
+    FOREIGN KEY ([media_type]) REFERENCES [media_type] ([id])
 ) STRICT;
 
 INSERT INTO
@@ -243,28 +243,6 @@ FROM
 DROP TABLE Track;
 
 ALTER TABLE
-    Track2 RENAME TO Track;
+    Track2 RENAME TO track;
 
 PRAGMA foreign_keys = ON;
-
-CREATE INDEX [IFK_AlbumArtistId] ON [Album] ([artist]);
-
-CREATE INDEX [IFK_CustomerSupportRepId] ON [Customer] ([support_rep]);
-
-CREATE INDEX [IFK_EmployeeReportsTo] ON [Employee] ([reports_to]);
-
-CREATE INDEX [IFK_InvoiceCustomerId] ON [Invoice] ([customer]);
-
-CREATE INDEX [IFK_InvoiceLineInvoiceId] ON [InvoiceLine] ([invoice]);
-
-CREATE INDEX [IFK_InvoiceLineTrackId] ON [InvoiceLine] ([track]);
-
-CREATE INDEX [IFK_PlaylistTrackPlaylistId] ON [PlaylistTrack] ([playlist]);
-
-CREATE INDEX [IFK_PlaylistTrackTrackId] ON [PlaylistTrack] ([track]);
-
-CREATE INDEX [IFK_TrackAlbumId] ON [Track] ([album]);
-
-CREATE INDEX [IFK_TrackGenreId] ON [Track] ([genre]);
-
-CREATE INDEX [IFK_TrackMediaTypeId] ON [Track] ([media_type]);

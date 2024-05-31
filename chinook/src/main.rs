@@ -3,14 +3,25 @@
 
 mod schema;
 
+use std::ops::Deref;
+use std::sync::LazyLock;
+use std::sync::Mutex;
+
+use rust_query::client::Client;
 use rust_query::value::Value;
 use schema::migrate;
 use schema::v2::*;
 
-type Client = rust_query::client::Client<schema::v2::Schema>;
+static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
+static DB: LazyLock<schema::v2::Schema> = LazyLock::new(|| {
+    let (client, schema) = migrate();
+    CLIENT.lock().unwrap().replace(client);
+    schema
+});
 
 fn main() {
-    let client = migrate();
+    let _ = DB.deref();
+    let client = CLIENT.lock().unwrap().take().unwrap();
 
     let artist_name = "my cool artist".to_string();
     client.new_query(|q| {
@@ -39,7 +50,7 @@ struct InvoiceInfo {
 
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
     client.new_query(|q| {
-        let ivl = q.table(&client.invoice_line);
+        let ivl = q.table(&DB.invoice_line);
         q.into_vec(u32::MAX, |row| InvoiceInfo {
             track: row.get(ivl.track.name),
             artist: row.get(ivl.track.album.artist.name),
@@ -56,9 +67,9 @@ struct PlaylistTrackCount {
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     client.new_query(|q| {
-        let pl = q.table(&client.playlist);
+        let pl = q.table(&DB.playlist);
         let track_count = q.query(|q| {
-            let plt = q.table(&client.playlist_track);
+            let plt = q.table(&DB.playlist_track);
             q.filter_on(&plt.playlist, &pl);
             q.count_distinct(plt)
         });
@@ -72,13 +83,13 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
 
 fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
     client.new_query(|q| {
-        let artist = q.table(&client.artist);
+        let artist = q.table(&DB.artist);
         let avg_track_count = q.query(|q| {
-            let album = q.table(&client.album);
+            let album = q.table(&DB.album);
             q.filter_on(&album.artist, &artist);
 
             let track_count = q.query(|q| {
-                let track = q.table(&client.track);
+                let track = q.table(&DB.track);
                 q.filter_on(&track.album, album);
 
                 q.count_distinct(track)
@@ -93,9 +104,9 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
 
 fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     client.new_query(|q| {
-        let receiver = q.table(&client.employee);
+        let receiver = q.table(&DB.employee);
         let report_count = q.query(|q| {
-            let reporter = q.table(&client.employee);
+            let reporter = q.table(&DB.employee);
             // only count employees that report to someone
             let reports_to = q.filter_some(&reporter.reports_to);
             q.filter_on(reports_to, &receiver);
