@@ -4,7 +4,7 @@ use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 
 use crate::{
     ast::MySelect,
-    exec::Exec,
+    exec::Execute,
     value::{Field, Value},
     HasId,
 };
@@ -27,7 +27,7 @@ impl<'x, 'a> Reader<'x, 'a> {
     }
 }
 
-impl<'outer, 'inner> Exec<'outer, 'inner> {
+impl<'outer, 'inner> Execute<'outer, 'inner> {
     /// Insert a new row for every row in the query.
     pub fn insert<V: Writable<'inner>>(&'inner mut self, val: V) {
         // insert can be used only once, and can not be used with select or group

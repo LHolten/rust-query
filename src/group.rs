@@ -14,13 +14,13 @@ use crate::{
 /// This is the query type used in sub-queries.
 /// It can only produce one result (for each outer result).
 /// This type dereferences to [Query].
-pub struct GroupQuery<'outer, 'inner> {
+pub struct Aggregate<'outer, 'inner> {
     pub(crate) query: Query<'inner>,
     pub(crate) joins: &'outer Joins,
     pub(crate) phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
 }
 
-impl<'outer, 'inner> Deref for GroupQuery<'outer, 'inner> {
+impl<'outer, 'inner> Deref for Aggregate<'outer, 'inner> {
     type Target = Query<'inner>;
 
     fn deref(&self) -> &Self::Target {
@@ -28,13 +28,13 @@ impl<'outer, 'inner> Deref for GroupQuery<'outer, 'inner> {
     }
 }
 
-impl<'outer, 'inner> DerefMut for GroupQuery<'outer, 'inner> {
+impl<'outer, 'inner> DerefMut for Aggregate<'outer, 'inner> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.query
     }
 }
 
-impl<'outer, 'inner> GroupQuery<'outer, 'inner> {
+impl<'outer, 'inner> Aggregate<'outer, 'inner> {
     /// Filter the rows of this sub-query based on a value from the outer query.
     pub fn filter_on<T: MyIdenT>(
         &mut self,

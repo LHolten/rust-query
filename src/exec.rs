@@ -14,12 +14,12 @@ use crate::{
 
 /// This is the top level query type and dereferences to [Query].
 /// It has methods for turning queries into vectors and for inserting in the database.
-pub struct Exec<'outer, 'inner> {
+pub struct Execute<'outer, 'inner> {
     pub(crate) phantom: PhantomData<&'outer ()>,
     pub(crate) q: Query<'inner>,
 }
 
-impl<'outer, 'inner> Deref for Exec<'outer, 'inner> {
+impl<'outer, 'inner> Deref for Execute<'outer, 'inner> {
     type Target = Query<'inner>;
 
     fn deref(&self) -> &Self::Target {
@@ -27,13 +27,13 @@ impl<'outer, 'inner> Deref for Exec<'outer, 'inner> {
     }
 }
 
-impl<'outer, 'inner> DerefMut for Exec<'outer, 'inner> {
+impl<'outer, 'inner> DerefMut for Execute<'outer, 'inner> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.q
     }
 }
 
-impl<'outer, 'inner> Exec<'outer, 'inner> {
+impl<'outer, 'inner> Execute<'outer, 'inner> {
     /// Turn a database query into a rust [Vec] of results.
     /// The callback is called exactly once for each row.
     /// The callback argument [Row] can be used to turn dummies into rust values.
@@ -79,7 +79,7 @@ impl<'outer, 'inner> Exec<'outer, 'inner> {
     }
 }
 
-/// This is the type used by [Exec::into_vec] to allow turning dummies into rust values.
+/// This is the type used by [Execute::into_vec] to allow turning dummies into rust values.
 #[derive(Clone, Copy)]
 pub struct Row<'x, 'names> {
     pub(crate) offset: usize,

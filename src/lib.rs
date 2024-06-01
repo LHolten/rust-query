@@ -24,8 +24,8 @@ pub mod ops {
 }
 
 pub mod args {
-    pub use crate::exec::{Exec, Row};
-    pub use crate::group::GroupQuery;
+    pub use crate::exec::{Execute, Row};
+    pub use crate::group::Aggregate;
 }
 
 #[doc(hidden)]

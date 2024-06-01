@@ -5,12 +5,12 @@ use sea_query::Expr;
 
 use crate::{
     ast::{add_table, Joins, MySelect, Source},
-    group::GroupQuery,
+    group::Aggregate,
     value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value},
     Builder, HasId, Table,
 };
 
-/// This is the base type for other query types like [GroupQuery] and [Exec].
+/// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Execute].
 /// It contains most query functionality like joining tables and doing sub-queries.
 pub struct Query<'inner> {
     // we might store 'inner
@@ -41,7 +41,7 @@ impl<'inner> Query<'inner> {
     /// Perform a sub-query that returns a single result for each of the current rows.
     pub fn query<F, R>(&self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut GroupQuery<'inner, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a>) -> R,
     {
         let joins = Joins {
             table: MyAlias::new(),
@@ -58,7 +58,7 @@ impl<'inner> Query<'inner> {
             ast,
             client: self.client,
         };
-        let mut group = GroupQuery {
+        let mut group = Aggregate {
             query: inner,
             joins,
             phantom2: PhantomData,

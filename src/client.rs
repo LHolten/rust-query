@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{ast::MySelect, exec::Exec, query::Query};
+use crate::{ast::MySelect, exec::Execute, query::Query};
 
 /// This is a wrapper for [rusqlite::Connection].
 /// It's main purpose is to remove the need to depend on rusqlite in the future.
@@ -13,7 +13,7 @@ impl Client {
     /// Execute a new query.
     pub fn exec<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
         self.inner.new_query(f)
     }
@@ -23,13 +23,13 @@ impl Client {
 pub(crate) trait QueryBuilder {
     fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R;
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R;
 }
 
 impl QueryBuilder for rusqlite::Connection {
     fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
         let ast = MySelect::default();
         let q = Query {
@@ -37,7 +37,7 @@ impl QueryBuilder for rusqlite::Connection {
             ast: &ast,
             client: self,
         };
-        f(&mut Exec {
+        f(&mut Execute {
             q,
             phantom: PhantomData,
         })
