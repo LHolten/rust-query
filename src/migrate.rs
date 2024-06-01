@@ -11,21 +11,22 @@ use sea_query::{
 
 use crate::{
     ast::{add_table, MySelect},
-    client::{Client, QueryBuilder},
+    client::Client,
+    exec::Row,
     hash::{self, hash_schema},
     insert::Reader,
     mymap::MyMap,
     pragma::read_schema,
     value::{Db, Field, FkInfo, MyAlias, Value},
-    Exec, HasId, Row, Table,
+    HasId, Table,
 };
 
 #[derive(Default)]
-pub struct TypBuilder {
+pub struct TableTypBuilder {
     pub(crate) ast: hash::Schema,
 }
 
-impl TypBuilder {
+impl TableTypBuilder {
     pub fn table<T: HasId>(&mut self) {
         let mut b = crate::TypBuilder::default();
         T::typs(&mut b);
@@ -38,7 +39,7 @@ pub trait Schema: Sized {
     #[doc(hidden)]
     fn new() -> Self;
     #[doc(hidden)]
-    fn typs(b: &mut TypBuilder);
+    fn typs(b: &mut TableTypBuilder);
     fn assert_hash(expect: expect_test::Expect) {
         expect.assert_eq(&hash_schema::<Self>())
     }
@@ -248,12 +249,17 @@ pub struct Migrator<S> {
 
 impl<S: Schema> Migrator<S> {
     /// Execute a new query.
-    pub fn new_query<'s, F, R>(&'s self, f: F) -> R
-    where
-        F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
-    {
-        self.transaction.borrow_transaction().new_query(f)
-    }
+    // pub fn new_query<'s, F, R>(&'s self, f: F) -> Option<R>
+    // where
+    //     F: for<'a> FnOnce(&'s S, &'a mut Exec<'s, 'a>) -> R,
+    // {
+    //     let schema = self.schema.as_ref()?;
+    //     Some(
+    //         self.transaction
+    //             .borrow_transaction()
+    //             .new_query(|q| f(schema, q)),
+    //     )
+    // }
 
     pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<M::S> {
         let conn = self.transaction.borrow_transaction();
@@ -317,7 +323,7 @@ fn new_checked<T: Schema>(conn: &Connection) -> Option<T> {
         return None;
     }
 
-    let mut b = TypBuilder::default();
+    let mut b = TableTypBuilder::default();
     T::typs(&mut b);
     assert_eq!(
         b.ast,

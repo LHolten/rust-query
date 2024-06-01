@@ -133,7 +133,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             
             let typs = columns.values().map(|col| {
                 let typ = &col.typ;
-                quote!(::rust_query::value::Db<'t, #typ>)
+                quote!(::rust_query::Db<'t, #typ>)
             });
         
             let typ_asserts = columns.values().map(|col| {
@@ -154,7 +154,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             let read_bounds = columns.values().map(|col| {
                 let typ = &col.typ;
                 let generic = make_generic(&col.name);
-                quote!(#generic: ::rust_query::value::Value<'t, Typ=#typ>)
+                quote!(#generic: ::rust_query::Value<'t, Typ=#typ>)
             });
         
             let inits = columns.values().map(|col| {
@@ -212,9 +212,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     }
                 }
         
-                impl<'t, #(#read_bounds),*> ::rust_query::insert::Writable<'t> for #dummy_ident<#(#generics),*> {
+                impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
                     type T = #table_ident;
-                    fn read(self: Box<Self>, f: ::rust_query::insert::Reader<'_, 't>) {
+                    fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
                         #(#reads;)*
                     }
                 }
@@ -271,7 +271,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         let typ = &col.typ;
 
                         defs.push(quote!{pub #name: #generic});
-                        constraints.push(quote!{#generic: ::rust_query::value::Value<'a, Typ = #typ>});
+                        constraints.push(quote!{#generic: ::rust_query::Value<'a, Typ = #typ>});
                         generics.push(generic);
                         into_new.push(quote!{reader.col(#name_str, self.#name.clone())});
                     }
@@ -289,10 +289,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(#defs,)*
                     }
 
-                    impl<'a, #(#constraints),*> ::rust_query::migrate::TableMigration<'a, #prev_table_name> for #migration_name<#(#generics),*> {
+                    impl<'a, #(#constraints),*> ::rust_query::private::TableMigration<'a, #prev_table_name> for #migration_name<#(#generics),*> {
                         type T = #table_name;
 
-                        fn into_new(self: Box<Self>, prev: ::rust_query::value::Db<'a, #prev_table_name>, reader: ::rust_query::insert::Reader<'_, 'a>) {
+                        fn into_new(self: Box<Self>, prev: ::rust_query::Db<'a, #prev_table_name>, reader: ::rust_query::private::Reader<'_, 'a>) {
                             #(#into_new;)*
                         }
                     }
@@ -303,7 +303,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::Row<'x, 'a>, ::rust_query::value::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::migrate::TableMigration<'a, #prev_table_name, T = #table_name> + 'a>
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::private::TableMigration<'a, #prev_table_name, T = #table_name> + 'a>
                 });
                 table_generics.push(table_generic);
                 tables.push(quote!{b.migrate_table(self.#table_lower)});
@@ -322,7 +322,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #(#schema_table_defs,)*
                 }
 
-                impl ::rust_query::migrate::Schema for #schema {
+                impl ::rust_query::Schema for #schema {
                     const VERSION: i64 = #version_i64;
                     fn new() -> Self {
                         #schema {
@@ -330,7 +330,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         }
                     }
 
-                    fn typs(b: &mut ::rust_query::migrate::TypBuilder) {
+                    fn typs(b: &mut ::rust_query::private::TableTypBuilder) {
                         #(#schema_table_typs;)*
                     }
                 }
@@ -339,10 +339,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #(#table_defs,)*
                 }
 
-                impl<#(#table_constraints),*> ::rust_query::migrate::Migration<#prev_schema> for M<#(#table_generics),*> {
+                impl<#(#table_constraints),*> ::rust_query::private::Migration<#prev_schema> for M<#(#table_generics),*> {
                     type S = #schema;
                     
-                    fn tables(self, b: &mut ::rust_query::migrate::SchemaBuilder) {
+                    fn tables(self, b: &mut ::rust_query::private::SchemaBuilder) {
                         #(#tables;)*
                     }
                 }

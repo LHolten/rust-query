@@ -7,8 +7,8 @@ use sea_query::{Alias, Expr, Func};
 
 use crate::{
     ast::Joins,
+    query::Query,
     value::{Db, Field, IsNotNull, MyAlias, MyIdenT, UnwrapOr, Value},
-    Query,
 };
 
 /// This is the query type used in sub-queries.

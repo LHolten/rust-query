@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{client::Client, migrate::Prepare, schema, value::Null};
+use rust_query::{schema, Client, Null, Prepare};
 
 #[schema]
 #[version(0..3)]
@@ -143,7 +143,7 @@ pub fn migrate() -> (Client, v2::Schema) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_query::{expect, migrate::Schema};
+    use rust_query::{expect, Schema};
 
     #[test]
     fn backwards_compat() {

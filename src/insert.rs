@@ -4,8 +4,9 @@ use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 
 use crate::{
     ast::MySelect,
+    exec::Exec,
     value::{Field, Value},
-    Exec, HasId,
+    HasId,
 };
 
 pub trait Writable<'a> {

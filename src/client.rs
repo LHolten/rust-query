@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{ast::MySelect, Exec, Query};
+use crate::{ast::MySelect, exec::Exec, query::Query};
 
 /// This is a wrapper for [rusqlite::Connection].
 /// It's main purpose is to remove the need to depend on rusqlite in the future.
@@ -11,7 +11,7 @@ pub struct Client {
 
 impl Client {
     /// Execute a new query.
-    pub fn new_query<'s, F, R>(&'s self, f: F) -> R
+    pub fn exec<'s, F, R>(&'s self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R,
     {
@@ -20,7 +20,7 @@ impl Client {
 }
 
 /// Extension trait to use this library with [rusqlite::Connection] directly.
-pub trait QueryBuilder {
+pub(crate) trait QueryBuilder {
     fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Exec<'s, 'a>) -> R;

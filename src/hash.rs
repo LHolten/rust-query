@@ -143,7 +143,7 @@ impl Hasher for KangarooHasher {
 }
 
 pub fn hash_schema<S: crate::migrate::Schema>() -> String {
-    let mut b = crate::migrate::TypBuilder::default();
+    let mut b = crate::migrate::TableTypBuilder::default();
     S::typs(&mut b);
     let mut hasher = KangarooHasher::default();
     b.ast.hash(&mut hasher);

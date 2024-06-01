@@ -7,8 +7,7 @@ use std::ops::Deref;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
-use rust_query::client::Client;
-use rust_query::value::Value;
+use rust_query::{Client, Value};
 use schema::migrate;
 use schema::v2::*;
 
@@ -24,7 +23,7 @@ fn main() {
     let client = CLIENT.lock().unwrap().take().unwrap();
 
     let artist_name = "my cool artist".to_string();
-    client.new_query(|q| {
+    client.exec(|q| {
         q.insert(ArtistDummy {
             name: artist_name.as_str(),
         })
@@ -49,7 +48,7 @@ struct InvoiceInfo {
 }
 
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
-    client.new_query(|q| {
+    client.exec(|q| {
         let ivl = q.table(&DB.invoice_line);
         q.into_vec(u32::MAX, |row| InvoiceInfo {
             track: row.get(ivl.track.name),
@@ -66,7 +65,7 @@ struct PlaylistTrackCount {
 }
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
-    client.new_query(|q| {
+    client.exec(|q| {
         let pl = q.table(&DB.playlist);
         let track_count = q.query(|q| {
             let plt = q.table(&DB.playlist_track);
@@ -82,7 +81,7 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
 }
 
 fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
-    client.new_query(|q| {
+    client.exec(|q| {
         let artist = q.table(&DB.artist);
         let avg_track_count = q.query(|q| {
             let album = q.table(&DB.album);
@@ -103,7 +102,7 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
 }
 
 fn count_reporting(client: &Client) -> Vec<(String, i64)> {
-    client.new_query(|q| {
+    client.exec(|q| {
         let receiver = q.table(&DB.employee);
         let report_count = q.query(|q| {
             let reporter = q.table(&DB.employee);
