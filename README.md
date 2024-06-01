@@ -24,7 +24,7 @@ Despite these limitations, I am dogfooding this query builder and using it in my
 - Use the `new_query` functions on either `Client` or `rusqlite::Connection` to start writing queries!
 
 ## Example/Practice
-First download the `Chinook_Sqlite.sql` from here https://github.com/lerocha/chinook-database/releases and put it in the `chinook` folder.
+First download the `Chinook_Sqlite.sql` from here https://github.com/lerocha/chinook-database/releases and put it in the `chinook` folder of the rust-query repositorty.
 
 Then you can run with `cd chinook` && `cargo run`
 
