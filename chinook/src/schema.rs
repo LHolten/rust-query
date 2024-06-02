@@ -143,11 +143,11 @@ pub fn migrate() -> (Client, v2::Schema) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_query::{expect, Schema};
+    use rust_query::expect;
 
     #[test]
     fn backwards_compat() {
-        v0::Schema::assert_hash(expect!["38f654ce24217792"]);
-        v1::Schema::assert_hash(expect!["d9962ef27f0ea2e8"]);
+        v0::assert_hash(expect!["38f654ce24217792"]);
+        v1::assert_hash(expect!["d9962ef27f0ea2e8"]);
     }
 }

@@ -14,7 +14,7 @@ mod value;
 
 pub use client::Client;
 pub use expect_test::expect;
-pub use migrate::{Migrator, Prepare, Schema};
+pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
 pub use value::{Db, Null, UnixEpoch, Value};
@@ -30,8 +30,10 @@ pub mod args {
 
 #[doc(hidden)]
 pub mod private {
+    pub use crate::hash::hash_schema;
     pub use crate::insert::{Reader, Writable};
-    pub use crate::migrate::{Migration, SchemaBuilder, TableMigration, TableTypBuilder};
+    pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
+    pub use expect_test::Expect;
 }
 
 use ast::{Joins, MyTable};

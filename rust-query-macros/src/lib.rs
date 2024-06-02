@@ -322,7 +322,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #(#schema_table_defs,)*
                 }
 
-                impl ::rust_query::Schema for #schema {
+                impl ::rust_query::private::Schema for #schema {
                     const VERSION: i64 = #version_i64;
                     fn new() -> Self {
                         #schema {
@@ -347,7 +347,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     }
                 }
 
-                // impl ::rust_query::migrate::Schema for #schema {}
+                pub fn assert_hash(expect: ::rust_query::private::Expect) {
+                    expect.assert_eq(&::rust_query::private::hash_schema::<#schema>())
+                }
 
                 #mod_output
             }

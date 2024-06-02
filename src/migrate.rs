@@ -36,13 +36,8 @@ impl TableTypBuilder {
 
 pub trait Schema: Sized {
     const VERSION: i64;
-    #[doc(hidden)]
     fn new() -> Self;
-    #[doc(hidden)]
     fn typs(b: &mut TableTypBuilder);
-    fn assert_hash(expect: expect_test::Expect) {
-        expect.assert_eq(&hash_schema::<Self>())
-    }
 }
 
 pub trait TableMigration<'a, A: HasId> {
