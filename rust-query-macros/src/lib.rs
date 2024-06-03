@@ -1,4 +1,3 @@
-
 use std::collections::BTreeMap;
 
 use heck::{ToSnekCase, ToUpperCamelCase};
@@ -15,9 +14,10 @@ pub fn schema(
     let item = syn::parse_macro_input!(item as ItemEnum);
 
     match generate(item) {
-        Ok(x) => {x},
-        Err(e) => {e.into_compile_error()},
-    }.into()
+        Ok(x) => x,
+        Err(e) => e.into_compile_error(),
+    }
+    .into()
 }
 
 #[derive(Clone)]
@@ -26,24 +26,23 @@ struct Column {
     typ: Type,
 }
 
-
+#[derive(Clone)]
 struct Range {
     start: u32,
-    end: Option<u32>
+    end: Option<u32>,
 }
 
 impl Range {
     pub fn includes(&self, idx: u32) -> bool {
         if idx < self.start {
-            return false
+            return false;
         }
         if let Some(end) = self.end {
-            return idx < end
+            return idx < end;
         }
         true
     }
 }
-
 
 impl syn::parse::Parse for Range {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
@@ -52,8 +51,8 @@ impl syn::parse::Parse for Range {
         let end: Option<syn::LitInt> = input.parse()?;
 
         let res = Range {
-            start: start.map(|x|x.base10_parse().unwrap()).unwrap_or_default(),
-            end: end.map(|x|x.base10_parse().unwrap()),
+            start: start.map(|x| x.base10_parse().unwrap()).unwrap_or_default(),
+            end: end.map(|x| x.base10_parse().unwrap()),
         };
         Ok(res)
     }
@@ -61,7 +60,10 @@ impl syn::parse::Parse for Range {
 
 fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
     if attrs.is_empty() {
-        return Ok(Range {start:0, end: None})
+        return Ok(Range {
+            start: 0,
+            end: None,
+        });
     }
     let [versions] = attrs else {
         panic!("got unexpected attribute")
@@ -80,26 +82,37 @@ fn to_lower(name: &Ident) -> Ident {
     format_ident!("{normalized}")
 }
 
+#[derive(Clone)]
+struct Table {
+    prev: Option<Ident>,
+    name: Ident,
+    columns: BTreeMap<usize, Column>,
+}
+
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let range = parse_version(&item.attrs)?;
-    let schema = &item.ident ;
-    
+    let schema = &item.ident;
+
     let mut output = TokenStream::new();
-    let mut prev_tables: BTreeMap<usize, (BTreeMap<usize, Column>, Ident)> = BTreeMap::new();
-    for version in range.start..range.end.unwrap() {     
-        let mut new_tables: BTreeMap<usize, (BTreeMap<usize, Column>, Ident)> = BTreeMap::new();
-        
+    let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
+    for version in range.start..range.end.unwrap() {
+        let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
+
         let mut mod_output = TokenStream::new();
         for (i, table) in item.variants.iter().enumerate() {
             let mut other_attrs = vec![];
             let mut uniques = vec![];
+            let mut prev = None;
             for attr in &table.attrs {
                 if attr.path().is_ident("unique") {
-                    let idents = attr.parse_args_with(
-                        Punctuated::<Ident, Token![,]>::parse_separated_nonempty
-                    ).unwrap();
-                    let idents = idents.into_iter().map(|x|x.to_string());
-                    uniques.push(quote!{f.unique(&[#(#idents),*])});
+                    let idents = attr
+                        .parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)
+                        .unwrap();
+                    let idents = idents.into_iter().map(|x| x.to_string());
+                    uniques.push(quote! {f.unique(&[#(#idents),*])});
+                } else if attr.path().is_ident("create_from") {
+                    let none = prev.replace(attr.parse_args().unwrap()).is_none();
+                    assert!(none, "can not define multiple `created_from`");
                 } else {
                     other_attrs.push(attr.clone());
                 }
@@ -122,47 +135,47 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 };
                 columns.insert(i, col);
             }
-        
+
             let table_ident = &table.ident;
-            
+
             let defs = columns.values().map(|col| {
                 let ident = &col.name;
                 let generic = make_generic(&col.name);
                 quote!(pub #ident: #generic)
             });
-            
+
             let typs = columns.values().map(|col| {
                 let typ = &col.typ;
                 quote!(::rust_query::Db<'t, #typ>)
             });
-        
+
             let typ_asserts = columns.values().map(|col| {
                 let typ = &col.typ;
                 quote!(::rust_query::valid_in_schema::<#schema, #typ>();)
             });
-        
+
             let generics = columns.values().map(|col| {
                 let generic = make_generic(&col.name);
                 quote!(#generic)
             });
-        
+
             let generics_defs = columns.values().map(|col| {
                 let generic = make_generic(&col.name);
                 quote!(#generic)
             });
-        
+
             let read_bounds = columns.values().map(|col| {
                 let typ = &col.typ;
                 let generic = make_generic(&col.name);
                 quote!(#generic: ::rust_query::Value<'t, Typ=#typ>)
             });
-        
+
             let inits = columns.values().map(|col| {
                 let ident = &col.name;
                 let name: &String = &col.name.to_string();
                 quote!(#ident: f.col(#name))
             });
-        
+
             let reads = columns.values().map(|col| {
                 let ident = &col.name;
                 let name: &String = &col.name.to_string();
@@ -174,9 +187,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 let typ = &col.typ;
                 quote!(f.col::<#typ>(#name))
             });
-        
+
             let dummy_ident = format_ident!("{}Dummy", table_ident);
-        
+
             let table_name: &String = &table_ident.to_string().to_snek_case();
             let has_id = quote!(
                 impl ::rust_query::HasId for #table_ident {
@@ -184,22 +197,22 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     const NAME: &'static str = #table_name;
                 }
             );
-        
+
             mod_output.extend(quote! {
                 pub struct #table_ident(());
-        
+
                 pub struct #dummy_ident<#(#generics_defs),*> {
                     #(#defs,)*
                 }
-        
+
                 impl ::rust_query::Table for #table_ident {
                     type Dummy<'t> = #dummy_ident<#(#typs),*>;
                     type Schema = #schema;
-        
+
                     fn name(&self) -> String {
                         #table_name.to_owned()
                     }
-        
+
                     fn build(f: ::rust_query::Builder<'_>) -> Self::Dummy<'_> {
                         #dummy_ident {
                             #(#inits,)*
@@ -211,23 +224,30 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(#uniques;)*
                     }
                 }
-        
+
                 impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
                     type T = #table_ident;
                     fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
                         #(#reads;)*
                     }
                 }
-        
+
                 const _: fn() = || {
                     #(#typ_asserts)*
                 };
-        
+
                 #has_id
 
             });
 
-            new_tables.insert(i, (columns, table.ident.clone()));
+            new_tables.insert(
+                i,
+                Table {
+                    prev,
+                    name: table.ident.clone(),
+                    columns,
+                },
+            );
         }
 
         let mod_ident = format_ident!("v{version}");
@@ -246,34 +266,34 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let mut table_generics: Vec<Ident> = vec![];
         let mut table_constraints: Vec<TokenStream> = vec![];
         let mut tables = vec![];
-        for (i, (table, table_name)) in &new_tables {
+        for (i, table) in &new_tables {
+            let table_name = &table.name;
             let table_lower = to_lower(table_name);
 
-            schema_table_defs.push(quote!{pub #table_lower: #table_name});
-            schema_table_inits.push(quote!{#table_lower: #table_name(())});
-            schema_table_typs.push(quote!{b.table::<#table_name>()});
-            
-            if let Some((prev_columns, _)) = prev_tables.remove(i) {
+            schema_table_defs.push(quote! {pub #table_lower: #table_name});
+            schema_table_inits.push(quote! {#table_lower: #table_name(())});
+            schema_table_typs.push(quote! {b.table::<#table_name>()});
 
+            if let Some(prev_table) = prev_tables.remove(i) {
                 let mut defs = vec![];
                 let mut generics = vec![];
                 let mut constraints = vec![];
                 let mut into_new = vec![];
 
-                for (i, col) in table {
+                for (i, col) in &table.columns {
                     let name = &col.name;
                     let name_str = col.name.to_string();
-                    if prev_columns.contains_key(i) {
-                        into_new.push(quote!{reader.col(#name_str, prev.#name.clone())});
+                    if prev_table.columns.contains_key(i) {
+                        into_new.push(quote! {reader.col(#name_str, prev.#name.clone())});
                     } else {
                         let generic = make_generic(name);
                         // TODO: need to change this to use old foreign keys somehow
                         let typ = &col.typ;
 
-                        defs.push(quote!{pub #name: #generic});
-                        constraints.push(quote!{#generic: ::rust_query::Value<'a, Typ = #typ>});
+                        defs.push(quote! {pub #name: #generic});
+                        constraints.push(quote! {#generic: ::rust_query::Value<'a, Typ = #typ>});
                         generics.push(generic);
-                        into_new.push(quote!{reader.col(#name_str, self.#name.clone())});
+                        into_new.push(quote! {reader.col(#name_str, self.#name.clone())});
                     }
                 }
 
@@ -306,15 +326,28 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #prev_table_name>) -> Box<dyn ::rust_query::private::TableMigration<'a, #prev_table_name, T = #table_name> + 'a>
                 });
                 table_generics.push(table_generic);
-                tables.push(quote!{b.migrate_table(self.#table_lower)});
+                tables.push(quote! {b.migrate_table(self.#table_lower)});
+            } else if let Some(prev) = &table.prev {
+                let prev_table_name = quote! {super::#mod_prev_ident::#prev};
+
+                let table_generic = make_generic(table_name);
+                table_defs.push(quote! {
+                    pub #table_lower: #table_generic
+                });
+                table_constraints.push(quote! {
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #prev_table_name>) -> Option<Box<dyn ::rust_query::private::Writable<'a, T = #table_name> + 'a>>
+                });
+                table_generics.push(table_generic);
+                tables.push(quote! {b.create_from(self.#table_lower)});
             } else {
-                tables.push(quote!{b.new_table::<#table_name>()})
+                tables.push(quote! {b.new_table::<#table_name>()})
             }
         }
-        for (_, table_ident) in prev_tables.into_values() {
-            tables.push(quote!{b.drop_table::<super::#mod_prev_ident::#table_ident>()})
+        for prev_table in prev_tables.into_values() {
+            let table_ident = &prev_table.name;
+            tables.push(quote! {b.drop_table::<super::#mod_prev_ident::#table_ident>()})
         }
-    
+
         let version_i64 = version as i64;
         output.extend(quote! {
             pub mod #mod_ident {
@@ -326,7 +359,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     const VERSION: i64 = #version_i64;
                     fn new() -> Self {
                         #schema {
-                            #(#schema_table_inits,)* 
+                            #(#schema_table_inits,)*
                         }
                     }
 
@@ -341,7 +374,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                 impl<#(#table_constraints),*> ::rust_query::private::Migration<#prev_schema> for M<#(#table_generics),*> {
                     type S = #schema;
-                    
+
                     fn tables(self, b: &mut ::rust_query::private::SchemaBuilder) {
                         #(#tables;)*
                     }
@@ -354,7 +387,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 #mod_output
             }
         });
-    
+
         prev_tables = new_tables;
     }
 

@@ -13,8 +13,8 @@ use crate::{
     ast::{add_table, MySelect},
     client::Client,
     exec::Row,
-    hash::{self, hash_schema},
-    insert::Reader,
+    hash,
+    insert::{Reader, Writable},
     mymap::MyMap,
     pragma::read_schema,
     value::{Db, Field, FkInfo, MyAlias, Value},
@@ -153,6 +153,12 @@ impl<'x> SchemaBuilder<'x> {
                 .table(new_table_name, Alias::new(T::NAME))
                 .take(),
         );
+    }
+
+    pub fn create_from<F, A: HasId, B: HasId>(&mut self, f: F)
+    where
+        F: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Option<Box<dyn Writable<'a, T = B> + 'a>>,
+    {
     }
 }
 
