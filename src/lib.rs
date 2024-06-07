@@ -127,3 +127,11 @@ impl<'a> Builder<'a> {
         T::iden_full(self.joined, field)
     }
 }
+
+pub struct NoTable(());
+
+impl MyIdenT for NoTable {
+    type Info<'t> = value::ValueInfo;
+
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
+}

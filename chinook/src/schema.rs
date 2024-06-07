@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{schema, Client, Null, Prepare};
+use rust_query::{schema, Client, NoTable, Null, Prepare};
 
 #[schema]
 #[version(0..3)]
@@ -53,6 +53,13 @@ enum Schema {
         fax: Option<String>,
         email: String,
     },
+    #[version(..2)]
+    Genre {
+        name: String,
+    },
+    #[version(2..)]
+    #[unique(name)]
+    #[create_from(Genre)]
     Genre {
         name: String,
     },
@@ -114,28 +121,29 @@ pub fn migrate() -> (Client, v2::Schema) {
     m.execute_batch(include_str!("../migrate.sql"));
 
     m.migrator::<v0::Schema>()
-        .migrate(|_schema| v1::M {
+        .migrate(|_schema| v0::schema::Up {
             album: |row, album| {
                 let artist = row.get(album.artist.name);
-                Box::new(v1::MAlbum {
+                Box::new(v0::album::Up {
                     something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
                     // new_title: album.title,
                 })
             },
         })
-        .migrate(|_schema| v2::M {
+        .migrate(|_schema| v1::schema::Up {
             customer: |row, customer| {
-                Box::new(v2::MCustomer {
+                Box::new(v1::customer::Up {
                     phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
                 })
             },
             track: |row, track| {
-                Box::new(v2::MTrack {
+                Box::new(v1::track::Up {
                     media_type: track.media_type.name,
-                    composer_table: Null::<v2::Composer>::default(),
+                    composer_table: Null::<NoTable>::default(),
                     byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
                 })
             },
+            genre: |_row, genre| Some(Box::new(v2::GenreDummy { name: genre.name })),
         })
         .finish()
 }
