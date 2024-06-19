@@ -116,36 +116,37 @@ enum Schema {
 
 pub fn migrate() -> (Client, v2::Schema) {
     let artist_title = HashMap::from([("a", "b")]);
-    let m = Prepare::open_in_memory();
-    m.execute_batch(include_str!("../Chinook_Sqlite.sql"));
-    m.execute_batch(include_str!("../migrate.sql"));
+    let m = Prepare::open("test.db");
+    let m = m.create_batch(&[
+        include_str!("../Chinook_Sqlite.sql"),
+        include_str!("../migrate.sql"),
+    ]);
 
-    m.migrator::<v0::Schema>()
-        .migrate(|_schema| v0::schema::Up {
-            album: |row, album| {
-                let artist = row.get(album.artist.name);
-                Box::new(v0::album::Up {
-                    something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
-                    // new_title: album.title,
-                })
-            },
-        })
-        .migrate(|_schema| v1::schema::Up {
-            customer: |row, customer| {
-                Box::new(v1::customer::Up {
-                    phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
-                })
-            },
-            track: |row, track| {
-                Box::new(v1::track::Up {
-                    media_type: track.media_type.name,
-                    composer_table: Null::<NoTable>::default(),
-                    byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
-                })
-            },
-            genre: |_row, genre| Some(Box::new(v2::GenreDummy { name: genre.name })),
-        })
-        .finish()
+    m.migrate(|_schema| v0::schema::Up {
+        album: |row, album| {
+            let artist = row.get(album.artist.name);
+            Box::new(v0::album::Up {
+                something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
+                // new_title: album.title,
+            })
+        },
+    })
+    .migrate(|_schema| v1::schema::Up {
+        customer: |row, customer| {
+            Box::new(v1::customer::Up {
+                phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
+            })
+        },
+        track: |row, track| {
+            Box::new(v1::track::Up {
+                media_type: track.media_type.name,
+                composer_table: Null::<NoTable>::default(),
+                byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
+            })
+        },
+        genre: |_row, genre| Some(Box::new(v2::GenreDummy { name: genre.name })),
+    })
+    .finish()
 }
 
 #[cfg(test)]

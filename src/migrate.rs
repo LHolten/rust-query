@@ -5,7 +5,7 @@ use elsa::FrozenVec;
 use ouroboros::self_referencing;
 use rusqlite::{config::DbConfig, Connection, Transaction};
 use sea_query::{
-    Alias, ColumnDef, Expr, InsertStatement, SqliteQueryBuilder, TableDropStatement,
+    Alias, ColumnDef, Expr, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
 };
 
@@ -184,10 +184,15 @@ impl<'x> SchemaBuilder<'x> {
 fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {
     let mut f = crate::TypBuilder::default();
     T::typs(&mut f);
-    let mut ast = f.ast.create();
-    ast.table(alias)
+    new_table_inner(conn, &f.ast, alias);
+}
+
+fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl IntoTableRef) {
+    let mut create = table.create();
+    create
+        .table(alias)
         .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
-    let mut sql = ast.to_string(SqliteQueryBuilder);
+    let mut sql = create.to_string(SqliteQueryBuilder);
     sql.push_str(" STRICT");
     conn.execute(&sql, []).unwrap();
 }
@@ -239,13 +244,26 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement.
-    pub fn execute_batch(&self, sql: &str) {
-        self.conn.execute_batch(sql).unwrap();
+    pub fn create_batch<S: Schema>(self, sql: &[&str]) -> Migrator<S> {
+        self.migrator(|conn| {
+            for sql in sql {
+                conn.execute_batch(sql).unwrap();
+            }
+        })
     }
 
-    pub fn migrator<S: Schema>(self) -> Migrator<S> {
-        let schema = new_checked::<S>(&self.conn);
+    pub fn create_empty<S: Schema>(self) -> Migrator<S> {
+        self.migrator(|conn| {
+            let mut b = TableTypBuilder::default();
+            S::typs(&mut b);
 
+            for (table_name, table) in &*b.ast.tables {
+                new_table_inner(conn, table, Alias::new(table_name));
+            }
+        })
+    }
+
+    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Migrator<S> {
         self.conn
             .pragma_update(None, "foreign_keys", "OFF")
             .unwrap();
@@ -255,8 +273,17 @@ impl Prepare {
                 .unwrap()
         });
 
+        let conn = owned.borrow_transaction();
+        let schema_version: i64 = conn
+            .pragma_query_value(None, "schema_version", |r| r.get(0))
+            .unwrap();
+        if schema_version == 0 {
+            f(conn);
+            foreign_key_check(conn);
+        }
+
         Migrator {
-            schema,
+            schema: new_checked::<S>(conn),
             transaction: owned,
         }
     }
@@ -299,18 +326,12 @@ impl<S: Schema> Migrator<S> {
                 let sql = rename.to_string(SqliteQueryBuilder);
                 conn.execute(&sql, []).unwrap();
             }
-            conn.execute_batch("PRAGMA foreign_key_check").unwrap();
+            foreign_key_check(conn);
             set_user_version(conn, M::S::VERSION).unwrap();
-
-            Migrator {
-                schema: Some(<M as Migration<S>>::S::new()),
-                transaction: self.transaction,
-            }
-        } else {
-            Migrator {
-                schema: new_checked::<<M as Migration<S>>::S>(conn),
-                transaction: self.transaction,
-            }
+        }
+        Migrator {
+            schema: new_checked::<<M as Migration<S>>::S>(conn),
+            transaction: self.transaction,
         }
     }
 
@@ -352,4 +373,16 @@ fn new_checked<T: Schema>(conn: &Connection) -> Option<T> {
     );
 
     Some(T::new())
+}
+
+fn foreign_key_check(conn: &Connection) {
+    let errors = conn
+        .prepare("PRAGMA foreign_key_check")
+        .unwrap()
+        .query_map([], |_| Ok(()))
+        .unwrap()
+        .count();
+    if errors != 0 {
+        panic!("migration violated foreign key constraint")
+    }
 }

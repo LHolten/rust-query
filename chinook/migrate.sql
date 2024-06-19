@@ -1,6 +1,4 @@
 -- altered from https://github.com/lerocha/chinook-database
-PRAGMA foreign_keys = OFF;
-
 CREATE TABLE [Album2] (
     [id] INTEGER PRIMARY KEY,
     [title] TEXT NOT NULL,
@@ -244,5 +242,3 @@ DROP TABLE Track;
 
 ALTER TABLE
     Track2 RENAME TO track;
-
-PRAGMA foreign_keys = ON;
