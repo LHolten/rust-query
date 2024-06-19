@@ -52,10 +52,36 @@ pub struct SchemaBuilder<'x> {
     rename: Vec<TableRenameStatement>,
 }
 
+struct Simple<'a, A: HasId, B: HasId> {
+    m: Box<dyn TableMigration<'a, A, T = B> + 'a>,
+    db: Db<'a, A>,
+}
+
+impl<'a, A: HasId, B: HasId> Writable<'a> for Simple<'a, A, B> {
+    type T = B;
+
+    fn read(self: Box<Self>, reader: Reader<'_, 'a>) {
+        self.m.into_new(self.db, reader)
+    }
+}
+
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, mut m: M)
     where
         M: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Box<dyn TableMigration<'a, A, T = B> + 'a>,
+    {
+        self.create_from(move |row, db: Db<A>| {
+            let res = m(row, db.clone());
+            Some(Box::new(Simple { m: res, db }))
+        });
+
+        self.drop
+            .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
+    }
+
+    pub fn create_from<F, A: HasId, B: HasId>(&mut self, mut f: F)
+    where
+        F: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Option<Box<dyn Writable<'a, T = B> + 'a>>,
     {
         let mut ast = MySelect {
             sources: FrozenVec::new(),
@@ -74,8 +100,6 @@ impl<'x> SchemaBuilder<'x> {
         let new_table_name = MyAlias::new();
         new_table::<B>(self.conn, new_table_name);
 
-        self.drop
-            .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
         self.rename.push(
             sea_query::Table::rename()
                 .table(new_table_name, Alias::new(B::NAME))
@@ -99,32 +123,33 @@ impl<'x> SchemaBuilder<'x> {
                 updated: &updated,
             };
 
-            let res = m(row, db.clone());
-            let id = row.get(db.id());
+            if let Some(res) = f(row, db.clone()) {
+                let id = row.get(db.id());
 
-            let old_select = take(&mut ast.select);
-            {
-                ast.select
-                    .get_or_init(Expr::val(id).into(), || Field::Str(B::ID));
-                let reader = Reader {
-                    _phantom: PhantomData,
-                    ast: &ast,
-                };
-                res.into_new(db.clone(), reader);
+                let old_select = take(&mut ast.select);
+                {
+                    ast.select
+                        .get_or_init(Expr::val(id).into(), || Field::Str(B::ID));
+                    let reader = Reader {
+                        _phantom: PhantomData,
+                        ast: &ast,
+                    };
+                    res.read(reader);
 
-                let mut new_select = ast.simple(0, u32::MAX);
-                new_select.and_where(db.id().build_expr().eq(id));
+                    let mut new_select = ast.simple(0, u32::MAX);
+                    new_select.and_where(db.id().build_expr().eq(id));
 
-                let mut insert = InsertStatement::new();
-                let names = ast.select.iter().map(|(_field, name)| *name);
-                insert.into_table(new_table_name);
-                insert.columns(names);
-                insert.select_from(new_select).unwrap();
+                    let mut insert = InsertStatement::new();
+                    let names = ast.select.iter().map(|(_field, name)| *name);
+                    insert.into_table(new_table_name);
+                    insert.columns(names);
+                    insert.select_from(new_select).unwrap();
 
-                let sql = insert.to_string(SqliteQueryBuilder);
-                self.conn.execute(&sql, []).unwrap();
+                    let sql = insert.to_string(SqliteQueryBuilder);
+                    self.conn.execute(&sql, []).unwrap();
+                }
+                ast.select = old_select;
             }
-            ast.select = old_select;
 
             offset += 1;
             if updated.get() {
@@ -153,12 +178,6 @@ impl<'x> SchemaBuilder<'x> {
                 .table(new_table_name, Alias::new(T::NAME))
                 .take(),
         );
-    }
-
-    pub fn create_from<F, A: HasId, B: HasId>(&mut self, f: F)
-    where
-        F: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Option<Box<dyn Writable<'a, T = B> + 'a>>,
-    {
     }
 }
 

@@ -71,7 +71,7 @@ impl TypBuilder {
 }
 
 #[doc(hidden)]
-pub trait Table {
+pub trait Table: 'static {
     // const NAME: &'static str;
     // these names are defined in `'query`
     type Dummy<'t>;
