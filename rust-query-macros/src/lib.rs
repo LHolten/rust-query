@@ -164,8 +164,7 @@ fn define_table(table: &Table, schema: &Ident) -> TokenStream {
 
         impl ::rust_query::Table for #table_ident {
             type Dummy<'t> = #dummy_ident<#(#typs),*>;
-            type Schema = #
-            schema;
+            type Schema = #schema;
 
             fn name(&self) -> String {
                 #table_name.to_owned()
@@ -199,7 +198,10 @@ fn define_table(table: &Table, schema: &Ident) -> TokenStream {
 }
 
 // prev_table is only used for the columns
-fn define_table_migration(prev_table: &Table, table: &Table, new_table_typ: &TokenStream) -> Option<TokenStream> {
+fn define_table_migration(
+    prev_columns: &BTreeMap<usize, Column>,
+    table: &Table,
+) -> Option<TokenStream> {
     let mut defs = vec![];
     let mut generics = vec![];
     let mut constraints = vec![];
@@ -208,7 +210,7 @@ fn define_table_migration(prev_table: &Table, table: &Table, new_table_typ: &Tok
     for (i, col) in &table.columns {
         let name = &col.name;
         let name_str = col.name.to_string();
-        if prev_table.columns.contains_key(i) {
+        if prev_columns.contains_key(i) {
             into_new.push(quote! {reader.col(#name_str, prev.#name.clone())});
         } else {
             let generic = make_generic(name);
@@ -226,33 +228,33 @@ fn define_table_migration(prev_table: &Table, table: &Table, new_table_typ: &Tok
     }
 
     let table_name = &table.name;
+    let migration_name = format_ident!("{table_name}Migration");
+    let prev_typ = quote! {#table_name};
 
     Some(quote! {
-        pub struct Up<#(#generics),*> {
+        pub struct #migration_name<#(#generics),*> {
             #(#defs,)*
         }
 
-        impl<'a, #(#constraints),*> ::rust_query::private::TableMigration<'a, #table_name> for Up<#(#generics),*> {
-            type T = #new_table_typ;
+        impl<'a, #(#constraints),*> ::rust_query::private::TableMigration<'a, #prev_typ> for #migration_name<#(#generics),*> {
+            type T = super::#table_name;
 
-            fn into_new(self: Box<Self>, prev: ::rust_query::Db<'a, #table_name>, reader: ::rust_query::private::Reader<'_, 'a>) {
+            fn into_new(self: Box<Self>, prev: ::rust_query::Db<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
                 #(#into_new;)*
             }
         }
     })
 }
 
-
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let range = parse_version(&item.attrs)?;
     let schema = &item.ident;
-    let schema_lower = to_lower(schema);
 
     let mut output = TokenStream::new();
-    let mut prev_module = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
     for version in range.start..range.end.unwrap() {
         let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
+        let prev_mod = format_ident!("v{}", version.saturating_sub(1));
 
         let mut mod_output = TokenStream::new();
         for (i, table) in item.variants.iter().enumerate() {
@@ -278,7 +280,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             if !range.includes(version) {
                 continue;
             }
+            // if this is not the first schema version where this table exists
             if version != range.start {
+                // the previous name of this table is the current name
                 prev = Some(table.ident.clone());
             }
 
@@ -301,34 +305,13 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 columns,
                 uniques,
             };
+
             mod_output.extend(define_table(&table, schema));
             new_tables.insert(i, table);
         }
 
-        let mut prelude = vec![];
-        for table in new_tables.values() {
-            let Some(old_name) = &table.prev else {
-                continue;
-            };
-            let new_name = &table.name;
-            prelude.push(quote! {
-                #old_name as #new_name
-            })
-        }
-        let mut prelude = quote! {
-            #[allow(unused_imports)]
-            use super::{#(#prelude,)*};
-        };
-        for table in new_tables.values() {
-            if table.prev.is_none() {
-                let new_name = &table.name;
-                prelude.extend(quote! {
-                    use ::rust_query::NoTable as #new_name;
-                })
-            }
-        }
+        
 
-        let next_mod = format_ident!("v{version}");
 
         let mut schema_table_defs = vec![];
         let mut schema_table_inits = vec![];
@@ -338,9 +321,12 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let mut table_generics: Vec<Ident> = vec![];
         let mut table_constraints: Vec<TokenStream> = vec![];
         let mut tables = vec![];
+
+        let mut table_migrations = TokenStream::new();
+
+        // loop over all new table and see what changed
         for (i, table) in &new_tables {
             let table_name = &table.name;
-            let new_table_typ = quote! {super::super::#next_mod::#table_name};
 
             let table_lower = to_lower(table_name);
 
@@ -349,44 +335,50 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             schema_table_typs.push(quote! {b.table::<#table_name>()});
 
             if let Some(prev_table) = prev_tables.remove(i) {
-                let Some(migration) = define_table_migration(&prev_table, table, &new_table_typ) else {
+                // a table already existed, so we need to define a migration
+
+                let Some(migration) = define_table_migration(&prev_table.columns, table) else {
                     continue;
                 };
-                prev_module.extend(quote! {
-                    pub mod #table_lower {
-                        #prelude
-
-                        #migration
-                    }
-                });
+                table_migrations.extend(migration);
                 let table_generic = make_generic(table_name);
                 table_defs.push(quote! {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #table_name>) -> 
-                        Box<dyn ::rust_query::private::TableMigration<'a, #table_name, T = #new_table_typ> + 'a>
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #table_name>) ->
+                        Box<dyn ::rust_query::private::TableMigration<'a, #table_name, T = super::#table_name> + 'a>
                 });
                 table_generics.push(table_generic);
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
             } else if table.prev.is_some() {
+                // no table existed, but the previous table is specified, make a filter migration
+
+                let Some(migration) = define_table_migration(&BTreeMap::new(), table) else {
+                    panic!("can not use `create_from` on an empty table");
+                };
+                table_migrations.extend(migration);
                 let table_generic = make_generic(table_name);
                 table_defs.push(quote! {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #table_name>) -> 
-                        Option<Box<dyn ::rust_query::private::Writable<'a, T = #new_table_typ> + 'a>>
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #table_name>) ->
+                        Option<Box<dyn ::rust_query::private::TableMigration<'a, #table_name, T = super::#table_name> + 'a>>
                 });
                 table_generics.push(table_generic);
                 tables.push(quote! {b.create_from(self.#table_lower)});
             } else {
-                tables.push(quote! {b.new_table::<#new_table_typ>()})
+                // this is a new table
+
+                tables.push(quote! {b.new_table::<super::#table_name>()})
             }
         }
         for prev_table in prev_tables.into_values() {
+            // a table was removed, so we drop it
+
             let table_ident = &prev_table.name;
-            tables.push(quote! {b.drop_table::<super::#table_ident>()})
+            tables.push(quote! {b.drop_table::<super::super::#prev_mod::#table_ident>()})
         }
 
         let version_i64 = version as i64;
@@ -413,44 +405,61 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             }       
         });
 
-
-        if !prev_module.is_empty() {
-            let mod_ident = format_ident!("v{}", version - 1);
-
+        let prelude = prelude(&new_tables, &prev_mod);
+        let new_mod = format_ident!("v{version}");
             output.extend(quote! {
-                pub mod #mod_ident {
-                    #prev_module    
+            pub mod #new_mod {
+                #mod_output
     
-                    pub mod #schema_lower {
-                        #prelude
+                pub mod up {
+                    #prelude
+
+                    #table_migrations
     
-                        pub struct Up<#(#table_constraints),*> {
+                    pub struct #schema<#(#table_constraints),*> {
                             #(#table_defs,)*
                         }
         
-                        impl<#(#table_constraints),*> ::rust_query::private::Migration<super::#schema> for Up<#(#table_generics),*> {
-                            type S = super::super::#next_mod::#schema;
+                    impl<#(#table_constraints),*> ::rust_query::private::Migration<super::super::#prev_mod::#schema> for #schema<#(#table_generics),*> {
+                        type S = super::#schema;
         
                             fn tables(self, b: &mut ::rust_query::private::SchemaBuilder) {
                                 #(#tables;)*
                             }
                         }
                     }
-                             
                 }
             });
-        }
 
         prev_tables = new_tables;
-        prev_module = mod_output;
     }
 
-    let mod_ident = format_ident!("v{}", range.end.unwrap() - 1);
-    output.extend(quote! {
-        pub mod #mod_ident {
-            #prev_module
-        }
-    });
-
     Ok(output)
+}
+
+fn prelude(new_tables: &BTreeMap<usize, Table>, prev_mod: &Ident) -> TokenStream {
+    let mut prelude = vec![];
+    for table in new_tables.values() {
+        let Some(old_name) = &table.prev else {
+            continue;
+        };
+        let new_name = &table.name;
+        prelude.push(quote! {
+            #old_name as #new_name
+        })
+    }
+    let mut prelude = quote! {
+        #[allow(unused_imports)]
+        use super::super::#prev_mod::{#(#prelude,)*};
+    };
+    for table in new_tables.values() {
+        if table.prev.is_none() {
+            let new_name = &table.name;
+            prelude.extend(quote! {
+                #[allow(unused_imports)]
+                use ::rust_query::NoTable as #new_name;
+            })
+        }
+    }
+    prelude
 }

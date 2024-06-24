@@ -70,10 +70,7 @@ impl<'x> SchemaBuilder<'x> {
     where
         M: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Box<dyn TableMigration<'a, A, T = B> + 'a>,
     {
-        self.create_from(move |row, db: Db<A>| {
-            let res = m(row, db.clone());
-            Some(Box::new(Simple { m: res, db }))
-        });
+        self.create_from(move |row, db: Db<A>| Some(m(row, db)));
 
         self.drop
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
@@ -81,7 +78,10 @@ impl<'x> SchemaBuilder<'x> {
 
     pub fn create_from<F, A: HasId, B: HasId>(&mut self, mut f: F)
     where
-        F: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Option<Box<dyn Writable<'a, T = B> + 'a>>,
+        F: for<'y, 'a> FnMut(
+            Row<'y, 'a>,
+            Db<'a, A>,
+        ) -> Option<Box<dyn TableMigration<'a, A, T = B> + 'a>>,
     {
         let mut ast = MySelect {
             sources: FrozenVec::new(),
@@ -134,7 +134,7 @@ impl<'x> SchemaBuilder<'x> {
                         _phantom: PhantomData,
                         ast: &ast,
                     };
-                    res.read(reader);
+                    res.into_new(db.clone(), reader);
 
                     let mut new_select = ast.simple(0, u32::MAX);
                     new_select.and_where(db.id().build_expr().eq(id));

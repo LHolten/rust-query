@@ -122,29 +122,29 @@ pub fn migrate() -> (Client, v2::Schema) {
         include_str!("../migrate.sql"),
     ]);
 
-    m.migrate(|_schema| v0::schema::Up {
+    m.migrate(|_schema| v1::up::Schema {
         album: |row, album| {
             let artist = row.get(album.artist.name);
-            Box::new(v0::album::Up {
+            Box::new(v1::up::AlbumMigration {
                 something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
                 // new_title: album.title,
             })
         },
     })
-    .migrate(|_schema| v1::schema::Up {
+    .migrate(|_schema| v2::up::Schema {
         customer: |row, customer| {
-            Box::new(v1::customer::Up {
+            Box::new(v2::up::CustomerMigration {
                 phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
             })
         },
         track: |row, track| {
-            Box::new(v1::track::Up {
+            Box::new(v2::up::TrackMigration {
                 media_type: track.media_type.name,
                 composer_table: Null::<NoTable>::default(),
                 byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
             })
         },
-        genre: |_row, genre| Some(Box::new(v2::GenreDummy { name: genre.name })),
+        genre: |_row, genre| Some(Box::new(v2::up::GenreMigration { name: genre.name })),
     })
     .finish()
 }
