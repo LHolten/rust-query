@@ -57,10 +57,13 @@ enum Schema {
     Genre {
         name: String,
     },
-    #[version(2..)]
-    #[unique(name)]
+    #[version(1..)]
     #[create_from(Genre)]
-    Genre {
+    GenreNew {
+        #[version(..2)]
+        #[unique_original]
+        original: Genre,
+        #[unique]
         name: String,
     },
     Invoice {
@@ -88,6 +91,9 @@ enum Schema {
     },
     #[unique(playlist, track)]
     PlaylistTrack {
+        #[version(..1)]
+        playlist: Playlist,
+        #[version(1..)]
         playlist: Playlist,
         track: Track,
     },
@@ -98,7 +104,10 @@ enum Schema {
         media_type: MediaType,
         #[version(2..)]
         media_type: String,
+        #[version(..2)]
         genre: Genre,
+        #[version(2..)]
+        genre: GenreNew,
         composer: Option<String>,
         #[version(2..)]
         composer_table: Option<Composer>,
@@ -117,34 +126,49 @@ enum Schema {
 pub fn migrate() -> (Client, v2::Schema) {
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open("test.db");
-    let m = m.create_batch(&[
+    let m = m.create_db_sql(&[
         include_str!("../Chinook_Sqlite.sql"),
         include_str!("../migrate.sql"),
     ]);
 
-    m.migrate(|_schema| v1::up::Schema {
-        album: |row, album| {
-            let artist = row.get(album.artist.name);
-            Box::new(v1::up::AlbumMigration {
-                something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
-                // new_title: album.title,
-            })
-        },
+    m.migrate(|s, _| {
+        Box::new(v1::up::Schema {
+            album: |row, album| {
+                let artist = row.get(album.artist.name);
+                Box::new(v1::up::AlbumMigration {
+                    something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
+                    // new_title: album.title,
+                })
+            },
+            playlist_track: |_row, pt| {
+                Box::new(v1::up::PlaylistTrackMigration {
+                    playlist: pt.playlist.clone(),
+                })
+            },
+            genre_new: |_row, genre| {
+                Some(Box::new(v1::up::GenreNewMigration {
+                    name: genre.name,
+                    original: genre,
+                }))
+            },
+        })
     })
-    .migrate(|_schema| v2::up::Schema {
-        customer: |row, customer| {
-            Box::new(v2::up::CustomerMigration {
-                phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
-            })
-        },
-        track: |row, track| {
-            Box::new(v2::up::TrackMigration {
-                media_type: track.media_type.name,
-                composer_table: Null::<NoTable>::default(),
-                byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
-            })
-        },
-        genre: |_row, genre| Some(Box::new(v2::up::GenreMigration { name: genre.name })),
+    .migrate(|s, _| {
+        Box::new(v2::up::Schema {
+            customer: |row, customer| {
+                Box::new(v2::up::CustomerMigration {
+                    phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
+                })
+            },
+            track: |row, track| {
+                Box::new(v2::up::TrackMigration {
+                    media_type: &*String::leak(row.get(track.media_type.name)),
+                    composer_table: Null::<NoTable>::default(),
+                    byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
+                    genre: s.genre_new.unique_original(&track.genre),
+                })
+            },
+        })
     })
     .finish()
 }

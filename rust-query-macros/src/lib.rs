@@ -3,10 +3,9 @@ use std::collections::BTreeMap;
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, Token, Type};
+use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, Meta, Path, Token, Type};
 
 mod table;
-
 
 #[proc_macro_attribute]
 pub fn schema(
@@ -21,6 +20,20 @@ pub fn schema(
         Err(e) => e.into_compile_error(),
     }
     .into()
+}
+
+#[derive(Clone)]
+struct Table {
+    uniques: Vec<Unique>,
+    prev: Option<Ident>,
+    name: Ident,
+    columns: BTreeMap<usize, Column>,
+}
+
+#[derive(Clone)]
+struct Unique {
+    name: Ident,
+    columns: Vec<Ident>,
 }
 
 #[derive(Clone)]
@@ -54,25 +67,29 @@ impl syn::parse::Parse for Range {
         let end: Option<syn::LitInt> = input.parse()?;
 
         let res = Range {
-            start: start.map(|x| x.base10_parse().unwrap()).unwrap_or_default(),
-            end: end.map(|x| x.base10_parse().unwrap()),
+            start: start
+                .map(|x| x.base10_parse().expect("version start is a decimal"))
+                .unwrap_or_default(),
+            end: end.map(|x| x.base10_parse().expect("version end is a decimal")),
         };
         Ok(res)
     }
 }
 
 fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
-    if attrs.is_empty() {
-        return Ok(Range {
-            start: 0,
-            end: None,
-        });
+    let mut version = None;
+    for attr in attrs {
+        if attr.path().is_ident("version") {
+            assert!(version.is_none(), "there should be only one version");
+            version = Some(attr.parse_args()?);
+        } else {
+            return Err(syn::Error::new_spanned(attr, "unexpected attribute"));
+        }
     }
-    let [versions] = attrs else {
-        panic!("got unexpected attribute")
-    };
-    assert!(versions.path().is_ident("version"));
-    versions.parse_args()
+    Ok(version.unwrap_or(Range {
+        start: 0,
+        end: None,
+    }))
 }
 
 fn make_generic(name: &Ident) -> Ident {
@@ -84,15 +101,6 @@ fn to_lower(name: &Ident) -> Ident {
     let normalized = name.to_string().to_snek_case();
     format_ident!("{normalized}")
 }
-
-#[derive(Clone)]
-struct Table {
-    uniques: Vec<TokenStream>,
-    prev: Option<Ident>,
-    name: Ident,
-    columns: BTreeMap<usize, Column>,
-}
-
 
 // prev_table is only used for the columns
 fn define_table_migration(
@@ -143,13 +151,22 @@ fn define_table_migration(
     })
 }
 
+fn is_unique(path: &Path) -> Option<Ident> {
+    path.get_ident().and_then(|ident| {
+        ident
+            .to_string()
+            .starts_with("unique")
+            .then(|| ident.clone())
+    })
+}
+
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let range = parse_version(&item.attrs)?;
     let schema = &item.ident;
 
     let mut output = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
-    for version in range.start..range.end.unwrap() {
+    for version in range.start..range.end.expect("schema has a final version") {
         let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
         let prev_mod = format_ident!("v{}", version.saturating_sub(1));
 
@@ -159,14 +176,19 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             let mut uniques = vec![];
             let mut prev = None;
             for attr in &table.attrs {
-                if attr.path().is_ident("unique") {
+                if let Some(unique) = is_unique(attr.path()) {
                     let idents = attr
                         .parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)
-                        .unwrap();
-                    let idents = idents.into_iter().map(|x| x.to_string());
-                    uniques.push(quote! {f.unique(&[#(#idents),*])});
+                        .expect("unique arguments are comma separated");
+                    uniques.push(Unique {
+                        name: unique,
+                        columns: idents.into_iter().collect(),
+                    })
                 } else if attr.path().is_ident("create_from") {
-                    let none = prev.replace(attr.parse_args().unwrap()).is_none();
+                    let new_prev = attr
+                        .parse_args()
+                        .expect("create_from is used with single ident");
+                    let none = prev.replace(new_prev).is_none();
                     assert!(none, "can not define multiple `created_from`");
                 } else {
                     other_attrs.push(attr.clone());
@@ -185,15 +207,32 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
             let mut columns = BTreeMap::new();
             for (i, field) in table.fields.iter().enumerate() {
-                let range = parse_version(&field.attrs)?;
+                let name = field.ident.clone().expect("table columns are named");
+                let mut other_attrs = vec![];
+                let mut unique = None;
+                for attr in &field.attrs {
+                    if let Some(unique_name) = is_unique(attr.path()) {
+                        let Meta::Path(_) = &attr.meta else {
+                            panic!("expected no arguments to field specific unique");
+                        };
+                        unique = Some(Unique {
+                            name: unique_name,
+                            columns: vec![name.clone()],
+                        })
+                    } else {
+                        other_attrs.push(attr.clone());
+                    }
+                }
+                let range = parse_version(&other_attrs)?;
                 if !range.includes(version) {
                     continue;
                 }
                 let col = Column {
-                    name: field.ident.clone().unwrap(),
+                    name,
                     typ: field.ty.clone(),
                 };
                 columns.insert(i, col);
+                uniques.extend(unique);
             }
 
             let table = Table {
@@ -206,9 +245,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             mod_output.extend(table::define_table(&table, schema));
             new_tables.insert(i, table);
         }
-
-        
-
 
         let mut schema_table_defs = vec![];
         let mut schema_table_inits = vec![];
@@ -299,12 +335,12 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
             pub fn assert_hash(expect: ::rust_query::private::Expect) {
                 expect.assert_eq(&::rust_query::private::hash_schema::<#schema>())
-            }       
+            }
         });
 
         let prelude = prelude(&new_tables, &prev_mod);
         let new_mod = format_ident!("v{version}");
-            output.extend(quote! {
+        output.extend(quote! {
             pub mod #new_mod {
                 #mod_output
     
@@ -320,7 +356,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     impl<#(#table_constraints),*> ::rust_query::private::Migration<super::super::#prev_mod::#schema> for #schema<#(#table_generics),*> {
                         type S = super::#schema;
         
-                            fn tables(self, b: &mut ::rust_query::private::SchemaBuilder) {
+                            fn tables(self: Box<Self>, b: &mut ::rust_query::private::SchemaBuilder) {
                                 #(#tables;)*
                             }
                         }

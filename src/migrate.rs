@@ -200,7 +200,7 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
 pub trait Migration<From> {
     type S: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder);
+    fn tables(self: Box<Self>, b: &mut SchemaBuilder);
 }
 
 pub struct Prepare {
@@ -244,7 +244,7 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement.
-    pub fn create_batch<S: Schema>(self, sql: &[&str]) -> Migrator<S> {
+    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Migrator<S> {
         self.migrator(|conn| {
             for sql in sql {
                 conn.execute_batch(sql).unwrap();
@@ -252,7 +252,7 @@ impl Prepare {
         })
     }
 
-    pub fn create_empty<S: Schema>(self) -> Migrator<S> {
+    pub fn create_db_empty<S: Schema>(self) -> Migrator<S> {
         self.migrator(|conn| {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
@@ -308,10 +308,13 @@ impl<S: Schema> Migrator<S> {
     //     )
     // }
 
-    pub fn migrate<M: Migration<S>>(self, f: impl FnOnce(&S) -> M) -> Migrator<M::S> {
+    pub fn migrate<'a, F, N: Schema>(self, f: F) -> Migrator<N>
+    where
+        F: for<'x> FnOnce(&'x S, &'x [&'a ()]) -> Box<dyn Migration<S, S = N> + 'x>,
+    {
         let conn = self.transaction.borrow_transaction();
         if let Some(s) = self.schema {
-            let res = f(&s);
+            let res = f(&s, &[]);
             let mut builder = SchemaBuilder {
                 conn,
                 drop: vec![],
@@ -327,10 +330,10 @@ impl<S: Schema> Migrator<S> {
                 conn.execute(&sql, []).unwrap();
             }
             foreign_key_check(conn);
-            set_user_version(conn, M::S::VERSION).unwrap();
+            set_user_version(conn, N::VERSION).unwrap();
         }
         Migrator {
-            schema: new_checked::<<M as Migration<S>>::S>(conn),
+            schema: new_checked::<N>(conn),
             transaction: self.transaction,
         }
     }

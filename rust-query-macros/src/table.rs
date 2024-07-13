@@ -11,7 +11,27 @@ use super::Table;
 pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     let table_ident = &table.name;
     let columns = &table.columns;
-    let uniques = &table.uniques;
+
+    let mut unique_typs = vec![];
+    let mut unique_funcs = vec![];
+    for unique in &table.uniques {
+        let column_strs = unique.columns.iter().map(|x| x.to_string());
+        let unique_name = &unique.name;
+        let args = unique.columns.iter().map(|col| {
+            let typ = &columns
+                .values()
+                .find(|x| &x.name == col)
+                .expect("a column exists for every name in the unique constraint")
+                .typ;
+            quote! {#col: impl ::rust_query::Value<'a, Typ=#typ>}
+        });
+        unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
+        unique_funcs.push(quote! {
+            pub fn #unique_name<'a>(&self, #(#args),*) -> ::rust_query::Db<'a, #table_ident> {
+                todo!();
+            }
+        })
+    }
 
     let mut defs = vec![];
     let mut typs = vec![];
@@ -70,7 +90,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
 
             fn typs(f: &mut ::rust_query::TypBuilder) {
                 #(#def_typs;)*
-                #(#uniques;)*
+                #(#unique_typs;)*
             }
         }
 
@@ -79,6 +99,11 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
                 #(#reads;)*
             }
+        }
+
+        #[allow(unused)]
+        impl #table_ident {
+            #(#unique_funcs)*
         }
 
         const _: fn() = || {

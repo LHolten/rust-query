@@ -12,14 +12,14 @@ use crate::{
 
 /// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Execute].
 /// It contains most query functionality like joining tables and doing sub-queries.
-/// 
+///
 /// [Query] mutability is only about the number of rows.
 /// Adding columns to a [Query] does not require mutation.
 /// And it is impossible to remove a column from a [Query].
-/// 
+///
 /// [Db] borrows the values in a table column immutably.
 /// Combining this with a [crate::args::Row] gives the actual value
-/// 
+///
 /// Table mutability is about both number of rows and values.
 /// This means that even inserting in a table requires mutable access.
 pub struct Query<'inner> {
