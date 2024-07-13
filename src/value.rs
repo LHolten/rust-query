@@ -7,6 +7,7 @@ use std::{
 };
 
 use elsa::FrozenVec;
+use rusqlite::types::FromSql;
 use sea_query::{Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
 
 use crate::{
@@ -322,7 +323,11 @@ impl<'t, T: HasId> FkInfo<'t, T> {
 #[derive(Clone, Copy)]
 pub(super) struct ValueInfo {}
 
-pub(super) trait MyIdenT: Sized {
+pub trait Get {
+    type Out: FromSql;
+}
+
+pub(super) trait MyIdenT {
     type Info<'t>: MyTableT<'t>;
     fn iden_any(joins: &Joins, col: Field) -> Db<'_, Self> {
         let field = FieldAlias {
@@ -376,10 +381,34 @@ impl<T: MyIdenT> MyIdenT for Option<T> {
     const FK: Option<(&'static str, &'static str)> = T::FK;
 }
 
+impl<T: HasId> Get for T {
+    type Out = Just<Self>;
+}
+
+impl Get for i64 {
+    type Out = Self;
+}
+
+impl Get for f64 {
+    type Out = Self;
+}
+
+impl Get for bool {
+    type Out = Self;
+}
+
+impl Get for String {
+    type Out = Self;
+}
+
+impl<T: Get> Get for Option<T> {
+    type Out = Option<T::Out>;
+}
+
 /// This is a dummy database column reference.
 /// If the column has a foreign key constraint,
 /// it can be dereferenced to join the table.
-pub struct Db<'t, T: MyIdenT> {
+pub struct Db<'t, T: MyIdenT + ?Sized> {
     // invariant in `'t` because of the associated type
     pub(crate) info: T::Info<'t>,
     pub(crate) field: FieldAlias,
@@ -411,8 +440,8 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
         self.info.inner.get_or_init(|| {
             let joined = self.info.joined;
             let name = self.field.col;
-            let table = if let Some(item) = joined.iter().find(|item| item.0 == name) {
-                &item.1
+            let (_, table) = if let Some(item) = joined.iter().find(|item| item.0 == name) {
+                item
             } else {
                 let table = MyTable {
                     name: T::NAME,
@@ -422,7 +451,7 @@ impl<'a, T: HasId> Deref for Db<'a, T> {
                         joined: FrozenVec::new(),
                     },
                 };
-                &joined.push_get(Box::new((name, table))).1
+                joined.push_get(Box::new((name, table)))
             };
 
             Rc::new(T::build(Builder::new(&table.joins)))
@@ -438,5 +467,34 @@ impl Iden for RawAlias {
     }
     fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
         self.unquoted(s)
+    }
+}
+
+pub struct Just<T> {
+    _p: PhantomData<T>,
+    idx: i64,
+}
+
+impl<T> Clone for Just<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T> Copy for Just<T> {}
+
+impl<T> FromSql for Just<T> {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(Self {
+            _p: PhantomData,
+            idx: value.as_i64()?,
+        })
+    }
+}
+
+impl<'t, T: MyIdenT> Value<'t> for Just<T> {
+    type Typ = T;
+
+    fn build_expr(&self) -> SimpleExpr {
+        Expr::value(self.idx)
     }
 }

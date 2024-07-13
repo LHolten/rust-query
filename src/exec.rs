@@ -9,7 +9,7 @@ use sea_query::{Iden, SqliteQueryBuilder};
 use crate::{
     ast::MySelect,
     query::Query,
-    value::{Field, MyIdenT, Value},
+    value::{Field, Get, Value},
 };
 
 /// This is the top level query type and dereferences to [Query].
@@ -93,10 +93,7 @@ pub struct Row<'x, 'names> {
 
 impl<'names> Row<'_, 'names> {
     /// Turn a dummy into a rust value.
-    pub fn get<V: Value<'names>>(&self, val: V) -> V::Typ
-    where
-        V::Typ: MyIdenT + rusqlite::types::FromSql,
-    {
+    pub fn get<V: Value<'names, Typ: Get>>(&self, val: V) -> <V::Typ as Get>::Out {
         let expr = val.build_expr();
         let Some((_, alias)) = self.ast.select.iter().find(|x| x.0 == expr) else {
             let alias = Field::new();
@@ -114,7 +111,7 @@ impl<'names> Row<'_, 'names> {
         }
     }
 
-    fn requery<T: MyIdenT + rusqlite::types::FromSql>(&self, alias: Field) -> T {
+    fn requery<T: rusqlite::types::FromSql>(&self, alias: Field) -> T {
         let select = self.ast.simple(self.offset, self.limit);
         let sql = select.to_string(SqliteQueryBuilder);
         // eprintln!("REQUERY");

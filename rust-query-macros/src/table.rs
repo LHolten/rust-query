@@ -27,7 +27,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         });
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a>(&self, #(#args),*) -> ::rust_query::Db<'a, #table_ident> {
+            pub fn #unique_name<'a>(&self, #(#args),*) -> ::rust_query::Db<'a, Option<#table_ident>> {
                 todo!();
             }
         })

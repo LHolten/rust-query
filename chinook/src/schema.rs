@@ -161,11 +161,12 @@ pub fn migrate() -> (Client, v2::Schema) {
                 })
             },
             track: |row, track| {
+                let genre = row.get(s.genre_new.unique_original(&track.genre)).unwrap();
                 Box::new(v2::up::TrackMigration {
                     media_type: &*String::leak(row.get(track.media_type.name)),
                     composer_table: Null::<NoTable>::default(),
                     byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
-                    genre: s.genre_new.unique_original(&track.genre),
+                    genre,
                 })
             },
         })
