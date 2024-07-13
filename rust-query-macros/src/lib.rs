@@ -5,6 +5,9 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, Token, Type};
 
+mod table;
+
+
 #[proc_macro_attribute]
 pub fn schema(
     attr: proc_macro::TokenStream,
@@ -90,112 +93,6 @@ struct Table {
     columns: BTreeMap<usize, Column>,
 }
 
-fn define_table(table: &Table, schema: &Ident) -> TokenStream {
-    let table_ident = &table.name;
-    let columns = &table.columns;
-    let uniques = &table.uniques;
-
-    let defs = columns.values().map(|col| {
-        let ident = &col.name;
-        let generic = make_generic(&col.name);
-        quote!(pub #ident: #generic)
-    });
-
-    let typs = columns.values().map(|col| {
-        let typ = &col.typ;
-        quote!(::rust_query::Db<'t, #typ>)
-    });
-
-    let typ_asserts = columns.values().map(|col| {
-        let typ = &col.typ;
-        quote!(::rust_query::valid_in_schema::<#schema, #typ>();)
-    });
-
-    let generics = columns.values().map(|col| {
-        let generic = make_generic(&col.name);
-        quote!(#generic)
-    });
-
-    let generics_defs = columns.values().map(|col| {
-        let generic = make_generic(&col.name);
-        quote!(#generic)
-    });
-
-    let read_bounds = columns.values().map(|col| {
-        let typ = &col.typ;
-        let generic = make_generic(&col.name);
-        quote!(#generic: ::rust_query::Value<'t, Typ=#typ>)
-    });
-
-    let inits = columns.values().map(|col| {
-        let ident = &col.name;
-        let name: &String = &col.name.to_string();
-        quote!(#ident: f.col(#name))
-    });
-
-    let reads = columns.values().map(|col| {
-        let ident = &col.name;
-        let name: &String = &col.name.to_string();
-        quote!(f.col(#name, self.#ident))
-    });
-
-    let def_typs = columns.values().map(|col| {
-        let name: &String = &col.name.to_string();
-        let typ = &col.typ;
-        quote!(f.col::<#typ>(#name))
-    });
-
-    let dummy_ident = format_ident!("{}Dummy", table_ident);
-
-    let table_name: &String = &table_ident.to_string().to_snek_case();
-    let has_id = quote!(
-        impl ::rust_query::HasId for #table_ident {
-            const ID: &'static str = "id";
-            const NAME: &'static str = #table_name;
-        }
-    );
-
-    quote! {
-        pub struct #table_ident(());
-
-        pub struct #dummy_ident<#(#generics_defs),*> {
-            #(#defs,)*
-        }
-
-        impl ::rust_query::Table for #table_ident {
-            type Dummy<'t> = #dummy_ident<#(#typs),*>;
-            type Schema = #schema;
-
-            fn name(&self) -> String {
-                #table_name.to_owned()
-            }
-
-            fn build(f: ::rust_query::Builder<'_>) -> Self::Dummy<'_> {
-                #dummy_ident {
-                    #(#inits,)*
-                }
-            }
-
-            fn typs(f: &mut ::rust_query::TypBuilder) {
-                #(#def_typs;)*
-                #(#uniques;)*
-            }
-        }
-
-        impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
-            type T = #table_ident;
-            fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
-                #(#reads;)*
-            }
-        }
-
-        const _: fn() = || {
-            #(#typ_asserts)*
-        };
-
-        #has_id
-    }
-}
 
 // prev_table is only used for the columns
 fn define_table_migration(
@@ -306,7 +203,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 uniques,
             };
 
-            mod_output.extend(define_table(&table, schema));
+            mod_output.extend(table::define_table(&table, schema));
             new_tables.insert(i, table);
         }
 
