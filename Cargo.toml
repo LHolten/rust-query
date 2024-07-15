@@ -24,5 +24,6 @@ k12 = "0.3"
 rust-query-macros = {path = "rust-query-macros"}
 ouroboros = "0.18.4"
 ref-cast = "1.0.23"
+pretty_assertions = "1.4.0"
 
 [dev-dependencie]

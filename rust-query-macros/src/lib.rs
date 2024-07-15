@@ -128,7 +128,9 @@ fn define_table_migration(
         }
     }
 
-    if defs.is_empty() {
+    // check that nothing was added or removed
+    // we don't need input if only stuff was removed, but it still needs migrating
+    if defs.is_empty() && table.columns.len() == prev_columns.len() {
         return None;
     }
 

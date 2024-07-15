@@ -171,6 +171,7 @@ pub fn migrate() -> (Client, v2::Schema) {
                     // genre,
                 })
             },
+            genre_new: |_row, _genre_new| Box::new(v2::up::GenreNewMigration {}),
         })
     })
     .finish()

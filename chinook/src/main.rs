@@ -106,7 +106,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
             let reporter = q.table(&DB.employee);
             // only count employees that report to someone
             let reports_to = q.filter_some(reporter.reports_to());
-            q.filter_on(reports_to, &receiver);
+            q.filter_on(reports_to, receiver);
             q.count_distinct(reporter)
         });
 

@@ -270,6 +270,7 @@ impl Prepare {
         let schema_version: i64 = conn
             .pragma_query_value(None, "schema_version", |r| r.get(0))
             .unwrap();
+        // check if this database is newly created
         if schema_version == 0 {
             f(conn);
             foreign_key_check(conn);
@@ -362,10 +363,11 @@ fn new_checked<T: Schema>(conn: &Connection) -> Option<T> {
 
     let mut b = TableTypBuilder::default();
     T::typs(&mut b);
-    assert_eq!(
+    pretty_assertions::assert_eq!(
         b.ast,
         read_schema(conn),
-        "user version is equal, but schema is different"
+        "user version is equal ({}), but schema is different (expected left, but got right)",
+        T::VERSION
     );
 
     Some(T::new())

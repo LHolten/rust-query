@@ -97,7 +97,7 @@ impl MySelect {
                     }
 
                     let join_type = sea_query::JoinType::LeftJoin;
-                    select.join_subquery(join_type, self.build_select(true), *table_alias, cond);
+                    select.join_subquery(join_type, extra.build_select(true), *table_alias, cond);
                 }
                 Source::Implicit { table, conds } => {
                     let mut cond = Condition::all();
