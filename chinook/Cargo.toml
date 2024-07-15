@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 rust-query = {path = "../"}
+ref-cast = "1.0.23"

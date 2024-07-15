@@ -27,16 +27,14 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         });
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a>(&self, #(#args),*) -> ::rust_query::Db<'a, Option<#table_ident>> {
+            pub fn #unique_name<'a>(&self, #(#args),*) -> ::rust_query::DbCol<'a, Option<#table_ident>> {
                 todo!();
             }
         })
     }
 
     let mut defs = vec![];
-    let mut typs = vec![];
     let mut typ_asserts = vec![];
-    let mut generics = vec![];
     let mut read_bounds = vec![];
     let mut inits = vec![];
     let mut reads = vec![];
@@ -47,11 +45,13 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         let ident = &col.name;
         let ident_str = ident.to_string();
         let generic = make_generic(ident);
-        defs.push(quote!(pub #ident: #generic));
-        typs.push(quote!(::rust_query::Db<'t, #typ>));
+        defs.push(quote! {
+            pub fn #ident(&self) -> ::rust_query::Col<#typ, T> {
+                ::rust_query::Col::new(#ident_str, self.0.clone())
+            }
+        });
         typ_asserts.push(quote!(::rust_query::valid_in_schema::<#schema, #typ>();));
         read_bounds.push(quote!(#generic: ::rust_query::Value<'t, Typ=#typ>));
-        generics.push(generic);
         inits.push(quote!(#ident: f.col(#ident_str)));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)))
@@ -70,22 +70,20 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     quote! {
         pub struct #table_ident(());
 
-        pub struct #dummy_ident<#(#generics),*> {
-            #(#defs,)*
+        #[repr(transparent)]
+        #[derive(::rust_query::private::RefCast)]
+        pub struct #dummy_ident<T>(T);
+
+        impl<T: Clone> #dummy_ident<T> {
+            #(#defs)*
         }
 
         impl ::rust_query::Table for #table_ident {
-            type Dummy<'t> = #dummy_ident<#(#typs),*>;
+            type Dummy<T> = #dummy_ident<T>;
             type Schema = #schema;
 
             fn name(&self) -> String {
                 #table_name.to_owned()
-            }
-
-            fn build(f: ::rust_query::Builder<'_>) -> Self::Dummy<'_> {
-                #dummy_ident {
-                    #(#inits,)*
-                }
             }
 
             fn typs(f: &mut ::rust_query::TypBuilder) {
@@ -94,12 +92,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             }
         }
 
-        impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
-            type T = #table_ident;
-            fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
-                #(#reads;)*
-            }
-        }
+        // impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
+        //     type T = #table_ident;
+        //     fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
+        //         #(#reads;)*
+        //     }
+        // }
 
         #[allow(unused)]
         impl #table_ident {

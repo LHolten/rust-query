@@ -116,7 +116,7 @@ fn define_table_migration(
         let name = &col.name;
         let name_str = col.name.to_string();
         if prev_columns.contains_key(i) {
-            into_new.push(quote! {reader.col(#name_str, prev.#name.clone())});
+            into_new.push(quote! {reader.col(#name_str, prev.#name())});
         } else {
             let generic = make_generic(name);
             let typ = &col.typ;
@@ -144,7 +144,7 @@ fn define_table_migration(
         impl<'a, #(#constraints),*> ::rust_query::private::TableMigration<'a, #prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new(self: Box<Self>, prev: ::rust_query::Db<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
+            fn into_new(self: Box<Self>, prev: ::rust_query::DbCol<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
                 #(#into_new;)*
             }
         }
@@ -279,7 +279,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #table_name>) ->
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::DbCol<'a, #table_name>) ->
                         Box<dyn ::rust_query::private::TableMigration<'a, #table_name, T = super::#table_name> + 'a>
                 });
                 table_generics.push(table_generic);
@@ -296,7 +296,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: #table_generic
                 });
                 table_constraints.push(quote! {
-                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::Db<'a, #table_name>) ->
+                    #table_generic: for<'x, 'a> FnMut(::rust_query::args::Row<'x, 'a>, ::rust_query::DbCol<'a, #table_name>) ->
                         Option<Box<dyn ::rust_query::private::TableMigration<'a, #table_name, T = super::#table_name> + 'a>>
                 });
                 table_generics.push(table_generic);

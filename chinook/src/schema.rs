@@ -53,7 +53,7 @@ enum Schema {
         fax: Option<String>,
         email: String,
     },
-    #[version(..2)]
+    // #[version(..2)]
     Genre {
         name: String,
     },
@@ -104,10 +104,10 @@ enum Schema {
         media_type: MediaType,
         #[version(2..)]
         media_type: String,
-        #[version(..2)]
+        // #[version(..2)]
         genre: Genre,
-        #[version(2..)]
-        genre: GenreNew,
+        // #[version(2..)]
+        // genre: GenreNew,
         composer: Option<String>,
         #[version(2..)]
         composer_table: Option<Composer>,
@@ -131,10 +131,10 @@ pub fn migrate() -> (Client, v2::Schema) {
         include_str!("../migrate.sql"),
     ]);
 
-    m.migrate(|s, _| {
+    m.migrate(|_s, _| {
         Box::new(v1::up::Schema {
             album: |row, album| {
-                let artist = row.get(album.artist.name);
+                let artist = row.get(album.artist().name());
                 Box::new(v1::up::AlbumMigration {
                     something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
                     // new_title: album.title,
@@ -142,12 +142,12 @@ pub fn migrate() -> (Client, v2::Schema) {
             },
             playlist_track: |_row, pt| {
                 Box::new(v1::up::PlaylistTrackMigration {
-                    playlist: pt.playlist.clone(),
+                    playlist: pt.playlist(),
                 })
             },
             genre_new: |_row, genre| {
                 Some(Box::new(v1::up::GenreNewMigration {
-                    name: genre.name,
+                    name: genre.name(),
                     original: genre,
                 }))
             },
@@ -157,16 +157,18 @@ pub fn migrate() -> (Client, v2::Schema) {
         Box::new(v2::up::Schema {
             customer: |row, customer| {
                 Box::new(v2::up::CustomerMigration {
-                    phone: row.get(customer.phone).and_then(|x| x.parse::<i64>().ok()),
+                    phone: row
+                        .get(customer.phone())
+                        .and_then(|x| x.parse::<i64>().ok()),
                 })
             },
             track: |row, track| {
-                let genre = row.get(s.genre_new.unique_original(&track.genre)).unwrap();
+                // let genre = row.get(s.genre_new.unique_original(track.genre())).unwrap();
                 Box::new(v2::up::TrackMigration {
-                    media_type: &*String::leak(row.get(track.media_type.name)),
+                    media_type: &*String::leak(row.get(track.media_type().name())),
                     composer_table: Null::<NoTable>::default(),
-                    byte_price: row.get(track.unit_price) / row.get(track.bytes) as f64,
-                    genre,
+                    byte_price: row.get(track.unit_price()) / row.get(track.bytes()) as f64,
+                    // genre,
                 })
             },
         })
@@ -181,7 +183,7 @@ mod tests {
 
     #[test]
     fn backwards_compat() {
-        v0::assert_hash(expect!["38f654ce24217792"]);
-        v1::assert_hash(expect!["d9962ef27f0ea2e8"]);
+        v0::assert_hash(expect!["63a07c45f3286c66"]);
+        v1::assert_hash(expect!["a9fa0c89bbe4fc3a"]);
     }
 }

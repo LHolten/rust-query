@@ -10,14 +10,16 @@ use sea_query::{
 };
 
 use crate::{
+    alias::{Field, MyAlias},
     ast::{add_table, MySelect},
     client::Client,
+    db::DbCol,
     exec::Row,
     hash,
-    insert::{Reader, Writable},
+    insert::Reader,
     mymap::MyMap,
     pragma::read_schema,
-    value::{Db, Field, FkInfo, MyAlias, Value},
+    value::Value,
     HasId, Table,
 };
 
@@ -43,7 +45,7 @@ pub trait Schema: Sized {
 pub trait TableMigration<'a, A: HasId> {
     type T;
 
-    fn into_new(self: Box<Self>, prev: Db<'a, A>, reader: Reader<'_, 'a>);
+    fn into_new(self: Box<Self>, prev: DbCol<'a, A>, reader: Reader<'_, 'a>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -52,25 +54,15 @@ pub struct SchemaBuilder<'x> {
     rename: Vec<TableRenameStatement>,
 }
 
-struct Simple<'a, A: HasId, B: HasId> {
-    m: Box<dyn TableMigration<'a, A, T = B> + 'a>,
-    db: Db<'a, A>,
-}
-
-impl<'a, A: HasId, B: HasId> Writable<'a> for Simple<'a, A, B> {
-    type T = B;
-
-    fn read(self: Box<Self>, reader: Reader<'_, 'a>) {
-        self.m.into_new(self.db, reader)
-    }
-}
-
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: for<'y, 'a> FnMut(Row<'y, 'a>, Db<'a, A>) -> Box<dyn TableMigration<'a, A, T = B> + 'a>,
+        M: for<'y, 'a> FnMut(
+            Row<'y, 'a>,
+            DbCol<'a, A>,
+        ) -> Box<dyn TableMigration<'a, A, T = B> + 'a>,
     {
-        self.create_from(move |row, db: Db<A>| Some(m(row, db)));
+        self.create_from(move |row, db: DbCol<A>| Some(m(row, db)));
 
         self.drop
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
@@ -80,19 +72,19 @@ impl<'x> SchemaBuilder<'x> {
     where
         F: for<'y, 'a> FnMut(
             Row<'y, 'a>,
-            Db<'a, A>,
+            DbCol<'a, A>,
         ) -> Option<Box<dyn TableMigration<'a, A, T = B> + 'a>>,
     {
         let mut ast = MySelect {
-            sources: FrozenVec::new(),
+            tables: Vec::new(),
+            extra: MyMap::default(),
             filters: FrozenVec::new(),
             select: MyMap::default(),
             filter_on: FrozenVec::new(),
-            group: Cell::new(false),
         };
 
-        let joins = add_table(&ast.sources, A::NAME.to_owned());
-        let db = FkInfo::<A>::joined(joins, Field::Str(A::ID));
+        let table = add_table(&mut ast.tables, A::NAME.to_owned());
+        let db = DbCol::<A>::db(table, Field::Str(A::ID));
 
         let mut select = ast.simple(0, u32::MAX);
         let sql = select.to_string(SqliteQueryBuilder);
@@ -123,8 +115,8 @@ impl<'x> SchemaBuilder<'x> {
                 updated: &updated,
             };
 
-            if let Some(res) = f(row, db.clone()) {
-                let id = row.get(db.id());
+            if let Some(res) = f(row, db) {
+                let id: crate::db::Just<A> = row.get(db);
 
                 let old_select = take(&mut ast.select);
                 {
@@ -134,10 +126,11 @@ impl<'x> SchemaBuilder<'x> {
                         _phantom: PhantomData,
                         ast: &ast,
                     };
-                    res.into_new(db.clone(), reader);
+                    res.into_new(db, reader);
 
+                    let db_id = db.build_expr(ast.builder());
                     let mut new_select = ast.simple(0, u32::MAX);
-                    new_select.and_where(db.id().build_expr().eq(id));
+                    new_select.and_where(db_id.eq(id));
 
                     let mut insert = InsertStatement::new();
                     let names = ast.select.iter().map(|(_field, name)| *name);

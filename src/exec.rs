@@ -7,9 +7,10 @@ use std::{
 use sea_query::{Iden, SqliteQueryBuilder};
 
 use crate::{
+    alias::Field,
     ast::MySelect,
     query::Query,
-    value::{Field, Get, Value},
+    value::{MyTyp, Value},
 };
 
 /// This is the top level query type and dereferences to [Query].
@@ -93,8 +94,8 @@ pub struct Row<'x, 'names> {
 
 impl<'names> Row<'_, 'names> {
     /// Turn a dummy into a rust value.
-    pub fn get<V: Value<'names, Typ: Get>>(&self, val: V) -> <V::Typ as Get>::Out {
-        let expr = val.build_expr();
+    pub fn get<V: Value<'names, Typ: MyTyp>>(&self, val: V) -> <V::Typ as MyTyp>::Out {
+        let expr = val.build_expr(self.ast.builder());
         let Some((_, alias)) = self.ast.select.iter().find(|x| x.0 == expr) else {
             let alias = Field::new();
 

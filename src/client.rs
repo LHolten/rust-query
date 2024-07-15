@@ -31,10 +31,10 @@ impl QueryBuilder for rusqlite::Connection {
     where
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
-        let ast = MySelect::default();
+        let mut ast = MySelect::default();
         let q = Query {
             phantom: PhantomData,
-            ast: &ast,
+            ast: &mut ast,
             client: self,
         };
         f(&mut Execute {

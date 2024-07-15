@@ -1,13 +1,14 @@
 use std::marker::PhantomData;
 
-use elsa::FrozenVec;
 use sea_query::Expr;
 
 use crate::{
-    ast::{add_table, Joins, MySelect, Source},
+    alias::{Field, MyAlias},
+    ast::{add_table, MySelect, Source},
+    db::{Db, DbCol},
     group::Aggregate,
-    value::{Db, Field, FkInfo, MyAlias, MyIdenT, Value},
-    Builder, HasId, Table,
+    value::{Assume, Value},
+    HasId, Table,
 };
 
 /// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Execute].
@@ -25,22 +26,25 @@ use crate::{
 pub struct Query<'inner> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
-    pub(crate) ast: &'inner MySelect,
+    pub(crate) ast: &'inner mut MySelect,
     pub(crate) client: &'inner rusqlite::Connection,
 }
 
 impl<'inner> Query<'inner> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
-    pub fn table<T: HasId>(&mut self, t: &T) -> Db<'inner, T> {
-        let joins = add_table(&self.ast.sources, t.name());
-        FkInfo::joined(joins, Field::Str(T::ID))
+    pub fn table<T: HasId>(&mut self, t: &T) -> DbCol<'inner, T> {
+        let table = add_table(&mut self.ast.tables, t.name());
+        DbCol::db(table, Field::Str(T::ID))
     }
 
     /// Join a table that has no integer primary key.
     /// Refer to [Query::table] for more information about joining tables.
-    pub fn flat_table<T: Table>(&mut self, t: T) -> T::Dummy<'inner> {
-        let joins = add_table(&self.ast.sources, t.name());
-        T::build(Builder::new(joins))
+    pub fn flat_table<T: Table>(&mut self, t: T) -> Db<'inner, T> {
+        let table = add_table(&mut self.ast.tables, t.name());
+        Db {
+            table,
+            _p: PhantomData,
+        }
     }
 
     /// Join a vector of values.
@@ -53,42 +57,41 @@ impl<'inner> Query<'inner> {
     where
         F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a>) -> R,
     {
-        let joins = Joins {
-            table: MyAlias::new(),
-            joined: FrozenVec::new(),
-        };
-        let source = Source::Select(MySelect::default(), joins);
-        let source = self.ast.sources.push_get(Box::new(source));
-        let Source::Select(ast, joins) = source else {
-            unreachable!()
-        };
-        ast.group.set(true);
+        let mut ast = MySelect::default();
         let inner = Query {
             phantom: PhantomData,
-            ast,
+            ast: &mut ast,
             client: self.client,
         };
+        let table = MyAlias::new();
         let mut group = Aggregate {
             query: inner,
-            joins,
+            table,
             phantom2: PhantomData,
         };
-        f(&mut group)
+        let res = f(&mut group);
+
+        self.ast.extra.get_or_init(Source::Aggregate(ast), || table);
+        res
     }
 
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl Value<'inner>) {
-        self.ast.filters.push(Box::new(prop.build_expr()));
+        self.ast
+            .filters
+            .push(Box::new(prop.build_expr(self.ast.builder())));
     }
 
     /// Filter out rows where this column is [None].
-    pub fn filter_some<T: MyIdenT>(&mut self, val: &Db<'inner, Option<T>>) -> Db<'inner, T> {
-        self.ast
-            .filters
-            .push(Box::new(Expr::expr(val.build_expr())).is_not_null().into());
-        Db {
-            info: val.info.clone(),
-            field: val.field,
-        }
+    pub fn filter_some<T, V>(&mut self, val: V) -> Assume<V>
+    where
+        V: Value<'inner, Typ = Option<T>>,
+    {
+        self.ast.filters.push(
+            Box::new(Expr::expr(val.build_expr(self.ast.builder())))
+                .is_not_null()
+                .into(),
+        );
+        Assume(val)
     }
 }

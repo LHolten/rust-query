@@ -1,59 +1,60 @@
-use std::{cell::Cell, fmt};
-
 use elsa::FrozenVec;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
+    alias::{Field, MyAlias, RawAlias},
     mymap::MyMap,
-    value::{Field, FieldAlias, MyAlias, RawAlias},
+    value::ValueBuilder,
 };
 
 #[derive(Default)]
 pub struct MySelect {
-    // the sources to use
-    pub(super) sources: FrozenVec<Box<Source>>,
+    // tables to join, adding more requires mutating
+    pub(super) tables: Vec<(String, MyAlias)>,
+    // implicit joins
+    pub(super) extra: MyMap<Source, MyAlias>,
     // all conditions to check
     pub(super) filters: FrozenVec<Box<SimpleExpr>>,
-    // calculating these agregates
+    // calculating these results
     pub(super) select: MyMap<SimpleExpr, Field>,
     // values that must be returned/ filtered on
     pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias, SimpleExpr)>>,
-    // is this a grouping select
-    pub(super) group: Cell<bool>,
-}
-
-pub struct MyTable {
-    // pub(super) name: (&'static str, MyAlias),
-    pub(super) name: &'static str,
-    pub(super) id: &'static str,
-    // pub(super) joins: FrozenVec<Box<(&'static str, MyTable)>>,
-    pub(super) joins: Joins,
-}
-
-pub(super) struct Joins {
-    pub(super) table: MyAlias,
-    pub(super) joined: FrozenVec<Box<(Field, MyTable)>>,
-}
-
-impl fmt::Debug for MyTable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MyTable")
-            .field("name", &self.name)
-            .field("id", &self.id)
-            // .field("columns", &self.joins.iter().collect::<Vec<_>>())
-            .finish()
-    }
 }
 
 pub(super) enum Source {
-    Select(MySelect, Joins),
+    Aggregate(MySelect),
     // table and pk
-    Table(String, Joins),
+    Implicit {
+        table: String,
+        conds: Vec<(&'static str, SimpleExpr)>,
+    },
+}
+
+impl PartialEq for Source {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Implicit {
+                    table: l_table,
+                    conds: l_cond,
+                },
+                Self::Implicit {
+                    table: r_table,
+                    conds: r_cond,
+                },
+            ) => l_table == r_table && l_cond == r_cond,
+            _ => false,
+        }
+    }
 }
 
 impl MySelect {
+    pub fn builder(&self) -> ValueBuilder<'_> {
+        ValueBuilder { inner: self }
+    }
+
     pub fn simple(&self, offset: usize, limit: u32) -> SelectStatement {
-        let mut select = self.build_select();
+        let mut select = self.build_select(false);
 
         let mut cond = Condition::all();
         for (inner_value, _alias, outer_value) in self.filter_on.iter() {
@@ -71,55 +72,44 @@ impl MySelect {
         select
     }
 
-    pub fn join(&self, joins: &Joins, select: &mut SelectStatement) {
-        let mut cond = Condition::all();
-        for (_, alias, outer_value) in self.filter_on.iter() {
-            let id_field = Expr::expr(outer_value.clone());
-            let id_field2 = Expr::col((joins.table, *alias));
-            let filter = id_field.eq(id_field2);
-            cond = cond.add(filter);
-        }
-
-        if self.group.get() {
-            select.join_subquery(
-                sea_query::JoinType::LeftJoin,
-                self.build_select(),
-                joins.table,
-                cond,
-            );
-        } else {
-            select.join_subquery(
-                sea_query::JoinType::InnerJoin,
-                self.build_select(),
-                joins.table,
-                cond,
-            );
-        }
-
-        for (col, table) in joins.joined.iter() {
-            let field = joins.col_alias(*col);
-            table.join(field, select)
-        }
-    }
-
-    pub fn build_select(&self) -> SelectStatement {
+    pub fn build_select(&self, is_group: bool) -> SelectStatement {
         let mut select = SelectStatement::new();
         select.from_values([1], NullAlias);
-        for source in self.sources.iter() {
-            match source {
-                Source::Select(q, joins) => q.join(joins, &mut select),
-                Source::Table(table, joins) => {
-                    select.join_as(
-                        sea_query::JoinType::InnerJoin,
-                        RawAlias(table.clone()),
-                        joins.table,
-                        Condition::all(),
-                    );
 
-                    for (col, table) in joins.joined.iter() {
-                        let field = joins.col_alias(*col);
-                        table.join(field, &mut select)
+        for (table, alias) in &self.tables {
+            select.join_as(
+                sea_query::JoinType::InnerJoin,
+                RawAlias(table.clone()),
+                *alias,
+                Condition::all(),
+            );
+        }
+
+        for (source, table_alias) in self.extra.iter() {
+            match source {
+                Source::Aggregate(extra) => {
+                    let mut cond = Condition::all();
+                    for (_, alias, outer_value) in extra.filter_on.iter() {
+                        let id_field = Expr::expr(outer_value.clone());
+                        let id_field2 = Expr::col((*table_alias, *alias));
+                        let filter = id_field.eq(id_field2);
+                        cond = cond.add(filter);
                     }
+
+                    let join_type = sea_query::JoinType::LeftJoin;
+                    select.join_subquery(join_type, self.build_select(true), *table_alias, cond);
+                }
+                Source::Implicit { table, conds } => {
+                    let mut cond = Condition::all();
+                    for (field, outer_value) in conds.iter() {
+                        let id_field = Expr::expr(outer_value.clone());
+                        let id_field2 = Expr::col((*table_alias, Alias::new(*field)));
+                        let filter = id_field.eq(id_field2);
+                        cond = cond.add(filter);
+                    }
+
+                    let join_type = sea_query::JoinType::LeftJoin;
+                    select.join_as(join_type, Alias::new(table), *table_alias, cond);
                 }
             }
         }
@@ -134,7 +124,7 @@ impl MySelect {
             any_expr = true;
 
             select.expr_as(group.clone(), *alias);
-            if self.group.get() {
+            if is_group {
                 any_group = true;
                 select.group_by_col(*alias);
             }
@@ -150,7 +140,7 @@ impl MySelect {
             select.expr_as(Expr::val(1), NullAlias);
         }
 
-        if !any_group && self.group.get() {
+        if !any_group && is_group {
             select.expr_as(Expr::count(Expr::col(Asterisk)), NullAlias);
         }
 
@@ -158,46 +148,8 @@ impl MySelect {
     }
 }
 
-pub fn add_table(sources: &FrozenVec<Box<Source>>, name: String) -> &Joins {
-    let joins = Joins {
-        table: MyAlias::new(),
-        joined: FrozenVec::new(),
-    };
-    let source = Box::new(Source::Table(name, joins));
-    let Source::Table(_, joins) = sources.push_get(source) else {
-        unreachable!()
-    };
-    joins
-}
-
-impl Joins {
-    pub fn col_alias(&self, col: Field) -> FieldAlias {
-        FieldAlias {
-            table: self.table,
-            col,
-        }
-    }
-}
-
-impl MyTable {
-    pub fn id_alias(&self) -> FieldAlias {
-        self.joins.col_alias(Field::Str(self.id))
-    }
-
-    pub fn join(&self, filter: FieldAlias, select: &mut SelectStatement) {
-        let id_field = self.id_alias();
-        let filter = Expr::col(id_field).equals(filter);
-
-        select.join_as(
-            sea_query::JoinType::LeftJoin,
-            Alias::new(self.name),
-            self.joins.table,
-            Condition::all().add(filter),
-        );
-
-        for (col, table) in self.joins.joined.iter() {
-            let field = self.joins.col_alias(*col);
-            table.join(field, select)
-        }
-    }
+pub fn add_table(sources: &mut Vec<(String, MyAlias)>, name: String) -> MyAlias {
+    let alias = MyAlias::new();
+    sources.push((name, alias));
+    alias
 }

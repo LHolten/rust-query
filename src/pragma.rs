@@ -1,44 +1,46 @@
 use std::collections::HashMap;
 
+use ref_cast::RefCast;
 use rusqlite::Connection;
 
-use crate::{
-    client::QueryBuilder,
-    hash,
-    value::{Db, Value},
-    Builder, Table,
-};
+use crate::{client::QueryBuilder, db::Col, hash, value::Value, Table};
+
+macro_rules! field {
+    ($name:ident: $typ:ty) => {
+        pub fn $name(&self) -> Col<$typ, T> {
+            Col::new(stringify!($name), self.0.clone())
+        }
+    };
+    ($name:ident($name_str:literal): $typ:ty) => {
+        pub fn $name(&self) -> Col<$typ, T> {
+            Col::new($name_str, self.0.clone())
+        }
+    };
+}
 
 pub struct Pragma;
 
 pub struct TableList;
 
-pub struct TableListDummy<'a> {
-    pub schema: Db<'a, String>,
-    pub name: Db<'a, String>,
-    pub r#type: Db<'a, String>,
-    pub ncol: Db<'a, i64>,
-    pub wr: Db<'a, i64>,
-    pub strict: Db<'a, i64>,
+#[repr(transparent)]
+#[derive(RefCast)]
+pub struct TableListDummy<T>(T);
+
+impl<T: Clone> TableListDummy<T> {
+    field! {schema: String}
+    field! {name: String}
+    field! {r#type("type"): String}
+    field! {ncol: i64}
+    field! {wr: i64}
+    field! {strict: i64}
 }
 
 impl Table for TableList {
-    type Dummy<'names> = TableListDummy<'names>;
+    type Dummy<T> = TableListDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
         "pragma_table_list".to_owned()
-    }
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        TableListDummy {
-            schema: f.col("schema"),
-            name: f.col("name"),
-            r#type: f.col("type"),
-            ncol: f.col("ncol"),
-            wr: f.col("wr"),
-            strict: f.col("strict"),
-        }
     }
 
     fn typs(_f: &mut crate::TypBuilder) {}
@@ -46,54 +48,45 @@ impl Table for TableList {
 
 pub struct TableInfo(pub String);
 
-pub struct TableInfoDummy<'a> {
-    pub name: Db<'a, String>,
-    pub r#type: Db<'a, String>,
-    pub notnull: Db<'a, i64>,
-    pub pk: Db<'a, i64>,
+#[repr(transparent)]
+#[derive(RefCast)]
+pub struct TableInfoDummy<T>(T);
+
+impl<T: Clone> TableInfoDummy<T> {
+    field! {name: String}
+    field! {r#type("type"): String}
+    field! {notnull: i64}
+    field! {pk: i64}
 }
 
 impl Table for TableInfo {
-    type Dummy<'t> = TableInfoDummy<'t>;
+    type Dummy<T> = TableInfoDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
         format!("pragma_table_info('{}', 'main')", self.0)
     }
 
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        TableInfoDummy {
-            name: f.col("name"),
-            r#type: f.col("type"),
-            notnull: f.col("notnull"),
-            pk: f.col("pk"),
-        }
-    }
-
     fn typs(_f: &mut crate::TypBuilder) {}
 }
 pub struct ForeignKeyList(pub String);
 
-pub struct ForeignKeyListDummy<'a> {
-    pub table: Db<'a, String>,
-    pub from: Db<'a, String>,
-    pub to: Db<'a, String>,
+#[repr(transparent)]
+#[derive(RefCast)]
+pub struct ForeignKeyListDummy<T>(T);
+
+impl<T: Clone> ForeignKeyListDummy<T> {
+    field! {table: String}
+    field! {from: String}
+    field! {to: String}
 }
 
 impl Table for ForeignKeyList {
-    type Dummy<'t> = ForeignKeyListDummy<'t>;
+    type Dummy<T> = ForeignKeyListDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
         format!("pragma_foreign_key_list('{}', 'main')", self.0)
-    }
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        ForeignKeyListDummy {
-            table: f.col("table"),
-            from: f.col("from"),
-            to: f.col("to"),
-        }
     }
 
     fn typs(_f: &mut crate::TypBuilder) {}
@@ -101,28 +94,23 @@ impl Table for ForeignKeyList {
 
 pub struct IndexList(String);
 
-pub struct IndexListDummy<'a> {
-    pub name: Db<'a, String>,
-    pub unique: Db<'a, bool>,
-    pub origin: Db<'a, String>,
-    pub partial: Db<'a, bool>,
+#[repr(transparent)]
+#[derive(RefCast)]
+pub struct IndexListDummy<T>(T);
+
+impl<T: Clone> IndexListDummy<T> {
+    field! {name: String}
+    field! {unique: bool}
+    field! {origin: String}
+    field! {partial: bool}
 }
 
 impl Table for IndexList {
-    type Dummy<'t> = IndexListDummy<'t>;
+    type Dummy<T> = IndexListDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
         format!("pragma_index_list('{}', 'main')", self.0)
-    }
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        IndexListDummy {
-            name: f.col("name"),
-            unique: f.col("unique"),
-            origin: f.col("origin"),
-            partial: f.col("partial"),
-        }
     }
 
     fn typs(_f: &mut crate::TypBuilder) {}
@@ -130,22 +118,20 @@ impl Table for IndexList {
 
 pub struct IndexInfo(String);
 
-pub struct IndexInfoDummy<'a> {
-    pub name: Db<'a, Option<String>>,
+#[repr(transparent)]
+#[derive(RefCast)]
+pub struct IndexInfoDummy<T>(T);
+
+impl<T: Clone> IndexInfoDummy<T> {
+    field! {name: Option<String>}
 }
 
 impl Table for IndexInfo {
-    type Dummy<'t> = IndexInfoDummy<'t>;
+    type Dummy<T> = IndexInfoDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
         format!("pragma_index_info('{}', 'main')", self.0)
-    }
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_> {
-        IndexInfoDummy {
-            name: f.col("name"),
-        }
     }
 
     fn typs(_f: &mut crate::TypBuilder) {}
@@ -162,10 +148,10 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
 
     let tables = conn.new_query(|q| {
         let table = q.flat_table(TableList);
-        q.filter(table.schema.eq("main"));
-        q.filter(table.r#type.eq("table"));
-        q.filter(table.name.eq("sqlite_schema").not());
-        q.into_vec(u32::MAX, |row| row.get(&table.name))
+        q.filter(table.schema().eq("main"));
+        q.filter(table.r#type().eq("table"));
+        q.filter(table.name().eq("sqlite_schema").not());
+        q.into_vec(u32::MAX, |row| row.get(&table.name()))
     });
 
     let mut output = hash::Schema::default();
@@ -175,10 +161,10 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
             let table = q.flat_table(TableInfo(table.clone()));
 
             q.into_vec(u32::MAX, |row| Column {
-                name: row.get(table.name),
-                typ: row.get(table.r#type),
-                pk: row.get(table.pk) != 0,
-                notnull: row.get(table.notnull) != 0,
+                name: row.get(table.name()),
+                typ: row.get(table.r#type()),
+                pk: row.get(table.pk()) != 0,
+                notnull: row.get(table.notnull()) != 0,
             })
         });
 
@@ -187,7 +173,7 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
                 let fk = q.flat_table(ForeignKeyList(table.to_owned()));
                 q.into_vec(u32::MAX, |row| {
                     // we just assume that the to column is the primary key..
-                    (row.get(fk.from), row.get(fk.table))
+                    (row.get(fk.from()), row.get(fk.table()))
                 })
             })
             .into_iter()
@@ -222,16 +208,16 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
 
         let uniques = conn.new_query(|q| {
             let index = q.flat_table(IndexList(table.clone()));
-            q.filter(index.unique);
-            q.filter(index.origin.eq("u"));
-            q.filter(index.partial.not());
-            q.into_vec(u32::MAX, |row| row.get(index.name))
+            q.filter(index.unique());
+            q.filter(index.origin().eq("u"));
+            q.filter(index.partial().not());
+            q.into_vec(u32::MAX, |row| row.get(index.name()))
         });
 
         for unique in uniques {
             let columns = conn.new_query(|q| {
                 let col = q.flat_table(IndexInfo(unique));
-                let name = q.filter_some(&col.name);
+                let name = q.filter_some(col.name());
                 q.into_vec(u32::MAX, |row| row.get(name))
             });
 

@@ -1,26 +1,37 @@
-use std::{
-    cell::OnceCell,
-    marker::PhantomData,
-    ops::Deref,
-    rc::Rc,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::marker::PhantomData;
 
-use elsa::FrozenVec;
 use rusqlite::types::FromSql;
-use sea_query::{Expr, Iden, IntoColumnRef, Nullable, SimpleExpr};
+use sea_query::{Expr, Nullable, SimpleExpr};
 
 use crate::{
-    ast::{Joins, MyTable},
-    hash, Builder, HasId,
+    alias::{MyAlias, RawAlias},
+    ast::{MySelect, Source},
+    db::{Col, Db, Just},
+    hash, HasId,
 };
+
+#[derive(Clone, Copy)]
+pub struct ValueBuilder<'x> {
+    pub(crate) inner: &'x MySelect,
+}
+
+impl<'x> ValueBuilder<'x> {
+    pub(crate) fn get_join<T: HasId>(self, expr: SimpleExpr) -> MyAlias {
+        let source = Source::Implicit {
+            table: T::NAME.to_owned(),
+            conds: vec![(T::ID, expr)],
+        };
+        *self.inner.extra.get_or_init(source, MyAlias::new)
+    }
+}
 
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
 pub trait Value<'t>: Sized + Clone {
-    type Typ: MyIdenT;
+    type Typ;
+
     #[doc(hidden)]
-    fn build_expr(&self) -> SimpleExpr;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
 
     fn add<T: Value<'t>>(self, rhs: T) -> MyAdd<Self, T> {
         MyAdd(self, rhs)
@@ -55,16 +66,47 @@ pub trait Value<'t>: Sized + Clone {
         UnwrapOr(self, rhs)
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn is_not_null(self) -> IsNotNull<Self> {
         IsNotNull(self)
+    }
+}
+
+impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
+    type Typ = T;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        let table = b.get_join::<P::Typ>(self.inner.build_expr(b));
+        Expr::col((table, self.field)).into()
+    }
+}
+
+impl<'t, T, X> Value<'t> for Col<T, Db<'t, X>> {
+    type Typ = T;
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        Expr::col((self.inner.table, self.field)).into()
+    }
+}
+
+// impl<'t, T> Value<'t> for Db<'t, T> {
+//     type Typ = T;
+//     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+//         Expr::col((self.db.table, self.field)).into()
+//     }
+// }
+
+impl<'t, T> Value<'t> for Just<T> {
+    type Typ = T;
+
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        Expr::val(self.idx).into()
     }
 }
 
 impl<'t, T: Value<'t>> Value<'t> for &'_ T {
     type Typ = T::Typ;
 
-    fn build_expr(&self) -> SimpleExpr {
-        T::build_expr(self)
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        T::build_expr(self, b)
     }
 }
 
@@ -72,15 +114,17 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
 impl<'t, T: Value<'t> + Nullable> Value<'t> for Option<T> {
     type Typ = Option<T::Typ>;
 
-    fn build_expr(&self) -> SimpleExpr {
-        self.as_ref().map(T::build_expr).unwrap_or(T::null().into())
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.as_ref()
+            .map(|x| T::build_expr(x, b))
+            .unwrap_or(T::null().into())
     }
 }
 
 impl<'t> Value<'t> for &str {
     type Typ = String;
 
-    fn build_expr(&self) -> SimpleExpr {
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
@@ -88,7 +132,7 @@ impl<'t> Value<'t> for &str {
 impl<'t> Value<'t> for bool {
     type Typ = bool;
 
-    fn build_expr(&self) -> SimpleExpr {
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
@@ -96,7 +140,7 @@ impl<'t> Value<'t> for bool {
 impl<'t> Value<'t> for i64 {
     type Typ = i64;
 
-    fn build_expr(&self) -> SimpleExpr {
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
@@ -104,15 +148,8 @@ impl<'t> Value<'t> for i64 {
 impl<'t> Value<'t> for f64 {
     type Typ = f64;
 
-    fn build_expr(&self) -> SimpleExpr {
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
-    }
-}
-
-impl<'t, T: MyIdenT> Value<'t> for Db<'t, T> {
-    type Typ = T;
-    fn build_expr(&self) -> SimpleExpr {
-        Expr::col(self.field).into()
     }
 }
 
@@ -121,8 +158,8 @@ pub struct MyAdd<A, B>(A, B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAdd<A, B> {
     type Typ = A::Typ;
-    fn build_expr(&self) -> SimpleExpr {
-        self.0.build_expr().add(self.1.build_expr())
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).add(self.1.build_expr(b))
     }
 }
 
@@ -131,8 +168,8 @@ pub struct MyNot<T>(T);
 
 impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
     type Typ = T::Typ;
-    fn build_expr(&self) -> SimpleExpr {
-        self.0.build_expr().not()
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).not()
     }
 }
 
@@ -141,8 +178,8 @@ pub struct MyAnd<A, B>(A, B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAnd<A, B> {
     type Typ = A::Typ;
-    fn build_expr(&self) -> SimpleExpr {
-        self.0.build_expr().and(self.1.build_expr())
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).and(self.1.build_expr(b))
     }
 }
 #[derive(Clone, Copy)]
@@ -150,8 +187,8 @@ pub struct MyLt<A>(A, i32);
 
 impl<'t, A: Value<'t>> Value<'t> for MyLt<A> {
     type Typ = bool;
-    fn build_expr(&self) -> SimpleExpr {
-        Expr::expr(self.0.build_expr()).lt(self.1)
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::expr(self.0.build_expr(b)).lt(self.1)
     }
 }
 
@@ -160,8 +197,8 @@ pub struct MyEq<A, B>(A, B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
     type Typ = bool;
-    fn build_expr(&self) -> SimpleExpr {
-        self.0.build_expr().eq(self.1.build_expr())
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).eq(self.1.build_expr(b))
     }
 }
 
@@ -170,8 +207,8 @@ pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
 
 impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
     type Typ = B::Typ;
-    fn build_expr(&self) -> SimpleExpr {
-        Expr::expr(self.0.build_expr()).if_null(self.1.build_expr())
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::expr(self.0.build_expr(b)).if_null(self.1.build_expr(b))
     }
 }
 
@@ -180,8 +217,18 @@ pub struct IsNotNull<A>(pub(crate) A);
 
 impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
     type Typ = bool;
-    fn build_expr(&self) -> SimpleExpr {
-        Expr::expr(self.0.build_expr()).is_not_null()
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::expr(self.0.build_expr(b)).is_not_null()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Assume<A>(pub(crate) A);
+
+impl<'t, T, A: Value<'t, Typ = Option<T>>> Value<'t> for Assume<A> {
+    type Typ = T;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b)
     }
 }
 
@@ -192,7 +239,7 @@ pub struct UnixEpoch;
 impl<'t> Value<'t> for UnixEpoch {
     type Typ = i64;
 
-    fn build_expr(&self) -> SimpleExpr {
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
     }
 }
@@ -211,276 +258,53 @@ impl<T> Clone for Null<T> {
     }
 }
 
-impl<'t, T: MyIdenT> Value<'t> for Null<T> {
+impl<'t, T> Value<'t> for Null<T> {
     type Typ = Option<T>;
 
-    fn build_expr(&self) -> SimpleExpr {
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::value(None::<i64>)
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(super) struct FieldAlias {
-    pub table: MyAlias,
-    pub col: Field,
-}
-
-impl IntoColumnRef for FieldAlias {
-    fn into_column_ref(self) -> sea_query::ColumnRef {
-        (self.table, self.col).into_column_ref()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) enum Field {
-    U64(MyAlias),
-    Str(&'static str),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct MyAlias {
-    name: u64,
-}
-
-impl sea_query::Iden for Field {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        match self {
-            Field::U64(alias) => alias.unquoted(s),
-            Field::Str(name) => write!(s, "{}", name).unwrap(),
-        }
-    }
-}
-
-impl MyAlias {
-    pub fn new() -> Self {
-        static IDEN_NUM: AtomicU64 = AtomicU64::new(0);
-        let next = IDEN_NUM.fetch_add(1, Ordering::Relaxed);
-        Self { name: next }
-    }
-}
-
-impl Field {
-    pub fn new() -> Self {
-        Field::U64(MyAlias::new())
-    }
-}
-
-impl sea_query::Iden for MyAlias {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "_{}", self.name).unwrap()
-    }
-}
-
-pub(super) trait MyTableT<'t>: Clone {
-    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self;
-}
-
-impl<'t, T: HasId> MyTableT<'t> for FkInfo<'t, T> {
-    fn unwrap(joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self {
-        FkInfo {
-            joined,
-            inner: OnceCell::new(),
-        }
-    }
-}
-
-impl<'t> MyTableT<'t> for ValueInfo {
-    fn unwrap(_joined: &'t FrozenVec<Box<(Field, MyTable)>>) -> Self {
-        ValueInfo {}
-    }
-}
-
-pub(super) struct FkInfo<'t, T: HasId> {
-    pub joined: &'t FrozenVec<Box<(Field, MyTable)>>, // the table that we join onto
-    pub inner: OnceCell<Rc<T::Dummy<'t>>>,
-}
-
-impl<'t, T: HasId> Clone for FkInfo<'t, T> {
-    fn clone(&self) -> Self {
-        Self {
-            joined: self.joined,
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl<'t, T: HasId> FkInfo<'t, T> {
-    pub(crate) fn joined(joins: &'t Joins, field: Field) -> Db<'t, T> {
-        let field = FieldAlias {
-            table: joins.table,
-            col: field,
-        };
-        let value = T::build(Builder::new_full(&joins.joined, field.table));
-        let info = FkInfo {
-            joined: &joins.joined,
-            // prevent unnecessary join
-            inner: OnceCell::from(Rc::new(value)),
-        };
-        Db { info, field }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct ValueInfo {}
-
-pub trait Get {
-    type Out: FromSql;
-}
-
-pub(super) trait MyIdenT {
-    type Info<'t>: MyTableT<'t>;
-    fn iden_any(joins: &Joins, col: Field) -> Db<'_, Self> {
-        let field = FieldAlias {
-            table: joins.table,
-            col,
-        };
-        Self::iden_full(&joins.joined, field)
-    }
-    fn iden_full(joined: &FrozenVec<Box<(Field, MyTable)>>, field: FieldAlias) -> Db<'_, Self> {
-        Db {
-            info: Self::Info::unwrap(joined),
-            field,
-        }
-    }
+pub trait MyTyp: 'static {
     const NULLABLE: bool = false;
     const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
+    type Out: FromSql;
 }
 
-impl<T: HasId> MyIdenT for T {
-    type Info<'t> = FkInfo<'t, T>;
+impl<T: HasId> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-}
-
-impl MyIdenT for i64 {
-    type Info<'t> = ValueInfo;
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
-}
-
-impl MyIdenT for f64 {
-    type Info<'t> = ValueInfo;
-    const TYP: hash::ColumnType = hash::ColumnType::Float;
-}
-
-impl MyIdenT for bool {
-    type Info<'t> = ValueInfo;
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
-}
-
-impl MyIdenT for String {
-    type Info<'t> = ValueInfo;
-    const TYP: hash::ColumnType = hash::ColumnType::String;
-}
-
-impl<T: MyIdenT> MyIdenT for Option<T> {
-    type Info<'t> = T::Info<'t>;
-
-    const TYP: hash::ColumnType = T::TYP;
-    const NULLABLE: bool = true;
-    const FK: Option<(&'static str, &'static str)> = T::FK;
-}
-
-impl<T: HasId> Get for T {
     type Out = Just<Self>;
 }
 
-impl Get for i64 {
+impl MyTyp for i64 {
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out = Self;
 }
 
-impl Get for f64 {
+impl MyTyp for f64 {
+    const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out = Self;
 }
 
-impl Get for bool {
+impl MyTyp for bool {
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out = Self;
 }
 
-impl Get for String {
+impl MyTyp for String {
+    const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out = Self;
 }
 
-impl<T: Get> Get for Option<T> {
+impl<T: MyTyp> MyTyp for Option<T> {
+    const TYP: hash::ColumnType = T::TYP;
+    const NULLABLE: bool = true;
+    const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out = Option<T::Out>;
 }
-
-/// This is a dummy database column reference.
-/// If the column has a foreign key constraint,
-/// it can be dereferenced to join the table.
-pub struct Db<'t, T: MyIdenT + ?Sized> {
-    // invariant in `'t` because of the associated type
-    pub(crate) info: T::Info<'t>,
-    pub(crate) field: FieldAlias,
-}
-
-impl<'t, T: MyIdenT> Clone for Db<'t, T> {
-    fn clone(&self) -> Self {
-        Db {
-            info: self.info.clone(),
-            field: self.field,
-        }
-    }
-}
-impl<'t, T: MyIdenT> Copy for Db<'t, T> where T::Info<'t>: Copy {}
-
-impl<'a, T: HasId> Db<'a, T> {
-    pub fn id(&self) -> Db<'a, i64> {
-        Db {
-            info: ValueInfo {},
-            field: self.field,
-        }
-    }
-}
-
-impl<'a, T: HasId> Deref for Db<'a, T> {
-    type Target = T::Dummy<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        self.info.inner.get_or_init(|| {
-            let joined = self.info.joined;
-            let name = self.field.col;
-            let (_, table) = if let Some(item) = joined.iter().find(|item| item.0 == name) {
-                item
-            } else {
-                let table = MyTable {
-                    name: T::NAME,
-                    id: T::ID,
-                    joins: Joins {
-                        table: MyAlias::new(),
-                        joined: FrozenVec::new(),
-                    },
-                };
-                joined.push_get(Box::new((name, table)))
-            };
-
-            Rc::new(T::build(Builder::new(&table.joins)))
-        })
-    }
-}
-
-pub(crate) struct RawAlias(pub(crate) String);
-
-impl Iden for RawAlias {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "{}", self.0).unwrap()
-    }
-    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
-        self.unquoted(s)
-    }
-}
-
-pub struct Just<T> {
-    _p: PhantomData<T>,
-    idx: i64,
-}
-
-impl<T> Clone for Just<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<T> Copy for Just<T> {}
 
 impl<T> FromSql for Just<T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
@@ -491,10 +315,8 @@ impl<T> FromSql for Just<T> {
     }
 }
 
-impl<'t, T: MyIdenT> Value<'t> for Just<T> {
-    type Typ = T;
-
-    fn build_expr(&self) -> SimpleExpr {
-        Expr::value(self.idx)
+impl<T> From<Just<T>> for sea_query::Value {
+    fn from(value: Just<T>) -> Self {
+        value.idx.into()
     }
 }

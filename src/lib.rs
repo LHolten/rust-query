@@ -1,7 +1,12 @@
 #![allow(private_bounds)]
 
+use ref_cast::RefCast;
+use value::MyTyp;
+
+mod alias;
 mod ast;
 mod client;
+mod db;
 mod exec;
 mod group;
 mod hash;
@@ -13,11 +18,12 @@ mod query;
 mod value;
 
 pub use client::Client;
+pub use db::{Col, Db, DbCol, Just};
 pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
-pub use value::{Db, Get, Just, Null, UnixEpoch, Value};
+pub use value::{Null, UnixEpoch, Value};
 
 pub mod ops {
     pub use crate::value::{IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
@@ -34,12 +40,9 @@ pub mod private {
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
     pub use expect_test::Expect;
+
+    pub use ref_cast::RefCast;
 }
-
-use ast::{Joins, MyTable};
-
-use elsa::FrozenVec;
-use value::{Field, FieldAlias, MyAlias, MyIdenT};
 
 #[derive(Default)]
 #[doc(hidden)]
@@ -48,7 +51,7 @@ pub struct TypBuilder {
 }
 
 impl TypBuilder {
-    pub fn col<T: MyIdenT>(&mut self, name: &'static str) {
+    pub fn col<T: MyTyp>(&mut self, name: &'static str) {
         let mut item = hash::Column {
             name: name.to_owned(),
             typ: T::TYP,
@@ -74,13 +77,11 @@ impl TypBuilder {
 pub trait Table: 'static {
     // const NAME: &'static str;
     // these names are defined in `'query`
-    type Dummy<'t>;
+    type Dummy<T>: RefCast<From = T>;
 
     type Schema;
 
     fn name(&self) -> String;
-
-    fn build(f: Builder<'_>) -> Self::Dummy<'_>;
 
     fn typs(f: &mut TypBuilder);
 }
@@ -104,34 +105,4 @@ pub trait HasId: Table {
     const NAME: &'static str;
 }
 
-#[doc(hidden)]
-pub struct Builder<'a> {
-    joined: &'a FrozenVec<Box<(Field, MyTable)>>,
-    table: MyAlias,
-}
-
-impl<'a> Builder<'a> {
-    fn new(joins: &'a Joins) -> Self {
-        Self::new_full(&joins.joined, joins.table)
-    }
-
-    fn new_full(joined: &'a FrozenVec<Box<(Field, MyTable)>>, table: MyAlias) -> Self {
-        Builder { joined, table }
-    }
-
-    pub fn col<T: MyIdenT>(&self, name: &'static str) -> Db<'a, T> {
-        let field = FieldAlias {
-            table: self.table,
-            col: Field::Str(name),
-        };
-        T::iden_full(self.joined, field)
-    }
-}
-
 pub struct NoTable(());
-
-impl MyIdenT for NoTable {
-    type Info<'t> = value::ValueInfo;
-
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
-}

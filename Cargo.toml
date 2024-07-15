@@ -23,5 +23,6 @@ expect-test = "1"
 k12 = "0.3"
 rust-query-macros = {path = "rust-query-macros"}
 ouroboros = "0.18.4"
+ref-cast = "1.0.23"
 
 [dev-dependencie]
