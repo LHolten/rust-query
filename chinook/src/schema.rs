@@ -104,10 +104,10 @@ enum Schema {
         media_type: MediaType,
         #[version(2..)]
         media_type: String,
-        // #[version(..2)]
+        #[version(..2)]
         genre: Genre,
-        // #[version(2..)]
-        // genre: GenreNew,
+        #[version(2..)]
+        genre: GenreNew,
         composer: Option<String>,
         #[version(2..)]
         composer_table: Option<Composer>,
@@ -163,12 +163,12 @@ pub fn migrate() -> (Client, v2::Schema) {
                 })
             },
             track: |row, track| {
-                // let genre = row.get(s.genre_new.unique_original(track.genre())).unwrap();
+                let genre = row.get(s.genre_new.unique_original(track.genre())).unwrap();
                 Box::new(v2::up::TrackMigration {
                     media_type: &*String::leak(row.get(track.media_type().name())),
                     composer_table: Null::<NoTable>::default(),
                     byte_price: row.get(track.unit_price()) / row.get(track.bytes()) as f64,
-                    // genre,
+                    genre,
                 })
             },
             genre_new: |_row, _genre_new| Box::new(v2::up::GenreNewMigration {}),

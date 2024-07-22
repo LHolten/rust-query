@@ -23,6 +23,18 @@ impl<'x> ValueBuilder<'x> {
         };
         *self.inner.extra.get_or_init(source, MyAlias::new)
     }
+
+    pub fn get_unique(
+        self,
+        table: &'static str,
+        conds: Vec<(&'static str, SimpleExpr)>,
+    ) -> SimpleExpr {
+        let source = Source::Implicit {
+            table: table.to_owned(),
+            conds,
+        };
+        Expr::col(*self.inner.extra.get_or_init(source, MyAlias::new)).into()
+    }
 }
 
 /// Trait for all values that can be used in queries.

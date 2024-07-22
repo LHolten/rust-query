@@ -39,9 +39,11 @@ pub mod private {
     pub use crate::hash::hash_schema;
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
-    pub use expect_test::Expect;
+    pub use crate::value::ValueBuilder;
 
+    pub use expect_test::Expect;
     pub use ref_cast::RefCast;
+    pub use sea_query::SimpleExpr;
 }
 
 #[derive(Default)]

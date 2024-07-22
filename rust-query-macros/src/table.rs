@@ -1,3 +1,5 @@
+use crate::Unique;
+
 use super::make_generic;
 use heck::ToSnekCase;
 use quote::{format_ident, quote};
@@ -10,27 +12,46 @@ use super::Table;
 
 pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     let table_ident = &table.name;
+    let table_name: &String = &table_ident.to_string().to_snek_case();
+    let table_mod = format_ident!("{table_name}");
     let columns = &table.columns;
 
     let mut unique_typs = vec![];
     let mut unique_funcs = vec![];
+    let mut unique_defs = vec![];
     for unique in &table.uniques {
         let column_strs = unique.columns.iter().map(|x| x.to_string());
         let unique_name = &unique.name;
-        let args = unique.columns.iter().map(|col| {
+        let unique_type = make_generic(unique_name);
+
+        let mut args = vec![];
+        let mut generics = vec![];
+        let mut constraints = vec![];
+        let mut inits = vec![];
+        for col in &unique.columns {
             let typ = &columns
                 .values()
                 .find(|x| &x.name == col)
                 .expect("a column exists for every name in the unique constraint")
                 .typ;
-            quote! {#col: impl ::rust_query::Value<'a, Typ=#typ>}
-        });
+            let generic = make_generic(col);
+
+            args.push(quote! {#col: #generic});
+            constraints.push(quote! {#generic: ::rust_query::Value<'a, Typ = #typ>});
+            generics.push(generic);
+            inits.push(col.clone());
+        }
+
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
+
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a>(&self, #(#args),*) -> ::rust_query::DbCol<'a, Option<#table_ident>> {
-                todo!();
+            pub fn #unique_name<'a #(,#constraints)*>(&self, #(#args),*) -> #table_mod::#unique_type<#(#generics),*> {
+                #table_mod::#unique_type {
+                    #(#inits),*
+                }
             }
-        })
+        });
+        unique_defs.push(define_unique(unique, table_name, table_ident));
     }
 
     let mut defs = vec![];
@@ -59,7 +80,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);
 
-    let table_name: &String = &table_ident.to_string().to_snek_case();
     let has_id = quote!(
         impl ::rust_query::HasId for #table_ident {
             const ID: &'static str = "id";
@@ -104,10 +124,48 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             #(#unique_funcs)*
         }
 
+        mod #table_mod {
+            #(#unique_defs)*
+        }
+
         const _: fn() = || {
             #(#typ_asserts)*
         };
 
         #has_id
+    }
+}
+
+fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenStream {
+    let name = &unique.name;
+    let typ_name = make_generic(name);
+
+    let mut generics = vec![];
+    let mut fields = vec![];
+    let mut constraints = vec![];
+    let mut conds = vec![];
+    for col in &unique.columns {
+        let col_str = col.to_string();
+
+        let generic = make_generic(col);
+        fields.push(quote! {pub(super) #col: #generic});
+        constraints.push(quote! {#generic: ::rust_query::Value<'t>});
+        conds.push(quote! {(#col_str, self.#col.build_expr(b))});
+        generics.push(generic);
+    }
+
+    quote! {
+        #[derive(Clone, Copy)]
+        pub struct #typ_name<#(#generics),*> {
+            #(#fields),*
+        }
+
+        impl<'t, #(#constraints),*> ::rust_query::Value<'t> for #typ_name<#(#generics),*> {
+            type Typ = Option<super::#table_typ>;
+
+            fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
+                b.get_unique(#table_str, vec![#(#conds),*])
+            }
+        }
     }
 }
