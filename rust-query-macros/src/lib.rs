@@ -146,7 +146,7 @@ fn define_table_migration(
         impl<#(#constraints),*> ::rust_query::private::TableMigration<#prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new<'a>(self: Box<Self>, prev: ::rust_query::DbCol<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
+            fn into_new<'a>(self, prev: ::rust_query::DbCol<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
                 #(#into_new;)*
             }
         }
@@ -269,6 +269,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             schema_table_inits.push(quote! {#table_lower: #table_name(())});
             schema_table_typs.push(quote! {b.table::<#table_name>()});
 
+            let normalized = table_name.to_string().to_upper_camel_case();
+            let table_generic = format_ident!("_{normalized}Func");
+            let table_generic_out = format_ident!("_{normalized}Out");
+
             if let Some(prev_table) = prev_tables.remove(i) {
                 // a table already existed, so we need to define a migration
 
@@ -276,16 +280,20 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     continue;
                 };
                 table_migrations.extend(migration);
-                let table_generic = make_generic(table_name);
+
                 table_defs.push(quote! {
                     pub #table_lower: #table_generic
                 });
+                tables.push(quote! {b.migrate_table(self.#table_lower)});
+
                 table_constraints.push(quote! {
-                    #table_generic: FnMut(::rust_query::Just<#table_name>) ->
-                        Box<dyn ::rust_query::private::TableMigration<#table_name, T = super::#table_name>>
+                    #table_generic: FnMut(::rust_query::Just<#table_name>) -> #table_generic_out
+                });
+                table_constraints.push(quote! {
+                    #table_generic_out: ::rust_query::private::TableMigration<#table_name, T = super::#table_name>
                 });
                 table_generics.push(table_generic);
-                tables.push(quote! {b.migrate_table(self.#table_lower)});
+                table_generics.push(table_generic_out);
             } else if table.prev.is_some() {
                 // no table existed, but the previous table is specified, make a filter migration
 
@@ -293,16 +301,20 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     panic!("can not use `create_from` on an empty table");
                 };
                 table_migrations.extend(migration);
-                let table_generic = make_generic(table_name);
+
                 table_defs.push(quote! {
                     pub #table_lower: #table_generic
                 });
+                tables.push(quote! {b.create_from(self.#table_lower)});
+
                 table_constraints.push(quote! {
-                    #table_generic: FnMut(::rust_query::Just<#table_name>) ->
-                        Option<Box<dyn ::rust_query::private::TableMigration<#table_name, T = super::#table_name>>>
+                    #table_generic: FnMut(::rust_query::Just<#table_name>) -> Option<#table_generic_out>
+                });
+                table_constraints.push(quote! {
+                    #table_generic_out: ::rust_query::private::TableMigration<#table_name, T = super::#table_name>
                 });
                 table_generics.push(table_generic);
-                tables.push(quote! {b.create_from(self.#table_lower)});
+                table_generics.push(table_generic_out);
             } else {
                 // this is a new table
 

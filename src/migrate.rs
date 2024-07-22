@@ -45,7 +45,7 @@ pub trait Schema: Sized {
 pub trait TableMigration<A: HasId> {
     type T;
 
-    fn into_new<'a>(self: Box<Self>, prev: DbCol<'a, A>, reader: Reader<'_, 'a>);
+    fn into_new<'a>(self, prev: DbCol<'a, A>, reader: Reader<'_, 'a>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -55,9 +55,10 @@ pub struct SchemaBuilder<'x> {
 }
 
 impl<'x> SchemaBuilder<'x> {
-    pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, mut m: M)
+    pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: FnMut(Just<A>) -> Box<dyn TableMigration<A, T = B>>,
+        M: FnMut(Just<A>) -> O,
+        O: TableMigration<A, T = B>,
     {
         self.create_from(move |db: Just<A>| Some(m(db)));
 
@@ -65,9 +66,10 @@ impl<'x> SchemaBuilder<'x> {
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
     }
 
-    pub fn create_from<F, A: HasId, B: HasId>(&mut self, mut f: F)
+    pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
     where
-        F: FnMut(Just<A>) -> Option<Box<dyn TableMigration<A, T = B>>>,
+        F: FnMut(Just<A>) -> Option<O>,
+        O: TableMigration<A, T = B>,
     {
         let mut ast = MySelect {
             tables: Vec::new(),

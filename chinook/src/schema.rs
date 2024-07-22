@@ -133,43 +133,35 @@ pub fn migrate() -> (Client, v2::Schema) {
 
     m.migrate(|_s, _, db| {
         Box::new(v1::up::Schema {
-            album: |album| {
-                let artist = db.get(album.artist().name());
-                Box::new(v1::up::AlbumMigration {
-                    something: artist_title.get(&*artist).copied().unwrap_or("unknown"),
-                    // new_title: album.title,
-                })
+            album: |album| v1::up::AlbumMigration {
+                something: {
+                    let artist = db.get(album.artist().name());
+                    artist_title.get(&*artist).copied().unwrap_or("unknown")
+                },
             },
-            playlist_track: |pt| {
-                Box::new(v1::up::PlaylistTrackMigration {
-                    playlist: pt.playlist(),
-                })
+            playlist_track: |pt| v1::up::PlaylistTrackMigration {
+                playlist: pt.playlist(),
             },
             genre_new: |genre| {
-                Some(Box::new(v1::up::GenreNewMigration {
+                Some(v1::up::GenreNewMigration {
                     name: genre.name(),
                     original: genre,
-                }))
+                })
             },
         })
     })
     .migrate(|s, _, db| {
         Box::new(v2::up::Schema {
-            customer: |customer| {
-                Box::new(v2::up::CustomerMigration {
-                    phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
-                })
+            customer: |customer| v2::up::CustomerMigration {
+                phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
             },
-            track: |track| {
-                let genre = db.get(s.genre_new.unique_original(track.genre())).unwrap();
-                Box::new(v2::up::TrackMigration {
-                    media_type: track.media_type().name(),
-                    composer_table: Null::<NoTable>::default(),
-                    byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
-                    genre,
-                })
+            track: |track| v2::up::TrackMigration {
+                media_type: track.media_type().name(),
+                composer_table: Null::<NoTable>::default(),
+                byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
+                genre: db.get(s.genre_new.unique_original(track.genre())).unwrap(),
             },
-            genre_new: |_genre_new| Box::new(v2::up::GenreNewMigration {}),
+            genre_new: |_genre_new| v2::up::GenreNewMigration {},
         })
     })
     .finish()
