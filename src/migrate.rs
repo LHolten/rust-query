@@ -20,7 +20,7 @@ use crate::{
     mymap::MyMap,
     pragma::read_schema,
     value::Value,
-    HasId, Table,
+    HasId, Just, Table,
 };
 
 #[derive(Default)]
@@ -42,10 +42,10 @@ pub trait Schema: Sized {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<'a, A: HasId> {
+pub trait TableMigration<A: HasId> {
     type T;
 
-    fn into_new(self: Box<Self>, prev: DbCol<'a, A>, reader: Reader<'_, 'a>);
+    fn into_new<'a>(self: Box<Self>, prev: DbCol<'a, A>, reader: Reader<'_, 'a>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -57,12 +57,9 @@ pub struct SchemaBuilder<'x> {
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: for<'y, 'a> FnMut(
-            Row<'y, 'a>,
-            DbCol<'a, A>,
-        ) -> Box<dyn TableMigration<'a, A, T = B> + 'a>,
+        M: FnMut(Just<A>) -> Box<dyn TableMigration<A, T = B>>,
     {
-        self.create_from(move |row, db: DbCol<A>| Some(m(row, db)));
+        self.create_from(move |db: Just<A>| Some(m(db)));
 
         self.drop
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
@@ -70,10 +67,7 @@ impl<'x> SchemaBuilder<'x> {
 
     pub fn create_from<F, A: HasId, B: HasId>(&mut self, mut f: F)
     where
-        F: for<'y, 'a> FnMut(
-            Row<'y, 'a>,
-            DbCol<'a, A>,
-        ) -> Option<Box<dyn TableMigration<'a, A, T = B> + 'a>>,
+        F: FnMut(Just<A>) -> Option<Box<dyn TableMigration<A, T = B>>>,
     {
         let mut ast = MySelect {
             tables: Vec::new(),
@@ -114,14 +108,13 @@ impl<'x> SchemaBuilder<'x> {
                 conn: self.conn,
                 updated: &updated,
             };
+            let just_db = row.get(db);
 
-            if let Some(res) = f(row, db) {
-                let id: crate::db::Just<A> = row.get(db);
-
+            if let Some(res) = f(just_db) {
                 let old_select = take(&mut ast.select);
                 {
                     ast.select
-                        .get_or_init(Expr::val(id).into(), || Field::Str(B::ID));
+                        .get_or_init(Expr::val(just_db).into(), || Field::Str(B::ID));
                     let reader = Reader {
                         _phantom: PhantomData,
                         ast: &ast,
@@ -130,7 +123,7 @@ impl<'x> SchemaBuilder<'x> {
 
                     let db_id = db.build_expr(ast.builder());
                     let mut new_select = ast.simple(0, u32::MAX);
-                    new_select.and_where(db_id.eq(id));
+                    new_select.and_where(db_id.eq(just_db));
 
                     let mut insert = InsertStatement::new();
                     let names = ast.select.iter().map(|(_field, name)| *name);
@@ -304,11 +297,11 @@ impl<S: Schema> Migrator<S> {
 
     pub fn migrate<'a, F, N: Schema>(self, f: F) -> Migrator<N>
     where
-        F: for<'x> FnOnce(&'x S, &'x [&'a ()]) -> Box<dyn Migration<S, S = N> + 'x>,
+        F: for<'x> FnOnce(&'x S, &'x [&'a ()], &'x Client) -> Box<dyn Migration<S, S = N> + 'x>,
     {
         let conn = self.transaction.borrow_transaction();
         if let Some(s) = self.schema {
-            let res = f(&s, &[]);
+            let res = f(&s, &[], todo!());
             let mut builder = SchemaBuilder {
                 conn,
                 drop: vec![],

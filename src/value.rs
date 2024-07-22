@@ -141,6 +141,14 @@ impl<'t> Value<'t> for &str {
     }
 }
 
+impl<'t> Value<'t> for String {
+    type Typ = String;
+
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        SimpleExpr::from(self)
+    }
+}
+
 impl<'t> Value<'t> for bool {
     type Typ = bool;
 

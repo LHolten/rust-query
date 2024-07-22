@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{ast::MySelect, exec::Execute, query::Query};
+use crate::{ast::MySelect, exec::Execute, query::Query, value::MyTyp, Value};
 
 /// This is a wrapper for [rusqlite::Connection].
 /// It's main purpose is to remove the need to depend on rusqlite in the future.
@@ -16,6 +16,10 @@ impl Client {
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
         self.inner.new_query(f)
+    }
+
+    pub fn get<T: MyTyp>(&self, val: impl for<'a> Value<'a, Typ = T>) -> T::Out {
+        todo!()
     }
 }
 
