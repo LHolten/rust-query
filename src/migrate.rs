@@ -188,7 +188,7 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
 pub trait Migration<From> {
     type S: Schema;
 
-    fn tables(self: Box<Self>, b: &mut SchemaBuilder);
+    fn tables(self, b: &mut SchemaBuilder);
 }
 
 pub struct Prepare {
@@ -297,9 +297,10 @@ impl<S: Schema> Migrator<S> {
     //     )
     // }
 
-    pub fn migrate<'a, F, N: Schema>(self, f: F) -> Migrator<N>
+    pub fn migrate<'a, F, M, N: Schema>(self, f: F) -> Migrator<N>
     where
-        F: for<'x> FnOnce(&'x S, &'x [&'a ()], &'x Client) -> Box<dyn Migration<S, S = N> + 'x>,
+        F: for<'x> FnOnce(&'x S, &'x [&'a ()], &'x Client) -> M,
+        M: Migration<S, S = N>,
     {
         let conn = self.transaction.borrow_transaction();
         if let Some(s) = self.schema {

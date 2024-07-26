@@ -370,7 +370,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     impl<#(#table_constraints),*> ::rust_query::private::Migration<super::super::#prev_mod::#schema> for #schema<#(#table_generics),*> {
                         type S = super::#schema;
         
-                            fn tables(self: Box<Self>, b: &mut ::rust_query::private::SchemaBuilder) {
+                            fn tables(self, b: &mut ::rust_query::private::SchemaBuilder) {
                                 #(#tables;)*
                             }
                         }
