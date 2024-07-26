@@ -122,7 +122,7 @@ fn define_table_migration(
             let typ = &col.typ;
 
             defs.push(quote! {pub #name: #generic});
-            constraints.push(quote! {#generic: for<'a> ::rust_query::Value<'a, Typ = #typ>});
+            constraints.push(quote! {#generic: ::rust_query::Covariant<'a, Typ = #typ>});
             generics.push(generic);
             into_new.push(quote! {reader.col(#name_str, self.#name.clone())});
         }
@@ -143,10 +143,10 @@ fn define_table_migration(
             #(#defs,)*
         }
 
-        impl<#(#constraints),*> ::rust_query::private::TableMigration<#prev_typ> for #migration_name<#(#generics),*> {
+        impl<'a #(,#constraints)*> ::rust_query::private::TableMigration<'a, #prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new<'a>(self, prev: ::rust_query::DbCol<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
+            fn into_new(self, prev: ::rust_query::Just<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
                 #(#into_new;)*
             }
         }
@@ -270,7 +270,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             schema_table_typs.push(quote! {b.table::<#table_name>()});
 
             let normalized = table_name.to_string().to_upper_camel_case();
-            let table_generic = format_ident!("_{normalized}Func");
+            // let table_generic = format_ident!("_{normalized}Func");
             let table_generic_out = format_ident!("_{normalized}Out");
 
             if let Some(prev_table) = prev_tables.remove(i) {
@@ -282,17 +282,17 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: #table_generic
+                    pub #table_lower: Box<dyn 't + FnMut(::rust_query::Just<'t, #table_name>) -> #table_generic_out>
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
 
+                // table_constraints.push(quote! {
+                //     #table_generic: FnMut(::rust_query::Just<'t, #table_name>) -> #table_generic_out
+                // });
                 table_constraints.push(quote! {
-                    #table_generic: FnMut(::rust_query::Just<#table_name>) -> #table_generic_out
+                    #table_generic_out: ::rust_query::private::TableMigration<'t, #table_name, T = super::#table_name>
                 });
-                table_constraints.push(quote! {
-                    #table_generic_out: ::rust_query::private::TableMigration<#table_name, T = super::#table_name>
-                });
-                table_generics.push(table_generic);
+                // table_generics.push(table_generic);
                 table_generics.push(table_generic_out);
             } else if table.prev.is_some() {
                 // no table existed, but the previous table is specified, make a filter migration
@@ -303,17 +303,17 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: #table_generic
+                    pub #table_lower: Box<dyn 't + FnMut(::rust_query::Just<'t, #table_name>) -> Option<#table_generic_out>>
                 });
                 tables.push(quote! {b.create_from(self.#table_lower)});
 
+                // table_constraints.push(quote! {
+                //     #table_generic: FnMut(::rust_query::Just<'t, #table_name>) -> Option<#table_generic_out>
+                // });
                 table_constraints.push(quote! {
-                    #table_generic: FnMut(::rust_query::Just<#table_name>) -> Option<#table_generic_out>
+                    #table_generic_out: ::rust_query::private::TableMigration<'t, #table_name, T = super::#table_name>
                 });
-                table_constraints.push(quote! {
-                    #table_generic_out: ::rust_query::private::TableMigration<#table_name, T = super::#table_name>
-                });
-                table_generics.push(table_generic);
+                // table_generics.push(table_generic);
                 table_generics.push(table_generic_out);
             } else {
                 // this is a new table
@@ -354,29 +354,47 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let prelude = prelude(&new_tables, &prev_mod);
         let new_mod = format_ident!("v{version}");
-        output.extend(quote! {
-            pub mod #new_mod {
-                #mod_output
-    
-                pub mod up {
-                    #prelude
 
-                    #table_migrations
+        if table_defs.is_empty() {
+            // FIXME: proper code
+            output.extend(quote! {
+                pub mod #new_mod {
+                    #mod_output
+
+                    pub mod up {
+                        #prelude
+
+                        #table_migrations
+
+                        pub struct #schema {}
+                    }
+                }
+            });
+        } else {
+            output.extend(quote! {
+                pub mod #new_mod {
+                    #mod_output
     
-                    pub struct #schema<#(#table_constraints),*> {
+                    pub mod up {
+                        #prelude
+
+                        #table_migrations
+
+                        pub struct #schema<'t, #(#table_generics),*> {
                             #(#table_defs,)*
                         }
-        
-                    impl<#(#table_constraints),*> ::rust_query::private::Migration<super::super::#prev_mod::#schema> for #schema<#(#table_generics),*> {
-                        type S = super::#schema;
-        
-                            fn tables(self, b: &mut ::rust_query::private::SchemaBuilder) {
+    
+                        impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t, super::super::#prev_mod::#schema> for #schema<'t, #(#table_generics),*> {
+                            type S = super::#schema;
+    
+                            fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                                 #(#tables;)*
                             }
                         }
                     }
                 }
             });
+        }
 
         prev_tables = new_tables;
     }

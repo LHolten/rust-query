@@ -83,6 +83,7 @@ pub trait Value<'t>: Sized + Clone {
         IsNotNull(self)
     }
 }
+pub trait Covariant<'t>: Value<'t> {}
 
 impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
     type Typ = T;
@@ -91,6 +92,7 @@ impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
         Expr::col((table, self.field)).into()
     }
 }
+impl<'t, T, P: Covariant<'t, Typ: HasId>> Covariant<'t> for Col<T, P> {}
 
 impl<'t, T, X> Value<'t> for Col<T, Db<'t, X>> {
     type Typ = T;
@@ -99,20 +101,14 @@ impl<'t, T, X> Value<'t> for Col<T, Db<'t, X>> {
     }
 }
 
-// impl<'t, T> Value<'t> for Db<'t, T> {
-//     type Typ = T;
-//     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-//         Expr::col((self.db.table, self.field)).into()
-//     }
-// }
-
-impl<'t, T> Value<'t> for Just<T> {
+impl<'t, T> Value<'t> for Just<'t, T> {
     type Typ = T;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
     }
 }
+impl<'t, T> Covariant<'t> for Just<'t, T> {}
 
 impl<'t, T: Value<'t>> Value<'t> for &'_ T {
     type Typ = T::Typ;
@@ -121,8 +117,8 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
         T::build_expr(self, b)
     }
 }
+impl<'t, T: Covariant<'t>> Covariant<'t> for &'_ T {}
 
-// FIXME: don't allow nested options!
 impl<'t, T: Value<'t> + Nullable> Value<'t> for Option<T> {
     type Typ = Option<T::Typ>;
 
@@ -132,6 +128,7 @@ impl<'t, T: Value<'t> + Nullable> Value<'t> for Option<T> {
             .unwrap_or(T::null().into())
     }
 }
+impl<'t, T: Covariant<'t> + Nullable> Covariant<'t> for Option<T> {}
 
 impl<'t> Value<'t> for &str {
     type Typ = String;
@@ -140,6 +137,7 @@ impl<'t> Value<'t> for &str {
         SimpleExpr::from(*self)
     }
 }
+impl<'t> Covariant<'t> for &str {}
 
 impl<'t> Value<'t> for String {
     type Typ = String;
@@ -148,6 +146,7 @@ impl<'t> Value<'t> for String {
         SimpleExpr::from(self)
     }
 }
+impl<'t> Covariant<'t> for String {}
 
 impl<'t> Value<'t> for bool {
     type Typ = bool;
@@ -156,6 +155,7 @@ impl<'t> Value<'t> for bool {
         SimpleExpr::from(*self)
     }
 }
+impl<'t> Covariant<'t> for bool {}
 
 impl<'t> Value<'t> for i64 {
     type Typ = i64;
@@ -164,6 +164,7 @@ impl<'t> Value<'t> for i64 {
         SimpleExpr::from(*self)
     }
 }
+impl<'t> Covariant<'t> for i64 {}
 
 impl<'t> Value<'t> for f64 {
     type Typ = f64;
@@ -172,6 +173,7 @@ impl<'t> Value<'t> for f64 {
         SimpleExpr::from(*self)
     }
 }
+impl<'t> Covariant<'t> for f64 {}
 
 #[derive(Clone, Copy)]
 pub struct MyAdd<A, B>(A, B);
@@ -182,6 +184,7 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAdd<A, B> {
         self.0.build_expr(b).add(self.1.build_expr(b))
     }
 }
+impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for MyAdd<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct MyNot<T>(T);
@@ -192,6 +195,7 @@ impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
         self.0.build_expr(b).not()
     }
 }
+impl<'t, T: Covariant<'t>> Covariant<'t> for MyNot<T> {}
 
 #[derive(Clone, Copy)]
 pub struct MyAnd<A, B>(A, B);
@@ -202,6 +206,8 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAnd<A, B> {
         self.0.build_expr(b).and(self.1.build_expr(b))
     }
 }
+impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for MyAnd<A, B> {}
+
 #[derive(Clone, Copy)]
 pub struct MyLt<A>(A, i32);
 
@@ -211,6 +217,7 @@ impl<'t, A: Value<'t>> Value<'t> for MyLt<A> {
         Expr::expr(self.0.build_expr(b)).lt(self.1)
     }
 }
+impl<'t, A: Covariant<'t>> Covariant<'t> for MyLt<A> {}
 
 #[derive(Clone, Copy)]
 pub struct MyEq<A, B>(A, B);
@@ -221,6 +228,7 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
         self.0.build_expr(b).eq(self.1.build_expr(b))
     }
 }
+impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for MyEq<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
@@ -231,6 +239,7 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
         Expr::expr(self.0.build_expr(b)).if_null(self.1.build_expr(b))
     }
 }
+impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for UnwrapOr<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct IsNotNull<A>(pub(crate) A);
@@ -241,6 +250,7 @@ impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
         Expr::expr(self.0.build_expr(b)).is_not_null()
     }
 }
+impl<'t, A: Covariant<'t>> Covariant<'t> for IsNotNull<A> {}
 
 #[derive(Clone, Copy)]
 pub struct Assume<A>(pub(crate) A);
@@ -251,6 +261,7 @@ impl<'t, T, A: Value<'t, Typ = Option<T>>> Value<'t> for Assume<A> {
         self.0.build_expr(b)
     }
 }
+impl<'t, T, A: Covariant<'t, Typ = Option<T>>> Covariant<'t> for Assume<A> {}
 
 /// Use this a value in a query to get the current datetime as a number.
 #[derive(Clone)]
@@ -263,6 +274,7 @@ impl<'t> Value<'t> for UnixEpoch {
         Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
     }
 }
+impl<'t> Covariant<'t> for UnixEpoch {}
 
 pub struct Null<T>(PhantomData<T>);
 
@@ -285,48 +297,49 @@ impl<'t, T> Value<'t> for Null<T> {
         Expr::value(None::<i64>)
     }
 }
+impl<'t, T> Covariant<'t> for Null<T> {}
 
 pub trait MyTyp: 'static {
     const NULLABLE: bool = false;
     const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: FromSql;
+    type Out<'t>: FromSql;
 }
 
 impl<T: HasId> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out = Just<Self>;
+    type Out<'t> = Just<'t, Self>;
 }
 
 impl MyTyp for i64 {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
-    type Out = Self;
+    type Out<'t> = Self;
 }
 
 impl MyTyp for f64 {
     const TYP: hash::ColumnType = hash::ColumnType::Float;
-    type Out = Self;
+    type Out<'t> = Self;
 }
 
 impl MyTyp for bool {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
-    type Out = Self;
+    type Out<'t> = Self;
 }
 
 impl MyTyp for String {
     const TYP: hash::ColumnType = hash::ColumnType::String;
-    type Out = Self;
+    type Out<'t> = Self;
 }
 
 impl<T: MyTyp> MyTyp for Option<T> {
     const TYP: hash::ColumnType = T::TYP;
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
-    type Out = Option<T::Out>;
+    type Out<'t> = Option<T::Out<'t>>;
 }
 
-impl<T> FromSql for Just<T> {
+impl<'t, T> FromSql for Just<'t, T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(Self {
             _p: PhantomData,
@@ -335,7 +348,7 @@ impl<T> FromSql for Just<T> {
     }
 }
 
-impl<T> From<Just<T>> for sea_query::Value {
+impl<'t, T> From<Just<'t, T>> for sea_query::Value {
     fn from(value: Just<T>) -> Self {
         value.idx.into()
     }

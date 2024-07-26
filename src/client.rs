@@ -1,12 +1,35 @@
 use std::marker::PhantomData;
 
-use crate::{ast::MySelect, exec::Execute, query::Query, value::MyTyp, Value};
+use ref_cast::RefCast;
+
+use crate::{
+    ast::MySelect,
+    exec::Execute,
+    query::Query,
+    value::{Covariant, MyTyp},
+    Value,
+};
 
 /// This is a wrapper for [rusqlite::Connection].
 /// It's main purpose is to remove the need to depend on rusqlite in the future.
-#[derive(Debug)]
+#[derive(Debug, RefCast)]
+#[repr(transparent)]
 pub struct Client {
     pub(crate) inner: rusqlite::Connection,
+}
+
+#[derive(Clone)]
+struct Weaken<'t, T> {
+    inner: T,
+    _p: PhantomData<&'t ()>,
+}
+
+impl<'t, 'a: 't, T: Covariant<'a>> Value<'t> for Weaken<'a, T> {
+    type Typ = T::Typ;
+
+    fn build_expr(&self, b: crate::value::ValueBuilder) -> sea_query::SimpleExpr {
+        self.inner.build_expr(b)
+    }
 }
 
 impl Client {
@@ -18,8 +41,14 @@ impl Client {
         self.inner.new_query(f)
     }
 
-    pub fn get<T: MyTyp>(&self, val: impl for<'a> Value<'a, Typ = T>) -> T::Out {
-        todo!()
+    pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
+        let weak = Weaken {
+            inner: val,
+            _p: PhantomData,
+        };
+        self.exec(|e| e.into_vec(move |row| row.get(weak.clone())))
+            .pop()
+            .unwrap()
     }
 }
 

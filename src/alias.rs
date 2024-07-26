@@ -1,18 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use sea_query::{Iden, IntoColumnRef};
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct FieldAlias {
-    pub table: MyAlias,
-    pub col: Field,
-}
-
-impl IntoColumnRef for FieldAlias {
-    fn into_column_ref(self) -> sea_query::ColumnRef {
-        (self.table, self.col).into_column_ref()
-    }
-}
+use sea_query::Iden;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum Field {

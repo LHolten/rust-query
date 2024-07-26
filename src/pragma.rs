@@ -151,7 +151,7 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
         q.filter(table.schema().eq("main"));
         q.filter(table.r#type().eq("table"));
         q.filter(table.name().eq("sqlite_schema").not());
-        q.into_vec(u32::MAX, |row| row.get(&table.name()))
+        q.into_vec(|row| row.get(table.name()))
     });
 
     let mut output = hash::Schema::default();
@@ -160,7 +160,7 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
         let mut columns = conn.new_query(|q| {
             let table = q.flat_table(TableInfo(table.clone()));
 
-            q.into_vec(u32::MAX, |row| Column {
+            q.into_vec(|row| Column {
                 name: row.get(table.name()),
                 typ: row.get(table.r#type()),
                 pk: row.get(table.pk()) != 0,
@@ -171,7 +171,7 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
         let fks: HashMap<_, _> = conn
             .new_query(|q| {
                 let fk = q.flat_table(ForeignKeyList(table.to_owned()));
-                q.into_vec(u32::MAX, |row| {
+                q.into_vec(|row| {
                     // we just assume that the to column is the primary key..
                     (row.get(fk.from()), row.get(fk.table()))
                 })
@@ -211,14 +211,14 @@ pub fn read_schema(conn: &Connection) -> hash::Schema {
             q.filter(index.unique());
             q.filter(index.origin().eq("u"));
             q.filter(index.partial().not());
-            q.into_vec(u32::MAX, |row| row.get(index.name()))
+            q.into_vec(|row| row.get(index.name()))
         });
 
         for unique in uniques {
             let columns = conn.new_query(|q| {
                 let col = q.flat_table(IndexInfo(unique));
                 let name = q.filter_some(col.name());
-                q.into_vec(u32::MAX, |row| row.get(name))
+                q.into_vec(|row| row.get(name))
             });
 
             let mut unique_def = hash::Unique::default();

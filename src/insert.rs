@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 
-use crate::{alias::Field, ast::MySelect, exec::Execute, value::Value, HasId};
+use crate::{alias::Field, ast::MySelect, exec::Execute, Covariant, HasId};
 
 pub trait Writable<'a> {
     type T: HasId;
@@ -15,7 +15,7 @@ pub struct Reader<'x, 'a> {
 }
 
 impl<'x, 'a> Reader<'x, 'a> {
-    pub fn col(&self, name: &'static str, val: impl Value<'a>) {
+    pub fn col(&self, name: &'static str, val: impl Covariant<'a>) {
         let field = Field::Str(name);
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))

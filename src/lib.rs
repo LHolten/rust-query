@@ -23,7 +23,7 @@ pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
-pub use value::{Null, UnixEpoch, Value};
+pub use value::{Covariant, Null, UnixEpoch, Value};
 
 pub mod ops {
     pub use crate::value::{IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};

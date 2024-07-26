@@ -1,11 +1,10 @@
-use std::{cell::Cell, marker::PhantomData, mem::take, path::Path, sync::atomic::AtomicBool};
-
-use elsa::FrozenVec;
+use std::{any::Any, marker::PhantomData, path::Path, sync::atomic::AtomicBool};
 
 use ouroboros::self_referencing;
+use ref_cast::RefCast;
 use rusqlite::{config::DbConfig, Connection, Transaction};
 use sea_query::{
-    Alias, ColumnDef, Expr, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
+    Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
 };
 
@@ -14,12 +13,9 @@ use crate::{
     ast::{add_table, MySelect},
     client::Client,
     db::DbCol,
-    exec::Row,
     hash,
     insert::Reader,
-    mymap::MyMap,
     pragma::read_schema,
-    value::Value,
     HasId, Just, Table,
 };
 
@@ -36,16 +32,16 @@ impl TableTypBuilder {
     }
 }
 
-pub trait Schema: Sized {
+pub trait Schema: Sized + 'static {
     const VERSION: i64;
     fn new() -> Self;
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<A: HasId> {
+pub trait TableMigration<'a, A: HasId> {
     type T;
 
-    fn into_new<'a>(self, prev: DbCol<'a, A>, reader: Reader<'_, 'a>);
+    fn into_new(self, prev: Just<'a, A>, reader: Reader<'_, 'a>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -57,8 +53,8 @@ pub struct SchemaBuilder<'x> {
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: FnMut(Just<A>) -> O,
-        O: TableMigration<A, T = B>,
+        M: FnMut(Just<'x, A>) -> O,
+        O: TableMigration<'x, A, T = B>,
     {
         self.create_from(move |db: Just<A>| Some(m(db)));
 
@@ -68,22 +64,10 @@ impl<'x> SchemaBuilder<'x> {
 
     pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
     where
-        F: FnMut(Just<A>) -> Option<O>,
-        O: TableMigration<A, T = B>,
+        F: FnMut(Just<'x, A>) -> Option<O>,
+        O: TableMigration<'x, A, T = B>,
     {
-        let mut ast = MySelect {
-            tables: Vec::new(),
-            extra: MyMap::default(),
-            filters: FrozenVec::new(),
-            select: MyMap::default(),
-            filter_on: FrozenVec::new(),
-        };
-
-        let table = add_table(&mut ast.tables, A::NAME.to_owned());
-        let db = DbCol::<A>::db(table, Field::Str(A::ID));
-
-        let mut select = ast.simple(0, u32::MAX);
-        let sql = select.to_string(SqliteQueryBuilder);
+        let client = Client::ref_cast(self.conn);
 
         let new_table_name = MyAlias::new();
         new_table::<B>(self.conn, new_table_name);
@@ -94,38 +78,22 @@ impl<'x> SchemaBuilder<'x> {
                 .take(),
         );
 
-        let mut statement = self.conn.prepare(&sql).unwrap();
-        let mut rows = statement.query([]).unwrap();
+        client.exec(|e| {
+            let table = add_table(&mut e.ast.tables, A::NAME.to_owned());
+            let db_id = DbCol::<A>::db(table, Field::Str(A::ID));
 
-        let mut offset = 0;
-        while let Some(row) = rows.next().unwrap() {
-            let updated = Cell::new(false);
+            e.into_vec(|row| {
+                let just_db = row.get(db_id);
+                if let Some(res) = f(just_db) {
+                    let ast = MySelect::default();
 
-            let row = Row {
-                offset,
-                limit: u32::MAX,
-                inner: PhantomData,
-                row,
-                ast: &ast,
-                conn: self.conn,
-                updated: &updated,
-            };
-            let just_db = row.get(db);
-
-            if let Some(res) = f(just_db) {
-                let old_select = take(&mut ast.select);
-                {
-                    ast.select
-                        .get_or_init(Expr::val(just_db).into(), || Field::Str(B::ID));
                     let reader = Reader {
                         _phantom: PhantomData,
                         ast: &ast,
                     };
-                    res.into_new(db, reader);
+                    res.into_new(just_db, reader);
 
-                    let db_id = db.build_expr(ast.builder());
-                    let mut new_select = ast.simple(0, u32::MAX);
-                    new_select.and_where(db_id.eq(just_db));
+                    let new_select = ast.simple(0, u32::MAX);
 
                     let mut insert = InsertStatement::new();
                     let names = ast.select.iter().map(|(_field, name)| *name);
@@ -136,19 +104,8 @@ impl<'x> SchemaBuilder<'x> {
                     let sql = insert.to_string(SqliteQueryBuilder);
                     self.conn.execute(&sql, []).unwrap();
                 }
-                ast.select = old_select;
-            }
-
-            offset += 1;
-            if updated.get() {
-                select = ast.simple(offset, u32::MAX);
-                let sql = select.to_string(SqliteQueryBuilder);
-
-                drop(rows);
-                statement = self.conn.prepare(&sql).unwrap();
-                rows = statement.query([]).unwrap();
-            }
-        }
+            })
+        });
     }
 
     pub fn drop_table<T: HasId>(&mut self) {
@@ -185,10 +142,10 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
     conn.execute(&sql, []).unwrap();
 }
 
-pub trait Migration<From> {
+pub trait Migration<'t, From> {
     type S: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder);
+    fn tables(self, b: &mut SchemaBuilder<'t>);
 }
 
 pub struct Prepare {
@@ -232,7 +189,7 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement.
-    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Migrator<S> {
+    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> (Migrator, Option<S>) {
         self.migrator(|conn| {
             for sql in sql {
                 conn.execute_batch(sql).unwrap();
@@ -240,7 +197,7 @@ impl Prepare {
         })
     }
 
-    pub fn create_db_empty<S: Schema>(self) -> Migrator<S> {
+    pub fn create_db_empty<S: Schema>(self) -> (Migrator, Option<S>) {
         self.migrator(|conn| {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
@@ -251,7 +208,7 @@ impl Prepare {
         })
     }
 
-    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Migrator<S> {
+    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> (Migrator, Option<S>) {
         self.conn
             .pragma_update(None, "foreign_keys", "OFF")
             .unwrap();
@@ -271,19 +228,21 @@ impl Prepare {
             foreign_key_check(conn);
         }
 
-        Migrator {
-            schema: new_checked::<S>(conn),
+        let schema = new_checked::<S>(conn);
+        let migrator = Migrator {
             transaction: owned,
-        }
+            schema: Box::new(()),
+        };
+        (migrator, schema)
     }
 }
 
-pub struct Migrator<S> {
-    pub(crate) schema: Option<S>,
+pub struct Migrator {
     pub(crate) transaction: OwnedTransaction,
+    schema: Box<dyn Any>,
 }
 
-impl<S: Schema> Migrator<S> {
+impl Migrator {
     /// Execute a new query.
     // pub fn new_query<'s, F, R>(&'s self, f: F) -> Option<R>
     // where
@@ -297,14 +256,16 @@ impl<S: Schema> Migrator<S> {
     //     )
     // }
 
-    pub fn migrate<'a, F, M, N: Schema>(self, f: F) -> Migrator<N>
+    pub fn migrate<'a, S: Schema, F, M, N: Schema>(&'a mut self, s: Option<S>, f: F) -> Option<N>
     where
-        F: for<'x> FnOnce(&'x S, &'x [&'a ()], &'x Client) -> M,
-        M: Migration<S, S = N>,
+        F: FnOnce(&'a S, &'a Client) -> M,
+        M: Migration<'a, S, S = N>,
     {
         let conn = self.transaction.borrow_transaction();
-        if let Some(s) = self.schema {
-            let res = f(&s, &[], todo!());
+        if let Some(s) = s {
+            self.schema = Box::new(s);
+            let s = self.schema.as_ref().downcast_ref().unwrap();
+            let res = f(s, Client::ref_cast(conn));
             let mut builder = SchemaBuilder {
                 conn,
                 drop: vec![],
@@ -322,13 +283,10 @@ impl<S: Schema> Migrator<S> {
             foreign_key_check(conn);
             set_user_version(conn, N::VERSION).unwrap();
         }
-        Migrator {
-            schema: new_checked::<N>(conn),
-            transaction: self.transaction,
-        }
+        new_checked::<N>(conn)
     }
 
-    pub fn finish(mut self) -> (Client, S) {
+    pub fn finish(mut self) -> Client {
         self.transaction
             .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
@@ -338,7 +296,7 @@ impl<S: Schema> Migrator<S> {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        (Client { inner: heads.conn }, self.schema.unwrap())
+        Client { inner: heads.conn }
     }
 }
 

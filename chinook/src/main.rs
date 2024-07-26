@@ -42,13 +42,13 @@ fn main() {
 struct InvoiceInfo {
     track: String,
     artist: String,
-    ivl_id: Just<InvoiceLine>,
+    ivl_id: Just<'static, InvoiceLine>,
 }
 
-fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
+fn invoice_info(client: &'static Client) -> Vec<InvoiceInfo> {
     client.exec(|q| {
         let ivl = q.table(&DB.invoice_line);
-        q.into_vec(u32::MAX, |row| InvoiceInfo {
+        q.into_vec(|row| InvoiceInfo {
             track: row.get(ivl.track().name()),
             artist: row.get(ivl.track().album().artist().name()),
             ivl_id: row.get(ivl),
@@ -71,7 +71,7 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
             q.count_distinct(plt)
         });
 
-        q.into_vec(u32::MAX, |row| PlaylistTrackCount {
+        q.into_vec(|row| PlaylistTrackCount {
             playlist: row.get(pl.name()),
             track_count: row.get(track_count),
         })
@@ -93,9 +93,7 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
             });
             q.avg(track_count)
         });
-        q.into_vec(u32::MAX, |row| {
-            (row.get(artist.name()), row.get(avg_track_count))
-        })
+        q.into_vec(|row| (row.get(artist.name()), row.get(avg_track_count)))
     })
 }
 
@@ -110,9 +108,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
             q.count_distinct(reporter)
         });
 
-        q.into_vec(u32::MAX, |row| {
-            (row.get(receiver.last_name()), row.get(report_count))
-        })
+        q.into_vec(|row| (row.get(receiver.last_name()), row.get(report_count)))
     })
 }
 

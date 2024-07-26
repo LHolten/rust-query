@@ -38,10 +38,11 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
     /// Turn a database query into a rust [Vec] of results.
     /// The callback is called exactly once for each row.
     /// The callback argument [Row] can be used to turn dummies into rust values.
-    pub fn into_vec<F, T>(&self, limit: u32, mut f: F) -> Vec<T>
+    pub fn into_vec<F, T>(&self, mut f: F) -> Vec<T>
     where
-        F: FnMut(Row<'_, 'inner>) -> T,
+        F: FnMut(Row<'_, 'outer, 'inner>) -> T,
     {
+        let limit = u32::MAX;
         let mut select = self.ast.simple(0, limit);
         let sql = select.to_string(SqliteQueryBuilder);
 
@@ -57,6 +58,7 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
                 offset: out.len(),
                 limit,
                 inner: PhantomData,
+                inner2: PhantomData,
                 row,
                 ast: self.ast,
                 conn,
@@ -82,19 +84,20 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
 
 /// This is the type used by [Execute::into_vec] to allow turning dummies into rust values.
 #[derive(Clone, Copy)]
-pub struct Row<'x, 'names> {
+pub struct Row<'x, 'outer, 'names> {
     pub(crate) offset: usize,
     pub(crate) limit: u32,
-    pub(crate) inner: PhantomData<dyn Fn(&'names ())>,
+    pub(crate) inner: PhantomData<dyn Fn(&'names ()) -> &'names ()>,
+    pub(crate) inner2: PhantomData<&'outer ()>,
     pub(crate) row: &'x rusqlite::Row<'x>,
     pub(crate) ast: &'x MySelect,
     pub(crate) conn: &'x rusqlite::Connection,
     pub(crate) updated: &'x Cell<bool>,
 }
 
-impl<'names> Row<'_, 'names> {
+impl<'x, 'outer, 'names> Row<'x, 'outer, 'names> {
     /// Turn a dummy into a rust value.
-    pub fn get<V: Value<'names, Typ: MyTyp>>(&self, val: V) -> <V::Typ as MyTyp>::Out {
+    pub fn get<T: MyTyp>(&self, val: impl Value<'names, Typ = T>) -> T::Out<'outer> {
         let expr = val.build_expr(self.ast.builder());
         let Some((_, alias)) = self.ast.select.iter().find(|x| x.0 == expr) else {
             let alias = Field::new();

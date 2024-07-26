@@ -126,41 +126,41 @@ enum Schema {
 pub fn migrate() -> (Client, v2::Schema) {
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open("test.db");
-    let m = m.create_db_sql(&[
+    let (mut m, s) = m.create_db_sql(&[
         include_str!("../Chinook_Sqlite.sql"),
         include_str!("../migrate.sql"),
     ]);
 
-    m.migrate(|_s, _, db| v1::up::Schema {
-        album: |album| v1::up::AlbumMigration {
+    let s = m.migrate(s, |_s, db| v1::up::Schema {
+        album: Box::new(|album| v1::up::AlbumMigration {
             something: {
                 let artist = db.get(album.artist().name());
                 artist_title.get(&*artist).copied().unwrap_or("unknown")
             },
-        },
-        playlist_track: |pt| v1::up::PlaylistTrackMigration {
+        }),
+        playlist_track: Box::new(|pt| v1::up::PlaylistTrackMigration {
             playlist: pt.playlist(),
-        },
-        genre_new: |genre| {
+        }),
+        genre_new: Box::new(|genre| {
             Some(v1::up::GenreNewMigration {
                 name: genre.name(),
                 original: genre,
             })
-        },
-    })
-    .migrate(|s, _, db| v2::up::Schema {
-        customer: |customer| v2::up::CustomerMigration {
+        }),
+    });
+    let s = m.migrate(s, |s, db| v2::up::Schema {
+        customer: Box::new(|customer| v2::up::CustomerMigration {
             phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
-        },
-        track: |track| v2::up::TrackMigration {
+        }),
+        track: Box::new(|track| v2::up::TrackMigration {
             media_type: track.media_type().name(),
             composer_table: Null::<NoTable>::default(),
             byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
             genre: db.get(s.genre_new.unique_original(track.genre())).unwrap(),
-        },
-        genre_new: |_genre_new| v2::up::GenreNewMigration {},
-    })
-    .finish()
+        }),
+        genre_new: Box::new(|_genre_new| v2::up::GenreNewMigration {}),
+    });
+    (m.finish(), s.unwrap())
 }
 
 #[cfg(test)]
