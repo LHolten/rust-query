@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use rusqlite::types::FromSql;
-use sea_query::{Expr, Nullable, SimpleExpr};
+use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
 use crate::{
     alias::{MyAlias, RawAlias},
@@ -33,7 +33,8 @@ impl<'x> ValueBuilder<'x> {
             table: table.to_owned(),
             conds,
         };
-        Expr::col(*self.inner.extra.get_or_init(source, MyAlias::new)).into()
+        let table = self.inner.extra.get_or_init(source, MyAlias::new);
+        Expr::col((*table, Alias::new("id"))).into()
     }
 }
 
