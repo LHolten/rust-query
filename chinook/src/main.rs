@@ -20,12 +20,8 @@ fn main() {
     let _ = DB.deref();
     let client = CLIENT.lock().unwrap().take().unwrap();
 
-    // let artist_name = "my cool artist".to_string();
-    // client.exec(|q| {
-    //     q.insert(ArtistDummy {
-    //         name: artist_name.as_str(),
-    //     })
-    // });
+    let artist_name = "my cool artist".to_string();
+    client.insert(ArtistDummy2 { name: artist_name });
 
     // let res = invoice_info(&client);
     // let res = playlist_track_count(&client);

@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
+use sea_query::{Alias, InsertStatement, SqliteQueryBuilder};
 
-use crate::{alias::Field, ast::MySelect, exec::Execute, Covariant, HasId};
+use crate::{alias::Field, ast::MySelect, Client, Covariant, HasId, Just};
 
 pub trait Writable<'a> {
     type T: HasId;
@@ -22,32 +22,32 @@ impl<'x, 'a> Reader<'x, 'a> {
     }
 }
 
-impl<'outer, 'inner> Execute<'outer, 'inner> {
-    /// Insert a new row for every row in the query.
-    pub fn insert<V: Writable<'inner>>(&'inner mut self, val: V) {
-        // insert can be used only once, and can not be used with select or group
-        // this means that `self.ast.select` will contain exactly our columns
-        // TODO: instead of directly inserting, might be better to make new names
-        // and assign those (also i think INSERT doesn't care about the names)
+impl Client {
+    pub fn insert<'a, T: HasId>(&'a self, val: impl Writable<'a, T = T>) -> Just<'a, T> {
+        let ast = MySelect::default();
+
         let reader = Reader {
             _phantom: PhantomData,
-            ast: self.ast,
+            ast: &ast,
         };
-        V::read(Box::new(val), reader);
+        Writable::read(Box::new(val), reader);
+
+        let select = ast.simple(0, u32::MAX);
 
         let mut insert = InsertStatement::new();
         // TODO: make this configurable
-        insert.on_conflict(OnConflict::new().do_nothing().to_owned());
-        insert.into_table(Alias::new(V::T::NAME));
-
-        let names = self.ast.select.iter().map(|(_field, name)| *name);
+        // insert.on_conflict(OnConflict::new().().to_owned());
+        let names = ast.select.iter().map(|(_field, name)| *name);
+        insert.into_table(Alias::new(T::NAME));
         insert.columns(names);
-
-        let select = self.ast.simple(0, u32::MAX);
-
         insert.select_from(select).unwrap();
-        let sql = insert.to_string(SqliteQueryBuilder);
+        insert.returning_col(Alias::new(T::ID));
 
-        self.client.execute(&sql, []).unwrap();
+        let sql = insert.to_string(SqliteQueryBuilder);
+        let id = self.inner.query_row(&sql, [], |row| row.get(T::ID));
+        Just {
+            _p: PhantomData,
+            idx: id.unwrap(),
+        }
     }
 }

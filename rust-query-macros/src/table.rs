@@ -60,6 +60,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     let mut inits = vec![];
     let mut reads = vec![];
     let mut def_typs = vec![];
+    let mut col_defs = vec![];
+    let mut generics = vec![];
 
     for col in columns.values() {
         let typ = &col.typ;
@@ -72,13 +74,16 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             }
         });
         typ_asserts.push(quote!(::rust_query::valid_in_schema::<#schema, #typ>();));
-        read_bounds.push(quote!(#generic: ::rust_query::Value<'t, Typ=#typ>));
+        read_bounds.push(quote!(#generic: ::rust_query::Covariant<'t, Typ=#typ>));
         inits.push(quote!(#ident: f.col(#ident_str)));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
-        def_typs.push(quote!(f.col::<#typ>(#ident_str)))
+        def_typs.push(quote!(f.col::<#typ>(#ident_str)));
+        col_defs.push(quote! {pub #ident: #generic});
+        generics.push(generic);
     }
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);
+    let dummy2_ident = format_ident!("{}Dummy2", table_ident);
 
     let has_id = quote!(
         impl ::rust_query::HasId for #table_ident {
@@ -112,12 +117,16 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             }
         }
 
-        // impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
-        //     type T = #table_ident;
-        //     fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
-        //         #(#reads;)*
-        //     }
-        // }
+        pub struct #dummy2_ident<#(#generics),*> {
+            #(#col_defs),*
+        }
+
+        impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy2_ident<#(#generics),*> {
+            type T = #table_ident;
+            fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
+                #(#reads;)*
+            }
+        }
 
         #[allow(unused)]
         impl #table_ident {
