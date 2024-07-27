@@ -83,7 +83,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     }
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);
-    let dummy2_ident = format_ident!("{}Dummy2", table_ident);
 
     let has_id = quote!(
         impl ::rust_query::HasId for #table_ident {
@@ -93,18 +92,16 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     );
 
     quote! {
-        pub struct #table_ident(());
-
         #[repr(transparent)]
         #[derive(::rust_query::private::RefCast)]
-        pub struct #dummy_ident<T>(T);
+        pub struct #table_ident<T = ()>(T);
 
-        impl<T: Clone> #dummy_ident<T> {
+        impl<T: Clone> #table_ident<T> {
             #(#defs)*
         }
 
         impl ::rust_query::Table for #table_ident {
-            type Dummy<T> = #dummy_ident<T>;
+            type Dummy<T> = #table_ident<T>;
             type Schema = #schema;
 
             fn name(&self) -> String {
@@ -117,11 +114,11 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             }
         }
 
-        pub struct #dummy2_ident<#(#generics),*> {
+        pub struct #dummy_ident<#(#generics),*> {
             #(#col_defs),*
         }
 
-        impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy2_ident<#(#generics),*> {
+        impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
             type T = #table_ident;
             fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
                 #(#reads;)*
