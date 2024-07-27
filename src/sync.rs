@@ -1,5 +1,6 @@
 use std::{
     ops::Deref,
+    process::abort,
     sync::{Arc, Condvar, Mutex},
 };
 
@@ -52,7 +53,7 @@ impl Inner {
     where
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
-        private_exec(&self.client.lock().unwrap().inner, f)
+        private_exec(&self.client.lock().unwrap_or_else(|_| abort()).inner, f)
     }
 
     /// Please refer to [Client::get]
@@ -67,6 +68,13 @@ impl Inner {
         &'s self,
         val: impl Writable<'s, T = T>,
     ) -> Option<Just<'s, T>> {
-        self.client.lock().unwrap().try_insert(val)
+        let res = self
+            .client
+            .lock()
+            .unwrap_or_else(|_| abort())
+            .try_insert(val);
+        *self.updates.lock().unwrap() = true;
+        self.cvar.notify_all();
+        res
     }
 }
