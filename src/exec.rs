@@ -47,7 +47,7 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
         let sql = select.to_string(SqliteQueryBuilder);
 
         // eprintln!("{sql}");
-        let conn = self.client;
+        let conn = self.conn;
         let mut statement = conn.prepare(&sql).unwrap();
         let mut rows = statement.query([]).unwrap();
 

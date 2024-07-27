@@ -25,10 +25,7 @@ impl<'x, 'a> Reader<'x, 'a> {
 impl Client {
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
-    pub fn try_insert<'a, T: HasId>(
-        &'a self,
-        val: impl Writable<'a, T = T>,
-    ) -> Option<Just<'a, T>> {
+    pub fn try_insert<'a, T: HasId>(&self, val: impl Writable<'a, T = T>) -> Option<Just<'a, T>> {
         let ast = MySelect::default();
 
         let reader = Reader {

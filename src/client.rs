@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use ref_cast::RefCast;
+use rusqlite::Connection;
 
 use crate::{
     ast::MySelect,
@@ -19,9 +20,9 @@ pub struct Client {
 }
 
 #[derive(Clone)]
-struct Weaken<'t, T> {
-    inner: T,
-    _p: PhantomData<&'t ()>,
+pub struct Weaken<'t, T> {
+    pub inner: T,
+    pub _p: PhantomData<&'t ()>,
 }
 
 impl<'t, 'a: 't, T: Covariant<'a>> Value<'t> for Weaken<'a, T> {
@@ -66,15 +67,23 @@ impl QueryBuilder for rusqlite::Connection {
     where
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
-        let mut ast = MySelect::default();
-        let q = Query {
-            phantom: PhantomData,
-            ast: &mut ast,
-            client: self,
-        };
-        f(&mut Execute {
-            q,
-            phantom: PhantomData,
-        })
+        private_exec(self, f)
     }
+}
+
+/// For internal use only as it does not have required bounds
+pub(crate) fn private_exec<'s, F, R>(conn: &Connection, f: F) -> R
+where
+    F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
+{
+    let mut ast = MySelect::default();
+    let q = Query {
+        phantom: PhantomData,
+        ast: &mut ast,
+        conn,
+    };
+    f(&mut Execute {
+        q,
+        phantom: PhantomData,
+    })
 }

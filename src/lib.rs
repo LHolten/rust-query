@@ -15,6 +15,7 @@ mod migrate;
 mod mymap;
 mod pragma;
 mod query;
+mod sync;
 mod value;
 
 pub use client::Client;
@@ -23,6 +24,7 @@ pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
+pub use sync::SharedClient;
 pub use value::{Covariant, UnixEpoch, Value};
 
 pub mod ops {
