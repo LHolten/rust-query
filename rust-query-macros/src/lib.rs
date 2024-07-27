@@ -7,6 +7,123 @@ use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, Meta, Path, Token,
 
 mod table;
 
+/// You can use this macro to define your schema.
+/// The macro uses enum syntax, but it generates multiple modules of types.
+/// 
+/// For example:
+/// ```
+/// #[rust_query::schema]
+/// #[version(0..1)]
+/// enum Schema {
+///     User {
+///         #[unique_email]
+///         email: String,
+///         #[unique_username]
+///         username: String,
+///     }
+/// }
+/// # fn main() {}
+/// ``` 
+/// This will create a single schema with a single table called `user` and two columns.
+/// The table will also have two unique contraints.
+/// Note that the schema version range is `0..1` so there is only a version 0.
+/// The generated code will have a structure like this:
+/// ```rust,ignore
+/// mod v0 {
+///     struct User(..);
+///     // a bunch of other stuff
+/// }
+/// ```
+/// 
+/// # Adding tables
+/// At some point you might want to add a new table.
+/// ```
+/// #[rust_query::schema]
+/// #[version(0..2)]
+/// enum Schema {
+///     User {
+///         #[unique_email]
+///         email: String,
+///         #[unique_username]
+///         username: String,
+///     },
+///     #[version(1..)] // <-- note that `Game`` has a version range
+///     Game {
+///         name: String,
+///         size: i64,
+///     }
+/// }
+/// # fn main() {}
+/// ```
+/// We now have two schema version which generates two modules `v0` and `v1`.
+/// They look something like this:
+/// ```rust,ignore
+/// mod v0 {
+///     struct User(..);
+///     // a bunch of other stuff
+/// }
+/// mod v1 {
+///     struct User(..);
+///     struct Game(..);
+///     // a bunch of other stuff
+/// }
+/// ```
+/// 
+/// # Changing columns
+/// Changing columns is very similar to adding and removing structs.
+/// ```
+/// #[rust_query::schema]
+/// #[version(0..2)]
+/// enum Schema {
+///     User {
+///         #[unique_email]
+///         email: String,
+///         #[unique_username]
+///         username: String,
+///         #[version(1..)] // <-- here
+///         score: i64,
+///     },
+/// }
+/// // In this case it is required to provide a value for each row that already exists.
+/// // This is done with the `v1::up::UserMigration`:
+/// pub fn migrate() -> (rust_query::Client, v1::Schema) {
+///     let m = rust_query::Prepare::open_in_memory(); // we use an in memory database for this test
+///     let (mut m, s) = m.create_db_empty();
+///     let s = m.migrate(s, |_s, db| v1::up::Schema {
+///         user: Box::new(|user| v1::up::UserMigration {
+///             score: db.get(user.email()).len() as i64
+///         }),
+///     });
+///     (m.finish(), s.unwrap())
+/// }
+/// # fn main() {}
+/// ```
+/// The `migrate` function first creates an empty database if it does not exists.
+/// Then it migrates the database if necessary, where it initializes every user score to the length of their email.
+/// 
+/// # Other features
+/// You can delete columns and tables by specifying the version range end.
+/// ```rust,ignore
+/// #[version(..3)]
+/// ```
+/// You can make a multi column unique constraint by specifying it before the table.
+/// ```rust,ignore
+/// #[unique(user, game)]
+/// UserGameStats {
+///     user: User,
+///     game: Game,
+///     score: i64,
+/// }
+/// ```
+/// You can create a table from another table with the `create_from` attribute
+/// ```rust,ignore
+/// #[version(1..)]
+/// #[create_from(user)]
+/// UserAlias {
+///     user: User,
+///     name: String,
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn schema(
     attr: proc_macro::TokenStream,
