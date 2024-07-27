@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sea_query::{Alias, InsertStatement, SqliteQueryBuilder};
+use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 
 use crate::{alias::Field, ast::MySelect, Client, Covariant, HasId, Just};
 
@@ -23,7 +23,10 @@ impl<'x, 'a> Reader<'x, 'a> {
 }
 
 impl Client {
-    pub fn insert<'a, T: HasId>(&'a self, val: impl Writable<'a, T = T>) -> Just<'a, T> {
+    pub fn try_insert<'a, T: HasId>(
+        &'a self,
+        val: impl Writable<'a, T = T>,
+    ) -> Option<Just<'a, T>> {
         let ast = MySelect::default();
 
         let reader = Reader {
@@ -36,7 +39,7 @@ impl Client {
 
         let mut insert = InsertStatement::new();
         // TODO: make this configurable
-        // insert.on_conflict(OnConflict::new().().to_owned());
+        insert.on_conflict(OnConflict::new().do_nothing().to_owned());
         let names = ast.select.iter().map(|(_field, name)| *name);
         insert.into_table(Alias::new(T::NAME));
         insert.columns(names);
@@ -44,10 +47,16 @@ impl Client {
         insert.returning_col(Alias::new(T::ID));
 
         let sql = insert.to_string(SqliteQueryBuilder);
-        let id = self.inner.query_row(&sql, [], |row| row.get(T::ID));
-        Just {
+        let id = self
+            .inner
+            .prepare(&sql)
+            .unwrap()
+            .query_map([], |row| row.get(T::ID))
+            .unwrap()
+            .next();
+        id.map(|id| Just {
             _p: PhantomData,
             idx: id.unwrap(),
-        }
+        })
     }
 }

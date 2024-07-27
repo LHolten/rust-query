@@ -21,7 +21,7 @@ fn main() {
     let client = CLIENT.lock().unwrap().take().unwrap();
 
     let artist_name = "my cool artist".to_string();
-    let id = client.insert(ArtistDummy2 { name: artist_name });
+    let id = client.try_insert(ArtistDummy2 { name: artist_name });
     println!("{:?}", id);
 
     let res = invoice_info(&client);
