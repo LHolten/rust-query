@@ -354,3 +354,9 @@ impl<'t, T> From<Just<'t, T>> for sea_query::Value {
         value.idx.into()
     }
 }
+
+#[test]
+fn lifetimes() {
+    let t = trybuild::TestCases::new();
+    t.compile_fail("tests/compile/*.rs");
+}

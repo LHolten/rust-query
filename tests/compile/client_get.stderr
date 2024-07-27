@@ -1,0 +1,23 @@
+error[E0277]: the trait bound `Db<'a, i64>: Covariant<'_>` is not satisfied
+ --> tests/compile/client_get.rs:6:12
+  |
+6 |     db.get(val);
+  |        --- ^^^ the trait `Covariant<'_>` is not implemented for `Db<'a, i64>`
+  |        |
+  |        required by a bound introduced by this call
+  |
+  = help: the following other types implement trait `Covariant<'t>`:
+            &T
+            &str
+            Col<T, P>
+            IsNotNull<A>
+            Just<'t, T>
+            MyAdd<A, B>
+            MyAnd<A, B>
+            MyEq<A, B>
+          and $N others
+note: required by a bound in `Client::get`
+ --> src/client.rs
+  |
+  |     pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
+  |                                                  ^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Client::get`
