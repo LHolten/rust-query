@@ -21,27 +21,35 @@ fn main() {
     let client = CLIENT.lock().unwrap().take().unwrap();
 
     let artist_name = "my cool artist".to_string();
-    client.insert(ArtistDummy2 { name: artist_name });
+    let id = client.insert(ArtistDummy2 { name: artist_name });
+    println!("{:?}", id);
 
-    // let res = invoice_info(&client);
-    // let res = playlist_track_count(&client);
-    // let res = avg_album_track_count_for_artist(&client);
-    // let res = count_reporting(&client);
+    let res = invoice_info(&client);
+    println!("{res:#?}");
+    let res = playlist_track_count(&client);
+    println!("{res:#?}");
+    let res = avg_album_track_count_for_artist(&client);
+    println!("{res:#?}");
+    let res = count_reporting(&client);
+    println!("{res:#?}");
     let res = list_all_genres(&client);
-    // let res = filtered_track(&client, "Metal", 1000 * 60);
-    // let res = genre_statistics(&client);
-    // let res = customer_spending(&client);
-    println!("{res:#?}")
+    println!("{res:#?}");
+    let res = filtered_track(&client, "Metal", 1000 * 60);
+    println!("{res:#?}");
+    let res = genre_statistics(&client);
+    println!("{res:#?}");
+    let res = customer_spending(&client);
+    println!("{res:#?}");
 }
 
 #[derive(Debug)]
-struct InvoiceInfo {
+struct InvoiceInfo<'a> {
     track: String,
     artist: String,
-    ivl_id: Just<'static, InvoiceLine>,
+    ivl_id: Just<'a, InvoiceLine>,
 }
 
-fn invoice_info(client: &'static Client) -> Vec<InvoiceInfo> {
+fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
     client.exec(|q| {
         let ivl = q.table(&DB.invoice_line);
         q.into_vec(|row| InvoiceInfo {
@@ -110,7 +118,10 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
 
 /// Tip: use [rust_query::Query::table] and [rust_query::Query::select]
 fn list_all_genres(client: &Client) -> Vec<String> {
-    todo!()
+    client.exec(|q| {
+        let genre = q.table(&DB.genre_new);
+        q.into_vec(|row| row.get(genre.name()))
+    })
 }
 
 #[derive(Debug)]
@@ -123,7 +134,16 @@ struct FilteredTrack {
 /// Tip: use [rust_query::Const::new] and [rust_query::Query::filter]
 /// Tip2: use implicit joins! something like `track.genre.name`
 fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
-    todo!()
+    client.exec(|q| {
+        let track = q.table(&DB.track);
+        q.filter(track.genre().name().eq(genre));
+        q.filter(track.milliseconds().lt(max_milis as i32));
+        q.into_vec(|row| FilteredTrack {
+            track_name: row.get(track.name()),
+            album_name: row.get(track.album().title()),
+            milis: row.get(track.milliseconds()),
+        })
+    })
 }
 
 #[derive(Debug)]
@@ -135,7 +155,19 @@ struct GenreStats {
 
 /// Tip: use [rust_query::Query::project_on] and [rust_query::Group::avg]
 fn genre_statistics(client: &Client) -> Vec<GenreStats> {
-    todo!()
+    client.exec(|q| {
+        let genre = q.table(&DB.genre_new);
+        let (bytes, milis) = q.query(|q| {
+            let track = q.table(&DB.track);
+            q.filter_on(track.genre(), genre);
+            (q.avg(track.bytes()), q.avg(track.milliseconds()))
+        });
+        q.into_vec(|row| GenreStats {
+            genre_name: row.get(genre.name()),
+            byte_average: row.get(bytes).unwrap(),
+            milis_average: row.get(milis).unwrap(),
+        })
+    })
 }
 
 #[derive(Debug)]
@@ -146,5 +178,28 @@ struct CustomerSpending {
 
 /// Tip: use [rust_query::Query::project_on] and [rust_query::Group::sum]
 fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
-    todo!()
+    client.exec(|q| {
+        let customer = q.table(&DB.customer);
+        let total = q.query(|q| {
+            let invoice = q.table(&DB.invoice);
+            q.filter_on(invoice.customer(), customer);
+            q.sum_float(invoice.total())
+        });
+
+        q.into_vec(|row| CustomerSpending {
+            customer_name: row.get(customer.last_name()),
+            total_spending: row.get(total),
+        })
+    })
+}
+
+fn free_reference(c: Client) {
+    let tracks = c.exec(|q| {
+        let track = q.table(&DB.track);
+        q.into_vec(|row| row.get(track))
+    });
+
+    for track in tracks {
+        let name = c.get(track.album().artist().name());
+    }
 }
