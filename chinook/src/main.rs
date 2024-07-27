@@ -6,11 +6,10 @@ use std::sync::Mutex;
 
 use rust_query::Just;
 use rust_query::{Client, Value};
-use schema::migrate;
-use schema::v2::*;
+use schema::*;
 
 static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
-static DB: LazyLock<schema::v2::Schema> = LazyLock::new(|| {
+static DB: LazyLock<Schema> = LazyLock::new(|| {
     let (client, schema) = migrate();
     CLIENT.lock().unwrap().replace(client);
     schema

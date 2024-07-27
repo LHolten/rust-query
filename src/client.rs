@@ -45,11 +45,7 @@ impl Client {
     /// Retrieve a single value from the database.
     /// This is convenient but quite slow.
     pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
-        let weak = Weaken {
-            inner: val,
-            _p: PhantomData,
-        };
-        self.exec(|e| e.into_vec(move |row| row.get(weak.clone())))
+        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
             .pop()
             .unwrap()
     }

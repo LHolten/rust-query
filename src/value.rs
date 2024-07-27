@@ -6,6 +6,7 @@ use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 use crate::{
     alias::{MyAlias, RawAlias},
     ast::{MySelect, Source},
+    client::Weaken,
     db::{Col, Db, Just},
     hash, HasId, NoTable,
 };
@@ -40,7 +41,7 @@ impl<'x> ValueBuilder<'x> {
 
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
-pub trait Value<'t>: Sized + Clone {
+pub trait Value<'t>: Clone {
     type Typ;
 
     #[doc(hidden)]
@@ -88,7 +89,14 @@ pub trait Value<'t>: Sized + Clone {
     }
 }
 /// [Covariant]`<'t>` can be implemented if [Value]`<'a>` is implemented for all `'a` shorter or equal to `'t`.
-pub trait Covariant<'t>: Value<'t> {}
+pub trait Covariant<'t>: Value<'t> {
+    fn weaken(self) -> Weaken<'t, Self> {
+        Weaken {
+            inner: self,
+            _p: PhantomData,
+        }
+    }
+}
 
 impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
     type Typ = T;

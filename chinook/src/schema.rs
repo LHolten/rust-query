@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use rust_query::{schema, Client, Just, NoTable, Prepare};
 
+pub use v2::*;
+
 #[schema]
 #[version(0..3)]
 enum Schema {
@@ -123,7 +125,7 @@ enum Schema {
     },
 }
 
-pub fn migrate() -> (Client, v2::Schema) {
+pub fn migrate() -> (Client, Schema) {
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open("test.db");
     let (mut m, s) = m.create_db_sql(&[

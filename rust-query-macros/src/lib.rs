@@ -9,7 +9,7 @@ mod table;
 
 /// You can use this macro to define your schema.
 /// The macro uses enum syntax, but it generates multiple modules of types.
-/// 
+///
 /// For example:
 /// ```
 /// #[rust_query::schema]
@@ -23,7 +23,7 @@ mod table;
 ///     }
 /// }
 /// # fn main() {}
-/// ``` 
+/// ```
 /// This will create a single schema with a single table called `user` and two columns.
 /// The table will also have two unique contraints.
 /// Note that the schema version range is `0..1` so there is only a version 0.
@@ -34,7 +34,7 @@ mod table;
 ///     // a bunch of other stuff
 /// }
 /// ```
-/// 
+///
 /// # Adding tables
 /// At some point you might want to add a new table.
 /// ```
@@ -68,7 +68,7 @@ mod table;
 ///     // a bunch of other stuff
 /// }
 /// ```
-/// 
+///
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
@@ -100,7 +100,7 @@ mod table;
 /// ```
 /// The `migrate` function first creates an empty database if it does not exists.
 /// Then it migrates the database if necessary, where it initializes every user score to the length of their email.
-/// 
+///
 /// # Other features
 /// You can delete columns and tables by specifying the version range end.
 /// ```rust,ignore
@@ -285,9 +285,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
     let mut output = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
+    let mut prev_mod = None;
     for version in range.start..range.end.expect("schema has a final version") {
         let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
-        let prev_mod = format_ident!("v{}", version.saturating_sub(1));
 
         let mut mod_output = TokenStream::new();
         for (i, table) in item.variants.iter().enumerate() {
@@ -469,51 +469,43 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             }
         });
 
-        let prelude = prelude(&new_tables, &prev_mod);
         let new_mod = format_ident!("v{version}");
 
-        if table_defs.is_empty() {
-            // FIXME: proper code
-            output.extend(quote! {
-                pub mod #new_mod {
-                    #mod_output
+        let migrations = prev_mod.map(|prev_mod| {
+            let prelude = prelude(&new_tables, &prev_mod);
+            
+            // FIXME: remove the lifetime `'t` if there are no table_defs
+            quote! {
+                pub mod up {
+                    #prelude
 
-                    pub mod up {
-                        #prelude
+                    #table_migrations
 
-                        #table_migrations
-
-                        pub struct #schema {}
+                    pub struct #schema<'t, #(#table_generics),*> {
+                        #(#table_defs,)*
                     }
-                }
-            });
-        } else {
-            output.extend(quote! {
-                pub mod #new_mod {
-                    #mod_output
-    
-                    pub mod up {
-                        #prelude
 
-                        #table_migrations
+                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t, super::super::#prev_mod::#schema> for #schema<'t, #(#table_generics),*> {
+                        type S = super::#schema;
 
-                        pub struct #schema<'t, #(#table_generics),*> {
-                            #(#table_defs,)*
-                        }
-    
-                        impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t, super::super::#prev_mod::#schema> for #schema<'t, #(#table_generics),*> {
-                            type S = super::#schema;
-    
-                            fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
-                                #(#tables;)*
-                            }
+                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
+                            #(#tables;)*
                         }
                     }
                 }
-            });
-        }
+            }
+        });
+
+        output.extend(quote! {
+            mod #new_mod {
+                #mod_output
+
+                #migrations
+            }
+        });
 
         prev_tables = new_tables;
+        prev_mod = Some(new_mod);
     }
 
     Ok(output)

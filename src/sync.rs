@@ -1,15 +1,11 @@
 use std::{
-    marker::PhantomData,
     ops::Deref,
     sync::{Arc, Condvar, Mutex},
 };
 
 use crate::{
-    client::{private_exec, Weaken},
-    exec::Execute,
-    insert::Writable,
-    value::MyTyp,
-    Client, Covariant, HasId, Just,
+    client::private_exec, exec::Execute, insert::Writable, value::MyTyp, Client, Covariant, HasId,
+    Just,
 };
 
 #[derive(Clone)]
@@ -18,15 +14,15 @@ pub struct SharedClient {
 }
 
 pub struct Inner {
-    conn: Mutex<Client>,
+    client: Mutex<Client>,
     cvar: Condvar,
     updates: Mutex<bool>,
 }
 
 impl SharedClient {
-    pub fn new(conn: Client) -> Self {
+    pub fn new(client: Client) -> Self {
         let inner = Arc::new(Inner {
-            conn: Mutex::new(conn),
+            client: Mutex::new(client),
             cvar: Condvar::new(),
             updates: Mutex::new(true),
         });
@@ -56,16 +52,12 @@ impl Inner {
     where
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
-        private_exec(&self.conn.lock().unwrap().inner, f)
+        private_exec(&self.client.lock().unwrap().inner, f)
     }
 
     /// Please refer to [Client::get]
     pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
-        let weak = Weaken {
-            inner: val,
-            _p: PhantomData,
-        };
-        self.exec(|e| e.into_vec(move |row| row.get(weak.clone())))
+        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
             .pop()
             .unwrap()
     }
@@ -75,6 +67,6 @@ impl Inner {
         &'s self,
         val: impl Writable<'s, T = T>,
     ) -> Option<Just<'s, T>> {
-        self.conn.lock().unwrap().try_insert(val)
+        self.client.lock().unwrap().try_insert(val)
     }
 }

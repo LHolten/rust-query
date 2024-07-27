@@ -28,8 +28,9 @@ pub use sync::SharedClient;
 pub use value::{Covariant, UnixEpoch, Value};
 
 pub mod ops {
+    pub use crate::client::Weaken;
     pub use crate::db::Col;
-    pub use crate::value::{IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
+    pub use crate::value::{Assume, IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
 }
 
 pub mod args {
