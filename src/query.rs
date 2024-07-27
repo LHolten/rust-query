@@ -65,6 +65,7 @@ impl<'inner> Query<'inner> {
         };
         let table = MyAlias::new();
         let mut group = Aggregate {
+            outer_ast: self.ast,
             query: inner,
             table,
             phantom2: PhantomData,

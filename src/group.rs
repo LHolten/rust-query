@@ -7,6 +7,7 @@ use sea_query::{Alias, Expr, Func};
 
 use crate::{
     alias::{Field, MyAlias},
+    ast::MySelect,
     db::DbCol,
     query::Query,
     value::{IsNotNull, UnwrapOr, Value},
@@ -16,6 +17,7 @@ use crate::{
 /// It can only produce one result (for each outer result).
 /// This type dereferences to [Query].
 pub struct Aggregate<'outer, 'inner> {
+    pub(crate) outer_ast: &'inner MySelect,
     pub(crate) query: Query<'inner>,
     pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
@@ -46,7 +48,7 @@ impl<'outer, 'inner> Aggregate<'outer, 'inner> {
         self.ast.filter_on.push(Box::new((
             val.build_expr(self.ast.builder()),
             alias,
-            on.build_expr(self.ast.builder()),
+            on.build_expr(self.outer_ast.builder()),
         )))
     }
 
