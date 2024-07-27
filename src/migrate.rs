@@ -231,6 +231,7 @@ impl Prepare {
         if schema_version == 0 {
             f(conn);
             foreign_key_check(conn);
+            set_user_version(conn, S::VERSION).unwrap();
         }
 
         let schema = new_checked::<S>(conn);
