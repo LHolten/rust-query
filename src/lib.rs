@@ -18,14 +18,15 @@ mod query;
 mod value;
 
 pub use client::Client;
-pub use db::{Col, Db, DbCol, Just};
+pub use db::{Db, Just};
 pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
-pub use value::{Covariant, Null, UnixEpoch, Value};
+pub use value::{Covariant, UnixEpoch, Value};
 
 pub mod ops {
+    pub use crate::db::Col;
     pub use crate::value::{IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
 }
 
@@ -107,4 +108,5 @@ pub trait HasId: Table {
     const NAME: &'static str;
 }
 
+/// Special table name that is used as souce of newly created tables.
 pub struct NoTable(());

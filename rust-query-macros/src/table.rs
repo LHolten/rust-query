@@ -69,8 +69,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         let ident_str = ident.to_string();
         let generic = make_generic(ident);
         defs.push(quote! {
-            pub fn #ident(&self) -> ::rust_query::Col<#typ, T> {
-                ::rust_query::Col::new(#ident_str, self.0.clone())
+            pub fn #ident(&self) -> ::rust_query::ops::Col<#typ, T> {
+                ::rust_query::ops::Col::new(#ident_str, self.0.clone())
             }
         });
         typ_asserts.push(quote!(::rust_query::valid_in_schema::<#schema, #typ>();));

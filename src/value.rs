@@ -7,7 +7,7 @@ use crate::{
     alias::{MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{Col, Db, Just},
-    hash, HasId,
+    hash, HasId, NoTable,
 };
 
 #[derive(Clone, Copy)]
@@ -50,7 +50,10 @@ pub trait Value<'t>: Sized + Clone {
         MyAdd(self, rhs)
     }
 
-    fn lt(self, rhs: i32) -> MyLt<Self> {
+    fn lt(self, rhs: i32) -> MyLt<Self>
+    where
+        Self: Value<'t, Typ = i64>,
+    {
         MyLt(self, rhs)
     }
 
@@ -84,6 +87,7 @@ pub trait Value<'t>: Sized + Clone {
         IsNotNull(self)
     }
 }
+/// [Covariant]`<'t>` can be implemented if [Value]`<'a>` is implemented for all `'a` shorter or equal to `'t`.
 pub trait Covariant<'t>: Value<'t> {}
 
 impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
@@ -120,16 +124,16 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
 }
 impl<'t, T: Covariant<'t>> Covariant<'t> for &'_ T {}
 
-impl<'t, T: Value<'t> + Nullable> Value<'t> for Option<T> {
+impl<'t, T: Value<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t> for Option<T> {
     type Typ = Option<T::Typ>;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.as_ref()
             .map(|x| T::build_expr(x, b))
-            .unwrap_or(T::null().into())
+            .unwrap_or(X::Sql::null().into())
     }
 }
-impl<'t, T: Covariant<'t> + Nullable> Covariant<'t> for Option<T> {}
+impl<'t, T: Covariant<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Covariant<'t> for Option<T> {}
 
 impl<'t> Value<'t> for &str {
     type Typ = String;
@@ -277,60 +281,48 @@ impl<'t> Value<'t> for UnixEpoch {
 }
 impl<'t> Covariant<'t> for UnixEpoch {}
 
-pub struct Null<T>(PhantomData<T>);
-
-impl<T> Default for Null<T> {
-    fn default() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<T> Clone for Null<T> {
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl<'t, T> Value<'t> for Null<T> {
-    type Typ = Option<T>;
-
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::value(None::<i64>)
-    }
-}
-impl<'t, T> Covariant<'t> for Null<T> {}
-
 pub trait MyTyp: 'static {
+    #[doc(hidden)]
     const NULLABLE: bool = false;
+    #[doc(hidden)]
     const TYP: hash::ColumnType;
+    #[doc(hidden)]
     const FK: Option<(&'static str, &'static str)> = None;
+    #[doc(hidden)]
     type Out<'t>: FromSql;
+    #[doc(hidden)]
+    type Sql;
 }
 
 impl<T: HasId> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = Just<'t, Self>;
+    type Sql = i64;
 }
 
 impl MyTyp for i64 {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
+    type Sql = i64;
 }
 
 impl MyTyp for f64 {
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
+    type Sql = f64;
 }
 
 impl MyTyp for bool {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
+    type Sql = bool;
 }
 
 impl MyTyp for String {
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
+    type Sql = String;
 }
 
 impl<T: MyTyp> MyTyp for Option<T> {
@@ -338,6 +330,13 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out<'t> = Option<T::Out<'t>>;
+    type Sql = T::Sql;
+}
+
+impl MyTyp for NoTable {
+    const TYP: hash::ColumnType = hash::ColumnType::Integer;
+    type Out<'t> = Just<'t, Self>;
+    type Sql = i64;
 }
 
 impl<'t, T> FromSql for Just<'t, T> {

@@ -58,7 +58,8 @@ impl<'t, T> DbCol<'t, T> {
     }
 }
 
-/// Invariant in `'t`
+/// Table reference that can only be used in the query where it was created.
+/// Invariant in `'t`.
 pub struct Db<'t, T> {
     pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<dyn Fn(&'t T) -> &'t T>,
@@ -80,7 +81,8 @@ impl<'t, T: Table> Deref for Db<'t, T> {
     }
 }
 
-/// Covariant in `'t`
+/// Table reference that can be used in any query as long as it is alive.
+/// Covariant in `'t`.
 pub struct Just<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
     pub(crate) idx: i64,

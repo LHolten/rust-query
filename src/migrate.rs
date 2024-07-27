@@ -148,6 +148,7 @@ pub trait Migration<'t, From> {
     fn tables(self, b: &mut SchemaBuilder<'t>);
 }
 
+/// [Prepare] can be used to open a database in a file or in memory.
 pub struct Prepare {
     pub(crate) conn: Connection,
 }
@@ -163,11 +164,14 @@ pub(crate) struct OwnedTransaction {
 }
 
 impl Prepare {
+    /// Open a database that is stored in a file.
+    /// Creates the database if it does not exist.
     pub fn open(p: impl AsRef<Path>) -> Self {
         let inner = rusqlite::Connection::open(p).unwrap();
         Self::open_internal(inner)
     }
 
+    /// Creates a new empty database in memory.
     pub fn open_in_memory() -> Self {
         let inner = rusqlite::Connection::open_in_memory().unwrap();
         Self::open_internal(inner)
@@ -188,7 +192,7 @@ impl Prepare {
         Self { conn: inner }
     }
 
-    /// Execute a raw sql statement.
+    /// Execute a raw sql statement if the database was just created.
     pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> (Migrator, Option<S>) {
         self.migrator(|conn| {
             for sql in sql {
@@ -197,6 +201,7 @@ impl Prepare {
         })
     }
 
+    /// Create empty tables based on the schema if the database was just created.
     pub fn create_db_empty<S: Schema>(self) -> (Migrator, Option<S>) {
         self.migrator(|conn| {
             let mut b = TableTypBuilder::default();
@@ -237,6 +242,7 @@ impl Prepare {
     }
 }
 
+/// This type is used to apply database migrations.
 pub struct Migrator {
     pub(crate) transaction: OwnedTransaction,
     schema: Box<dyn Any>,
@@ -256,6 +262,8 @@ impl Migrator {
     //     )
     // }
 
+    /// Apply a database migration if `s` is [Some] (because that means the migration can be applied).
+    /// If the migration was applied or if the database already had the new schema it is returned.
     pub fn migrate<'a, S: Schema, F, M, N: Schema>(&'a mut self, s: Option<S>, f: F) -> Option<N>
     where
         F: FnOnce(&'a S, &'a Client) -> M,
@@ -286,6 +294,7 @@ impl Migrator {
         new_checked::<N>(conn)
     }
 
+    /// Commit the migration transaction and return a [Client].
     pub fn finish(mut self) -> Client {
         self.transaction
             .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
