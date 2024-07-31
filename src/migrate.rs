@@ -1,7 +1,6 @@
 use std::{any::Any, marker::PhantomData, path::Path, sync::atomic::AtomicBool};
 
 use ouroboros::self_referencing;
-use ref_cast::RefCast;
 use rusqlite::{config::DbConfig, Connection, Transaction};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
@@ -11,7 +10,7 @@ use sea_query::{
 use crate::{
     alias::{Field, MyAlias},
     ast::{add_table, MySelect},
-    client::Client,
+    client::{Client, QueryBuilder},
     db::DbCol,
     hash,
     insert::Reader,
@@ -67,8 +66,6 @@ impl<'x> SchemaBuilder<'x> {
         F: FnMut(Just<'x, A>) -> Option<O>,
         O: TableMigration<'x, A, T = B>,
     {
-        let client = Client::ref_cast(self.conn);
-
         let new_table_name = MyAlias::new();
         new_table::<B>(self.conn, new_table_name);
 
@@ -78,7 +75,7 @@ impl<'x> SchemaBuilder<'x> {
                 .take(),
         );
 
-        client.exec(|e| {
+        self.conn.new_query(|e| {
             let table = add_table(&mut e.ast.tables, A::NAME.to_owned());
             let db_id = DbCol::<A>::db(table, Field::Str(A::ID));
 
@@ -150,7 +147,8 @@ pub trait Migration<'t, From> {
 
 /// [Prepare] can be used to open a database in a file or in memory.
 pub struct Prepare {
-    pub(crate) conn: Connection,
+    manager: r2d2_sqlite::SqliteConnectionManager,
+    conn: Connection,
 }
 
 static ALLOWED: AtomicBool = AtomicBool::new(true);
@@ -167,29 +165,30 @@ impl Prepare {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
     pub fn open(p: impl AsRef<Path>) -> Self {
-        let inner = rusqlite::Connection::open(p).unwrap();
-        Self::open_internal(inner)
+        let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
+        Self::open_internal(manager)
     }
 
     /// Creates a new empty database in memory.
     pub fn open_in_memory() -> Self {
-        let inner = rusqlite::Connection::open_in_memory().unwrap();
-        Self::open_internal(inner)
+        let manager = r2d2_sqlite::SqliteConnectionManager::memory();
+        Self::open_internal(manager)
     }
 
-    fn open_internal(inner: rusqlite::Connection) -> Self {
+    fn open_internal(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
         assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
-        inner.pragma_update(None, "journal_mode", "WAL").unwrap();
-        inner.pragma_update(None, "synchronous", "NORMAL").unwrap();
-        inner.pragma_update(None, "foreign_keys", "ON").unwrap();
-        inner
-            .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)
-            .unwrap();
-        inner
-            .set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)
-            .unwrap();
+        let manager = manager.with_init(|inner| {
+            inner.pragma_update(None, "journal_mode", "WAL")?;
+            inner.pragma_update(None, "synchronous", "NORMAL")?;
+            inner.pragma_update(None, "foreign_keys", "ON")?;
+            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
+            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
+            Ok(())
+        });
+        use r2d2::ManageConnection;
+        let conn = manager.connect().unwrap();
 
-        Self { conn: inner }
+        Self { conn, manager }
     }
 
     /// Execute a raw sql statement if the database was just created.
@@ -236,6 +235,7 @@ impl Prepare {
 
         let schema = new_checked::<S>(conn);
         let migrator = Migrator {
+            client: Client::new(self.manager),
             transaction: owned,
             schema: Box::new(()),
         };
@@ -245,7 +245,8 @@ impl Prepare {
 
 /// This type is used to apply database migrations.
 pub struct Migrator {
-    pub(crate) transaction: OwnedTransaction,
+    client: Client,
+    transaction: OwnedTransaction,
     schema: Box<dyn Any>,
 }
 
@@ -274,7 +275,7 @@ impl Migrator {
         if let Some(s) = s {
             self.schema = Box::new(s);
             let s = self.schema.as_ref().downcast_ref().unwrap();
-            let res = f(s, Client::ref_cast(conn));
+            let res = f(s, &self.client);
             let mut builder = SchemaBuilder {
                 conn,
                 drop: vec![],
@@ -306,7 +307,7 @@ impl Migrator {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        Client { inner: heads.conn }
+        self.client
     }
 }
 

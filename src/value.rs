@@ -6,7 +6,6 @@ use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 use crate::{
     alias::{MyAlias, RawAlias},
     ast::{MySelect, Source},
-    client::Weaken,
     db::{Col, Db, Just},
     hash, HasId, NoTable,
 };
@@ -288,6 +287,20 @@ impl<'t> Value<'t> for UnixEpoch {
     }
 }
 impl<'t> Covariant<'t> for UnixEpoch {}
+
+#[derive(Clone)]
+pub struct Weaken<'t, T> {
+    pub inner: T,
+    pub _p: PhantomData<&'t ()>,
+}
+
+impl<'t, 'a: 't, T: Covariant<'a>> Value<'t> for Weaken<'a, T> {
+    type Typ = T::Typ;
+
+    fn build_expr(&self, b: crate::value::ValueBuilder) -> sea_query::SimpleExpr {
+        self.inner.build_expr(b)
+    }
+}
 
 pub trait MyTyp: 'static {
     #[doc(hidden)]

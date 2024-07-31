@@ -15,7 +15,6 @@ mod migrate;
 mod mymap;
 mod pragma;
 mod query;
-mod sync;
 mod value;
 
 pub use client::Client;
@@ -24,13 +23,11 @@ pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
-pub use sync::SharedClient;
 pub use value::{Covariant, UnixEpoch, Value};
 
 pub mod ops {
-    pub use crate::client::Weaken;
     pub use crate::db::Col;
-    pub use crate::value::{Assume, IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
+    pub use crate::value::{Assume, IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr, Weaken};
 }
 
 pub mod args {

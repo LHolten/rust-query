@@ -1,35 +1,37 @@
-use std::marker::PhantomData;
+use std::{
+    cell::OnceCell,
+    marker::PhantomData,
+    sync::{Condvar, Mutex},
+};
 
-use ref_cast::RefCast;
 use rusqlite::Connection;
 
 use crate::{
     ast::MySelect,
     exec::Execute,
+    insert::{private_try_insert, Writable},
     query::Query,
     value::{Covariant, MyTyp},
-    Value,
+    HasId, Just,
 };
 
-/// This is a wrapper for [rusqlite::Connection].
-/// It's main purpose is to remove the need to depend on rusqlite in the future.
-#[derive(Debug, RefCast)]
-#[repr(transparent)]
 pub struct Client {
-    pub(crate) inner: rusqlite::Connection,
+    manager: r2d2_sqlite::SqliteConnectionManager,
+    cvar: Condvar,
+    updates: Mutex<bool>,
 }
 
-#[derive(Clone)]
-pub struct Weaken<'t, T> {
-    pub inner: T,
-    pub _p: PhantomData<&'t ()>,
+thread_local! {
+    static CONN: OnceCell<rusqlite::Connection> = const { OnceCell::new() }
 }
 
-impl<'t, 'a: 't, T: Covariant<'a>> Value<'t> for Weaken<'a, T> {
-    type Typ = T::Typ;
-
-    fn build_expr(&self, b: crate::value::ValueBuilder) -> sea_query::SimpleExpr {
-        self.inner.build_expr(b)
+impl Client {
+    pub(crate) fn new(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
+        Self {
+            manager,
+            cvar: Condvar::new(),
+            updates: Mutex::new(true),
+        }
     }
 }
 
@@ -39,7 +41,27 @@ impl Client {
     where
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
-        self.inner.new_query(f)
+        use r2d2::ManageConnection;
+        CONN.with(|conn| {
+            let conn = conn.get_or_init(|| self.manager.connect().unwrap());
+            private_exec(conn, f)
+        })
+    }
+
+    /// Try inserting a value into the database.
+    /// Returns a reference to the new inserted value or `None` if there is a conflict.
+    pub fn try_insert<'s, T: HasId>(
+        &'s self,
+        val: impl Writable<'s, T = T>,
+    ) -> Option<Just<'s, T>> {
+        use r2d2::ManageConnection;
+        let res = CONN.with(|conn| {
+            let conn = conn.get_or_init(|| self.manager.connect().unwrap());
+            private_try_insert(conn, val)
+        });
+        *self.updates.lock().unwrap() = true;
+        self.cvar.notify_all();
+        res
     }
 
     /// Retrieve a single value from the database.
@@ -48,6 +70,12 @@ impl Client {
         self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
             .pop()
             .unwrap()
+    }
+
+    /// Wait for any changes to the database.
+    pub fn wait(&self) {
+        let updates = self.updates.lock().unwrap();
+        *self.cvar.wait_while(updates, |&mut x| !x).unwrap() = false;
     }
 }
 
