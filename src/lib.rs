@@ -33,6 +33,7 @@ pub mod ops {
 pub mod args {
     pub use crate::exec::{Execute, Row};
     pub use crate::group::Aggregate;
+    pub use crate::migrate::ReadClient;
 }
 
 #[doc(hidden)]

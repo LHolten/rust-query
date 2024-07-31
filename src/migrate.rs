@@ -1,6 +1,7 @@
 use std::{any::Any, marker::PhantomData, path::Path, sync::atomic::AtomicBool};
 
 use ouroboros::self_referencing;
+use ref_cast::RefCast;
 use rusqlite::{config::DbConfig, Connection, Transaction};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
@@ -10,12 +11,14 @@ use sea_query::{
 use crate::{
     alias::{Field, MyAlias},
     ast::{add_table, MySelect},
-    client::{Client, QueryBuilder},
+    client::{private_exec, Client, QueryBuilder},
     db::DbCol,
+    exec::Execute,
     hash,
     insert::Reader,
     pragma::read_schema,
-    HasId, Just, Table,
+    value::MyTyp,
+    Covariant, HasId, Just, Table,
 };
 
 #[derive(Default)]
@@ -44,7 +47,7 @@ pub trait TableMigration<'a, A: HasId> {
 }
 
 pub struct SchemaBuilder<'x> {
-    conn: &'x Connection,
+    conn: &'x rusqlite::Transaction<'x>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
 }
@@ -268,14 +271,14 @@ impl Migrator {
     /// If the migration was applied or if the database already had the new schema it is returned.
     pub fn migrate<'a, S: Schema, F, M, N: Schema>(&'a mut self, s: Option<S>, f: F) -> Option<N>
     where
-        F: FnOnce(&'a S, &'a Client) -> M,
+        F: FnOnce(&'a S, &'a ReadClient<'a>) -> M,
         M: Migration<'a, S, S = N>,
     {
         let conn = self.transaction.borrow_transaction();
         if let Some(s) = s {
             self.schema = Box::new(s);
             let s = self.schema.as_ref().downcast_ref().unwrap();
-            let res = f(s, &self.client);
+            let res = f(s, ReadClient::ref_cast(conn));
             let mut builder = SchemaBuilder {
                 conn,
                 drop: vec![],
@@ -311,6 +314,27 @@ impl Migrator {
     }
 }
 
+#[derive(RefCast)]
+#[repr(transparent)]
+pub struct ReadClient<'a>(rusqlite::Transaction<'a>);
+
+impl ReadClient<'_> {
+    /// Same as [Client::exec].
+    pub fn exec<'s, F, R>(&'s self, f: F) -> R
+    where
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
+    {
+        private_exec(&self.0, f)
+    }
+
+    /// Same as [Client::get].
+    pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
+        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
+            .pop()
+            .unwrap()
+    }
+}
+
 // Read user version field from the SQLite db
 fn user_version(conn: &Connection) -> Result<i64, rusqlite::Error> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -321,7 +345,7 @@ fn set_user_version(conn: &Connection, v: i64) -> Result<(), rusqlite::Error> {
     conn.pragma_update(None, "user_version", v)
 }
 
-fn new_checked<T: Schema>(conn: &Connection) -> Option<T> {
+fn new_checked<T: Schema>(conn: &rusqlite::Transaction) -> Option<T> {
     if user_version(conn).unwrap() != T::VERSION {
         return None;
     }

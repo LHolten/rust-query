@@ -4,7 +4,7 @@ use std::{
     sync::{Condvar, Mutex},
 };
 
-use rusqlite::Connection;
+use rusqlite::Transaction;
 
 use crate::{
     ast::MySelect,
@@ -42,10 +42,23 @@ impl Client {
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
     {
         use r2d2::ManageConnection;
-        CONN.with(|conn| {
-            let conn = conn.get_or_init(|| self.manager.connect().unwrap());
-            private_exec(conn, f)
-        })
+        // Select needs it's own connection for isolation, because
+        // sqlite does not provide isolation within a connection.
+        let mut conn = self.manager.connect().unwrap();
+        // Additionally, because rows have dynamic columns,
+        // we need to be able to do multiple selects on the same snapshot.
+        // For this we need a transaction.
+        let transaction = conn.transaction().unwrap();
+        private_exec(&transaction, f)
+    }
+
+    /// Retrieve a single value from the database.
+    /// This is convenient but quite slow.
+    pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
+        // TODO: would not need it's own connection if I made rows have fixed columns
+        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
+            .pop()
+            .unwrap()
     }
 
     /// Try inserting a value into the database.
@@ -64,14 +77,6 @@ impl Client {
         res
     }
 
-    /// Retrieve a single value from the database.
-    /// This is convenient but quite slow.
-    pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
-        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
-            .pop()
-            .unwrap()
-    }
-
     /// Wait for any changes to the database.
     pub fn wait(&self) {
         let updates = self.updates.lock().unwrap();
@@ -86,7 +91,7 @@ pub(crate) trait QueryBuilder {
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R;
 }
 
-impl QueryBuilder for rusqlite::Connection {
+impl QueryBuilder for rusqlite::Transaction<'_> {
     fn new_query<'s, F, R>(&'s self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
@@ -96,7 +101,7 @@ impl QueryBuilder for rusqlite::Connection {
 }
 
 /// For internal use only as it does not have required bounds
-pub(crate) fn private_exec<'s, F, R>(conn: &Connection, f: F) -> R
+pub(crate) fn private_exec<'s, F, R>(conn: &Transaction, f: F) -> R
 where
     F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
 {

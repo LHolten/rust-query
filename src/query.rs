@@ -27,7 +27,7 @@ pub struct Query<'inner> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
     pub(crate) ast: &'inner mut MySelect,
-    pub(crate) conn: &'inner rusqlite::Connection,
+    pub(crate) conn: &'inner rusqlite::Transaction<'inner>,
 }
 
 impl<'inner> Query<'inner> {

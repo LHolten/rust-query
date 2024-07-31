@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use ref_cast::RefCast;
-use rusqlite::Connection;
 
 use crate::{client::QueryBuilder, db::Col, hash, value::Value, Table};
 
@@ -137,7 +136,7 @@ impl Table for IndexInfo {
     fn typs(_f: &mut crate::TypBuilder) {}
 }
 
-pub fn read_schema(conn: &Connection) -> hash::Schema {
+pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     #[derive(Clone)]
     struct Column {
         name: String,
