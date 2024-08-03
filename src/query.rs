@@ -31,7 +31,7 @@ pub struct Query<'inner> {
 
 impl<'inner> Query<'inner> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
-    pub fn table<T: HasId>(&mut self, t: &T) -> DbCol<'inner, T> {
+    pub fn join<T: HasId>(&mut self, t: &T) -> DbCol<'inner, T> {
         let table = add_table(&mut self.ast.tables, t.name());
         DbCol::db(table, Field::Str(T::ID))
     }

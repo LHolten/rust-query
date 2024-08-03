@@ -51,7 +51,7 @@ struct InvoiceInfo<'a> {
 
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
     client.exec(|rows| {
-        let ivl = rows.table(&DB.invoice_line);
+        let ivl = rows.join(&DB.invoice_line);
         rows.into_vec(InvoiceInfoDummy {
             track: ivl.track().name(),
             artist: ivl.track().album().artist().name(),
@@ -68,9 +68,9 @@ struct PlaylistTrackCount {
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     client.exec(|rows| {
-        let pl = rows.table(&DB.playlist);
+        let pl = rows.join(&DB.playlist);
         let track_count = rows.query(|rows| {
-            let plt = rows.table(&DB.playlist_track);
+            let plt = rows.join(&DB.playlist_track);
             rows.filter_on(plt.playlist(), pl);
             rows.count_distinct(plt)
         });
@@ -84,13 +84,13 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
 
 fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
     client.exec(|rows| {
-        let artist = rows.table(&DB.artist);
+        let artist = rows.join(&DB.artist);
         let avg_track_count = rows.query(|rows| {
-            let album = rows.table(&DB.album);
+            let album = rows.join(&DB.album);
             rows.filter_on(album.artist(), artist);
 
             let track_count = rows.query(|rows| {
-                let track = rows.table(&DB.track);
+                let track = rows.join(&DB.track);
                 rows.filter_on(track.album(), album);
 
                 rows.count_distinct(track)
@@ -103,9 +103,9 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
 
 fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     client.exec(|rows| {
-        let receiver = rows.table(&DB.employee);
+        let receiver = rows.join(&DB.employee);
         let report_count = rows.query(|rows| {
-            let reporter = rows.table(&DB.employee);
+            let reporter = rows.join(&DB.employee);
             // only count employees that report to someone
             let reports_to = rows.filter_some(reporter.reports_to());
             rows.filter_on(reports_to, receiver);
@@ -118,7 +118,7 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
 
 fn list_all_genres(client: &Client) -> Vec<String> {
     client.exec(|rows| {
-        let genre = rows.table(&DB.genre_new);
+        let genre = rows.join(&DB.genre_new);
         rows.into_vec(genre.name())
     })
 }
@@ -132,7 +132,7 @@ struct FilteredTrack {
 
 fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     client.exec(|rows| {
-        let track = rows.table(&DB.track);
+        let track = rows.join(&DB.track);
         rows.filter(track.genre().name().eq(genre));
         rows.filter(track.milliseconds().lt(max_milis as i32));
         rows.into_vec(FilteredTrackDummy {
@@ -152,9 +152,9 @@ struct GenreStats {
 
 fn genre_statistics(client: &Client) -> Vec<GenreStats> {
     client.exec(|rows| {
-        let genre = rows.table(&DB.genre_new);
+        let genre = rows.join(&DB.genre_new);
         let (bytes, milis) = rows.query(|rows| {
-            let track = rows.table(&DB.track);
+            let track = rows.join(&DB.track);
             rows.filter_on(track.genre(), genre);
             (rows.avg(track.bytes()), rows.avg(track.milliseconds()))
         });
@@ -174,9 +174,9 @@ struct CustomerSpending {
 
 fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
     client.exec(|rows| {
-        let customer = rows.table(&DB.customer);
+        let customer = rows.join(&DB.customer);
         let total = rows.query(|rows| {
-            let invoice = rows.table(&DB.invoice);
+            let invoice = rows.join(&DB.invoice);
             rows.filter_on(invoice.customer(), customer);
             rows.sum_float(invoice.total())
         });
@@ -190,7 +190,7 @@ fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
 
 fn free_reference(c: Client) {
     let tracks = c.exec(|rows| {
-        let track = rows.table(&DB.track);
+        let track = rows.join(&DB.track);
         rows.into_vec(track)
     });
 
