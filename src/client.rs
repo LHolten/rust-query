@@ -10,9 +10,9 @@ use crate::{
     ast::MySelect,
     exec::Execute,
     insert::{private_try_insert, Writable},
+    private::FromRow,
     query::Query,
-    value::MyTyp,
-    HasId, Just, Value,
+    HasId, Just,
 };
 
 pub struct Client {
@@ -54,9 +54,9 @@ impl Client {
 
     /// Retrieve a single value from the database.
     /// This is convenient but quite slow.
-    pub fn get<'s, T: MyTyp>(&'s self, val: impl for<'x> Value<'x, Typ = T>) -> T::Out<'s> {
+    pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, Out = T>) -> T {
         // TODO: does not need it's own connection, because it is atomic
-        self.exec(|e| e.into_vec(val.clone())).pop().unwrap()
+        self.exec(|e| e.into_vec(val)).pop().unwrap()
     }
 
     /// Try inserting a value into the database.

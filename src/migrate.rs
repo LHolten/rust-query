@@ -18,8 +18,8 @@ use crate::{
     hash,
     insert::Reader,
     pragma::read_schema,
-    value::MyTyp,
-    HasId, Just, Table, Value,
+    private::FromRow,
+    HasId, Just, Table,
 };
 
 #[derive(Default)]
@@ -329,8 +329,8 @@ impl ReadClient<'_> {
     }
 
     /// Same as [Client::get].
-    pub fn get<'s, T: MyTyp>(&'s self, val: impl for<'a> Value<'a, Typ = T>) -> T::Out<'s> {
-        self.exec(|e| e.into_vec(val.clone())).pop().unwrap()
+    pub fn get<'s, T>(&'s self, val: impl for<'a> FromRow<'a, 's, Out = T>) -> T {
+        self.exec(|e| e.into_vec(val)).pop().unwrap()
     }
 }
 
