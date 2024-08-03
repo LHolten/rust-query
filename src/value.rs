@@ -88,15 +88,6 @@ pub trait Value<'t>: Clone {
         IsNotNull(self)
     }
 }
-/// [Covariant]`<'t>` can be implemented if [Value]`<'a>` is implemented for all `'a` shorter or equal to `'t`.
-pub trait Covariant<'t>: Value<'t> {
-    fn weaken(self) -> Weaken<'t, Self> {
-        Weaken {
-            inner: self,
-            _p: PhantomData,
-        }
-    }
-}
 
 impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
     type Typ = T;
@@ -105,7 +96,6 @@ impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
         Expr::col((table, self.field)).into()
     }
 }
-impl<'t, T, P: Covariant<'t, Typ: HasId>> Covariant<'t> for Col<T, P> {}
 
 impl<'t, T, X> Value<'t> for Col<T, Db<'t, X>> {
     type Typ = T;
@@ -114,14 +104,13 @@ impl<'t, T, X> Value<'t> for Col<T, Db<'t, X>> {
     }
 }
 
-impl<'t, T> Value<'t> for Just<'t, T> {
+impl<'t, T> Value<'t> for Just<'_, T> {
     type Typ = T;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
     }
 }
-impl<'t, T> Covariant<'t> for Just<'t, T> {}
 
 impl<'t, T: Value<'t>> Value<'t> for &'_ T {
     type Typ = T::Typ;
@@ -130,7 +119,6 @@ impl<'t, T: Value<'t>> Value<'t> for &'_ T {
         T::build_expr(self, b)
     }
 }
-impl<'t, T: Covariant<'t>> Covariant<'t> for &'_ T {}
 
 impl<'t, T: Value<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t> for Option<T> {
     type Typ = Option<T::Typ>;
@@ -141,7 +129,6 @@ impl<'t, T: Value<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t> for Option<T>
             .unwrap_or(X::Sql::null().into())
     }
 }
-impl<'t, T: Covariant<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Covariant<'t> for Option<T> {}
 
 impl<'t> Value<'t> for &str {
     type Typ = String;
@@ -150,7 +137,6 @@ impl<'t> Value<'t> for &str {
         SimpleExpr::from(*self)
     }
 }
-impl<'t> Covariant<'t> for &str {}
 
 impl<'t> Value<'t> for String {
     type Typ = String;
@@ -159,7 +145,6 @@ impl<'t> Value<'t> for String {
         SimpleExpr::from(self)
     }
 }
-impl<'t> Covariant<'t> for String {}
 
 impl<'t> Value<'t> for bool {
     type Typ = bool;
@@ -168,7 +153,6 @@ impl<'t> Value<'t> for bool {
         SimpleExpr::from(*self)
     }
 }
-impl<'t> Covariant<'t> for bool {}
 
 impl<'t> Value<'t> for i64 {
     type Typ = i64;
@@ -177,7 +161,6 @@ impl<'t> Value<'t> for i64 {
         SimpleExpr::from(*self)
     }
 }
-impl<'t> Covariant<'t> for i64 {}
 
 impl<'t> Value<'t> for f64 {
     type Typ = f64;
@@ -186,7 +169,6 @@ impl<'t> Value<'t> for f64 {
         SimpleExpr::from(*self)
     }
 }
-impl<'t> Covariant<'t> for f64 {}
 
 #[derive(Clone, Copy)]
 pub struct MyAdd<A, B>(A, B);
@@ -197,7 +179,6 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAdd<A, B> {
         self.0.build_expr(b).add(self.1.build_expr(b))
     }
 }
-impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for MyAdd<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct MyNot<T>(T);
@@ -208,7 +189,6 @@ impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
         self.0.build_expr(b).not()
     }
 }
-impl<'t, T: Covariant<'t>> Covariant<'t> for MyNot<T> {}
 
 #[derive(Clone, Copy)]
 pub struct MyAnd<A, B>(A, B);
@@ -219,7 +199,6 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAnd<A, B> {
         self.0.build_expr(b).and(self.1.build_expr(b))
     }
 }
-impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for MyAnd<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct MyLt<A>(A, i32);
@@ -230,7 +209,6 @@ impl<'t, A: Value<'t>> Value<'t> for MyLt<A> {
         Expr::expr(self.0.build_expr(b)).lt(self.1)
     }
 }
-impl<'t, A: Covariant<'t>> Covariant<'t> for MyLt<A> {}
 
 #[derive(Clone, Copy)]
 pub struct MyEq<A, B>(A, B);
@@ -241,7 +219,6 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
         self.0.build_expr(b).eq(self.1.build_expr(b))
     }
 }
-impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for MyEq<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
@@ -252,7 +229,6 @@ impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
         Expr::expr(self.0.build_expr(b)).if_null(self.1.build_expr(b))
     }
 }
-impl<'t, A: Covariant<'t>, B: Covariant<'t>> Covariant<'t> for UnwrapOr<A, B> {}
 
 #[derive(Clone, Copy)]
 pub struct IsNotNull<A>(pub(crate) A);
@@ -263,7 +239,6 @@ impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
         Expr::expr(self.0.build_expr(b)).is_not_null()
     }
 }
-impl<'t, A: Covariant<'t>> Covariant<'t> for IsNotNull<A> {}
 
 #[derive(Clone, Copy)]
 pub struct Assume<A>(pub(crate) A);
@@ -274,7 +249,6 @@ impl<'t, T, A: Value<'t, Typ = Option<T>>> Value<'t> for Assume<A> {
         self.0.build_expr(b)
     }
 }
-impl<'t, T, A: Covariant<'t, Typ = Option<T>>> Covariant<'t> for Assume<A> {}
 
 /// Use this a value in a query to get the current datetime as a number.
 #[derive(Clone)]
@@ -285,21 +259,6 @@ impl<'t> Value<'t> for UnixEpoch {
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
-    }
-}
-impl<'t> Covariant<'t> for UnixEpoch {}
-
-#[derive(Clone)]
-pub struct Weaken<'t, T> {
-    pub inner: T,
-    pub _p: PhantomData<&'t ()>,
-}
-
-impl<'t, 'a: 't, T: Covariant<'a>> Value<'t> for Weaken<'a, T> {
-    type Typ = T::Typ;
-
-    fn build_expr(&self, b: crate::value::ValueBuilder) -> sea_query::SimpleExpr {
-        self.inner.build_expr(b)
     }
 }
 

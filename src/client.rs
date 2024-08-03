@@ -11,8 +11,8 @@ use crate::{
     exec::Execute,
     insert::{private_try_insert, Writable},
     query::Query,
-    value::{Covariant, MyTyp},
-    HasId, Just,
+    value::MyTyp,
+    HasId, Just, Value,
 };
 
 pub struct Client {
@@ -54,19 +54,15 @@ impl Client {
 
     /// Retrieve a single value from the database.
     /// This is convenient but quite slow.
-    pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
+    pub fn get<'s, T: MyTyp>(&'s self, val: impl for<'x> Value<'x, Typ = T>) -> T::Out<'s> {
         // TODO: does not need it's own connection, because it is atomic
-        self.exec(|e| e.into_vec(val.clone().weaken()))
-            .pop()
-            .unwrap()
+        self.exec(|e| e.into_vec(val.clone())).pop().unwrap()
     }
 
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
-    pub fn try_insert<'s, T: HasId>(
-        &'s self,
-        val: impl Writable<'s, T = T>,
-    ) -> Option<Just<'s, T>> {
+    #[allow(clippy::needless_lifetimes)]
+    pub fn try_insert<'s, T: HasId>(&'s self, val: impl Writable<T = T>) -> Option<Just<'s, T>> {
         use r2d2::ManageConnection;
         let res = CONN.with(|conn| {
             let conn = conn.get_or_init(|| self.manager.connect().unwrap());

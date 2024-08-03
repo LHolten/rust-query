@@ -25,11 +25,11 @@ pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
 pub use rust_query_macros::FromRow;
-pub use value::{Covariant, UnixEpoch, Value};
+pub use value::{UnixEpoch, Value};
 
 pub mod ops {
     pub use crate::db::Col;
-    pub use crate::value::{Assume, IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr, Weaken};
+    pub use crate::value::{Assume, IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
 }
 
 pub mod args {

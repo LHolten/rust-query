@@ -3,20 +3,19 @@ use std::marker::PhantomData;
 use rusqlite::Connection;
 use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 
-use crate::{alias::Field, ast::MySelect, Covariant, HasId, Just};
+use crate::{alias::Field, ast::MySelect, HasId, Just, Value};
 
-pub trait Writable<'a> {
+pub trait Writable {
     type T: HasId;
-    fn read(self: Box<Self>, f: Reader<'_, 'a>);
+    fn read(self, f: Reader<'_>);
 }
 
-pub struct Reader<'x, 'a> {
-    pub(crate) _phantom: PhantomData<fn(&'a ()) -> &'a ()>,
+pub struct Reader<'x> {
     pub(crate) ast: &'x MySelect,
 }
 
-impl<'x, 'a> Reader<'x, 'a> {
-    pub fn col(&self, name: &'static str, val: impl Covariant<'a>) {
+impl<'x> Reader<'x> {
+    pub fn col(&self, name: &'static str, val: impl for<'a> Value<'a>) {
         let field = Field::Str(name);
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))
@@ -25,15 +24,12 @@ impl<'x, 'a> Reader<'x, 'a> {
 
 pub(crate) fn private_try_insert<'a, T: HasId>(
     conn: &Connection,
-    val: impl Writable<'a, T = T>,
+    val: impl Writable<T = T>,
 ) -> Option<Just<'a, T>> {
     let ast = MySelect::default();
 
-    let reader = Reader {
-        _phantom: PhantomData,
-        ast: &ast,
-    };
-    Writable::read(Box::new(val), reader);
+    let reader = Reader { ast: &ast };
+    Writable::read(val, reader);
 
     let select = ast.simple();
 

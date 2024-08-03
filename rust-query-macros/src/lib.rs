@@ -252,7 +252,7 @@ fn define_table_migration(
             let typ = &col.typ;
 
             defs.push(quote! {pub #name: #generic});
-            constraints.push(quote! {#generic: ::rust_query::Covariant<'a, Typ = #typ>});
+            constraints.push(quote! {#generic: for<'x> ::rust_query::Value<'x, Typ = #typ>});
             generics.push(generic);
             into_new.push(quote! {reader.col(#name_str, self.#name.clone())});
         }
@@ -276,7 +276,7 @@ fn define_table_migration(
         impl<'a #(,#constraints)*> ::rust_query::private::TableMigration<'a, #prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new(self, prev: ::rust_query::Just<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_, 'a>) {
+            fn into_new(self, prev: ::rust_query::Just<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_>) {
                 #(#into_new;)*
             }
         }

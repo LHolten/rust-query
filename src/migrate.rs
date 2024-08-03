@@ -1,4 +1,4 @@
-use std::{any::Any, marker::PhantomData, path::Path, sync::atomic::AtomicBool};
+use std::{any::Any, path::Path, sync::atomic::AtomicBool};
 
 use ouroboros::self_referencing;
 use ref_cast::RefCast;
@@ -19,7 +19,7 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     value::MyTyp,
-    Covariant, HasId, Just, Table,
+    HasId, Just, Table, Value,
 };
 
 #[derive(Default)]
@@ -44,7 +44,7 @@ pub trait Schema: Sized + 'static {
 pub trait TableMigration<'a, A: HasId> {
     type T;
 
-    fn into_new(self, prev: Just<'a, A>, reader: Reader<'_, 'a>);
+    fn into_new(self, prev: Just<'a, A>, reader: Reader<'_>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -90,10 +90,7 @@ impl<'x> SchemaBuilder<'x> {
                     if let Some(res) = f(just_db) {
                         let ast = MySelect::default();
 
-                        let reader = Reader {
-                            _phantom: PhantomData,
-                            ast: &ast,
-                        };
+                        let reader = Reader { ast: &ast };
                         res.into_new(just_db, reader);
 
                         let new_select = ast.simple();
@@ -332,10 +329,8 @@ impl ReadClient<'_> {
     }
 
     /// Same as [Client::get].
-    pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
-        self.exec(|e| e.into_vec(val.clone().weaken()))
-            .pop()
-            .unwrap()
+    pub fn get<'s, T: MyTyp>(&'s self, val: impl for<'a> Value<'a, Typ = T>) -> T::Out<'s> {
+        self.exec(|e| e.into_vec(val.clone())).pop().unwrap()
     }
 }
 

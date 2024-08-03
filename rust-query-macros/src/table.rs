@@ -74,7 +74,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             }
         });
         typ_asserts.push(quote!(::rust_query::valid_in_schema::<#schema, #typ>();));
-        read_bounds.push(quote!(#generic: ::rust_query::Covariant<'t, Typ=#typ>));
+        read_bounds.push(quote!(#generic: for<'t> ::rust_query::Value<'t, Typ=#typ>));
         inits.push(quote!(#ident: f.col(#ident_str)));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
@@ -118,9 +118,9 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             #(#col_defs),*
         }
 
-        impl<'t, #(#read_bounds),*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
+        impl<#(#read_bounds),*> ::rust_query::private::Writable for #dummy_ident<#(#generics),*> {
             type T = #table_ident;
-            fn read(self: Box<Self>, f: ::rust_query::private::Reader<'_, 't>) {
+            fn read(self, f: ::rust_query::private::Reader<'_>) {
                 #(#reads;)*
             }
         }
@@ -149,7 +149,6 @@ fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenSt
     let mut generics = vec![];
     let mut fields = vec![];
     let mut constraints = vec![];
-    let mut constraints_covariant = vec![];
     let mut conds = vec![];
     for col in &unique.columns {
         let col_str = col.to_string();
@@ -157,7 +156,6 @@ fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenSt
         let generic = make_generic(col);
         fields.push(quote! {pub(super) #col: #generic});
         constraints.push(quote! {#generic: ::rust_query::Value<'t>});
-        constraints_covariant.push(quote! {#generic: ::rust_query::Covariant<'t>});
         conds.push(quote! {(#col_str, self.#col.build_expr(b))});
         generics.push(generic);
     }
@@ -175,6 +173,5 @@ fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenSt
                 b.get_unique(#table_str, vec![#(#conds),*])
             }
         }
-        impl<'t, #(#constraints_covariant),*> ::rust_query::Covariant<'t> for #typ_name<#(#generics),*> {}
     }
 }
