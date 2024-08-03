@@ -1,2 +1,4 @@
 /target
 /chinook/Chinook_Sqlite.sql
+/src/experiment
+/src/experiment.rs

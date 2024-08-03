@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ref_cast::RefCast;
 
-use crate::{client::QueryBuilder, db::Col, hash, value::Value, Table};
+use crate::{client::QueryBuilder, db::Col, from_row::AdHoc, hash, value::Value, Table};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -150,7 +150,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         q.filter(table.schema().eq("main"));
         q.filter(table.r#type().eq("table"));
         q.filter(table.name().eq("sqlite_schema").not());
-        q.into_vec(|row| row.get(table.name()))
+        q.into_vec(table.name())
     });
 
     let mut output = hash::Schema::default();
@@ -159,21 +159,24 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         let mut columns = conn.new_query(|q| {
             let table = q.flat_table(TableInfo(table.clone()));
 
-            q.into_vec(|row| Column {
-                name: row.get(table.name()),
-                typ: row.get(table.r#type()),
-                pk: row.get(table.pk()) != 0,
-                notnull: row.get(table.notnull()) != 0,
-            })
+            q.into_vec(AdHoc::new(|mut cacher| {
+                let name = cacher.cache(table.name());
+                let typ = cacher.cache(table.r#type());
+                let pk = cacher.cache(table.pk());
+                let notnull = cacher.cache(table.notnull());
+                move |row| Column {
+                    name: row.get(name),
+                    typ: row.get(typ),
+                    pk: row.get(pk) != 0,
+                    notnull: row.get(notnull) != 0,
+                }
+            }))
         });
 
         let fks: HashMap<_, _> = conn
             .new_query(|q| {
                 let fk = q.flat_table(ForeignKeyList(table.to_owned()));
-                q.into_vec(|row| {
-                    // we just assume that the to column is the primary key..
-                    (row.get(fk.from()), row.get(fk.table()))
-                })
+                q.into_vec((fk.from(), fk.table()))
             })
             .into_iter()
             .collect();
@@ -210,14 +213,14 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             q.filter(index.unique());
             q.filter(index.origin().eq("u"));
             q.filter(index.partial().not());
-            q.into_vec(|row| row.get(index.name()))
+            q.into_vec(index.name())
         });
 
         for unique in uniques {
             let columns = conn.new_query(|q| {
                 let col = q.flat_table(IndexInfo(unique));
                 let name = q.filter_some(col.name());
-                q.into_vec(|row| row.get(name))
+                q.into_vec(name)
             });
 
             let mut unique_def = hash::Unique::default();

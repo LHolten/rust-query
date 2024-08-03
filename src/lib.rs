@@ -8,6 +8,7 @@ mod ast;
 mod client;
 mod db;
 mod exec;
+mod from_row;
 mod group;
 mod hash;
 mod insert;
@@ -23,6 +24,7 @@ pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
+pub use rust_query_macros::FromRow;
 pub use value::{Covariant, UnixEpoch, Value};
 
 pub mod ops {
@@ -31,17 +33,18 @@ pub mod ops {
 }
 
 pub mod args {
-    pub use crate::exec::{Execute, Row};
+    pub use crate::exec::Execute;
     pub use crate::group::Aggregate;
     pub use crate::migrate::ReadClient;
 }
 
 #[doc(hidden)]
 pub mod private {
+    pub use crate::from_row::{Cached, Cacher, FromRow, Row};
     pub use crate::hash::hash_schema;
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
-    pub use crate::value::ValueBuilder;
+    pub use crate::value::{MyTyp, ValueBuilder};
 
     pub use expect_test::Expect;
     pub use ref_cast::RefCast;

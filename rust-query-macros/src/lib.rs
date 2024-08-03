@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
 
+use from_row::from_row_impl;
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, Meta, Path, Token, Type};
+use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Meta, Path, Token, Type};
 
 mod table;
+mod from_row;
 
 /// You can use this macro to define your schema.
 /// The macro uses enum syntax, but it generates multiple modules of types.
@@ -138,6 +140,17 @@ pub fn schema(
     }
     .into()
 }
+
+#[proc_macro_derive(FromRow)]
+pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let item = syn::parse_macro_input!(item as ItemStruct);
+    match from_row_impl(item) {
+        Ok(x) => x,
+        Err(e) => e.into_compile_error(),
+    }
+    .into()
+}
+
 
 #[derive(Clone)]
 struct Table {

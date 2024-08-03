@@ -14,6 +14,7 @@ use crate::{
     client::{private_exec, Client, QueryBuilder},
     db::DbCol,
     exec::Execute,
+    from_row::AdHoc,
     hash,
     insert::Reader,
     pragma::read_schema,
@@ -82,29 +83,32 @@ impl<'x> SchemaBuilder<'x> {
             let table = add_table(&mut e.ast.tables, A::NAME.to_owned());
             let db_id = DbCol::<A>::db(table, Field::Str(A::ID));
 
-            e.into_vec(|row| {
-                let just_db = row.get(db_id);
-                if let Some(res) = f(just_db) {
-                    let ast = MySelect::default();
+            e.into_vec(AdHoc::new(|mut row| {
+                let just_db_cache = row.cache(db_id);
+                move |row| {
+                    let just_db = row.get(just_db_cache);
+                    if let Some(res) = f(just_db) {
+                        let ast = MySelect::default();
 
-                    let reader = Reader {
-                        _phantom: PhantomData,
-                        ast: &ast,
-                    };
-                    res.into_new(just_db, reader);
+                        let reader = Reader {
+                            _phantom: PhantomData,
+                            ast: &ast,
+                        };
+                        res.into_new(just_db, reader);
 
-                    let new_select = ast.simple(0, u32::MAX);
+                        let new_select = ast.simple(0, u32::MAX);
 
-                    let mut insert = InsertStatement::new();
-                    let names = ast.select.iter().map(|(_field, name)| *name);
-                    insert.into_table(new_table_name);
-                    insert.columns(names);
-                    insert.select_from(new_select).unwrap();
+                        let mut insert = InsertStatement::new();
+                        let names = ast.select.iter().map(|(_field, name)| *name);
+                        insert.into_table(new_table_name);
+                        insert.columns(names);
+                        insert.select_from(new_select).unwrap();
 
-                    let sql = insert.to_string(SqliteQueryBuilder);
-                    self.conn.execute(&sql, []).unwrap();
+                        let sql = insert.to_string(SqliteQueryBuilder);
+                        self.conn.execute(&sql, []).unwrap();
+                    }
                 }
-            })
+            }))
         });
     }
 
@@ -329,7 +333,7 @@ impl ReadClient<'_> {
 
     /// Same as [Client::get].
     pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
-        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
+        self.exec(|e| e.into_vec(val.clone().weaken()))
             .pop()
             .unwrap()
     }

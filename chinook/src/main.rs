@@ -4,6 +4,7 @@ use std::ops::Deref;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
+use rust_query::FromRow;
 use rust_query::Just;
 use rust_query::{Client, Value};
 use schema::*;
@@ -41,7 +42,7 @@ fn main() {
     println!("{res:#?}");
 }
 
-#[derive(Debug)]
+#[derive(Debug, FromRow)]
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
@@ -51,15 +52,15 @@ struct InvoiceInfo<'a> {
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
     client.exec(|q| {
         let ivl = q.table(&DB.invoice_line);
-        q.into_vec(|row| InvoiceInfo {
-            track: row.get(ivl.track().name()),
-            artist: row.get(ivl.track().album().artist().name()),
-            ivl_id: row.get(ivl),
+        q.into_vec(InvoiceInfoDummy {
+            track: ivl.track().name(),
+            artist: ivl.track().album().artist().name(),
+            ivl_id: ivl,
         })
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, FromRow)]
 struct PlaylistTrackCount {
     playlist: String,
     track_count: i64,
@@ -74,9 +75,9 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
             q.count_distinct(plt)
         });
 
-        q.into_vec(|row| PlaylistTrackCount {
-            playlist: row.get(pl.name()),
-            track_count: row.get(track_count),
+        q.into_vec(PlaylistTrackCountDummy {
+            playlist: pl.name(),
+            track_count,
         })
     })
 }
@@ -96,7 +97,7 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
             });
             q.avg(track_count)
         });
-        q.into_vec(|row| (row.get(artist.name()), row.get(avg_track_count)))
+        q.into_vec((artist.name(), avg_track_count))
     })
 }
 
@@ -111,48 +112,44 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
             q.count_distinct(reporter)
         });
 
-        q.into_vec(|row| (row.get(receiver.last_name()), row.get(report_count)))
+        q.into_vec((receiver.last_name(), report_count))
     })
 }
 
-/// Tip: use [rust_query::Query::table] and [rust_query::Query::select]
 fn list_all_genres(client: &Client) -> Vec<String> {
     client.exec(|q| {
         let genre = q.table(&DB.genre_new);
-        q.into_vec(|row| row.get(genre.name()))
+        q.into_vec(genre.name())
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, FromRow)]
 struct FilteredTrack {
     track_name: String,
     album_name: String,
     milis: i64,
 }
 
-/// Tip: use [rust_query::Const::new] and [rust_query::Query::filter]
-/// Tip2: use implicit joins! something like `track.genre.name`
 fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     client.exec(|q| {
         let track = q.table(&DB.track);
         q.filter(track.genre().name().eq(genre));
         q.filter(track.milliseconds().lt(max_milis as i32));
-        q.into_vec(|row| FilteredTrack {
-            track_name: row.get(track.name()),
-            album_name: row.get(track.album().title()),
-            milis: row.get(track.milliseconds()),
+        q.into_vec(FilteredTrackDummy {
+            track_name: track.name(),
+            album_name: track.album().title(),
+            milis: track.milliseconds(),
         })
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, FromRow)]
 struct GenreStats {
     genre_name: String,
-    byte_average: i64,
-    milis_average: i64,
+    byte_average: Option<i64>,
+    milis_average: Option<i64>,
 }
 
-/// Tip: use [rust_query::Query::project_on] and [rust_query::Group::avg]
 fn genre_statistics(client: &Client) -> Vec<GenreStats> {
     client.exec(|q| {
         let genre = q.table(&DB.genre_new);
@@ -161,21 +158,20 @@ fn genre_statistics(client: &Client) -> Vec<GenreStats> {
             q.filter_on(track.genre(), genre);
             (q.avg(track.bytes()), q.avg(track.milliseconds()))
         });
-        q.into_vec(|row| GenreStats {
-            genre_name: row.get(genre.name()),
-            byte_average: row.get(bytes).unwrap(),
-            milis_average: row.get(milis).unwrap(),
+        q.into_vec(GenreStatsDummy {
+            genre_name: genre.name(),
+            byte_average: bytes,
+            milis_average: milis,
         })
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, FromRow)]
 struct CustomerSpending {
     customer_name: String,
     total_spending: f64,
 }
 
-/// Tip: use [rust_query::Query::project_on] and [rust_query::Group::sum]
 fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
     client.exec(|q| {
         let customer = q.table(&DB.customer);
@@ -185,9 +181,9 @@ fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
             q.sum_float(invoice.total())
         });
 
-        q.into_vec(|row| CustomerSpending {
-            customer_name: row.get(customer.last_name()),
-            total_spending: row.get(total),
+        q.into_vec(CustomerSpendingDummy {
+            customer_name: customer.last_name(),
+            total_spending: total,
         })
     })
 }
@@ -195,7 +191,7 @@ fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
 fn free_reference(c: Client) {
     let tracks = c.exec(|q| {
         let track = q.table(&DB.track);
-        q.into_vec(|row| row.get(track))
+        q.into_vec(track)
     });
 
     for track in tracks {

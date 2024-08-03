@@ -55,8 +55,8 @@ impl Client {
     /// Retrieve a single value from the database.
     /// This is convenient but quite slow.
     pub fn get<'s, T: MyTyp>(&'s self, val: impl Covariant<'s, Typ = T>) -> T::Out<'s> {
-        // TODO: would not need it's own connection if I made rows have fixed columns
-        self.exec(|e| e.into_vec(move |row| row.get(val.clone().weaken())))
+        // TODO: does not need it's own connection, because it is atomic
+        self.exec(|e| e.into_vec(val.clone().weaken()))
             .pop()
             .unwrap()
     }
