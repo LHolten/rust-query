@@ -27,7 +27,6 @@ pub struct Query<'inner> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
     pub(crate) ast: &'inner mut MySelect,
-    pub(crate) conn: &'inner rusqlite::Transaction<'inner>,
 }
 
 impl<'inner> Query<'inner> {
@@ -61,7 +60,6 @@ impl<'inner> Query<'inner> {
         let inner = Query {
             phantom: PhantomData,
             ast: &mut ast,
-            conn: self.conn,
         };
         let table = MyAlias::new();
         let mut group = Aggregate {

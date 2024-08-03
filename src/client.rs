@@ -109,10 +109,10 @@ where
     let q = Query {
         phantom: PhantomData,
         ast: &mut ast,
-        conn,
     };
     f(&mut Execute {
         q,
         phantom: PhantomData,
+        conn,
     })
 }

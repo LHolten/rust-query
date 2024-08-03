@@ -18,6 +18,7 @@ use crate::{
 pub struct Execute<'outer, 'inner> {
     pub(crate) phantom: PhantomData<&'outer ()>,
     pub(crate) q: Query<'inner>,
+    pub(crate) conn: &'inner rusqlite::Transaction<'inner>,
 }
 
 impl<'outer, 'inner> Deref for Execute<'outer, 'inner> {
