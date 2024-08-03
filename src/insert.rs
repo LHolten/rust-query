@@ -11,7 +11,7 @@ pub trait Writable<'a> {
 }
 
 pub struct Reader<'x, 'a> {
-    pub(crate) _phantom: PhantomData<dyn Fn(&'a ()) -> &'a ()>,
+    pub(crate) _phantom: PhantomData<fn(&'a ()) -> &'a ()>,
     pub(crate) ast: &'x MySelect,
 }
 

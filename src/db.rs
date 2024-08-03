@@ -62,7 +62,7 @@ impl<'t, T> DbCol<'t, T> {
 /// Invariant in `'t`.
 pub struct Db<'t, T> {
     pub(crate) table: MyAlias,
-    pub(crate) _p: PhantomData<dyn Fn(&'t T) -> &'t T>,
+    pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
 }
 
 impl<'t, T> Clone for Db<'t, T> {

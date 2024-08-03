@@ -25,7 +25,7 @@ use crate::{
 /// This means that even inserting in a table requires mutable access.
 pub struct Query<'inner> {
     // we might store 'inner
-    pub(crate) phantom: PhantomData<dyn Fn(&'inner ()) -> &'inner ()>,
+    pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
     pub(crate) ast: &'inner mut MySelect,
 }
 

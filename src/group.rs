@@ -20,7 +20,7 @@ pub struct Aggregate<'outer, 'inner> {
     pub(crate) outer_ast: &'inner MySelect,
     pub(crate) query: Query<'inner>,
     pub(crate) table: MyAlias,
-    pub(crate) phantom2: PhantomData<dyn Fn(&'outer ()) -> &'outer ()>,
+    pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
 }
 
 impl<'outer, 'inner> Deref for Aggregate<'outer, 'inner> {

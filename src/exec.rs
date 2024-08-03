@@ -88,7 +88,7 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
 pub struct Row<'x, 'outer, 'names> {
     pub(crate) offset: usize,
     pub(crate) limit: u32,
-    pub(crate) inner: PhantomData<dyn Fn(&'names ()) -> &'names ()>,
+    pub(crate) inner: PhantomData<fn(&'names ()) -> &'names ()>,
     pub(crate) inner2: PhantomData<&'outer ()>,
     pub(crate) row: &'x rusqlite::Row<'x>,
     pub(crate) ast: &'x MySelect,
