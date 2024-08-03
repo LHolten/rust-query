@@ -50,9 +50,9 @@ struct InvoiceInfo<'a> {
 }
 
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
-    client.exec(|q| {
-        let ivl = q.table(&DB.invoice_line);
-        q.into_vec(InvoiceInfoDummy {
+    client.exec(|rows| {
+        let ivl = rows.table(&DB.invoice_line);
+        rows.into_vec(InvoiceInfoDummy {
             track: ivl.track().name(),
             artist: ivl.track().album().artist().name(),
             ivl_id: ivl,
@@ -67,15 +67,15 @@ struct PlaylistTrackCount {
 }
 
 fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
-    client.exec(|q| {
-        let pl = q.table(&DB.playlist);
-        let track_count = q.query(|q| {
-            let plt = q.table(&DB.playlist_track);
-            q.filter_on(plt.playlist(), pl);
-            q.count_distinct(plt)
+    client.exec(|rows| {
+        let pl = rows.table(&DB.playlist);
+        let track_count = rows.query(|rows| {
+            let plt = rows.table(&DB.playlist_track);
+            rows.filter_on(plt.playlist(), pl);
+            rows.count_distinct(plt)
         });
 
-        q.into_vec(PlaylistTrackCountDummy {
+        rows.into_vec(PlaylistTrackCountDummy {
             playlist: pl.name(),
             track_count,
         })
@@ -83,43 +83,43 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
 }
 
 fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
-    client.exec(|q| {
-        let artist = q.table(&DB.artist);
-        let avg_track_count = q.query(|q| {
-            let album = q.table(&DB.album);
-            q.filter_on(album.artist(), artist);
+    client.exec(|rows| {
+        let artist = rows.table(&DB.artist);
+        let avg_track_count = rows.query(|rows| {
+            let album = rows.table(&DB.album);
+            rows.filter_on(album.artist(), artist);
 
-            let track_count = q.query(|q| {
-                let track = q.table(&DB.track);
-                q.filter_on(track.album(), album);
+            let track_count = rows.query(|rows| {
+                let track = rows.table(&DB.track);
+                rows.filter_on(track.album(), album);
 
-                q.count_distinct(track)
+                rows.count_distinct(track)
             });
-            q.avg(track_count)
+            rows.avg(track_count)
         });
-        q.into_vec((artist.name(), avg_track_count))
+        rows.into_vec((artist.name(), avg_track_count))
     })
 }
 
 fn count_reporting(client: &Client) -> Vec<(String, i64)> {
-    client.exec(|q| {
-        let receiver = q.table(&DB.employee);
-        let report_count = q.query(|q| {
-            let reporter = q.table(&DB.employee);
+    client.exec(|rows| {
+        let receiver = rows.table(&DB.employee);
+        let report_count = rows.query(|rows| {
+            let reporter = rows.table(&DB.employee);
             // only count employees that report to someone
-            let reports_to = q.filter_some(reporter.reports_to());
-            q.filter_on(reports_to, receiver);
-            q.count_distinct(reporter)
+            let reports_to = rows.filter_some(reporter.reports_to());
+            rows.filter_on(reports_to, receiver);
+            rows.count_distinct(reporter)
         });
 
-        q.into_vec((receiver.last_name(), report_count))
+        rows.into_vec((receiver.last_name(), report_count))
     })
 }
 
 fn list_all_genres(client: &Client) -> Vec<String> {
-    client.exec(|q| {
-        let genre = q.table(&DB.genre_new);
-        q.into_vec(genre.name())
+    client.exec(|rows| {
+        let genre = rows.table(&DB.genre_new);
+        rows.into_vec(genre.name())
     })
 }
 
@@ -131,11 +131,11 @@ struct FilteredTrack {
 }
 
 fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
-    client.exec(|q| {
-        let track = q.table(&DB.track);
-        q.filter(track.genre().name().eq(genre));
-        q.filter(track.milliseconds().lt(max_milis as i32));
-        q.into_vec(FilteredTrackDummy {
+    client.exec(|rows| {
+        let track = rows.table(&DB.track);
+        rows.filter(track.genre().name().eq(genre));
+        rows.filter(track.milliseconds().lt(max_milis as i32));
+        rows.into_vec(FilteredTrackDummy {
             track_name: track.name(),
             album_name: track.album().title(),
             milis: track.milliseconds(),
@@ -151,14 +151,14 @@ struct GenreStats {
 }
 
 fn genre_statistics(client: &Client) -> Vec<GenreStats> {
-    client.exec(|q| {
-        let genre = q.table(&DB.genre_new);
-        let (bytes, milis) = q.query(|q| {
-            let track = q.table(&DB.track);
-            q.filter_on(track.genre(), genre);
-            (q.avg(track.bytes()), q.avg(track.milliseconds()))
+    client.exec(|rows| {
+        let genre = rows.table(&DB.genre_new);
+        let (bytes, milis) = rows.query(|rows| {
+            let track = rows.table(&DB.track);
+            rows.filter_on(track.genre(), genre);
+            (rows.avg(track.bytes()), rows.avg(track.milliseconds()))
         });
-        q.into_vec(GenreStatsDummy {
+        rows.into_vec(GenreStatsDummy {
             genre_name: genre.name(),
             byte_average: bytes,
             milis_average: milis,
@@ -173,15 +173,15 @@ struct CustomerSpending {
 }
 
 fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
-    client.exec(|q| {
-        let customer = q.table(&DB.customer);
-        let total = q.query(|q| {
-            let invoice = q.table(&DB.invoice);
-            q.filter_on(invoice.customer(), customer);
-            q.sum_float(invoice.total())
+    client.exec(|rows| {
+        let customer = rows.table(&DB.customer);
+        let total = rows.query(|rows| {
+            let invoice = rows.table(&DB.invoice);
+            rows.filter_on(invoice.customer(), customer);
+            rows.sum_float(invoice.total())
         });
 
-        q.into_vec(CustomerSpendingDummy {
+        rows.into_vec(CustomerSpendingDummy {
             customer_name: customer.last_name(),
             total_spending: total,
         })
@@ -189,9 +189,9 @@ fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
 }
 
 fn free_reference(c: Client) {
-    let tracks = c.exec(|q| {
-        let track = q.table(&DB.track);
-        q.into_vec(track)
+    let tracks = c.exec(|rows| {
+        let track = rows.table(&DB.track);
+        rows.into_vec(track)
     });
 
     for track in tracks {
