@@ -35,7 +35,7 @@ pub(crate) fn private_try_insert<'a, T: HasId>(
     };
     Writable::read(Box::new(val), reader);
 
-    let select = ast.simple(0, u32::MAX);
+    let select = ast.simple();
 
     let mut insert = InsertStatement::new();
     // TODO: make this configurable

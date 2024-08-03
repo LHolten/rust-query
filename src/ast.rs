@@ -18,11 +18,14 @@ pub struct MySelect {
     // calculating these results
     pub(super) select: MyMap<SimpleExpr, Field>,
     // values that must be returned/ filtered on
-    pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias, SimpleExpr)>>,
+    pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias)>>,
 }
 
 pub(super) enum Source {
-    Aggregate(MySelect),
+    Aggregate {
+        ast: MySelect,
+        conds: Vec<(MyAlias, SimpleExpr)>,
+    },
     // table and pk
     Implicit {
         table: String,
@@ -53,23 +56,8 @@ impl MySelect {
         ValueBuilder { inner: self }
     }
 
-    pub fn simple(&self, offset: usize, limit: u32) -> SelectStatement {
-        let mut select = self.build_select(false);
-
-        let mut cond = Condition::all();
-        for (inner_value, _alias, outer_value) in self.filter_on.iter() {
-            let id_field = Expr::expr(outer_value.clone());
-            let id_field2 = Expr::expr(inner_value.clone());
-            let filter = id_field.eq(id_field2);
-            cond = cond.add(filter);
-        }
-        select.cond_where(cond);
-
-        // TODO: Figure out how to do this properly
-        select.offset(offset as u64);
-        select.limit((limit as u64).min(18446744073709551610));
-
-        select
+    pub fn simple(&self) -> SelectStatement {
+        self.build_select(false)
     }
 
     pub fn build_select(&self, is_group: bool) -> SelectStatement {
@@ -87,9 +75,9 @@ impl MySelect {
 
         for (source, table_alias) in self.extra.iter() {
             match source {
-                Source::Aggregate(extra) => {
+                Source::Aggregate { ast: extra, conds } => {
                     let mut cond = Condition::all();
-                    for (_, alias, outer_value) in extra.filter_on.iter() {
+                    for (alias, outer_value) in conds {
                         let id_field = Expr::expr(outer_value.clone());
                         let id_field2 = Expr::col((*table_alias, *alias));
                         let filter = id_field.eq(id_field2);
@@ -120,7 +108,7 @@ impl MySelect {
 
         let mut any_expr = false;
         let mut any_group = false;
-        for (group, alias, _) in self.filter_on.iter() {
+        for (group, alias) in self.filter_on.iter() {
             any_expr = true;
 
             select.expr_as(group.clone(), *alias);

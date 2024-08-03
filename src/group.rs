@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use sea_query::{Alias, Expr, Func};
+use sea_query::{Alias, Expr, Func, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
@@ -18,6 +18,7 @@ use crate::{
 /// This type dereferences to [Query].
 pub struct Aggregate<'outer, 'inner> {
     pub(crate) outer_ast: &'inner MySelect,
+    pub(crate) conds: &'inner mut Vec<(MyAlias, SimpleExpr)>,
     pub(crate) query: Query<'inner>,
     pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
@@ -45,11 +46,11 @@ impl<'outer, 'inner> Aggregate<'outer, 'inner> {
         on: impl Value<'outer, Typ = T>,
     ) {
         let alias = MyAlias::new();
-        self.ast.filter_on.push(Box::new((
-            val.build_expr(self.ast.builder()),
-            alias,
-            on.build_expr(self.outer_ast.builder()),
-        )))
+        self.conds
+            .push((alias, on.build_expr(self.outer_ast.builder())));
+        self.ast
+            .filter_on
+            .push(Box::new((val.build_expr(self.ast.builder()), alias)))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.

@@ -96,7 +96,7 @@ impl<'x> SchemaBuilder<'x> {
                         };
                         res.into_new(just_db, reader);
 
-                        let new_select = ast.simple(0, u32::MAX);
+                        let new_select = ast.simple();
 
                         let mut insert = InsertStatement::new();
                         let names = ast.select.iter().map(|(_field, name)| *name);

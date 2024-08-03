@@ -43,7 +43,7 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
             ast: self.ast,
         });
 
-        let select = self.ast.simple(0, u32::MAX);
+        let select = self.ast.simple();
         let sql = select.to_string(SqliteQueryBuilder);
 
         let mut statement = self.conn.prepare(&sql).unwrap();

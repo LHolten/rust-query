@@ -57,6 +57,7 @@ impl<'inner> Query<'inner> {
         F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a>) -> R,
     {
         let mut ast = MySelect::default();
+        let mut conds = Vec::new();
         let inner = Query {
             phantom: PhantomData,
             ast: &mut ast,
@@ -64,13 +65,15 @@ impl<'inner> Query<'inner> {
         let table = MyAlias::new();
         let mut group = Aggregate {
             outer_ast: self.ast,
+            conds: &mut conds,
             query: inner,
             table,
             phantom2: PhantomData,
         };
         let res = f(&mut group);
 
-        self.ast.extra.get_or_init(Source::Aggregate(ast), || table);
+        let source = Source::Aggregate { ast, conds };
+        self.ast.extra.get_or_init(source, || table);
         res
     }
 
