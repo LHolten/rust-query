@@ -4,7 +4,7 @@ use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
 use crate::{
-    alias::{MyAlias, RawAlias},
+    alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{Col, Db, Just},
     hash, HasId, NoTable,
@@ -17,9 +17,9 @@ pub struct ValueBuilder<'x> {
 
 impl<'x> ValueBuilder<'x> {
     pub(crate) fn get_join<T: HasId>(self, expr: SimpleExpr) -> MyAlias {
-        let source = Source::Implicit {
-            table: T::NAME.to_owned(),
-            conds: vec![(T::ID, expr)],
+        let source = Source {
+            kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
+            conds: vec![(Field::Str(T::ID), expr)],
         };
         *self.inner.extra.get_or_init(source, MyAlias::new)
     }
@@ -29,10 +29,11 @@ impl<'x> ValueBuilder<'x> {
         table: &'static str,
         conds: Vec<(&'static str, SimpleExpr)>,
     ) -> SimpleExpr {
-        let source = Source::Implicit {
-            table: table.to_owned(),
-            conds,
+        let source = Source {
+            kind: crate::ast::SourceKind::Implicit(table.to_owned()),
+            conds: conds.into_iter().map(|x| (Field::Str(x.0), x.1)).collect(),
         };
+
         let table = self.inner.extra.get_or_init(source, MyAlias::new);
         Expr::col((*table, Alias::new("id"))).into()
     }

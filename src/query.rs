@@ -72,7 +72,10 @@ impl<'inner> Query<'inner> {
         };
         let res = f(&mut group);
 
-        let source = Source::Aggregate { ast, conds };
+        let source = Source {
+            conds,
+            kind: crate::ast::SourceKind::Aggregate(ast),
+        };
         self.ast.extra.get_or_init(source, || table);
         res
     }

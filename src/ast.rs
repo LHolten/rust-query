@@ -21,31 +21,22 @@ pub struct MySelect {
     pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias)>>,
 }
 
-pub(super) enum Source {
-    Aggregate {
-        ast: MySelect,
-        conds: Vec<(MyAlias, SimpleExpr)>,
-    },
-    // table and pk
-    Implicit {
-        table: String,
-        conds: Vec<(&'static str, SimpleExpr)>,
-    },
+#[derive(PartialEq)]
+pub(super) struct Source {
+    pub(super) conds: Vec<(Field, SimpleExpr)>,
+    pub(super) kind: SourceKind,
 }
 
-impl PartialEq for Source {
+pub(super) enum SourceKind {
+    Aggregate(MySelect),
+    // table and pk
+    Implicit(String),
+}
+
+impl PartialEq for SourceKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (
-                Self::Implicit {
-                    table: l_table,
-                    conds: l_cond,
-                },
-                Self::Implicit {
-                    table: r_table,
-                    conds: r_cond,
-                },
-            ) => l_table == r_table && l_cond == r_cond,
+            (Self::Implicit(l0), Self::Implicit(r0)) => l0 == r0,
             _ => false,
         }
     }
@@ -74,28 +65,20 @@ impl MySelect {
         }
 
         for (source, table_alias) in self.extra.iter() {
-            match source {
-                Source::Aggregate { ast: extra, conds } => {
-                    let mut cond = Condition::all();
-                    for (alias, outer_value) in conds {
-                        let id_field = Expr::expr(outer_value.clone());
-                        let id_field2 = Expr::col((*table_alias, *alias));
-                        let filter = id_field.eq(id_field2);
-                        cond = cond.add(filter);
-                    }
+            let mut cond = Condition::all();
+            for (field, outer_value) in &source.conds {
+                let id_field = Expr::expr(outer_value.clone());
+                let id_field2 = Expr::col((*table_alias, *field));
+                let filter = id_field.eq(id_field2);
+                cond = cond.add(filter);
+            }
 
+            match &source.kind {
+                SourceKind::Aggregate(ast) => {
                     let join_type = sea_query::JoinType::LeftJoin;
-                    select.join_subquery(join_type, extra.build_select(true), *table_alias, cond);
+                    select.join_subquery(join_type, ast.build_select(true), *table_alias, cond);
                 }
-                Source::Implicit { table, conds } => {
-                    let mut cond = Condition::all();
-                    for (field, outer_value) in conds.iter() {
-                        let id_field = Expr::expr(outer_value.clone());
-                        let id_field2 = Expr::col((*table_alias, Alias::new(*field)));
-                        let filter = id_field.eq(id_field2);
-                        cond = cond.add(filter);
-                    }
-
+                SourceKind::Implicit(table) => {
                     let join_type = sea_query::JoinType::LeftJoin;
                     select.join_as(join_type, Alias::new(table), *table_alias, cond);
                 }
