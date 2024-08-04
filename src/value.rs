@@ -1,12 +1,10 @@
-use std::marker::PhantomData;
-
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
-    db::{Col, Db, Just},
+    db::Just,
     hash, HasId, NoTable,
 };
 
@@ -86,29 +84,6 @@ pub trait Value<'t>: Clone {
     #[allow(clippy::wrong_self_convention)]
     fn is_not_null(self) -> IsNotNull<Self> {
         IsNotNull(self)
-    }
-}
-
-impl<'t, T, P: Value<'t, Typ: HasId>> Value<'t> for Col<T, P> {
-    type Typ = T;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        let table = b.get_join::<P::Typ>(self.inner.build_expr(b));
-        Expr::col((table, self.field)).into()
-    }
-}
-
-impl<'t, T, X> Value<'t> for Col<T, Db<'t, X>> {
-    type Typ = T;
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::col((self.inner.table, self.field)).into()
-    }
-}
-
-impl<'t, T> Value<'t> for Just<'_, T> {
-    type Typ = T;
-
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::val(self.idx).into()
     }
 }
 
@@ -318,21 +293,6 @@ impl MyTyp for NoTable {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Just<'t, Self>;
     type Sql = i64;
-}
-
-impl<'t, T> FromSql for Just<'t, T> {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(Self {
-            _p: PhantomData,
-            idx: value.as_i64()?,
-        })
-    }
-}
-
-impl<'t, T> From<Just<'t, T>> for sea_query::Value {
-    fn from(value: Just<T>) -> Self {
-        value.idx.into()
-    }
 }
 
 #[test]

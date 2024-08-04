@@ -1,11 +1,18 @@
 use std::{fmt::Debug, marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
+use rusqlite::types::FromSql;
+use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
-    Table,
+    value::ValueBuilder,
+    HasId, Table, Value,
 };
+
+pub(crate) trait TableRef<'t>: Clone + Deref {
+    fn build_table(&self, b: ValueBuilder) -> MyAlias;
+}
 
 pub struct Col<T, X> {
     pub(crate) _p: PhantomData<T>,
@@ -43,18 +50,16 @@ impl<T: Table, X: Clone> Deref for Col<T, X> {
     }
 }
 
-pub type DbCol<'t, T> = Col<T, Db<'t, T>>;
+impl<'t, T, P: TableRef<'t>> Value<'t> for Col<T, P> {
+    type Typ = T;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::col((self.inner.build_table(b), self.field)).into()
+    }
+}
 
-impl<'t, T> DbCol<'t, T> {
-    pub(crate) fn db(table: MyAlias, field: Field) -> Self {
-        Col {
-            _p: PhantomData,
-            field,
-            inner: Db {
-                table,
-                _p: PhantomData,
-            },
-        }
+impl<'t, T: HasId, P: TableRef<'t>> TableRef<'t> for Col<T, P> {
+    fn build_table(&self, b: ValueBuilder) -> MyAlias {
+        b.get_join::<T>(self.build_expr(b))
     }
 }
 
@@ -63,6 +68,15 @@ impl<'t, T> DbCol<'t, T> {
 pub struct Db<'t, T> {
     pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
+}
+
+impl<'t, T> Db<'t, T> {
+    pub(crate) fn new(table: MyAlias) -> Self {
+        Self {
+            table,
+            _p: PhantomData,
+        }
+    }
 }
 
 impl<'t, T> Clone for Db<'t, T> {
@@ -81,6 +95,20 @@ impl<'t, T: Table> Deref for Db<'t, T> {
     }
 }
 
+impl<'t, T: Table> TableRef<'t> for Db<'t, T> {
+    fn build_table(&self, _: ValueBuilder) -> MyAlias {
+        self.table
+    }
+}
+
+impl<'t, T: HasId> Value<'t> for Db<'t, T> {
+    type Typ = T;
+
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::col((self.build_table(b), Alias::new(T::ID))).into()
+    }
+}
+
 /// Table reference that can be used in any query as long as it is alive.
 /// Covariant in `'t`.
 pub struct Just<'t, T> {
@@ -88,20 +116,20 @@ pub struct Just<'t, T> {
     pub(crate) idx: i64,
 }
 
-impl<'t, T> Debug for Just<'t, T> {
+impl<T> Debug for Just<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Just").field("idx", &self.idx).finish()
     }
 }
 
-impl<'t, T> Clone for Just<'t, T> {
+impl<T> Clone for Just<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<'t, T> Copy for Just<'t, T> {}
+impl<T> Copy for Just<'_, T> {}
 
-impl<'t, T: Table> Deref for Just<'t, T> {
+impl<T: Table> Deref for Just<'_, T> {
     type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
@@ -109,7 +137,37 @@ impl<'t, T: Table> Deref for Just<'t, T> {
     }
 }
 
+impl<T> FromSql for Just<'_, T> {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(Self {
+            _p: PhantomData,
+            idx: value.as_i64()?,
+        })
+    }
+}
+
+impl<'t, T> From<Just<'t, T>> for sea_query::Value {
+    fn from(value: Just<T>) -> Self {
+        value.idx.into()
+    }
+}
+
+impl<'t, T> Value<'t> for Just<'_, T> {
+    type Typ = T;
+
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        Expr::val(self.idx).into()
+    }
+}
+
+impl<'t, T: HasId> TableRef<'t> for Just<'_, T> {
+    fn build_table(&self, b: ValueBuilder) -> MyAlias {
+        b.get_join::<T>(self.build_expr(b))
+    }
+}
+
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
     use ref_cast::RefCast;
 

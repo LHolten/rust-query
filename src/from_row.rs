@@ -96,6 +96,7 @@ impl<F> AdHoc<F> {
 }
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
     use super::*;
 

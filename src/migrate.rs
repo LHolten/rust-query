@@ -9,17 +9,16 @@ use sea_query::{
 };
 
 use crate::{
-    alias::{Field, MyAlias},
+    alias::MyAlias,
     ast::{add_table, MySelect},
     client::{private_exec, Client, QueryBuilder},
-    db::DbCol,
     exec::Execute,
     from_row::AdHoc,
     hash,
     insert::Reader,
     pragma::read_schema,
     private::FromRow,
-    HasId, Just, Table,
+    Db, HasId, Just, Table,
 };
 
 #[derive(Default)]
@@ -81,7 +80,7 @@ impl<'x> SchemaBuilder<'x> {
 
         self.conn.new_query(|e| {
             let table = add_table(&mut e.ast.tables, A::NAME.to_owned());
-            let db_id = DbCol::<A>::db(table, Field::Str(A::ID));
+            let db_id = Db::<A>::new(table);
 
             e.into_vec(AdHoc::new(|mut row| {
                 let just_db_cache = row.cache(db_id);

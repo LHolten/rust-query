@@ -3,12 +3,12 @@ use std::marker::PhantomData;
 use sea_query::Expr;
 
 use crate::{
-    alias::{Field, MyAlias},
+    alias::MyAlias,
     ast::{add_table, MySelect, Source},
-    db::{Db, DbCol},
+    db::Db,
     group::Aggregate,
     value::{Assume, Value},
-    HasId, Table,
+    Table,
 };
 
 /// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Execute].
@@ -16,13 +16,6 @@ use crate::{
 ///
 /// [Query] mutability is only about the number of rows.
 /// Adding columns to a [Query] does not require mutation.
-/// And it is impossible to remove a column from a [Query].
-///
-/// [Db] borrows the values in a table column immutably.
-/// Combining this with a [crate::args::Row] gives the actual value
-///
-/// Table mutability is about both number of rows and values.
-/// This means that even inserting in a table requires mutable access.
 pub struct Query<'inner> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
@@ -31,19 +24,9 @@ pub struct Query<'inner> {
 
 impl<'inner> Query<'inner> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
-    pub fn join<T: HasId>(&mut self, t: &T) -> DbCol<'inner, T> {
+    pub fn join<T: Table>(&mut self, t: &T) -> Db<'inner, T> {
         let table = add_table(&mut self.ast.tables, t.name());
-        DbCol::db(table, Field::Str(T::ID))
-    }
-
-    /// Join a table that has no integer primary key.
-    /// Refer to [Query::table] for more information about joining tables.
-    pub fn flat_table<T: Table>(&mut self, t: T) -> Db<'inner, T> {
-        let table = add_table(&mut self.ast.tables, t.name());
-        Db {
-            table,
-            _p: PhantomData,
-        }
+        Db::new(table)
     }
 
     /// Join a vector of values.

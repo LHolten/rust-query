@@ -146,7 +146,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     }
 
     let tables = conn.new_query(|q| {
-        let table = q.flat_table(TableList);
+        let table = q.join(&TableList);
         q.filter(table.schema().eq("main"));
         q.filter(table.r#type().eq("table"));
         q.filter(table.name().eq("sqlite_schema").not());
@@ -157,7 +157,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
 
     for table in tables {
         let mut columns = conn.new_query(|q| {
-            let table = q.flat_table(TableInfo(table.clone()));
+            let table = q.join(&TableInfo(table.clone()));
 
             q.into_vec(AdHoc::new(|mut cacher| {
                 let name = cacher.cache(table.name());
@@ -175,7 +175,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
 
         let fks: HashMap<_, _> = conn
             .new_query(|q| {
-                let fk = q.flat_table(ForeignKeyList(table.to_owned()));
+                let fk = q.join(&ForeignKeyList(table.to_owned()));
                 q.into_vec((fk.from(), fk.table()))
             })
             .into_iter()
@@ -209,7 +209,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         }
 
         let uniques = conn.new_query(|q| {
-            let index = q.flat_table(IndexList(table.clone()));
+            let index = q.join(&IndexList(table.clone()));
             q.filter(index.unique());
             q.filter(index.origin().eq("u"));
             q.filter(index.partial().not());
@@ -218,7 +218,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
 
         for unique in uniques {
             let columns = conn.new_query(|q| {
-                let col = q.flat_table(IndexInfo(unique));
+                let col = q.join(&IndexInfo(unique));
                 let name = q.filter_some(col.name());
                 q.into_vec(name)
             });
