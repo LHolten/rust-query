@@ -10,7 +10,7 @@ use crate::{
     HasId, Table, Value,
 };
 
-pub(crate) trait TableRef<'t>: Clone + Deref {
+pub(crate) trait TableRef<'t>: Clone {
     fn build_table(&self, b: ValueBuilder) -> MyAlias;
 }
 
@@ -95,7 +95,7 @@ impl<'t, T: Table> Deref for Db<'t, T> {
     }
 }
 
-impl<'t, T: Table> TableRef<'t> for Db<'t, T> {
+impl<'t, T> TableRef<'t> for Db<'t, T> {
     fn build_table(&self, _: ValueBuilder) -> MyAlias {
         self.table
     }
