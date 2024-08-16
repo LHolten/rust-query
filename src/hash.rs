@@ -27,7 +27,7 @@ impl ColumnType {
         match self {
             ColumnType::Integer => T::Integer,
             ColumnType::Float => T::Float,
-            ColumnType::String => T::String(None),
+            ColumnType::String => T::Text,
         }
     }
 }
