@@ -4,6 +4,7 @@ use sea_query::Iden;
 
 use crate::{alias::Field, ast::MySelect, value::MyTyp, Value};
 
+#[derive(Clone, Copy)]
 pub struct Cacher<'t> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) ast: &'t MySelect,
@@ -32,6 +33,7 @@ impl<'t> Cacher<'t> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Row<'x, 't, 'a> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<fn(&'a ()) -> &'a ()>,

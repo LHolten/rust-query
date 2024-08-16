@@ -127,6 +127,11 @@ fn list_all_genres(client: &Client) -> Vec<String> {
 struct FilteredTrack {
     track_name: String,
     album_name: String,
+    stats: Stats,
+}
+
+#[derive(Debug, FromRow)]
+struct Stats {
     milis: i64,
 }
 
@@ -138,7 +143,9 @@ fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredT
         rows.into_vec(FilteredTrackDummy {
             track_name: track.name(),
             album_name: track.album().title(),
-            milis: track.milliseconds(),
+            stats: StatsDummy {
+                milis: track.milliseconds(),
+            },
         })
     })
 }

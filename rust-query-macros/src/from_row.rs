@@ -18,19 +18,19 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut defs = vec![];
     let mut generics = vec![];
     let mut constraints = vec![];
-    let mut cache = vec![];
+    let mut prepared = vec![];
     let mut inits = vec![];
     for field in item.fields {
         let name = field.ident.expect("tuple structs are not supported yet");
-        let name_cached = format_ident!("{name}_cached");
+        let name_prepared = format_ident!("{name}_prepared");
         let generic = make_generic(&name);
         let typ = field.ty;
 
         defs.push(quote! {#name: #generic});
-        constraints.push(quote! {#generic: ::rust_query::Value<'_t, Typ: ::rust_query::private::MyTyp<Out<'_a> = #typ>>});
+        constraints.push(quote! {#generic: ::rust_query::private::FromRow<'_t, '_a, Out = #typ>});
         generics.push(generic);
-        cache.push(quote! {let #name_cached = cacher.cache(self.#name)});
-        inits.push(quote! {#name: row.get(#name_cached)});
+        prepared.push(quote! {let mut #name_prepared = ::rust_query::private::FromRow::prepare(self.#name, cacher)});
+        inits.push(quote! {#name: (#name_prepared)(row)});
     }
 
     Ok(quote! {
@@ -42,7 +42,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             type Out = #name<#(#original_generics),*>;
 
             fn prepare(self, mut cacher: ::rust_query::private::Cacher<'_t>) -> impl FnMut(::rust_query::private::Row<'_, '_t, '_a>) -> Self::Out {
-                #(#cache;)*
+                #(#prepared;)*
                 move |row| #name {
                     #(#inits,)*
                 }
