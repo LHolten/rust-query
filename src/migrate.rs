@@ -7,6 +7,7 @@ use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
 };
+use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
     alias::MyAlias,
@@ -100,8 +101,9 @@ impl<'x> SchemaBuilder<'x> {
                         insert.columns(names);
                         insert.select_from(new_select).unwrap();
 
-                        let sql = insert.to_string(SqliteQueryBuilder);
-                        self.conn.execute(&sql, []).unwrap();
+                        let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+
+                        self.conn.execute(&sql, &*values.as_params()).unwrap();
                     }
                 }
             }))

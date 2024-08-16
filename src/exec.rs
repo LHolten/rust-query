@@ -4,6 +4,7 @@ use std::{
 };
 
 use sea_query::SqliteQueryBuilder;
+use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
     from_row::{Cacher, FromRow, Row},
@@ -44,10 +45,10 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
         });
 
         let select = self.ast.simple();
-        let sql = select.to_string(SqliteQueryBuilder);
+        let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
 
         let mut statement = self.conn.prepare(&sql).unwrap();
-        let mut rows = statement.query([]).unwrap();
+        let mut rows = statement.query(&*values.as_params()).unwrap();
 
         let mut out = vec![];
         while let Some(row) = rows.next().unwrap() {

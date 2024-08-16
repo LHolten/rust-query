@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use rusqlite::Connection;
 use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
+use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{alias::Field, ast::MySelect, HasId, Just, Value};
 
@@ -42,11 +43,11 @@ pub(crate) fn private_try_insert<'a, T: HasId>(
     insert.select_from(select).unwrap();
     insert.returning_col(Alias::new(T::ID));
 
-    let sql = insert.to_string(SqliteQueryBuilder);
-    let id = conn
-        .prepare(&sql)
-        .unwrap()
-        .query_map([], |row| row.get(T::ID))
+    let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+
+    let mut statement = conn.prepare(&sql).unwrap();
+    let id = statement
+        .query_map(&*values.as_params(), |row| row.get(T::ID))
         .unwrap()
         .next();
     id.map(|id| Just {
