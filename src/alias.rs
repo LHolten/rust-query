@@ -14,6 +14,11 @@ pub struct Scope {
 }
 
 impl Scope {
+    pub fn tmp_table(&self) -> TmpTable {
+        let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
+        TmpTable { name: next }
+    }
+
     pub fn new_alias(&self) -> MyAlias {
         let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
         MyAlias { name: next }
@@ -29,6 +34,11 @@ pub(super) struct MyAlias {
     name: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct TmpTable {
+    name: u64,
+}
+
 impl sea_query::Iden for Field {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         match self {
@@ -41,6 +51,12 @@ impl sea_query::Iden for Field {
 impl sea_query::Iden for MyAlias {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         write!(s, "_{}", self.name).unwrap()
+    }
+}
+
+impl sea_query::Iden for TmpTable {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "_tmp{}", self.name).unwrap()
     }
 }
 

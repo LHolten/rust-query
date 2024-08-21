@@ -10,7 +10,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    alias::{MyAlias, Scope},
+    alias::{Scope, TmpTable},
     ast::MySelect,
     client::{private_exec, Client, QueryBuilder},
     exec::Execute,
@@ -72,7 +72,7 @@ impl<'x> SchemaBuilder<'x> {
         F: FnMut(Just<'x, A>) -> Option<O>,
         O: TableMigration<'x, A, T = B>,
     {
-        let new_table_name = self.scope.new_alias();
+        let new_table_name = self.scope.tmp_table();
         new_table::<B>(self.conn, new_table_name);
 
         self.rename.push(
@@ -121,7 +121,7 @@ impl<'x> SchemaBuilder<'x> {
     }
 
     pub fn new_table<T: HasId>(&mut self) {
-        let new_table_name = self.scope.new_alias();
+        let new_table_name = self.scope.tmp_table();
         new_table::<T>(self.conn, new_table_name);
 
         self.rename.push(
@@ -132,7 +132,7 @@ impl<'x> SchemaBuilder<'x> {
     }
 }
 
-fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {
+fn new_table<T: Table>(conn: &Connection, alias: TmpTable) {
     let mut f = crate::TypBuilder::default();
     T::typs(&mut f);
     new_table_inner(conn, &f.ast, alias);
