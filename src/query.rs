@@ -3,8 +3,7 @@ use std::marker::PhantomData;
 use sea_query::Expr;
 
 use crate::{
-    alias::MyAlias,
-    ast::{add_table, MySelect, Source},
+    ast::{MySelect, Source},
     db::Db,
     group::Aggregate,
     value::{Assume, Value},
@@ -25,7 +24,9 @@ pub struct Query<'inner> {
 impl<'inner> Query<'inner> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
     pub fn join<T: Table>(&mut self, t: &T) -> Db<'inner, T> {
-        let table = add_table(&mut self.ast.tables, t.name());
+        let alias = self.ast.scope.new_alias();
+        self.ast.tables.push((t.name(), alias));
+        let table = alias;
         Db::new(table)
     }
 
@@ -45,7 +46,7 @@ impl<'inner> Query<'inner> {
             phantom: PhantomData,
             ast: &mut ast,
         };
-        let table = MyAlias::new();
+        let table = self.ast.scope.new_alias();
         let mut group = Aggregate {
             outer_ast: self.ast,
             conds: &mut conds,

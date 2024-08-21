@@ -25,7 +25,8 @@ impl<'t, T> Copy for Cached<'t, T> {}
 impl<'t> Cacher<'t> {
     pub fn cache<T>(&mut self, val: impl Value<'t, Typ = T>) -> Cached<'t, T> {
         let expr = val.build_expr(self.ast.builder());
-        let field = *self.ast.select.get_or_init(expr, Field::new);
+        let new_field = || self.ast.scope.new_field();
+        let field = *self.ast.select.get_or_init(expr, new_field);
         Cached {
             _p: PhantomData,
             field,

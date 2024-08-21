@@ -2,13 +2,14 @@ use elsa::FrozenVec;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
-    alias::{Field, MyAlias, RawAlias},
+    alias::{Field, MyAlias, RawAlias, Scope},
     mymap::MyMap,
     value::ValueBuilder,
 };
 
 #[derive(Default)]
 pub struct MySelect {
+    pub(super) scope: Scope,
     // tables to join, adding more requires mutating
     pub(super) tables: Vec<(String, MyAlias)>,
     // implicit joins
@@ -117,10 +118,4 @@ impl MySelect {
 
         select
     }
-}
-
-pub fn add_table(sources: &mut Vec<(String, MyAlias)>, name: String) -> MyAlias {
-    let alias = MyAlias::new();
-    sources.push((name, alias));
-    alias
 }

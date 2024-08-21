@@ -38,14 +38,22 @@ impl<'outer, 'inner> DerefMut for Aggregate<'outer, 'inner> {
     }
 }
 
-impl<'outer, 'inner> Aggregate<'outer, 'inner> {
+impl<'outer: 'inner, 'inner> Aggregate<'outer, 'inner> {
+    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> AggrCol<'outer, T> {
+        let alias = self
+            .ast
+            .select
+            .get_or_init(expr.into(), || self.ast.scope.new_field());
+        AggrCol::db(self.table, *alias)
+    }
+
     /// Filter the rows of this sub-query based on a value from the outer query.
     pub fn filter_on<T>(
         &mut self,
         val: impl Value<'inner, Typ = T>,
         on: impl Value<'outer, Typ = T>,
     ) {
-        let alias = MyAlias::new();
+        let alias = self.ast.scope.new_alias();
         self.conds
             .push((Field::U64(alias), on.build_expr(self.outer_ast.builder())));
         self.ast
@@ -59,15 +67,13 @@ impl<'outer, 'inner> Aggregate<'outer, 'inner> {
             Func::avg(val.build_expr(self.ast.builder())),
             Alias::new("integer"),
         );
-        let alias = self.ast.select.get_or_init(expr.into(), Field::new);
-        AggrCol::db(self.table, *alias)
+        self.select(expr)
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
     pub fn max<V: Value<'inner, Typ = i64>>(&'inner self, val: V) -> AggrCol<'outer, Option<i64>> {
         let expr = Func::max(val.build_expr(self.ast.builder()));
-        let alias = self.ast.select.get_or_init(expr.into(), Field::new);
-        AggrCol::db(self.table, *alias)
+        self.select(expr)
     }
 
     /// Return the sum of a column.
@@ -79,8 +85,7 @@ impl<'outer, 'inner> Aggregate<'outer, 'inner> {
             Func::sum(val.build_expr(self.ast.builder())),
             Alias::new("integer"),
         );
-        let alias = self.ast.select.get_or_init(expr.into(), Field::new);
-        UnwrapOr(AggrCol::db(self.table, *alias), 0.)
+        UnwrapOr(self.select(expr), 0.)
     }
 
     /// Return the number of distinct values in a column.
@@ -89,15 +94,13 @@ impl<'outer, 'inner> Aggregate<'outer, 'inner> {
         val: V,
     ) -> UnwrapOr<AggrCol<'outer, Option<i64>>, i64> {
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        let alias = self.ast.select.get_or_init(expr.into(), Field::new);
-        UnwrapOr(AggrCol::db(self.table, *alias), 0)
+        UnwrapOr(self.select(expr), 0)
     }
 
     /// Return whether there are any rows.
     pub fn exists(&'inner self) -> IsNotNull<AggrCol<'outer, i64>> {
         let expr = Expr::val(1);
-        let alias = self.ast.select.get_or_init(expr.into(), Field::new);
-        IsNotNull(AggrCol::db(self.table, *alias))
+        IsNotNull(self.select(expr))
     }
 }
 
