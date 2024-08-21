@@ -1,13 +1,18 @@
-mod schema;
+mod chinook_schema;
 
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::ops::Deref;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
+use chinook_schema::*;
+use expect_test::Expect;
+use rust_query::expect;
 use rust_query::FromRow;
 use rust_query::Just;
 use rust_query::{Client, Value};
-use schema::*;
 
 static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
 static DB: LazyLock<Schema> = LazyLock::new(|| {
@@ -16,30 +21,39 @@ static DB: LazyLock<Schema> = LazyLock::new(|| {
     schema
 });
 
-fn main() {
+fn assert_hash(val: impl Debug, expect: Expect) {
+    let mut hasher = rust_query::private::KangarooHasher::default();
+    format!("{val:?}").hash(&mut hasher);
+    // println!("{val:#?}");
+    let res = format!("{:x}", hasher.finish());
+    expect.assert_eq(&res);
+}
+
+#[test]
+fn test_queries() {
     let _ = DB.deref();
     let client = CLIENT.lock().unwrap().take().unwrap();
 
     let artist_name = "my cool artist".to_string();
     let id = client.try_insert(ArtistDummy { name: artist_name });
-    println!("{:?}", id);
+    assert!(id.is_some());
 
-    let res = invoice_info(&client);
-    println!("{res:#?}");
-    let res = playlist_track_count(&client);
-    println!("{res:#?}");
-    let res = avg_album_track_count_for_artist(&client);
-    println!("{res:#?}");
-    let res = count_reporting(&client);
-    println!("{res:#?}");
-    let res = list_all_genres(&client);
-    println!("{res:#?}");
-    let res = filtered_track(&client, "Metal", 1000 * 60);
-    println!("{res:#?}");
-    let res = genre_statistics(&client);
-    println!("{res:#?}");
-    let res = customer_spending(&client);
-    println!("{res:#?}");
+    // let res = invoice_info(&client);
+    // assert_hash(res, expect!["c5196501c044abec"]);
+    // let res = playlist_track_count(&client);
+    // assert_hash(res, expect!["70a263de9e3293dc"]);
+    let res = rust_query::private::show_sql(|| avg_album_track_count_for_artist(&client));
+    assert_hash(res, expect!["bc0429b66016b035"]);
+    // let res = count_reporting(&client);
+    // assert_hash(res, expect!["88372e0d9636bd7e"]);
+    // let res = list_all_genres(&client);
+    // assert_hash(res, expect!["c0e291144d7cd097"]);
+    // let res = filtered_track(&client, "Metal", 1000 * 60);
+    // assert_hash(res, expect!["308e910afa41f999"]);
+    // let res = genre_statistics(&client);
+    // assert_hash(res, expect!["18de2b09b1aafb7"]);
+    // let res = customer_spending(&client);
+    // assert_hash(res, expect!["11396308e4ba9dc1"]);
 }
 
 #[derive(Debug, FromRow)]

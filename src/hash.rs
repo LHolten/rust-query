@@ -117,7 +117,7 @@ pub struct Schema {
     pub tables: MyVec<(String, Table)>,
 }
 
-struct KangarooHasher {
+pub struct KangarooHasher {
     inner: CoreWrapper<KangarooTwelveCore<'static>>,
 }
 
