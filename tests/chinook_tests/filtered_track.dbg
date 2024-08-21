@@ -1,0 +1,9 @@
+[
+    FilteredTrack {
+        track_name: "The Hellion",
+        album_name: "Living After Midnight",
+        stats: Stats {
+            milis: 41900,
+        },
+    },
+]

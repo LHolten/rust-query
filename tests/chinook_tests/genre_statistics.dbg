@@ -1,0 +1,182 @@
+[
+    GenreStats {
+        genre_name: "Alternative",
+        byte_average: Some(
+            5883473,
+        ),
+        milis_average: Some(
+            264058,
+        ),
+    },
+    GenreStats {
+        genre_name: "Alternative & Punk",
+        byte_average: Some(
+            7691002,
+        ),
+        milis_average: Some(
+            234353,
+        ),
+    },
+    GenreStats {
+        genre_name: "Blues",
+        byte_average: Some(
+            8625575,
+        ),
+        milis_average: Some(
+            270359,
+        ),
+    },
+    GenreStats {
+        genre_name: "Bossa Nova",
+        byte_average: Some(
+            7239057,
+        ),
+        milis_average: Some(
+            219590,
+        ),
+    },
+    GenreStats {
+        genre_name: "Classical",
+        byte_average: Some(
+            5220906,
+        ),
+        milis_average: Some(
+            293867,
+        ),
+    },
+    GenreStats {
+        genre_name: "Comedy",
+        byte_average: Some(
+            316904465,
+        ),
+        milis_average: Some(
+            1585263,
+        ),
+    },
+    GenreStats {
+        genre_name: "Drama",
+        byte_average: Some(
+            506946966,
+        ),
+        milis_average: Some(
+            2575283,
+        ),
+    },
+    GenreStats {
+        genre_name: "Easy Listening",
+        byte_average: Some(
+            6160517,
+        ),
+        milis_average: Some(
+            189164,
+        ),
+    },
+    GenreStats {
+        genre_name: "Electronica/Dance",
+        byte_average: Some(
+            10691926,
+        ),
+        milis_average: Some(
+            302985,
+        ),
+    },
+    GenreStats {
+        genre_name: "Heavy Metal",
+        byte_average: Some(
+            9474752,
+        ),
+        milis_average: Some(
+            297452,
+        ),
+    },
+    GenreStats {
+        genre_name: "Hip Hop/Rap",
+        byte_average: Some(
+            6534717,
+        ),
+        milis_average: Some(
+            178176,
+        ),
+    },
+    GenreStats {
+        genre_name: "Jazz",
+        byte_average: Some(
+            9488136,
+        ),
+        milis_average: Some(
+            291755,
+        ),
+    },
+    GenreStats {
+        genre_name: "Latin",
+        byte_average: Some(
+            7710588,
+        ),
+        milis_average: Some(
+            232859,
+        ),
+    },
+    GenreStats {
+        genre_name: "Metal",
+        byte_average: Some(
+            9234573,
+        ),
+        milis_average: Some(
+            309749,
+        ),
+    },
+    GenreStats {
+        genre_name: "Opera",
+        byte_average: Some(
+            2861468,
+        ),
+        milis_average: Some(
+            174813,
+        ),
+    },
+    GenreStats {
+        genre_name: "Pop",
+        byte_average: Some(
+            4745668,
+        ),
+        milis_average: Some(
+            229034,
+        ),
+    },
+    GenreStats {
+        genre_name: "R&B/Soul",
+        byte_average: Some(
+            6575925,
+        ),
+        milis_average: Some(
+            220066,
+        ),
+    },
+    GenreStats {
+        genre_name: "Reggae",
+        byte_average: Some(
+            8237493,
+        ),
+        milis_average: Some(
+            247177,
+        ),
+    },
+    GenreStats {
+        genre_name: "Rock",
+        byte_average: Some(
+            9007374,
+        ),
+        milis_average: Some(
+            283910,
+        ),
+    },
+    GenreStats {
+        genre_name: "Rock And Roll",
+        byte_average: Some(
+            2123262,
+        ),
+        milis_average: Some(
+            134643,
+        ),
+    },
+]

@@ -1,0 +1,74 @@
+[
+    PlaylistTrackCount {
+        playlist: "90’s Music",
+        track_count: 1477,
+    },
+    PlaylistTrackCount {
+        playlist: "Audiobooks",
+        track_count: 0,
+    },
+    PlaylistTrackCount {
+        playlist: "Audiobooks",
+        track_count: 0,
+    },
+    PlaylistTrackCount {
+        playlist: "Brazilian Music",
+        track_count: 39,
+    },
+    PlaylistTrackCount {
+        playlist: "Classical",
+        track_count: 75,
+    },
+    PlaylistTrackCount {
+        playlist: "Classical 101 - Deep Cuts",
+        track_count: 25,
+    },
+    PlaylistTrackCount {
+        playlist: "Classical 101 - Next Steps",
+        track_count: 25,
+    },
+    PlaylistTrackCount {
+        playlist: "Classical 101 - The Basics",
+        track_count: 25,
+    },
+    PlaylistTrackCount {
+        playlist: "Grunge",
+        track_count: 15,
+    },
+    PlaylistTrackCount {
+        playlist: "Heavy Metal Classic",
+        track_count: 26,
+    },
+    PlaylistTrackCount {
+        playlist: "Movies",
+        track_count: 0,
+    },
+    PlaylistTrackCount {
+        playlist: "Movies",
+        track_count: 0,
+    },
+    PlaylistTrackCount {
+        playlist: "Music",
+        track_count: 3290,
+    },
+    PlaylistTrackCount {
+        playlist: "Music",
+        track_count: 3290,
+    },
+    PlaylistTrackCount {
+        playlist: "Music Videos",
+        track_count: 1,
+    },
+    PlaylistTrackCount {
+        playlist: "On-The-Go 1",
+        track_count: 1,
+    },
+    PlaylistTrackCount {
+        playlist: "TV Shows",
+        track_count: 213,
+    },
+    PlaylistTrackCount {
+        playlist: "TV Shows",
+        track_count: 213,
+    },
+]
