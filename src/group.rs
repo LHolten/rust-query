@@ -39,7 +39,7 @@ impl<'outer, 'inner> DerefMut for Aggregate<'outer, 'inner> {
 }
 
 impl<'outer: 'inner, 'inner> Aggregate<'outer, 'inner> {
-    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> AggrCol<'outer, T> {
+    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> AggrCol<'outer, Option<T>> {
         let alias = self
             .ast
             .select
@@ -98,7 +98,7 @@ impl<'outer: 'inner, 'inner> Aggregate<'outer, 'inner> {
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> IsNotNull<AggrCol<'outer, i64>> {
+    pub fn exists(&'inner self) -> IsNotNull<AggrCol<'outer, Option<i64>>> {
         let expr = Expr::val(1);
         IsNotNull(self.select(expr))
     }

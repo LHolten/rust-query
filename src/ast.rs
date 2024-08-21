@@ -54,15 +54,15 @@ impl MySelect {
 
     pub fn build_select(&self, is_group: bool) -> SelectStatement {
         let mut select = SelectStatement::new();
-        select.from_values([1], NullAlias);
 
+        let mut any_from = false;
         for (table, alias) in &self.tables {
-            select.join_as(
-                sea_query::JoinType::InnerJoin,
-                RawAlias(table.clone()),
-                *alias,
-                Condition::all(),
-            );
+            select.from_as(RawAlias(table.clone()), *alias);
+            any_from = true
+        }
+
+        if !any_from {
+            select.from_values([1], NullAlias);
         }
 
         for (source, table_alias) in self.extra.iter() {
