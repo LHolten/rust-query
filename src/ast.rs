@@ -49,10 +49,14 @@ impl MySelect {
     }
 
     pub fn simple(&self) -> SelectStatement {
-        self.build_select(false)
+        let mut select = self.build_select(false);
+        for (aggr, _alias) in self.select.iter() {
+            select.order_by_expr(aggr.clone(), sea_query::Order::Asc);
+        }
+        select
     }
 
-    pub fn build_select(&self, is_group: bool) -> SelectStatement {
+    fn build_select(&self, is_group: bool) -> SelectStatement {
         let mut select = SelectStatement::new();
 
         let mut any_from = false;
@@ -98,14 +102,13 @@ impl MySelect {
             select.expr_as(group.clone(), *alias);
             if is_group {
                 any_group = true;
-                select.group_by_col(*alias);
+                select.add_group_by([group.clone()]);
             }
         }
 
         for (aggr, alias) in self.select.iter() {
             any_expr = true;
             select.expr_as(aggr.clone(), *alias);
-            select.order_by_expr(Expr::col(*alias).into(), sea_query::Order::Asc);
         }
 
         if !any_expr {
