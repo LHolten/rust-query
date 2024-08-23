@@ -2,181 +2,181 @@
     GenreStats {
         genre_name: "Alternative",
         byte_average: Some(
-            5883473,
+            5883473.0,
         ),
         milis_average: Some(
-            264058,
+            264058.0,
         ),
     },
     GenreStats {
         genre_name: "Alternative & Punk",
         byte_average: Some(
-            7691002,
+            7691002.0,
         ),
         milis_average: Some(
-            234353,
+            234353.0,
         ),
     },
     GenreStats {
         genre_name: "Blues",
         byte_average: Some(
-            8625575,
+            8625575.0,
         ),
         milis_average: Some(
-            270359,
+            270359.0,
         ),
     },
     GenreStats {
         genre_name: "Bossa Nova",
         byte_average: Some(
-            7239057,
+            7239057.0,
         ),
         milis_average: Some(
-            219590,
+            219590.0,
         ),
     },
     GenreStats {
         genre_name: "Classical",
         byte_average: Some(
-            5220906,
+            5220906.0,
         ),
         milis_average: Some(
-            293867,
+            293867.0,
         ),
     },
     GenreStats {
         genre_name: "Comedy",
         byte_average: Some(
-            316904465,
+            316904465.0,
         ),
         milis_average: Some(
-            1585263,
+            1585263.0,
         ),
     },
     GenreStats {
         genre_name: "Drama",
         byte_average: Some(
-            506946966,
+            506946966.0,
         ),
         milis_average: Some(
-            2575283,
+            2575283.0,
         ),
     },
     GenreStats {
         genre_name: "Easy Listening",
         byte_average: Some(
-            6160517,
+            6160517.0,
         ),
         milis_average: Some(
-            189164,
+            189164.0,
         ),
     },
     GenreStats {
         genre_name: "Electronica/Dance",
         byte_average: Some(
-            10691926,
+            10691926.0,
         ),
         milis_average: Some(
-            302985,
+            302985.0,
         ),
     },
     GenreStats {
         genre_name: "Heavy Metal",
         byte_average: Some(
-            9474752,
+            9474752.0,
         ),
         milis_average: Some(
-            297452,
+            297452.0,
         ),
     },
     GenreStats {
         genre_name: "Hip Hop/Rap",
         byte_average: Some(
-            6534717,
+            6534717.0,
         ),
         milis_average: Some(
-            178176,
+            178176.0,
         ),
     },
     GenreStats {
         genre_name: "Jazz",
         byte_average: Some(
-            9488136,
+            9488136.0,
         ),
         milis_average: Some(
-            291755,
+            291755.0,
         ),
     },
     GenreStats {
         genre_name: "Latin",
         byte_average: Some(
-            7710588,
+            7710588.0,
         ),
         milis_average: Some(
-            232859,
+            232859.0,
         ),
     },
     GenreStats {
         genre_name: "Metal",
         byte_average: Some(
-            9234573,
+            9234573.0,
         ),
         milis_average: Some(
-            309749,
+            309749.0,
         ),
     },
     GenreStats {
         genre_name: "Opera",
         byte_average: Some(
-            2861468,
+            2861468.0,
         ),
         milis_average: Some(
-            174813,
+            174813.0,
         ),
     },
     GenreStats {
         genre_name: "Pop",
         byte_average: Some(
-            4745668,
+            4745668.0,
         ),
         milis_average: Some(
-            229034,
+            229034.0,
         ),
     },
     GenreStats {
         genre_name: "R&B/Soul",
         byte_average: Some(
-            6575925,
+            6575925.0,
         ),
         milis_average: Some(
-            220066,
+            220066.0,
         ),
     },
     GenreStats {
         genre_name: "Reggae",
         byte_average: Some(
-            8237493,
+            8237493.0,
         ),
         milis_average: Some(
-            247177,
+            247177.0,
         ),
     },
     GenreStats {
         genre_name: "Rock",
         byte_average: Some(
-            9007374,
+            9007374.0,
         ),
         milis_average: Some(
-            283910,
+            283910.0,
         ),
     },
     GenreStats {
         genre_name: "Rock And Roll",
         byte_average: Some(
-            2123262,
+            2123262.0,
         ),
         milis_average: Some(
-            134643,
+            134643.0,
         ),
     },
 ]

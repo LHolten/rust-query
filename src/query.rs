@@ -6,7 +6,7 @@ use crate::{
     ast::{MySelect, Source},
     db::Db,
     group::Aggregate,
-    value::{Assume, Value},
+    value::{operations::Assume, Value},
     Table,
 };
 

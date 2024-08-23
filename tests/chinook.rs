@@ -90,7 +90,7 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     })
 }
 
-fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>)> {
+fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<f64>)> {
     client.exec(|rows| {
         let artist = rows.join(&DB.artist);
         let avg_track_count = rows.query(|rows| {
@@ -103,7 +103,7 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<i64>
 
                 rows.count_distinct(track)
             });
-            rows.avg(track_count)
+            rows.avg(track_count.as_float())
         });
         rows.into_vec((artist.name(), avg_track_count))
     })
@@ -147,7 +147,7 @@ fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredT
     client.exec(|rows| {
         let track = rows.join(&DB.track);
         rows.filter(track.genre().name().eq(genre));
-        rows.filter(track.milliseconds().lt(max_milis as i32));
+        rows.filter(track.milliseconds().lt(max_milis));
         rows.into_vec(FilteredTrackDummy {
             track_name: track.name(),
             album_name: track.album().title(),
@@ -161,8 +161,8 @@ fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredT
 #[derive(Debug, FromRow)]
 struct GenreStats {
     genre_name: String,
-    byte_average: Option<i64>,
-    milis_average: Option<i64>,
+    byte_average: Option<f64>,
+    milis_average: Option<f64>,
 }
 
 fn genre_statistics(client: &Client) -> Vec<GenreStats> {
@@ -171,7 +171,10 @@ fn genre_statistics(client: &Client) -> Vec<GenreStats> {
         let (bytes, milis) = rows.query(|rows| {
             let track = rows.join(&DB.track);
             rows.filter_on(track.genre(), genre);
-            (rows.avg(track.bytes()), rows.avg(track.milliseconds()))
+            (
+                rows.avg(track.bytes().as_float()),
+                rows.avg(track.milliseconds().as_float()),
+            )
         });
         rows.into_vec(GenreStatsDummy {
             genre_name: genre.name(),

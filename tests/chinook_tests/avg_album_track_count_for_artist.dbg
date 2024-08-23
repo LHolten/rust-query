@@ -6,43 +6,43 @@
     (
         "AC/DC",
         Some(
-            9,
+            9.0,
         ),
     ),
     (
         "Aaron Copland & London Symphony Orchestra",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Aaron Goldberg",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Academy of St. Martin in the Fields & Sir Neville Marriner",
         Some(
-            2,
+            2.0,
         ),
     ),
     (
         "Academy of St. Martin in the Fields Chamber Ensemble & Sir Neville Marriner",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Academy of St. Martin in the Fields, John Birch, Sir Neville Marriner & Sylvia McNair",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Academy of St. Martin in the Fields, Sir Neville Marriner & Thurston Dart",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
@@ -52,19 +52,19 @@
     (
         "Accept",
         Some(
-            2,
+            2.0,
         ),
     ),
     (
         "Adrian Leaper & Doreen de Feis",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Aerosmith",
         Some(
-            15,
+            15.0,
         ),
     ),
     (
@@ -74,43 +74,43 @@
     (
         "Aisha Duo",
         Some(
-            2,
+            2.0,
         ),
     ),
     (
         "Alanis Morissette",
         Some(
-            13,
+            13.0,
         ),
     ),
     (
         "Alberto Turco & Nova Schola Gregoriana",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Alice In Chains",
         Some(
-            12,
+            12.0,
         ),
     ),
     (
         "Amy Winehouse",
         Some(
-            11,
+            11.0,
         ),
     ),
     (
         "Anne-Sophie Mutter, Herbert Von Karajan & Wiener Philharmoniker",
         Some(
-            1,
+            1.0,
         ),
     ),
     (
         "Antal Doráti & London Symphony Orchestra",
         Some(
-            1,
+            1.0,
         ),
     ),
 ]

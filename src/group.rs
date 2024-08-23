@@ -10,7 +10,10 @@ use crate::{
     ast::MySelect,
     db::{Col, TableRef},
     query::Query,
-    value::{IsNotNull, UnwrapOr, Value},
+    value::{
+        operations::{NotNull, UnwrapOr},
+        Value,
+    },
 };
 
 /// This is the query type used in sub-queries.
@@ -62,7 +65,7 @@ impl<'outer: 'inner, 'inner> Aggregate<'outer, 'inner> {
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
-    pub fn avg<V: Value<'inner, Typ = i64>>(&'inner self, val: V) -> AggrCol<'outer, Option<i64>> {
+    pub fn avg<V: Value<'inner, Typ = f64>>(&'inner self, val: V) -> AggrCol<'outer, Option<f64>> {
         let expr = Func::cast_as(
             Func::avg(val.build_expr(self.ast.builder())),
             Alias::new("integer"),
@@ -98,9 +101,9 @@ impl<'outer: 'inner, 'inner> Aggregate<'outer, 'inner> {
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> IsNotNull<AggrCol<'outer, Option<i64>>> {
+    pub fn exists(&'inner self) -> NotNull<AggrCol<'outer, Option<i64>>> {
         let expr = Expr::val(1);
-        IsNotNull(self.select(expr))
+        NotNull(self.select(expr))
     }
 }
 

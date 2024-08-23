@@ -1,3 +1,6 @@
+pub mod operations;
+
+use operations::{Add, And, AsFloat, Eq, Lt, MyNot, NotNull, UnwrapOr};
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
@@ -39,6 +42,18 @@ impl<'x> ValueBuilder<'x> {
     }
 }
 
+pub trait NumTyp {}
+
+impl NumTyp for i64 {}
+impl NumTyp for f64 {}
+
+pub trait EqTyp {}
+
+impl EqTyp for String {}
+impl EqTyp for i64 {}
+impl EqTyp for f64 {}
+impl EqTyp for bool {}
+
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
 pub trait Value<'t>: Clone {
@@ -47,19 +62,25 @@ pub trait Value<'t>: Clone {
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
 
-    fn add<T: Value<'t>>(self, rhs: T) -> MyAdd<Self, T> {
-        MyAdd(self, rhs)
-    }
-
-    fn lt(self, rhs: i32) -> MyLt<Self>
+    fn add<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> Add<Self, T>
     where
-        Self: Value<'t, Typ = i64>,
+        Self::Typ: NumTyp,
     {
-        MyLt(self, rhs)
+        Add(self, rhs)
     }
 
-    fn eq<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> MyEq<Self, T> {
-        MyEq(self, rhs)
+    fn lt<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> Lt<Self, T>
+    where
+        Self::Typ: NumTyp,
+    {
+        Lt(self, rhs)
+    }
+
+    fn eq<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> Eq<Self, T>
+    where
+        Self::Typ: EqTyp,
+    {
+        Eq(self, rhs)
     }
 
     fn not(self) -> MyNot<Self>
@@ -69,11 +90,11 @@ pub trait Value<'t>: Clone {
         MyNot(self)
     }
 
-    fn and<T: Value<'t, Typ = bool>>(self, rhs: T) -> MyAnd<Self, T>
+    fn and<T: Value<'t, Typ = bool>>(self, rhs: T) -> And<Self, T>
     where
         Self: Value<'t, Typ = bool>,
     {
-        MyAnd(self, rhs)
+        And(self, rhs)
     }
 
     fn unwrap_or<T: Value<'t>>(self, rhs: T) -> UnwrapOr<Self, T>
@@ -83,9 +104,18 @@ pub trait Value<'t>: Clone {
         UnwrapOr(self, rhs)
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    fn is_not_null(self) -> IsNotNull<Self> {
-        IsNotNull(self)
+    fn not_null<Typ>(self) -> NotNull<Self>
+    where
+        Self: Value<'t, Typ = Option<Typ>>,
+    {
+        NotNull(self)
+    }
+
+    fn as_float(self) -> AsFloat<Self>
+    where
+        Self: Value<'t, Typ = i64>,
+    {
+        AsFloat(self)
     }
 }
 
@@ -144,86 +174,6 @@ impl<'t> Value<'t> for f64 {
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct MyAdd<A, B>(A, B);
-
-impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAdd<A, B> {
-    type Typ = A::Typ;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.0.build_expr(b).add(self.1.build_expr(b))
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct MyNot<T>(T);
-
-impl<'t, T: Value<'t>> Value<'t> for MyNot<T> {
-    type Typ = T::Typ;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.0.build_expr(b).not()
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct MyAnd<A, B>(A, B);
-
-impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyAnd<A, B> {
-    type Typ = A::Typ;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.0.build_expr(b).and(self.1.build_expr(b))
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct MyLt<A>(A, i32);
-
-impl<'t, A: Value<'t>> Value<'t> for MyLt<A> {
-    type Typ = bool;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::expr(self.0.build_expr(b)).lt(self.1)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct MyEq<A, B>(A, B);
-
-impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for MyEq<A, B> {
-    type Typ = bool;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.0.build_expr(b).eq(self.1.build_expr(b))
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
-
-impl<'t, A: Value<'t>, B: Value<'t>> Value<'t> for UnwrapOr<A, B> {
-    type Typ = B::Typ;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::expr(self.0.build_expr(b)).if_null(self.1.build_expr(b))
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct IsNotNull<A>(pub(crate) A);
-
-impl<'t, A: Value<'t>> Value<'t> for IsNotNull<A> {
-    type Typ = bool;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::expr(self.0.build_expr(b)).is_not_null()
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Assume<A>(pub(crate) A);
-
-impl<'t, T, A: Value<'t, Typ = Option<T>>> Value<'t> for Assume<A> {
-    type Typ = T;
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.0.build_expr(b)
     }
 }
 

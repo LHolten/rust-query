@@ -29,7 +29,7 @@ pub use value::{UnixEpoch, Value};
 
 pub mod ops {
     pub use crate::db::Col;
-    pub use crate::value::{Assume, IsNotNull, MyAdd, MyAnd, MyEq, MyLt, MyNot, UnwrapOr};
+    pub use crate::value::operations::{Add, And, Assume, Eq, Lt, MyNot, NotNull, UnwrapOr};
 }
 
 pub mod args {
