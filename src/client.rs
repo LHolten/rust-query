@@ -4,15 +4,13 @@ use std::{
     sync::{Condvar, Mutex},
 };
 
-use rusqlite::Transaction;
-
 use crate::{
     ast::MySelect,
     exec::Execute,
     insert::{private_try_insert, Writable},
     private::FromRow,
     query::Query,
-    HasId, Free,
+    Free, HasId,
 };
 
 pub struct Client {
@@ -55,8 +53,13 @@ impl Client {
     /// Retrieve a single value from the database.
     /// This is convenient but quite slow.
     pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, Out = T>) -> T {
-        // TODO: does not need it's own connection, because it is atomic
-        self.exec(|e| e.into_vec(val)).pop().unwrap()
+        use r2d2::ManageConnection;
+        let mut res = CONN.with(|conn| {
+            let conn = conn.get_or_init(|| self.manager.connect().unwrap());
+            // this is correct without a transaction, because we only consume one row
+            private_exec(conn, |e| e.into_vec(val))
+        });
+        res.pop().unwrap()
     }
 
     /// Try inserting a value into the database.
@@ -97,7 +100,7 @@ impl QueryBuilder for rusqlite::Transaction<'_> {
 }
 
 /// For internal use only as it does not have required bounds
-pub(crate) fn private_exec<'s, F, R>(conn: &Transaction, f: F) -> R
+pub(crate) fn private_exec<'s, F, R>(conn: &rusqlite::Connection, f: F) -> R
 where
     F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
 {
