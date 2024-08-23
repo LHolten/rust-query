@@ -19,7 +19,7 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     private::FromRow,
-    Db, HasId, Just, Table,
+    Db, HasId, Free, Table,
 };
 
 #[derive(Default)]
@@ -44,7 +44,7 @@ pub trait Schema: Sized + 'static {
 pub trait TableMigration<'a, A: HasId> {
     type T;
 
-    fn into_new(self, prev: Just<'a, A>, reader: Reader<'_>);
+    fn into_new(self, prev: Free<'a, A>, reader: Reader<'_>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -58,10 +58,10 @@ pub struct SchemaBuilder<'x> {
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: FnMut(Just<'x, A>) -> O,
+        M: FnMut(Free<'x, A>) -> O,
         O: TableMigration<'x, A, T = B>,
     {
-        self.create_from(move |db: Just<A>| Some(m(db)));
+        self.create_from(move |db: Free<A>| Some(m(db)));
 
         self.drop
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
@@ -69,7 +69,7 @@ impl<'x> SchemaBuilder<'x> {
 
     pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
     where
-        F: FnMut(Just<'x, A>) -> Option<O>,
+        F: FnMut(Free<'x, A>) -> Option<O>,
         O: TableMigration<'x, A, T = B>,
     {
         let new_table_name = self.scope.tmp_table();

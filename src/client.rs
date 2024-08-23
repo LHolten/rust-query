@@ -12,7 +12,7 @@ use crate::{
     insert::{private_try_insert, Writable},
     private::FromRow,
     query::Query,
-    HasId, Just,
+    HasId, Free,
 };
 
 pub struct Client {
@@ -62,7 +62,7 @@ impl Client {
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     #[allow(clippy::needless_lifetimes)]
-    pub fn try_insert<'s, T: HasId>(&'s self, val: impl Writable<T = T>) -> Option<Just<'s, T>> {
+    pub fn try_insert<'s, T: HasId>(&'s self, val: impl Writable<T = T>) -> Option<Free<'s, T>> {
         use r2d2::ManageConnection;
         let res = CONN.with(|conn| {
             let conn = conn.get_or_init(|| self.manager.connect().unwrap());

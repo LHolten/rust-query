@@ -1,3 +1,6 @@
+[workspace]
+members = ["rust-query-macros"]
+
 [package]
 name = "rust-query"
 version = "0.1.2"

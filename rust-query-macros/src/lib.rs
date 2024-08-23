@@ -276,7 +276,7 @@ fn define_table_migration(
         impl<'a #(,#constraints)*> ::rust_query::private::TableMigration<'a, #prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new(self, prev: ::rust_query::Just<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_>) {
+            fn into_new(self, prev: ::rust_query::Free<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_>) {
                 #(#into_new;)*
             }
         }
@@ -412,12 +412,12 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: Box<dyn 't + FnMut(::rust_query::Just<'t, #table_name>) -> #table_generic_out>
+                    pub #table_lower: Box<dyn 't + FnMut(::rust_query::Free<'t, #table_name>) -> #table_generic_out>
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
 
                 // table_constraints.push(quote! {
-                //     #table_generic: FnMut(::rust_query::Just<'t, #table_name>) -> #table_generic_out
+                //     #table_generic: FnMut(::rust_query::Free<'t, #table_name>) -> #table_generic_out
                 // });
                 table_constraints.push(quote! {
                     #table_generic_out: ::rust_query::private::TableMigration<'t, #table_name, T = super::#table_name>
@@ -433,12 +433,12 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: Box<dyn 't + FnMut(::rust_query::Just<'t, #table_name>) -> Option<#table_generic_out>>
+                    pub #table_lower: Box<dyn 't + FnMut(::rust_query::Free<'t, #table_name>) -> Option<#table_generic_out>>
                 });
                 tables.push(quote! {b.create_from(self.#table_lower)});
 
                 // table_constraints.push(quote! {
-                //     #table_generic: FnMut(::rust_query::Just<'t, #table_name>) -> Option<#table_generic_out>
+                //     #table_generic: FnMut(::rust_query::Free<'t, #table_name>) -> Option<#table_generic_out>
                 // });
                 table_constraints.push(quote! {
                     #table_generic_out: ::rust_query::private::TableMigration<'t, #table_name, T = super::#table_name>

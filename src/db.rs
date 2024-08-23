@@ -111,25 +111,25 @@ impl<'t, T: HasId> Value<'t> for Db<'t, T> {
 
 /// Table reference that can be used in any query as long as it is alive.
 /// Covariant in `'t`.
-pub struct Just<'t, T> {
+pub struct Free<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
     pub(crate) idx: i64,
 }
 
-impl<T> Debug for Just<'_, T> {
+impl<T> Debug for Free<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Just").field("idx", &self.idx).finish()
+        write!(f, "db_{}", self.idx)
     }
 }
 
-impl<T> Clone for Just<'_, T> {
+impl<T> Clone for Free<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T> Copy for Just<'_, T> {}
+impl<T> Copy for Free<'_, T> {}
 
-impl<T: Table> Deref for Just<'_, T> {
+impl<T: Table> Deref for Free<'_, T> {
     type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
@@ -137,7 +137,7 @@ impl<T: Table> Deref for Just<'_, T> {
     }
 }
 
-impl<T> FromSql for Just<'_, T> {
+impl<T> FromSql for Free<'_, T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(Self {
             _p: PhantomData,
@@ -146,13 +146,13 @@ impl<T> FromSql for Just<'_, T> {
     }
 }
 
-impl<'t, T> From<Just<'t, T>> for sea_query::Value {
-    fn from(value: Just<T>) -> Self {
+impl<'t, T> From<Free<'t, T>> for sea_query::Value {
+    fn from(value: Free<T>) -> Self {
         value.idx.into()
     }
 }
 
-impl<'t, T> Value<'t> for Just<'_, T> {
+impl<'t, T> Value<'t> for Free<'_, T> {
     type Typ = T;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -160,7 +160,7 @@ impl<'t, T> Value<'t> for Just<'_, T> {
     }
 }
 
-impl<'t, T: HasId> TableRef<'t> for Just<'_, T> {
+impl<'t, T: HasId> TableRef<'t> for Free<'_, T> {
     fn build_table(&self, b: ValueBuilder) -> MyAlias {
         b.get_join::<T>(self.build_expr(b))
     }

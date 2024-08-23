@@ -7,8 +7,8 @@ use std::sync::Mutex;
 
 use chinook_schema::*;
 use expect_test::expect_file;
+use rust_query::Free;
 use rust_query::FromRow;
-use rust_query::Just;
 use rust_query::{Client, Value};
 
 static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
@@ -54,7 +54,7 @@ fn test_queries() {
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
-    ivl_id: Just<'a, InvoiceLine>,
+    ivl_id: Free<'a, InvoiceLine>,
 }
 
 fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {

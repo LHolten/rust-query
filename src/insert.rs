@@ -4,8 +4,9 @@ use rusqlite::Connection;
 use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 use sea_query_rusqlite::RusqliteBinder;
 
-use crate::{alias::Field, ast::MySelect, HasId, Just, Value};
+use crate::{alias::Field, ast::MySelect, HasId, Free, Value};
 
+/// this trait is not safe to implement
 pub trait Writable {
     type T: HasId;
     fn read(self, f: Reader<'_>);
@@ -26,7 +27,7 @@ impl<'x> Reader<'x> {
 pub(crate) fn private_try_insert<'a, T: HasId>(
     conn: &Connection,
     val: impl Writable<T = T>,
-) -> Option<Just<'a, T>> {
+) -> Option<Free<'a, T>> {
     let ast = MySelect::default();
 
     let reader = Reader { ast: &ast };
@@ -50,7 +51,7 @@ pub(crate) fn private_try_insert<'a, T: HasId>(
         .query_map(&*values.as_params(), |row| row.get(T::ID))
         .unwrap()
         .next();
-    id.map(|id| Just {
+    id.map(|id| Free {
         _p: PhantomData,
         idx: id.unwrap(),
     })

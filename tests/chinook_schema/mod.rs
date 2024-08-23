@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{schema, Client, Just, NoTable, Prepare};
+use rust_query::{schema, Client, Free, NoTable, Prepare};
 
 pub use v2::*;
 
@@ -156,7 +156,7 @@ pub fn migrate() -> (Client, Schema) {
         }),
         track: Box::new(|track| v2::up::TrackMigration {
             media_type: track.media_type().name(),
-            composer_table: None::<Just<NoTable>>,
+            composer_table: None::<Free<NoTable>>,
             byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
             genre: db.get(s.genre_new.unique_original(track.genre())).unwrap(),
         }),

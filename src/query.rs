@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use sea_query::Expr;
-
 use crate::{
     ast::{MySelect, Source},
     db::Db,
@@ -65,7 +63,7 @@ impl<'inner> Query<'inner> {
     }
 
     /// Filter rows based on a column.
-    pub fn filter(&mut self, prop: impl Value<'inner>) {
+    pub fn filter(&mut self, prop: impl Value<'inner, Typ = bool>) {
         self.ast
             .filters
             .push(Box::new(prop.build_expr(self.ast.builder())));
@@ -76,11 +74,7 @@ impl<'inner> Query<'inner> {
     where
         V: Value<'inner, Typ = Option<T>>,
     {
-        self.ast.filters.push(
-            Box::new(Expr::expr(val.build_expr(self.ast.builder())))
-                .is_not_null()
-                .into(),
-        );
+        self.filter(val.clone().not_null());
         Assume(val)
     }
 }

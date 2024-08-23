@@ -19,7 +19,7 @@ mod query;
 mod value;
 
 pub use client::Client;
-pub use db::{Db, Just};
+pub use db::{Db, Free};
 pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
