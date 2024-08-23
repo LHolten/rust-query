@@ -40,8 +40,9 @@ pub mod args {
 
 #[doc(hidden)]
 pub mod private {
+    pub use crate::exec::show_sql;
     pub use crate::from_row::{Cached, Cacher, FromRow, Row};
-    pub use crate::hash::hash_schema;
+    pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
     pub use crate::value::{MyTyp, ValueBuilder};

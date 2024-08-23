@@ -8,8 +8,34 @@ pub(super) enum Field {
     Str(&'static str),
 }
 
+#[derive(Default)]
+pub struct Scope {
+    iden_num: AtomicU64,
+}
+
+impl Scope {
+    pub fn tmp_table(&self) -> TmpTable {
+        let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
+        TmpTable { name: next }
+    }
+
+    pub fn new_alias(&self) -> MyAlias {
+        let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
+        MyAlias { name: next }
+    }
+
+    pub fn new_field(&self) -> Field {
+        Field::U64(self.new_alias())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct MyAlias {
+    name: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct TmpTable {
     name: u64,
 }
 
@@ -22,23 +48,15 @@ impl sea_query::Iden for Field {
     }
 }
 
-impl MyAlias {
-    pub fn new() -> Self {
-        static IDEN_NUM: AtomicU64 = AtomicU64::new(0);
-        let next = IDEN_NUM.fetch_add(1, Ordering::Relaxed);
-        Self { name: next }
-    }
-}
-
-impl Field {
-    pub fn new() -> Self {
-        Field::U64(MyAlias::new())
-    }
-}
-
 impl sea_query::Iden for MyAlias {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         write!(s, "_{}", self.name).unwrap()
+    }
+}
+
+impl sea_query::Iden for TmpTable {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(s, "_tmp{}", self.name).unwrap()
     }
 }
 

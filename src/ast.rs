@@ -2,13 +2,14 @@ use elsa::FrozenVec;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
-    alias::{Field, MyAlias, RawAlias},
+    alias::{Field, MyAlias, RawAlias, Scope},
     mymap::MyMap,
     value::ValueBuilder,
 };
 
 #[derive(Default)]
 pub struct MySelect {
+    pub(super) scope: Scope,
     // tables to join, adding more requires mutating
     pub(super) tables: Vec<(String, MyAlias)>,
     // implicit joins
@@ -48,20 +49,24 @@ impl MySelect {
     }
 
     pub fn simple(&self) -> SelectStatement {
-        self.build_select(false)
+        let mut select = self.build_select(false);
+        for (aggr, _alias) in self.select.iter() {
+            select.order_by_expr(aggr.clone(), sea_query::Order::Asc);
+        }
+        select
     }
 
-    pub fn build_select(&self, is_group: bool) -> SelectStatement {
+    fn build_select(&self, is_group: bool) -> SelectStatement {
         let mut select = SelectStatement::new();
-        select.from_values([1], NullAlias);
 
+        let mut any_from = false;
         for (table, alias) in &self.tables {
-            select.join_as(
-                sea_query::JoinType::InnerJoin,
-                RawAlias(table.clone()),
-                *alias,
-                Condition::all(),
-            );
+            select.from_as(RawAlias(table.clone()), *alias);
+            any_from = true
+        }
+
+        if !any_from {
+            select.from_values([1], NullAlias);
         }
 
         for (source, table_alias) in self.extra.iter() {
@@ -97,14 +102,13 @@ impl MySelect {
             select.expr_as(group.clone(), *alias);
             if is_group {
                 any_group = true;
-                select.group_by_col(*alias);
+                select.add_group_by([group.clone()]);
             }
         }
 
         for (aggr, alias) in self.select.iter() {
             any_expr = true;
             select.expr_as(aggr.clone(), *alias);
-            select.order_by_expr(Expr::col(*alias).into(), sea_query::Order::Asc);
         }
 
         if !any_expr {
@@ -117,10 +121,4 @@ impl MySelect {
 
         select
     }
-}
-
-pub fn add_table(sources: &mut Vec<(String, MyAlias)>, name: String) -> MyAlias {
-    let alias = MyAlias::new();
-    sources.push((name, alias));
-    alias
 }

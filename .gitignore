@@ -1,4 +1,6 @@
 /target
-/chinook/Chinook_Sqlite.sql
+Chinook_Sqlite.sql
+test.db
 /src/experiment
 /src/experiment.rs
+Cargo.lock

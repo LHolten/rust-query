@@ -127,10 +127,10 @@ enum Schema {
 
 pub fn migrate() -> (Client, Schema) {
     let artist_title = HashMap::from([("a", "b")]);
-    let m = Prepare::open("test.db");
+    let m = Prepare::open_in_memory();
     let (mut m, s) = m.create_db_sql(&[
-        include_str!("../Chinook_Sqlite.sql"),
-        include_str!("../migrate.sql"),
+        include_str!("Chinook_Sqlite.sql"),
+        include_str!("migrate.sql"),
     ]);
 
     let s = m.migrate(s, |_s, db| v1::up::Schema {

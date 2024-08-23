@@ -19,7 +19,8 @@ impl<'x> ValueBuilder<'x> {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: vec![(Field::Str(T::ID), expr)],
         };
-        *self.inner.extra.get_or_init(source, MyAlias::new)
+        let new_alias = || self.inner.scope.new_alias();
+        *self.inner.extra.get_or_init(source, new_alias)
     }
 
     pub fn get_unique(
@@ -32,7 +33,8 @@ impl<'x> ValueBuilder<'x> {
             conds: conds.into_iter().map(|x| (Field::Str(x.0), x.1)).collect(),
         };
 
-        let table = self.inner.extra.get_or_init(source, MyAlias::new);
+        let new_alias = || self.inner.scope.new_alias();
+        let table = self.inner.extra.get_or_init(source, new_alias);
         Expr::col((*table, Alias::new("id"))).into()
     }
 }

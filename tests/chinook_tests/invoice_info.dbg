@@ -1,0 +1,142 @@
+[
+    InvoiceInfo {
+        track: "\"?\"",
+        artist: "Lost",
+        ivl_id: Just {
+            idx: 1627,
+        },
+    },
+    InvoiceInfo {
+        track: "#9 Dream",
+        artist: "U2",
+        ivl_id: Just {
+            idx: 535,
+        },
+    },
+    InvoiceInfo {
+        track: "'Round Midnight",
+        artist: "Miles Davis",
+        ivl_id: Just {
+            idx: 1820,
+        },
+    },
+    InvoiceInfo {
+        track: "(Anesthesia) Pulling Teeth",
+        artist: "Metallica",
+        ivl_id: Just {
+            idx: 874,
+        },
+    },
+    InvoiceInfo {
+        track: "(White Man) In Hammersmith Palais",
+        artist: "The Clash",
+        ivl_id: Just {
+            idx: 1005,
+        },
+    },
+    InvoiceInfo {
+        track: "(Wish I Could) Hideaway",
+        artist: "Creedence Clearwater Revival",
+        ivl_id: Just {
+            idx: 696,
+        },
+    },
+    InvoiceInfo {
+        track: "...And Found",
+        artist: "Lost",
+        ivl_id: Just {
+            idx: 1049,
+        },
+    },
+    InvoiceInfo {
+        track: "...And Justice For All",
+        artist: "Metallica",
+        ivl_id: Just {
+            idx: 1464,
+        },
+    },
+    InvoiceInfo {
+        track: "01 - Prowler",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 213,
+        },
+    },
+    InvoiceInfo {
+        track: "04 - Running Free",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 1931,
+        },
+    },
+    InvoiceInfo {
+        track: "05 - Phantom of the Opera",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 786,
+        },
+    },
+    InvoiceInfo {
+        track: "09 - Iron Maiden",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 1359,
+        },
+    },
+    InvoiceInfo {
+        track: "1/2 Full",
+        artist: "Pearl Jam",
+        ivl_id: Just {
+            idx: 2082,
+        },
+    },
+    InvoiceInfo {
+        track: "14 Years",
+        artist: "Guns N' Roses",
+        ivl_id: Just {
+            idx: 1920,
+        },
+    },
+    InvoiceInfo {
+        track: "2 A.M.",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 234,
+        },
+    },
+    InvoiceInfo {
+        track: "2 Minutes To Midnight",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 780,
+        },
+    },
+    InvoiceInfo {
+        track: "2 Minutes To Midnight",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 1367,
+        },
+    },
+    InvoiceInfo {
+        track: "2 Minutes To Midnight",
+        artist: "Iron Maiden",
+        ivl_id: Just {
+            idx: 1933,
+        },
+    },
+    InvoiceInfo {
+        track: "2 X 4",
+        artist: "Metallica",
+        ivl_id: Just {
+            idx: 301,
+        },
+    },
+    InvoiceInfo {
+        track: "32 Dentes",
+        artist: "Titãs",
+        ivl_id: Just {
+            idx: 461,
+        },
+    },
+]

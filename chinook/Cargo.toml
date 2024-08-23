@@ -1,8 +1,0 @@
-[package]
-name = "chinook"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-rust-query = {path = "../"}
-ref-cast = "1.0.23"

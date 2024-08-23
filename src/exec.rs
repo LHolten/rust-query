@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
@@ -46,6 +47,10 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
 
         let select = self.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
+        if SHOW_SQL.get() {
+            println!("{sql}");
+            println!("{values:?}");
+        }
 
         let mut statement = self.conn.prepare(&sql).unwrap();
         let mut rows = statement.query(&*values.as_params()).unwrap();
@@ -61,4 +66,16 @@ impl<'outer, 'inner> Execute<'outer, 'inner> {
         }
         out
     }
+}
+
+thread_local! {
+    static SHOW_SQL: Cell<bool> = Cell::new(false);
+}
+
+pub fn show_sql<R>(f: impl FnOnce() -> R) -> R {
+    let old = SHOW_SQL.get();
+    SHOW_SQL.set(true);
+    let res = f();
+    SHOW_SQL.set(old);
+    res
 }

@@ -10,8 +10,8 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    alias::MyAlias,
-    ast::{add_table, MySelect},
+    alias::{Scope, TmpTable},
+    ast::MySelect,
     client::{private_exec, Client, QueryBuilder},
     exec::Execute,
     from_row::AdHoc,
@@ -48,6 +48,8 @@ pub trait TableMigration<'a, A: HasId> {
 }
 
 pub struct SchemaBuilder<'x> {
+    // this is used to create temporary table names
+    scope: Scope,
     conn: &'x rusqlite::Transaction<'x>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
@@ -70,7 +72,7 @@ impl<'x> SchemaBuilder<'x> {
         F: FnMut(Just<'x, A>) -> Option<O>,
         O: TableMigration<'x, A, T = B>,
     {
-        let new_table_name = MyAlias::new();
+        let new_table_name = self.scope.tmp_table();
         new_table::<B>(self.conn, new_table_name);
 
         self.rename.push(
@@ -80,7 +82,9 @@ impl<'x> SchemaBuilder<'x> {
         );
 
         self.conn.new_query(|e| {
-            let table = add_table(&mut e.ast.tables, A::NAME.to_owned());
+            // TODO: potentially replace this with Execute::join
+            let table = e.ast.scope.new_alias();
+            e.ast.tables.push((A::NAME.to_owned(), table));
             let db_id = Db::<A>::new(table);
 
             e.into_vec(AdHoc::new(|mut row| {
@@ -117,7 +121,7 @@ impl<'x> SchemaBuilder<'x> {
     }
 
     pub fn new_table<T: HasId>(&mut self) {
-        let new_table_name = MyAlias::new();
+        let new_table_name = self.scope.tmp_table();
         new_table::<T>(self.conn, new_table_name);
 
         self.rename.push(
@@ -128,7 +132,7 @@ impl<'x> SchemaBuilder<'x> {
     }
 }
 
-fn new_table<T: Table>(conn: &Connection, alias: MyAlias) {
+fn new_table<T: Table>(conn: &Connection, alias: TmpTable) {
     let mut f = crate::TypBuilder::default();
     T::typs(&mut f);
     new_table_inner(conn, &f.ast, alias);
@@ -282,6 +286,7 @@ impl Migrator {
             let s = self.schema.as_ref().downcast_ref().unwrap();
             let res = f(s, ReadClient::ref_cast(conn));
             let mut builder = SchemaBuilder {
+                scope: Default::default(),
                 conn,
                 drop: vec![],
                 rename: vec![],

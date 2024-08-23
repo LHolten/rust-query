@@ -1,13 +1,15 @@
-mod schema;
+mod chinook_schema;
 
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
+use chinook_schema::*;
+use expect_test::expect_file;
 use rust_query::FromRow;
 use rust_query::Just;
 use rust_query::{Client, Value};
-use schema::*;
 
 static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
 static DB: LazyLock<Schema> = LazyLock::new(|| {
@@ -16,30 +18,36 @@ static DB: LazyLock<Schema> = LazyLock::new(|| {
     schema
 });
 
-fn main() {
+fn assert_dbg(val: impl Debug, file_name: &str) {
+    let path = format!("chinook_tests/{file_name}.dbg");
+    expect_file![path].assert_debug_eq(&val);
+}
+
+#[test]
+fn test_queries() {
     let _ = DB.deref();
     let client = CLIENT.lock().unwrap().take().unwrap();
 
+    let res = invoice_info(&client);
+    assert_dbg(&res[..20], "invoice_info");
+    let res = playlist_track_count(&client);
+    assert_dbg(&res[..], "playlist_track_count");
+    let res = avg_album_track_count_for_artist(&client);
+    assert_dbg(&res[..20], "avg_album_track_count_for_artist");
+    let res = count_reporting(&client);
+    assert_dbg(&res[..], "count_reporting");
+    let res = list_all_genres(&client);
+    assert_dbg(&res[..20], "list_all_genres");
+    let res = filtered_track(&client, "Metal", 1000 * 60);
+    assert_dbg(&res[..], "filtered_track");
+    let res = genre_statistics(&client);
+    assert_dbg(&res[..20], "genre_statistics");
+    let res = customer_spending(&client);
+    assert_dbg(&res[..20], "customer_spending");
+
     let artist_name = "my cool artist".to_string();
     let id = client.try_insert(ArtistDummy { name: artist_name });
-    println!("{:?}", id);
-
-    let res = invoice_info(&client);
-    println!("{res:#?}");
-    let res = playlist_track_count(&client);
-    println!("{res:#?}");
-    let res = avg_album_track_count_for_artist(&client);
-    println!("{res:#?}");
-    let res = count_reporting(&client);
-    println!("{res:#?}");
-    let res = list_all_genres(&client);
-    println!("{res:#?}");
-    let res = filtered_track(&client, "Metal", 1000 * 60);
-    println!("{res:#?}");
-    let res = genre_statistics(&client);
-    println!("{res:#?}");
-    let res = customer_spending(&client);
-    println!("{res:#?}");
+    assert!(id.is_some());
 }
 
 #[derive(Debug, FromRow)]

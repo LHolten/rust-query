@@ -26,7 +26,7 @@ impl ColumnType {
         use sea_query::ColumnType as T;
         match self {
             ColumnType::Integer => T::Integer,
-            ColumnType::Float => T::Float,
+            ColumnType::Float => T::custom("REAL"),
             ColumnType::String => T::Text,
         }
     }
@@ -117,7 +117,7 @@ pub struct Schema {
     pub tables: MyVec<(String, Table)>,
 }
 
-struct KangarooHasher {
+pub struct KangarooHasher {
     inner: CoreWrapper<KangarooTwelveCore<'static>>,
 }
 
