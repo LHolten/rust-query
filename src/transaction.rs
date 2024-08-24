@@ -3,12 +3,12 @@ use std::{cell::Cell, marker::PhantomData, ops::Deref, ptr::null, sync::Arc};
 use rusqlite::Transaction;
 
 use crate::{
-    client::private_exec,
+    client::{private_exec, Client},
     exec::Execute,
     insert::{private_try_insert, Writable},
     migrate::Schema,
     private::FromRow,
-    Client, Free, HasId,
+    Free, HasId,
 };
 
 /// Only one [ThreadToken] exists in each thread.
