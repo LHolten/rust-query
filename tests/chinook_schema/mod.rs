@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{schema, Client, Free, NoTable, Prepare};
+use rust_query::{schema, DbClient, Free, NoTable, Prepare, ThreadToken};
 
 pub use v2::*;
 
@@ -125,15 +125,17 @@ enum Schema {
     },
 }
 
-pub fn migrate() -> (Client, Schema) {
+pub fn migrate() -> DbClient<v2::Schema> {
+    let t = ThreadToken::acquire().unwrap();
+
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
-    let (mut m, s) = m.create_db_sql(&[
+    let mut m = m.create_db_sql::<v0::Schema>(&[
         include_str!("Chinook_Sqlite.sql"),
         include_str!("migrate.sql"),
     ]);
-
-    let s = m.migrate(s, |_s, db| v1::up::Schema {
+    let (mut t, s) = t.schema::<v0::Schema>();
+    m.migrate(&mut t, |db| v1::up::Schema {
         album: Box::new(|album| v1::up::AlbumMigration {
             something: {
                 let artist = db.get(album.artist().name());
@@ -150,7 +152,8 @@ pub fn migrate() -> (Client, Schema) {
             })
         }),
     });
-    let s = m.migrate(s, |s, db| v2::up::Schema {
+    let (mut t, s) = t.finish(s).schema::<v1::Schema>();
+    m.migrate(&mut t, |db| v2::up::Schema {
         customer: Box::new(|customer| v2::up::CustomerMigration {
             phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
         }),
@@ -162,7 +165,9 @@ pub fn migrate() -> (Client, Schema) {
         }),
         genre_new: Box::new(|_genre_new| v2::up::GenreNewMigration {}),
     });
-    (m.finish(), s.unwrap())
+    t.finish(s).release();
+
+    m.finish().unwrap()
 }
 
 #[cfg(test)]

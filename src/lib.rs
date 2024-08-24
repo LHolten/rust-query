@@ -16,6 +16,7 @@ mod migrate;
 mod mymap;
 mod pragma;
 mod query;
+mod transaction;
 mod value;
 
 pub use client::Client;
@@ -25,6 +26,7 @@ pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
 pub use rust_query_macros::FromRow;
+pub use transaction::{DbClient, Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
 pub use value::{UnixEpoch, Value};
 
 pub mod ops {
@@ -82,7 +84,7 @@ impl TypBuilder {
 }
 
 #[doc(hidden)]
-pub trait Table: 'static {
+pub trait Table: Sized + 'static {
     // const NAME: &'static str;
     // these names are defined in `'query`
     type Dummy<T>: RefCast<From = T>;

@@ -1,4 +1,7 @@
-use std::{any::Any, path::Path, sync::atomic::AtomicBool};
+use std::{
+    path::Path,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 use ouroboros::self_referencing;
 use ref_cast::RefCast;
@@ -19,7 +22,8 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     private::FromRow,
-    Db, HasId, Free, Table,
+    transaction::{DbClient, LatestToken, SnapshotToken, ThreadToken},
+    Db, Free, HasId, Table,
 };
 
 #[derive(Default)]
@@ -173,6 +177,7 @@ pub(crate) struct OwnedTransaction {
 impl Prepare {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
+    /// TODO: return an error if the file is already opened
     pub fn open(p: impl AsRef<Path>) -> Self {
         let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
         Self::open_internal(manager)
@@ -201,8 +206,8 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement if the database was just created.
-    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> (Migrator, Option<S>) {
-        self.migrator(|conn| {
+    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Migrator {
+        self.migrator::<S>(|conn| {
             for sql in sql {
                 conn.execute_batch(sql).unwrap();
             }
@@ -210,8 +215,8 @@ impl Prepare {
     }
 
     /// Create empty tables based on the schema if the database was just created.
-    pub fn create_db_empty<S: Schema>(self) -> (Migrator, Option<S>) {
-        self.migrator(|conn| {
+    pub fn create_db_empty<S: Schema>(self) -> Migrator {
+        self.migrator::<S>(|conn| {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
 
@@ -221,7 +226,7 @@ impl Prepare {
         })
     }
 
-    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> (Migrator, Option<S>) {
+    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Migrator {
         self.conn
             .pragma_update(None, "foreign_keys", "OFF")
             .unwrap();
@@ -242,13 +247,11 @@ impl Prepare {
             set_user_version(conn, S::VERSION).unwrap();
         }
 
-        let schema = new_checked::<S>(conn);
         let migrator = Migrator {
             client: Client::new(self.manager),
             transaction: owned,
-            schema: Box::new(()),
         };
-        (migrator, schema)
+        migrator
     }
 }
 
@@ -256,7 +259,6 @@ impl Prepare {
 pub struct Migrator {
     client: Client,
     transaction: OwnedTransaction,
-    schema: Box<dyn Any>,
 }
 
 impl Migrator {
@@ -275,16 +277,14 @@ impl Migrator {
 
     /// Apply a database migration if `s` is [Some] (because that means the migration can be applied).
     /// If the migration was applied or if the database already had the new schema it is returned.
-    pub fn migrate<'a, S: Schema, F, M, N: Schema>(&'a mut self, s: Option<S>, f: F) -> Option<N>
+    pub fn migrate<'a, S: Schema, F, M, N: Schema>(&'a mut self, _: &'a mut ThreadToken<S>, f: F)
     where
-        F: FnOnce(&'a S, &'a ReadClient<'a>) -> M,
+        F: FnOnce(&'a ReadClient<'a>) -> M,
         M: Migration<'a, S, S = N>,
     {
         let conn = self.transaction.borrow_transaction();
-        if let Some(s) = s {
-            self.schema = Box::new(s);
-            let s = self.schema.as_ref().downcast_ref().unwrap();
-            let res = f(s, ReadClient::ref_cast(conn));
+        if let Some(_s) = new_checked::<S>(conn) {
+            let res = f(ReadClient::ref_cast(conn));
             let mut builder = SchemaBuilder {
                 scope: Default::default(),
                 conn,
@@ -303,13 +303,19 @@ impl Migrator {
             foreign_key_check(conn);
             set_user_version(conn, N::VERSION).unwrap();
         }
-        new_checked::<N>(conn)
     }
 
     /// Commit the migration transaction and return a [Client].
-    pub fn finish(mut self) -> Client {
+    pub fn finish<S: Schema>(mut self) -> Option<DbClient<S>> {
         self.transaction
             .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
+
+        let Some(schema) = new_checked(self.transaction.borrow_transaction()) else {
+            return None;
+        };
+        let Some(schema2) = new_checked(self.transaction.borrow_transaction()) else {
+            return None;
+        };
 
         let heads = self.transaction.into_heads();
         heads
@@ -317,7 +323,17 @@ impl Migrator {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        self.client
+        let client = Arc::new(self.client);
+        Some(DbClient {
+            latest: LatestToken(SnapshotToken {
+                client: client.clone(),
+                schema,
+            }),
+            snapshot: SnapshotToken {
+                client,
+                schema: schema2,
+            },
+        })
     }
 }
 

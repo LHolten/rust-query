@@ -1,22 +1,42 @@
 mod chinook_schema;
 
-use std::fmt::Debug;
-use std::ops::Deref;
-use std::sync::LazyLock;
-use std::sync::Mutex;
+use std::cell::Cell;
+use std::sync::{LazyLock, Mutex};
+use std::{cell::LazyCell, fmt::Debug};
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::Free;
-use rust_query::FromRow;
-use rust_query::{Client, Value};
+use rust_query::{
+    DbClient, Free, FromRow, LatestToken, Snapshot, SnapshotToken, ThreadToken, Value,
+};
 
-static CLIENT: Mutex<Option<Client>> = Mutex::new(None);
-static DB: LazyLock<Schema> = LazyLock::new(|| {
-    let (client, schema) = migrate();
-    CLIENT.lock().unwrap().replace(client);
-    schema
+struct DbShared {
+    latest: Mutex<LatestToken<Schema>>,
+    snapshot: SnapshotToken<Schema>,
+}
+
+static DATABASE: LazyLock<DbShared> = LazyLock::new(|| {
+    let client = migrate();
+    DbShared {
+        latest: Mutex::new(client.latest),
+        snapshot: client.snapshot,
+    }
 });
+
+pub fn db() -> &'static Schema {
+    DB.with(|x| **x)
+}
+
+thread_local! {
+    static TOKEN: Cell<Option<ThreadToken<Schema>>> = Cell::new(None);
+
+    static DB: LazyCell<&'static Schema> = LazyCell::new(|| {
+        let token = ThreadToken::acquire().unwrap();
+        let (token, schema) = token.schema();
+        TOKEN.set(Some(token));
+        Box::leak(Box::new(schema))
+    });
+}
 
 fn assert_dbg(val: impl Debug, file_name: &str) {
     let path = format!("chinook_tests/{file_name}.dbg");
@@ -25,8 +45,13 @@ fn assert_dbg(val: impl Debug, file_name: &str) {
 
 #[test]
 fn test_queries() {
-    let _ = DB.deref();
-    let client = CLIENT.lock().unwrap().take().unwrap();
+    LazyLock::force(&DATABASE);
+    DB.with(|db| {
+        LazyCell::force(&db);
+    });
+    let mut thread_token = TOKEN.take().unwrap();
+    let mut latest_token = DATABASE.latest.lock().unwrap();
+    let mut client = latest_token.latest(&mut thread_token);
 
     let res = invoice_info(&client);
     assert_dbg(&res[..20], "invoice_info");
@@ -57,9 +82,9 @@ struct InvoiceInfo<'a> {
     ivl_id: Free<'a, InvoiceLine>,
 }
 
-fn invoice_info(client: &Client) -> Vec<InvoiceInfo> {
+fn invoice_info<'a>(client: &'a Snapshot) -> Vec<InvoiceInfo<'a>> {
     client.exec(|rows| {
-        let ivl = rows.join(&DB.invoice_line);
+        let ivl = rows.join(&db().invoice_line);
         rows.into_vec(InvoiceInfoDummy {
             track: ivl.track().name(),
             artist: ivl.track().album().artist().name(),
@@ -74,11 +99,11 @@ struct PlaylistTrackCount {
     track_count: i64,
 }
 
-fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
+fn playlist_track_count(client: &Snapshot) -> Vec<PlaylistTrackCount> {
     client.exec(|rows| {
-        let pl = rows.join(&DB.playlist);
+        let pl = rows.join(&db().playlist);
         let track_count = rows.query(|rows| {
-            let plt = rows.join(&DB.playlist_track);
+            let plt = rows.join(&db().playlist_track);
             rows.filter_on(plt.playlist(), pl);
             rows.count_distinct(plt)
         });
@@ -90,15 +115,15 @@ fn playlist_track_count(client: &Client) -> Vec<PlaylistTrackCount> {
     })
 }
 
-fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<f64>)> {
+fn avg_album_track_count_for_artist(client: &Snapshot) -> Vec<(String, Option<f64>)> {
     client.exec(|rows| {
-        let artist = rows.join(&DB.artist);
+        let artist = rows.join(&db().artist);
         let avg_track_count = rows.query(|rows| {
-            let album = rows.join(&DB.album);
+            let album = rows.join(&db().album);
             rows.filter_on(album.artist(), artist);
 
             let track_count = rows.query(|rows| {
-                let track = rows.join(&DB.track);
+                let track = rows.join(&db().track);
                 rows.filter_on(track.album(), album);
 
                 rows.count_distinct(track)
@@ -109,11 +134,11 @@ fn avg_album_track_count_for_artist(client: &Client) -> Vec<(String, Option<f64>
     })
 }
 
-fn count_reporting(client: &Client) -> Vec<(String, i64)> {
+fn count_reporting(client: &Snapshot) -> Vec<(String, i64)> {
     client.exec(|rows| {
-        let receiver = rows.join(&DB.employee);
+        let receiver = rows.join(&db().employee);
         let report_count = rows.query(|rows| {
-            let reporter = rows.join(&DB.employee);
+            let reporter = rows.join(&db().employee);
             // only count employees that report to someone
             let reports_to = rows.filter_some(reporter.reports_to());
             rows.filter_on(reports_to, receiver);
@@ -124,9 +149,9 @@ fn count_reporting(client: &Client) -> Vec<(String, i64)> {
     })
 }
 
-fn list_all_genres(client: &Client) -> Vec<String> {
+fn list_all_genres(client: &Snapshot) -> Vec<String> {
     client.exec(|rows| {
-        let genre = rows.join(&DB.genre_new);
+        let genre = rows.join(&db().genre_new);
         rows.into_vec(genre.name())
     })
 }
@@ -143,9 +168,9 @@ struct Stats {
     milis: i64,
 }
 
-fn filtered_track(client: &Client, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
+fn filtered_track(client: &Snapshot, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     client.exec(|rows| {
-        let track = rows.join(&DB.track);
+        let track = rows.join(&db().track);
         rows.filter(track.genre().name().eq(genre));
         rows.filter(track.milliseconds().lt(max_milis));
         rows.into_vec(FilteredTrackDummy {
@@ -165,11 +190,11 @@ struct GenreStats {
     milis_average: Option<f64>,
 }
 
-fn genre_statistics(client: &Client) -> Vec<GenreStats> {
+fn genre_statistics(client: &Snapshot) -> Vec<GenreStats> {
     client.exec(|rows| {
-        let genre = rows.join(&DB.genre_new);
+        let genre = rows.join(&db().genre_new);
         let (bytes, milis) = rows.query(|rows| {
-            let track = rows.join(&DB.track);
+            let track = rows.join(&db().track);
             rows.filter_on(track.genre(), genre);
             (
                 rows.avg(track.bytes().as_float()),
@@ -190,11 +215,11 @@ struct CustomerSpending {
     total_spending: f64,
 }
 
-fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
+fn customer_spending(client: &Snapshot) -> Vec<CustomerSpending> {
     client.exec(|rows| {
-        let customer = rows.join(&DB.customer);
+        let customer = rows.join(&db().customer);
         let total = rows.query(|rows| {
-            let invoice = rows.join(&DB.invoice);
+            let invoice = rows.join(&db().invoice);
             rows.filter_on(invoice.customer(), customer);
             rows.sum_float(invoice.total())
         });
@@ -206,9 +231,9 @@ fn customer_spending(client: &Client) -> Vec<CustomerSpending> {
     })
 }
 
-fn free_reference(c: Client) {
+fn free_reference(c: Snapshot) {
     let tracks = c.exec(|rows| {
-        let track = rows.join(&DB.track);
+        let track = rows.join(&db().track);
         rows.into_vec(track)
     });
 
