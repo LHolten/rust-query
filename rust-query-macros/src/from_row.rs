@@ -27,7 +27,8 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let typ = field.ty;
 
         defs.push(quote! {#name: #generic});
-        constraints.push(quote! {#generic: ::rust_query::private::FromRow<'_t, '_a, Out = #typ>});
+        constraints
+            .push(quote! {#generic: ::rust_query::private::FromRow<'_t, '_a, S, Out = #typ>});
         generics.push(generic);
         prepared.push(quote! {let mut #name_prepared = ::rust_query::private::FromRow::prepare(self.#name, cacher)});
         inits.push(quote! {#name: (#name_prepared)(row)});
@@ -38,10 +39,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             #(#defs),*
         }
 
-        impl<'_t, '_a #(,#original_generics)* #(,#constraints)*> ::rust_query::private::FromRow<'_t, '_a> for #dummy_name<#(#generics),*> {
+        impl<'_t, '_a #(,#original_generics)*, S #(,#constraints)*> ::rust_query::private::FromRow<'_t, '_a, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
 
-            fn prepare(self, mut cacher: ::rust_query::private::Cacher<'_t>) -> impl FnMut(::rust_query::private::Row<'_, '_t, '_a>) -> Self::Out {
+            fn prepare(self, mut cacher: ::rust_query::private::Cacher<'_t, S>) -> impl FnMut(::rust_query::private::Row<'_, '_t, '_a>) -> Self::Out {
                 #(#prepared;)*
                 move |row| #name {
                     #(#inits,)*

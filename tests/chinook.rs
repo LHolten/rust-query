@@ -23,7 +23,7 @@ static DATABASE: LazyLock<DbShared> = LazyLock::new(|| {
     }
 });
 
-pub fn db -> &'static Schema {
+pub fn db() -> &'static Schema {
     DB.with(|x| **x)
 }
 
