@@ -56,27 +56,29 @@ impl EqTyp for bool {}
 
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
-pub trait Value<'t>: Clone {
+/// `'t` is the context in which this value is valid
+/// `S` is the schema in which this value is valid
+pub trait Value<'t, S>: Clone {
     type Typ;
 
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
 
-    fn add<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> Add<Self, T>
+    fn add<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Add<Self, T>
     where
         Self::Typ: NumTyp,
     {
         Add(self, rhs)
     }
 
-    fn lt<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> Lt<Self, T>
+    fn lt<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Lt<Self, T>
     where
         Self::Typ: NumTyp,
     {
         Lt(self, rhs)
     }
 
-    fn eq<T: Value<'t, Typ = Self::Typ>>(self, rhs: T) -> Eq<Self, T>
+    fn eq<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Eq<Self, T>
     where
         Self::Typ: EqTyp,
     {
@@ -85,49 +87,41 @@ pub trait Value<'t>: Clone {
 
     fn not(self) -> MyNot<Self>
     where
-        Self: Value<'t, Typ = bool>,
+        Self: Value<'t, S, Typ = bool>,
     {
         MyNot(self)
     }
 
-    fn and<T: Value<'t, Typ = bool>>(self, rhs: T) -> And<Self, T>
+    fn and<T: Value<'t, S, Typ = bool>>(self, rhs: T) -> And<Self, T>
     where
-        Self: Value<'t, Typ = bool>,
+        Self: Value<'t, S, Typ = bool>,
     {
         And(self, rhs)
     }
 
-    fn unwrap_or<T: Value<'t>>(self, rhs: T) -> UnwrapOr<Self, T>
+    fn unwrap_or<T: Value<'t, S>>(self, rhs: T) -> UnwrapOr<Self, T>
     where
-        Self: Value<'t, Typ = Option<T::Typ>>,
+        Self: Value<'t, S, Typ = Option<T::Typ>>,
     {
         UnwrapOr(self, rhs)
     }
 
     fn not_null<Typ>(self) -> NotNull<Self>
     where
-        Self: Value<'t, Typ = Option<Typ>>,
+        Self: Value<'t, S, Typ = Option<Typ>>,
     {
         NotNull(self)
     }
 
     fn as_float(self) -> AsFloat<Self>
     where
-        Self: Value<'t, Typ = i64>,
+        Self: Value<'t, S, Typ = i64>,
     {
         AsFloat(self)
     }
 }
 
-impl<'t, T: Value<'t>> Value<'t> for &'_ T {
-    type Typ = T::Typ;
-
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        T::build_expr(self, b)
-    }
-}
-
-impl<'t, T: Value<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t> for Option<T> {
+impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for Option<T> {
     type Typ = Option<T::Typ>;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -137,7 +131,7 @@ impl<'t, T: Value<'t, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t> for Option<T>
     }
 }
 
-impl<'t> Value<'t> for &str {
+impl<'t, S> Value<'t, S> for &str {
     type Typ = String;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -145,7 +139,7 @@ impl<'t> Value<'t> for &str {
     }
 }
 
-impl<'t> Value<'t> for String {
+impl<'t, S> Value<'t, S> for String {
     type Typ = String;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -153,7 +147,7 @@ impl<'t> Value<'t> for String {
     }
 }
 
-impl<'t> Value<'t> for bool {
+impl<'t, S> Value<'t, S> for bool {
     type Typ = bool;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -161,7 +155,7 @@ impl<'t> Value<'t> for bool {
     }
 }
 
-impl<'t> Value<'t> for i64 {
+impl<'t, S> Value<'t, S> for i64 {
     type Typ = i64;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -169,7 +163,7 @@ impl<'t> Value<'t> for i64 {
     }
 }
 
-impl<'t> Value<'t> for f64 {
+impl<'t, S> Value<'t, S> for f64 {
     type Typ = f64;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -181,7 +175,7 @@ impl<'t> Value<'t> for f64 {
 #[derive(Clone)]
 pub struct UnixEpoch;
 
-impl<'t> Value<'t> for UnixEpoch {
+impl<'t, S> Value<'t, S> for UnixEpoch {
     type Typ = i64;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {

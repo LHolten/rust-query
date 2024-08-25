@@ -6,39 +6,35 @@ use crate::{
     client::{private_exec, Client},
     exec::Execute,
     insert::{private_try_insert, Writable},
-    migrate::Schema,
+    migrate::OwnedTransaction,
     private::FromRow,
     Free, HasId,
 };
 
 /// Only one [ThreadToken] exists in each thread.
 /// It can thus not be send across threads.
-pub struct ThreadToken<T>(*const T);
+pub struct ThreadToken {
+    pub(crate) transaction: Option<OwnedTransaction>,
+    _p: PhantomData<*const ()>,
+}
 
 thread_local! {
     static EXISTS: Cell<bool> = const { Cell::new(true) };
 }
 
-impl ThreadToken<()> {
+impl ThreadToken {
     /// Retrieve the [ThreadToken] if it was not retrieved yet
     pub fn acquire() -> Option<Self> {
-        EXISTS.replace(false).then_some(ThreadToken(null()))
-    }
-
-    pub fn release(self) {
-        EXISTS.set(true)
-    }
-
-    /// Change which schema is usable in the current thread.
-    pub fn schema<S: Schema>(self) -> (ThreadToken<S>, S) {
-        todo!()
+        EXISTS.replace(false).then_some(ThreadToken {
+            transaction: None,
+            _p: PhantomData,
+        })
     }
 }
 
-impl<T> ThreadToken<T> {
-    /// Change which schema is usable in the current thread.
-    pub fn finish(self, _: T) -> ThreadToken<()> {
-        ThreadToken(null())
+impl Drop for ThreadToken {
+    fn drop(&mut self) {
+        EXISTS.set(true)
     }
 }
 
@@ -59,21 +55,21 @@ impl<T> Deref for LatestToken<T> {
 }
 
 /// For each opened database there exist one [SnapshotToken].
-pub struct SnapshotToken<T> {
+pub struct SnapshotToken<S> {
     pub(crate) client: Arc<Client>,
-    pub(crate) schema: T,
+    pub(crate) schema: S,
 }
 
-impl<T> SnapshotToken<T> {
+impl<S> SnapshotToken<S> {
     /// Take a read-only snapshot of the database.
-    pub fn snapshot<'a>(&'a self, token: &'a mut ThreadToken<T>) -> Snapshot<'a> {
+    pub fn snapshot<'a>(&'a self, token: &'a mut ThreadToken) -> Snapshot<'a, S> {
         todo!()
     }
 }
 
-impl<T> LatestToken<T> {
+impl<S> LatestToken<S> {
     /// Claim write access to the database.
-    pub fn latest<'a>(&'a mut self, token: &'a mut ThreadToken<T>) -> Latest<'a> {
+    pub fn latest<'a>(&'a mut self, token: &'a mut ThreadToken) -> Latest<'a, S> {
         todo!()
     }
 }
@@ -82,22 +78,30 @@ impl<T> LatestToken<T> {
 /// This is why these types are both !Send.
 /// All rows in this snapshot live for at least `'a`.
 #[derive(Clone, Copy)]
-pub struct Snapshot<'a>(&'a Transaction<'a>, PhantomData<&'a mut ThreadToken<()>>);
-pub struct Latest<'a>(Snapshot<'a>);
+pub struct Snapshot<'a, S>(&'a Transaction<'a>, S, &'a ThreadToken);
+pub struct Latest<'a, S>(Snapshot<'a, S>);
 
-impl<'a> Deref for Latest<'a> {
-    type Target = Snapshot<'a>;
+impl<'a, S> Deref for Latest<'a, S> {
+    type Target = Snapshot<'a, S>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl Snapshot<'_> {
+impl<S> Deref for Snapshot<'_, S> {
+    type Target = S;
+
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
+
+impl<S> Snapshot<'_, S> {
     /// Execute a new query.
     pub fn exec<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
     {
         // Execution already happens in a transaction.
         // [Snapshot] and thus any [Latest] that it might be borrowed
@@ -107,7 +111,7 @@ impl Snapshot<'_> {
 
     /// Retrieve a single row from the database.
     /// This is convenient but quite slow.
-    pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, Out = T>) -> T {
+    pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, S, Out = T>) -> T {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
         let mut res = private_exec(&self.0, |e| e.into_vec(val));
@@ -115,7 +119,7 @@ impl Snapshot<'_> {
     }
 }
 
-impl Latest<'_> {
+impl<S> Latest<'_, S> {
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     /// Takes a mutable reference so that it can not be interleaved with a multi row query.

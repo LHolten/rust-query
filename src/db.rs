@@ -11,6 +11,7 @@ use crate::{
 };
 
 pub(crate) trait TableRef<'t>: Clone {
+    type Schema;
     fn build_table(&self, b: ValueBuilder) -> MyAlias;
 }
 
@@ -50,7 +51,7 @@ impl<T: Table, X: Clone> Deref for Col<T, X> {
     }
 }
 
-impl<'t, T, P: TableRef<'t>> Value<'t> for Col<T, P> {
+impl<'t, T, P: TableRef<'t>> Value<'t, P::Schema> for Col<T, P> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.inner.build_table(b), self.field)).into()
@@ -58,6 +59,7 @@ impl<'t, T, P: TableRef<'t>> Value<'t> for Col<T, P> {
 }
 
 impl<'t, T: HasId, P: TableRef<'t>> TableRef<'t> for Col<T, P> {
+    type Schema = T::Schema;
     fn build_table(&self, b: ValueBuilder) -> MyAlias {
         b.get_join::<T>(self.build_expr(b))
     }
@@ -95,13 +97,14 @@ impl<'t, T: Table> Deref for Db<'t, T> {
     }
 }
 
-impl<'t, T> TableRef<'t> for Db<'t, T> {
+impl<'t, T: Table> TableRef<'t> for Db<'t, T> {
+    type Schema = T::Schema;
     fn build_table(&self, _: ValueBuilder) -> MyAlias {
         self.table
     }
 }
 
-impl<'t, T: HasId> Value<'t> for Db<'t, T> {
+impl<'t, T: HasId> Value<'t, T::Schema> for Db<'t, T> {
     type Typ = T;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -152,7 +155,7 @@ impl<'t, T> From<Free<'t, T>> for sea_query::Value {
     }
 }
 
-impl<'t, T> Value<'t> for Free<'_, T> {
+impl<'t, T: HasId> Value<'t, T::Schema> for Free<'_, T> {
     type Typ = T;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -161,6 +164,7 @@ impl<'t, T> Value<'t> for Free<'_, T> {
 }
 
 impl<'t, T: HasId> TableRef<'t> for Free<'_, T> {
+    type Schema = T::Schema;
     fn build_table(&self, b: ValueBuilder) -> MyAlias {
         b.get_join::<T>(self.build_expr(b))
     }

@@ -134,7 +134,6 @@ pub fn migrate() -> DbClient<v2::Schema> {
         include_str!("Chinook_Sqlite.sql"),
         include_str!("migrate.sql"),
     ]);
-    let (mut t, s) = t.schema::<v0::Schema>();
     m.migrate(&mut t, |db| v1::up::Schema {
         album: Box::new(|album| v1::up::AlbumMigration {
             something: {
@@ -152,7 +151,6 @@ pub fn migrate() -> DbClient<v2::Schema> {
             })
         }),
     });
-    let (mut t, s) = t.finish(s).schema::<v1::Schema>();
     m.migrate(&mut t, |db| v2::up::Schema {
         customer: Box::new(|customer| v2::up::CustomerMigration {
             phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
@@ -161,11 +159,10 @@ pub fn migrate() -> DbClient<v2::Schema> {
             media_type: track.media_type().name(),
             composer_table: None::<Free<NoTable>>,
             byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
-            genre: db.get(s.genre_new.unique_original(track.genre())).unwrap(),
+            genre: db.get(db.genre_new.unique_original(track.genre())).unwrap(),
         }),
         genre_new: Box::new(|_genre_new| v2::up::GenreNewMigration {}),
     });
-    t.finish(s).release();
 
     m.finish().unwrap()
 }
