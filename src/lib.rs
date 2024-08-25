@@ -26,6 +26,7 @@ pub use query::Query;
 pub use rust_query_macros::schema;
 pub use rust_query_macros::FromRow;
 pub use transaction::{DbClient, Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
+use value::NoParam;
 pub use value::{UnixEpoch, Value};
 
 pub mod ops {
@@ -115,4 +116,14 @@ pub trait HasId: Table {
 }
 
 /// Special table name that is used as souce of newly created tables.
+#[derive(Clone, Copy)]
 pub struct NoTable(());
+
+impl NoParam for NoTable {}
+impl<S> Value<'_, S> for NoTable {
+    type Typ = NoTable;
+
+    fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
+        unreachable!("NoTable can not be constructed")
+    }
+}

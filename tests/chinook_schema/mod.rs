@@ -126,7 +126,7 @@ enum Schema {
 }
 
 pub fn migrate() -> DbClient<v2::Schema> {
-    let t = ThreadToken::acquire().unwrap();
+    let mut t = ThreadToken::acquire().unwrap();
 
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
@@ -157,7 +157,7 @@ pub fn migrate() -> DbClient<v2::Schema> {
         }),
         track: Box::new(|track| v2::up::TrackMigration {
             media_type: track.media_type().name(),
-            composer_table: None::<Free<NoTable>>,
+            composer_table: None::<NoTable>,
             byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
             genre: db.get(db.genre_new.unique_original(track.genre())).unwrap(),
         }),
