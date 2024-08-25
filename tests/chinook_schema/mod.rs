@@ -134,7 +134,7 @@ pub fn migrate() -> DbClient<v2::Schema> {
         include_str!("Chinook_Sqlite.sql"),
         include_str!("migrate.sql"),
     ]);
-    m.migrate(&mut t, |db| v1::up::Schema {
+    let m = m.migrate(&mut t, |db| v1::up::Schema {
         album: Box::new(|album| v1::up::AlbumMigration {
             something: {
                 let artist = db.get(album.artist().name());
@@ -151,7 +151,7 @@ pub fn migrate() -> DbClient<v2::Schema> {
             })
         }),
     });
-    m.migrate(&mut t, |db| v2::up::Schema {
+    let m = m.migrate(&mut t, |db| v2::up::Schema {
         customer: Box::new(|customer| v2::up::CustomerMigration {
             phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
         }),

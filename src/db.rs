@@ -6,7 +6,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
-    value::ValueBuilder,
+    value::{NoParam, ValueBuilder},
     HasId, Table, Value,
 };
 
@@ -51,6 +51,7 @@ impl<T: Table, X: Clone> Deref for Col<T, X> {
     }
 }
 
+impl<T, P> NoParam for Col<T, P> {}
 impl<'t, T, P: TableRef<'t>> Value<'t, P::Schema> for Col<T, P> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -104,6 +105,7 @@ impl<'t, T: Table> TableRef<'t> for Db<'t, T> {
     }
 }
 
+impl<T> NoParam for Db<'_, T> {}
 impl<'t, T: HasId> Value<'t, T::Schema> for Db<'t, T> {
     type Typ = T;
 
@@ -155,6 +157,7 @@ impl<'t, T> From<Free<'t, T>> for sea_query::Value {
     }
 }
 
+impl<T> NoParam for Free<'_, T> {}
 impl<'t, T: HasId> Value<'t, T::Schema> for Free<'_, T> {
     type Typ = T;
 

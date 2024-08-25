@@ -171,6 +171,7 @@ fn define_unique(
             #(#fields),*
         }
 
+        impl<#(#generics),*> ::rust_query::private::NoParam for #typ_name<#(#generics),*> {}
         impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
             type Typ = Option<super::#table_typ>;
 

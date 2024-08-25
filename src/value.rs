@@ -1,6 +1,6 @@
 pub mod operations;
 
-use operations::{Add, And, AsFloat, Eq, Lt, MyNot, NotNull, UnwrapOr};
+use operations::{Add, And, AsFloat, Eq, Lt, Not, NotNull, UnwrapOr};
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
@@ -53,12 +53,16 @@ impl EqTyp for String {}
 impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
+impl<T: HasId> EqTyp for T {}
+
+// This prevents implementing `Value<S>` downstream on upstream types with a downstream `S`.
+pub trait NoParam {}
 
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
 /// `'t` is the context in which this value is valid
 /// `S` is the schema in which this value is valid
-pub trait Value<'t, S>: Clone {
+pub trait Value<'t, S>: Clone + NoParam {
     type Typ;
 
     #[doc(hidden)]
@@ -85,11 +89,11 @@ pub trait Value<'t, S>: Clone {
         Eq(self, rhs)
     }
 
-    fn not(self) -> MyNot<Self>
+    fn not(self) -> Not<Self>
     where
         Self: Value<'t, S, Typ = bool>,
     {
-        MyNot(self)
+        Not(self)
     }
 
     fn and<T: Value<'t, S, Typ = bool>>(self, rhs: T) -> And<Self, T>
@@ -121,6 +125,8 @@ pub trait Value<'t, S>: Clone {
     }
 }
 
+impl<T: NoParam> NoParam for Option<T> {}
+
 impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for Option<T> {
     type Typ = Option<T::Typ>;
 
@@ -131,6 +137,8 @@ impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for 
     }
 }
 
+impl NoParam for &str {}
+
 impl<'t, S> Value<'t, S> for &str {
     type Typ = String;
 
@@ -138,6 +146,8 @@ impl<'t, S> Value<'t, S> for &str {
         SimpleExpr::from(*self)
     }
 }
+
+impl NoParam for String {}
 
 impl<'t, S> Value<'t, S> for String {
     type Typ = String;
@@ -147,6 +157,8 @@ impl<'t, S> Value<'t, S> for String {
     }
 }
 
+impl NoParam for bool {}
+
 impl<'t, S> Value<'t, S> for bool {
     type Typ = bool;
 
@@ -155,6 +167,8 @@ impl<'t, S> Value<'t, S> for bool {
     }
 }
 
+impl NoParam for i64 {}
+
 impl<'t, S> Value<'t, S> for i64 {
     type Typ = i64;
 
@@ -162,6 +176,8 @@ impl<'t, S> Value<'t, S> for i64 {
         SimpleExpr::from(*self)
     }
 }
+
+impl NoParam for f64 {}
 
 impl<'t, S> Value<'t, S> for f64 {
     type Typ = f64;
@@ -174,6 +190,8 @@ impl<'t, S> Value<'t, S> for f64 {
 /// Use this a value in a query to get the current datetime as a number.
 #[derive(Clone)]
 pub struct UnixEpoch;
+
+impl NoParam for UnixEpoch {}
 
 impl<'t, S> Value<'t, S> for UnixEpoch {
     type Typ = i64;

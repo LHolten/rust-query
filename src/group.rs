@@ -116,10 +116,16 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct Aggr<'t, S> {
     pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
+}
+
+impl<S> Copy for Aggr<'_, S> {}
+impl<S> Clone for Aggr<'_, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 type AggrCol<'t, S, T> = Col<T, Aggr<'t, S>>;
@@ -137,7 +143,7 @@ impl<'t, S, T> AggrCol<'t, S, T> {
     }
 }
 
-impl<'t, S: Clone> TableRef<'t> for Aggr<'t, S> {
+impl<'t, S> TableRef<'t> for Aggr<'t, S> {
     type Schema = S;
     fn build_table(&self, _: crate::value::ValueBuilder) -> MyAlias {
         self.table

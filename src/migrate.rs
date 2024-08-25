@@ -284,7 +284,7 @@ impl<S: Schema> Migrator<S> {
 
     /// Apply a database migration if `s` is [Some] (because that means the migration can be applied).
     /// If the migration was applied or if the database already had the new schema it is returned.
-    pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Self
+    pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
         F: FnOnce(ReadClient<'_, 'a, S>) -> M,
         M: Migration<'a, S, S = N>,

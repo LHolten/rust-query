@@ -2,7 +2,12 @@ use std::marker::PhantomData;
 
 use sea_query::Iden;
 
-use crate::{alias::Field, ast::MySelect, value::MyTyp, Value};
+use crate::{
+    alias::Field,
+    ast::MySelect,
+    value::{MyTyp, NoParam},
+    Value,
+};
 
 pub struct Cacher<'t, S> {
     pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
@@ -60,24 +65,22 @@ pub trait FromRow<'t, 'a, S> {
     fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
 }
 
-impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp>> FromRow<'t, 'a, S> for (T,) {
+impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp> + NoParam> FromRow<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
     fn prepare(self, mut cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
-        let cached = cacher.cache(self.0);
+        let cached = cacher.cache(self);
         move |row| row.get(cached)
     }
 }
 
-impl<'t, 'a, S, A: Value<'t, S, Typ: MyTyp>, B: Value<'t, S, Typ: MyTyp>> FromRow<'t, 'a, S>
-    for (A, B)
-{
-    type Out = (<A::Typ as MyTyp>::Out<'a>, <B::Typ as MyTyp>::Out<'a>);
+impl<'t, 'a, S, A: FromRow<'t, 'a, S>, B: FromRow<'t, 'a, S>> FromRow<'t, 'a, S> for (A, B) {
+    type Out = (A::Out, B::Out);
 
-    fn prepare(self, mut cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
-        let cached_a = cacher.cache(self.0);
-        let cached_b = cacher.cache(self.1);
-        move |row| (row.get(cached_a), row.get(cached_b))
+    fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+        let mut prepared_a = self.0.prepare(cacher);
+        let mut prepared_b = self.1.prepare(cacher);
+        move |row| (prepared_a(row), prepared_b(row))
     }
 }
 

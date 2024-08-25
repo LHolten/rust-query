@@ -231,13 +231,13 @@ fn customer_spending(db: &Snapshot<Schema>) -> Vec<CustomerSpending> {
     })
 }
 
-fn free_reference(c: &Snapshot<Schema>) {
-    let tracks = c.exec(|rows| {
+fn free_reference(db: &Snapshot<Schema>) {
+    let tracks = db.exec(|rows| {
         let track = rows.join(&db.track);
         rows.into_vec(track)
     });
 
     for track in tracks {
-        let name = c.get(track.album().artist().name());
+        let name = db.get(track.album().artist().name());
     }
 }

@@ -150,7 +150,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         q.filter(table.schema().eq("main"));
         q.filter(table.r#type().eq("table"));
         q.filter(table.name().eq("sqlite_schema").not());
-        q.into_vec((table.name(),))
+        q.into_vec(table.name())
     });
 
     let mut output = hash::Schema::default();
@@ -216,7 +216,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             q.filter(index.unique());
             q.filter(index.origin().eq("u"));
             q.filter(index.partial().not());
-            q.into_vec((index.name(),))
+            q.into_vec(index.name())
         });
 
         for unique_name in uniques {
@@ -224,7 +224,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             let columns = conn.new_query(|q| {
                 let col = q.join(&index_info);
                 let name = q.filter_some(col.name());
-                q.into_vec((name,))
+                q.into_vec(name)
             });
 
             let mut unique_def = hash::Unique::default();

@@ -30,7 +30,7 @@ pub use value::{UnixEpoch, Value};
 
 pub mod ops {
     pub use crate::db::Col;
-    pub use crate::value::operations::{Add, And, Assume, Eq, Lt, MyNot, NotNull, UnwrapOr};
+    pub use crate::value::operations::{Add, And, Assume, Eq, Lt, Not, NotNull, UnwrapOr};
 }
 
 pub mod args {
@@ -46,7 +46,7 @@ pub mod private {
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
-    pub use crate::value::{MyTyp, ValueBuilder};
+    pub use crate::value::{MyTyp, NoParam, ValueBuilder};
 
     pub use expect_test::Expect;
     pub use ref_cast::RefCast;
