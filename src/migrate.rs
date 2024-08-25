@@ -45,10 +45,10 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<'a, A: HasId> {
+pub trait TableMigration<A: HasId> {
     type T;
 
-    fn into_new(self, prev: Free<'a, A>, reader: Reader<'_>);
+    fn into_new(self, prev: Free<'_, A>, reader: Reader<'_>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -63,7 +63,7 @@ impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
     where
         M: FnMut(Free<'x, A>) -> O,
-        O: TableMigration<'x, A, T = B>,
+        O: TableMigration<A, T = B>,
     {
         self.create_from(move |db: Free<A>| Some(m(db)));
 
@@ -74,7 +74,7 @@ impl<'x> SchemaBuilder<'x> {
     pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
     where
         F: FnMut(Free<'x, A>) -> Option<O>,
-        O: TableMigration<'x, A, T = B>,
+        O: TableMigration<A, T = B>,
     {
         let new_table_name = self.scope.tmp_table();
         new_table::<B>(self.conn, new_table_name);
