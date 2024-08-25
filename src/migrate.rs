@@ -286,7 +286,7 @@ impl<S: Schema> Migrator<S> {
     /// If the migration was applied or if the database already had the new schema it is returned.
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
-        F: FnOnce(ReadClient<'_, 'a, S>) -> M,
+        F: FnOnce(&'a ReadClient<'a, S>) -> M,
         M: Migration<'a, S, S = N>,
     {
         let conn = self.transaction.borrow_transaction();
@@ -316,6 +316,7 @@ impl<S: Schema> Migrator<S> {
             transaction: self.transaction,
             _p: PhantomData,
         }
+        todo!()
     }
 
     /// Commit the migration transaction and return a [Client].
@@ -351,9 +352,16 @@ impl<S: Schema> Migrator<S> {
     }
 }
 
-pub struct ReadClient<'x, 'a, S>(&'x rusqlite::Transaction<'x>, S, &'a ThreadToken);
+pub struct ReadClient<'a, S>(&'a rusqlite::Transaction<'a>, &'a S, &'a ThreadToken);
 
-impl<S> Deref for ReadClient<'_, '_, S> {
+impl<S> Copy for ReadClient<'_, S> {}
+impl<S> Clone for ReadClient<'_, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S> Deref for ReadClient<'_, S> {
     type Target = S;
 
     fn deref(&self) -> &Self::Target {
@@ -361,7 +369,7 @@ impl<S> Deref for ReadClient<'_, '_, S> {
     }
 }
 
-impl<S> ReadClient<'_, '_, S> {
+impl<S> ReadClient<'_, S> {
     /// Same as [Client::exec].
     pub fn exec<'s, F, R>(&'s self, f: F) -> R
     where

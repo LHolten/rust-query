@@ -130,7 +130,7 @@ pub fn migrate() -> DbClient<v2::Schema> {
 
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
-    let mut m = m.create_db_sql::<v0::Schema>(&[
+    let m = m.create_db_sql::<v0::Schema>(&[
         include_str!("Chinook_Sqlite.sql"),
         include_str!("migrate.sql"),
     ]);
