@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{schema, DbClient, NoTable, Prepare, ThreadToken};
+use rust_query::{schema, LatestToken, NoTable, Prepare, ThreadToken};
 
 pub use v2::*;
 
@@ -125,7 +125,7 @@ enum Schema {
     },
 }
 
-pub fn migrate(t: &mut ThreadToken) -> DbClient<v2::Schema> {
+pub fn migrate(t: &mut ThreadToken) -> LatestToken<v2::Schema> {
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
     let m = m.create_db_sql::<v0::Schema>(&[

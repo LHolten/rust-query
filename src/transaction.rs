@@ -1,6 +1,6 @@
 use std::{any::Any, cell::Cell, marker::PhantomData, ops::Deref, rc::Rc, sync::Arc};
 
-use rusqlite::Transaction;
+use rusqlite::{Connection, Transaction};
 
 use crate::{
     client::{private_exec, Client},
@@ -37,47 +37,70 @@ impl Drop for ThreadToken {
     }
 }
 
-pub struct DbClient<T> {
-    pub latest: LatestToken<T>,
-    pub snapshot: SnapshotToken<T>,
-}
-
 /// For each opened database there exists one [LatestToken].
-pub struct LatestToken<T>(pub(crate) SnapshotToken<T>);
+pub struct LatestToken<T> {
+    pub(crate) snapshot: SnapshotToken<T>,
+}
 
 impl<T> Deref for LatestToken<T> {
     type Target = SnapshotToken<T>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.snapshot
     }
 }
 
-/// For each opened database there exist one [SnapshotToken].
 pub struct SnapshotToken<S> {
     pub(crate) client: Arc<Client>,
+    pub(crate) conn: Connection,
     pub(crate) schema: PhantomData<S>,
+}
+
+impl<S> Clone for SnapshotToken<S> {
+    fn clone(&self) -> Self {
+        use r2d2::ManageConnection;
+        let conn = self.client.manager.connect().unwrap();
+        Self {
+            client: self.client.clone(),
+            conn,
+            schema: self.schema.clone(),
+        }
+    }
 }
 
 impl<S> SnapshotToken<S> {
     /// Take a read-only snapshot of the database.
-    pub fn snapshot<'a>(&'a self, token: &'a mut ThreadToken) -> Snapshot<'a, S> {
-        todo!()
+    pub fn snapshot<'a>(&'a mut self, _token: &'a mut ThreadToken) -> Snapshot<'a, S> {
+        Snapshot {
+            transaction: self.conn.transaction().unwrap(),
+            _p: PhantomData,
+            _local: PhantomData,
+        }
     }
 }
 
 impl<S> LatestToken<S> {
     /// Claim write access to the database.
-    pub fn latest<'a>(&'a mut self, token: &'a mut ThreadToken) -> Latest<'a, S> {
-        todo!()
+    pub fn latest<'a>(&'a mut self, _token: &'a mut ThreadToken) -> Latest<'a, S> {
+        let connection = &mut self.snapshot.conn;
+        Latest(Snapshot {
+            transaction: connection
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .unwrap(),
+            _p: PhantomData,
+            _local: PhantomData,
+        })
     }
 }
 
-/// There can be at most one [Snapshot] for [Latest] in each thread.
+/// There can be at most one [Snapshot] or [Latest] in each thread.
 /// This is why these types are both !Send.
 /// All rows in this snapshot live for at least `'a`.
-#[derive(Clone, Copy)]
-pub struct Snapshot<'a, S>(&'a Transaction<'a>, S, &'a ThreadToken);
+pub struct Snapshot<'a, S> {
+    transaction: Transaction<'a>,
+    _p: PhantomData<&'a S>,
+    _local: PhantomData<*const ()>,
+}
 pub struct Latest<'a, S>(Snapshot<'a, S>);
 
 impl<'a, S> Deref for Latest<'a, S> {
@@ -97,7 +120,7 @@ impl<S> Snapshot<'_, S> {
         // Execution already happens in a transaction.
         // [Snapshot] and thus any [Latest] that it might be borrowed
         // from are borrowed immutably, so the rows can not change.
-        private_exec(&self.0, f)
+        private_exec(&self.transaction, f)
     }
 
     /// Retrieve a single row from the database.
@@ -105,7 +128,7 @@ impl<S> Snapshot<'_, S> {
     pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, S, Out = T>) -> T {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
-        let mut res = private_exec(&self.0, |e| e.into_vec(val));
+        let mut res = private_exec(&self.transaction, |e| e.into_vec(val));
         res.pop().unwrap()
     }
 }
@@ -119,7 +142,7 @@ impl<S> Latest<'_, S> {
         &'s mut self,
         val: impl Writable<T = T>,
     ) -> Option<Free<'s, T>> {
-        private_try_insert(&self.0 .0, val)
+        private_try_insert(&self.0.transaction, val)
     }
 
     // pub fn update(&mut self) {

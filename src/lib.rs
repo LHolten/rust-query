@@ -25,7 +25,7 @@ pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
 pub use rust_query_macros::FromRow;
-pub use transaction::{DbClient, Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
+pub use transaction::{Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
 use value::NoParam;
 pub use value::{UnixEpoch, Value};
 

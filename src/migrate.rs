@@ -25,7 +25,7 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     private::FromRow,
-    transaction::{DbClient, LatestToken, SnapshotToken, ThreadToken},
+    transaction::{LatestToken, SnapshotToken, ThreadToken},
     Db, Free, HasId, Table,
 };
 
@@ -303,7 +303,7 @@ impl<S: Schema> Migrator<S> {
             .unwrap()
             .borrow_transaction();
 
-        if let Some(s) = new_checked::<S>(conn) {
+        if let Some(_) = new_checked::<S>(conn) {
             let client = ReadClient::ref_cast(conn);
 
             let res = f(&client);
@@ -335,7 +335,7 @@ impl<S: Schema> Migrator<S> {
     }
 
     /// Commit the migration transaction and return a [Client].
-    pub fn finish(self, t: &mut ThreadToken) -> Option<DbClient<S>> {
+    pub fn finish(self, t: &mut ThreadToken) -> Option<LatestToken<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
         // we just erased the reference on the thread token, so we should have the only reference now.
@@ -352,15 +352,15 @@ impl<S: Schema> Migrator<S> {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
+        use r2d2::ManageConnection;
         let client = Arc::new(self.client);
-        Some(DbClient {
-            latest: LatestToken(SnapshotToken {
-                client: client.clone(),
-                schema: PhantomData,
-            }),
+        let conn = client.manager.connect().unwrap();
+
+        Some(LatestToken {
             snapshot: SnapshotToken {
-                client,
+                client: client,
                 schema: PhantomData,
+                conn,
             },
         })
     }
