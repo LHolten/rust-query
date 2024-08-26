@@ -72,7 +72,7 @@ impl<S> Clone for ReadClient<S> {
 
 impl<S> ReadClient<S> {
     /// Take a read-only snapshot of the database.
-    pub fn snapshot<'a>(&'a mut self, _token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
+    pub fn read<'a>(&'a mut self, _token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
         ReadTransaction {
             transaction: self.conn.transaction().unwrap(),
             _p: PhantomData,
@@ -83,7 +83,7 @@ impl<S> ReadClient<S> {
 
 impl<S> WriteClient<S> {
     /// Claim write access to the database.
-    pub fn latest<'a>(&'a mut self, _token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
+    pub fn write<'a>(&'a mut self, _token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
         let connection = &mut self.snapshot.conn;
         WriteTransaction(ReadTransaction {
             transaction: connection
