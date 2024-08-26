@@ -25,6 +25,7 @@ pub struct TableList;
 #[derive(RefCast)]
 pub struct TableListDummy<T>(T);
 
+#[allow(unused)]
 impl<T: Clone> TableListDummy<T> {
     field! {schema: String}
     field! {name: String}
@@ -74,6 +75,7 @@ pub struct ForeignKeyList(pub String);
 #[derive(RefCast)]
 pub struct ForeignKeyListDummy<T>(T);
 
+#[allow(unused)]
 impl<T: Clone> ForeignKeyListDummy<T> {
     field! {table: String}
     field! {from: String}

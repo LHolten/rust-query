@@ -4,7 +4,7 @@ use ref_cast::RefCast;
 use rusqlite::{Connection, Transaction};
 
 use crate::{
-    client::{private_exec, Client},
+    client::private_exec,
     exec::Execute,
     insert::{private_try_insert, Writable},
     private::FromRow,
@@ -52,7 +52,7 @@ impl<T> Deref for LatestToken<T> {
 }
 
 pub struct SnapshotToken<S> {
-    pub(crate) client: Arc<Client>,
+    pub(crate) manager: Arc<r2d2_sqlite::SqliteConnectionManager>,
     pub(crate) conn: Connection,
     pub(crate) schema: PhantomData<S>,
 }
@@ -60,10 +60,9 @@ pub struct SnapshotToken<S> {
 impl<S> Clone for SnapshotToken<S> {
     fn clone(&self) -> Self {
         use r2d2::ManageConnection;
-        let conn = self.client.manager.connect().unwrap();
         Self {
-            client: self.client.clone(),
-            conn,
+            conn: self.manager.connect().unwrap(),
+            manager: self.manager.clone(),
             schema: self.schema.clone(),
         }
     }

@@ -1,38 +1,6 @@
-use std::{
-    cell::OnceCell,
-    marker::PhantomData,
-    sync::{Condvar, Mutex},
-};
+use std::marker::PhantomData;
 
 use crate::{ast::MySelect, exec::Execute, query::Query};
-
-pub struct Client {
-    pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
-    pub(crate) cvar: Condvar,
-    pub(crate) updates: Mutex<bool>,
-}
-
-thread_local! {
-    static CONN: OnceCell<rusqlite::Connection> = const { OnceCell::new() }
-}
-
-impl Client {
-    pub(crate) fn new(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
-        Self {
-            manager,
-            cvar: Condvar::new(),
-            updates: Mutex::new(true),
-        }
-    }
-}
-
-impl Client {
-    /// Wait for any changes to the database.
-    pub fn wait(&self) {
-        let updates = self.updates.lock().unwrap();
-        *self.cvar.wait_while(updates, |&mut x| !x).unwrap() = false;
-    }
-}
 
 /// Extension trait to use this library with [rusqlite::Connection] directly.
 pub(crate) trait QueryBuilder {

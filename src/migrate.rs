@@ -17,7 +17,7 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
-    client::{Client, QueryBuilder},
+    client::QueryBuilder,
     db::Db,
     from_row::AdHoc,
     hash,
@@ -165,7 +165,7 @@ pub trait Migration<'t> {
     fn tables(self, b: &mut SchemaBuilder<'t>);
 }
 
-/// [Prepare] can be used to open a database in a file or in memory.
+/// [Prepare] is used to open a database from a file or in memory.
 pub struct Prepare {
     manager: r2d2_sqlite::SqliteConnectionManager,
     conn: Connection,
@@ -213,7 +213,8 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement if the database was just created.
-    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Migrator<S> {
+    /// Returns [None] if the database schema is older than `S`.
+    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Option<Migrator<S>> {
         self.migrator::<S>(|conn| {
             for sql in sql {
                 conn.execute_batch(sql).unwrap();
@@ -222,7 +223,8 @@ impl Prepare {
     }
 
     /// Create empty tables based on the schema if the database was just created.
-    pub fn create_db_empty<S: Schema>(self) -> Migrator<S> {
+    /// Returns [None] if the database schema is older than `S`.
+    pub fn create_db_empty<S: Schema>(self) -> Option<Migrator<S>> {
         self.migrator::<S>(|conn| {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
@@ -233,7 +235,7 @@ impl Prepare {
         })
     }
 
-    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Migrator<S> {
+    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Option<Migrator<S>> {
         self.conn
             .pragma_update(None, "foreign_keys", "OFF")
             .unwrap();
@@ -250,45 +252,38 @@ impl Prepare {
         // check if this database is newly created
         if schema_version == 0 {
             f(conn);
-            foreign_key_check(conn);
+            foreign_key_check::<S>(conn);
             set_user_version(conn, S::VERSION).unwrap();
         }
 
-        Migrator {
-            client: Client::new(self.manager),
+        // We can not migrate databases older than `S`
+        if user_version(conn).unwrap() < S::VERSION {
+            return None;
+        }
+
+        Some(Migrator {
+            manager: self.manager,
             transaction: Rc::new(owned),
             _p: PhantomData,
             _local: PhantomData,
-        }
+        })
     }
 }
 
-/// This type is used to apply database migrations.
+/// [Migrator] is used to apply database migrations.
 pub struct Migrator<S> {
-    client: Client,
+    manager: r2d2_sqlite::SqliteConnectionManager,
     transaction: Rc<OwnedTransaction>,
     _p: PhantomData<S>,
-    // we want to make sure that Migrator is always used with the same ThreadToken
-    // so we make it local to the current thread
+    // We want to make sure that Migrator is always used with the same ThreadToken
+    // so we make it local to the current thread.
+    // This is mostly important because the thread token can have a reference to our transaction.
     _local: PhantomData<*const ()>,
 }
 
 impl<S: Schema> Migrator<S> {
-    /// Execute a new query.
-    // pub fn new_query<'s, F, R>(&'s self, f: F) -> Option<R>
-    // where
-    //     F: for<'a> FnOnce(&'s S, &'a mut Exec<'s, 'a>) -> R,
-    // {
-    //     let schema = self.schema.as_ref()?;
-    //     Some(
-    //         self.transaction
-    //             .borrow_transaction()
-    //             .new_query(|q| f(schema, q)),
-    //     )
-    // }
-
-    /// Apply a database migration if `s` is [Some] (because that means the migration can be applied).
-    /// If the migration was applied or if the database already had the new schema it is returned.
+    /// Apply a database migration if the current schema is `S`.
+    /// The result is a migrator for the next schema `N`.
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
         F: FnOnce(&'a Snapshot<'a, S>) -> M,
@@ -301,7 +296,7 @@ impl<S: Schema> Migrator<S> {
             .unwrap()
             .borrow_transaction();
 
-        if let Some(_) = new_checked::<S>(conn) {
+        if user_version(conn).unwrap() == S::VERSION {
             let client = Snapshot::ref_cast(conn);
 
             let res = f(client);
@@ -320,12 +315,12 @@ impl<S: Schema> Migrator<S> {
                 let sql = rename.to_string(SqliteQueryBuilder);
                 conn.execute(&sql, []).unwrap();
             }
-            foreign_key_check(conn);
+            foreign_key_check::<N>(conn);
             set_user_version(conn, N::VERSION).unwrap();
         }
 
         Migrator {
-            client: self.client,
+            manager: self.manager,
             transaction: self.transaction,
             _p: PhantomData,
             _local: PhantomData,
@@ -333,17 +328,19 @@ impl<S: Schema> Migrator<S> {
     }
 
     /// Commit the migration transaction and return a [LatestToken].
+    /// Returns [None] if the database schema version is newer than `S`.
     pub fn finish(self, t: &mut ThreadToken) -> Option<LatestToken<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
         // we just erased the reference on the thread token, so we should have the only reference now.
         let mut transaction = Rc::into_inner(self.transaction).unwrap();
-        transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
-        let Some(_) = new_checked::<S>(transaction.borrow_transaction()) else {
+        if user_version(transaction.borrow_transaction()).unwrap() != S::VERSION {
             return None;
-        };
+        }
 
+        // Set transaction to commit now that we are happy with the schema.
+        transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
         let heads = transaction.into_heads();
         heads
             .conn
@@ -351,14 +348,11 @@ impl<S: Schema> Migrator<S> {
             .unwrap();
 
         use r2d2::ManageConnection;
-        let client = Arc::new(self.client);
-        let conn = client.manager.connect().unwrap();
-
         Some(LatestToken {
             snapshot: SnapshotToken {
-                client: client,
+                conn: self.manager.connect().unwrap(),
+                manager: Arc::new(self.manager),
                 schema: PhantomData,
-                conn,
             },
         })
     }
@@ -374,24 +368,7 @@ fn set_user_version(conn: &Connection, v: i64) -> Result<(), rusqlite::Error> {
     conn.pragma_update(None, "user_version", v)
 }
 
-fn new_checked<T: Schema>(conn: &rusqlite::Transaction) -> Option<T> {
-    if user_version(conn).unwrap() != T::VERSION {
-        return None;
-    }
-
-    let mut b = TableTypBuilder::default();
-    T::typs(&mut b);
-    pretty_assertions::assert_eq!(
-        b.ast,
-        read_schema(conn),
-        "user version is equal ({}), but schema is different (expected left, but got right)",
-        T::VERSION
-    );
-
-    Some(T::new())
-}
-
-fn foreign_key_check(conn: &Connection) {
+fn foreign_key_check<S: Schema>(conn: &rusqlite::Transaction) {
     let errors = conn
         .prepare("PRAGMA foreign_key_check")
         .unwrap()
@@ -401,4 +378,12 @@ fn foreign_key_check(conn: &Connection) {
     if errors != 0 {
         panic!("migration violated foreign key constraint")
     }
+
+    let mut b = TableTypBuilder::default();
+    S::typs(&mut b);
+    pretty_assertions::assert_eq!(
+        b.ast,
+        read_schema(conn),
+        "schema is different (expected left, but got right)",
+    );
 }
