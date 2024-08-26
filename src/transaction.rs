@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell, marker::PhantomData, ops::Deref, rc::Rc, sync::Arc};
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 use ref_cast::RefCast;
 use rusqlite::{Connection, Transaction};
@@ -8,35 +8,9 @@ use crate::{
     exec::Execute,
     insert::{private_try_insert, Writable},
     private::FromRow,
+    token::ThreadToken,
     Free, HasId,
 };
-
-/// Only one [ThreadToken] exists in each thread.
-/// It can thus not be send across threads.
-pub struct ThreadToken {
-    _p: PhantomData<*const ()>,
-    pub(crate) stuff: Rc<dyn Any>,
-}
-
-thread_local! {
-    static EXISTS: Cell<bool> = const { Cell::new(true) };
-}
-
-impl ThreadToken {
-    /// Retrieve the [ThreadToken] if it was not retrieved yet on this thread.
-    pub fn acquire() -> Option<Self> {
-        EXISTS.replace(false).then_some(ThreadToken {
-            _p: PhantomData,
-            stuff: Rc::new(()),
-        })
-    }
-}
-
-impl Drop for ThreadToken {
-    fn drop(&mut self) {
-        EXISTS.set(true)
-    }
-}
 
 /// For each opened database there exists one [WriteClient].
 ///
@@ -72,9 +46,12 @@ impl<S> Clone for ReadClient<S> {
 
 impl<S> ReadClient<S> {
     /// Take a read-only snapshot of the database.
-    pub fn read<'a>(&'a mut self, _token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
+    pub fn read<'a>(&'a self, _token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
         ReadTransaction {
-            transaction: self.conn.transaction().unwrap(),
+            // this can not be a nested transaction, because we create it from the original connection.
+            // we also know that it is not concurrent with any write transactions on the same connection.
+            // (sqlite does not guarantee isolation for those)
+            transaction: self.conn.unchecked_transaction().unwrap(),
             _p: PhantomData,
             _local: PhantomData,
         }
@@ -104,7 +81,7 @@ impl<S> WriteClient<S> {
 pub struct ReadTransaction<'a, S> {
     transaction: Transaction<'a>,
     _p: PhantomData<&'a S>,
-    _local: PhantomData<*const ()>,
+    _local: PhantomData<ThreadToken>,
 }
 
 /// Same as [ReadTransaction], but also allows inserting new rows.
@@ -150,6 +127,10 @@ impl<S> WriteTransaction<'_, S> {
         val: impl Writable<T = T>,
     ) -> Option<Free<'s, T>> {
         private_try_insert(&self.0.transaction, val)
+    }
+
+    pub fn commit(self) {
+        self.0.transaction.commit().unwrap()
     }
 
     // pub fn update(&mut self) {

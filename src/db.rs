@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{NoParam, ValueBuilder},
-    HasId, Table, Value,
+    HasId, Table, ThreadToken, Value,
 };
 
 pub(crate) trait TableRef<'t>: Clone {
@@ -119,7 +119,7 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Db<'t, T> {
 /// Restricted to a single thread to prevent it from being used in a different transaction.
 pub struct Free<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
-    pub(crate) _local: PhantomData<*const ()>,
+    pub(crate) _local: PhantomData<ThreadToken>,
     pub(crate) idx: i64,
 }
 
