@@ -260,6 +260,7 @@ impl Prepare {
             client: Client::new(self.manager),
             transaction: Rc::new(owned),
             _p: PhantomData,
+            _local: PhantomData,
         }
     }
 }
@@ -269,6 +270,9 @@ pub struct Migrator<S> {
     client: Client,
     transaction: Rc<OwnedTransaction>,
     _p: PhantomData<S>,
+    // we want to make sure that Migrator is always used with the same ThreadToken
+    // so we make it local to the current thread
+    _local: PhantomData<*const ()>,
 }
 
 impl<S: Schema> Migrator<S> {
@@ -292,7 +296,6 @@ impl<S: Schema> Migrator<S> {
         F: FnOnce(&'a ReadClient<'a, S>) -> M,
         M: Migration<'a, From = S, To = N>,
     {
-        // let conn = self.transaction.borrow_transaction();
         t.stuff = self.transaction.clone();
         let conn = t
             .stuff
@@ -327,12 +330,15 @@ impl<S: Schema> Migrator<S> {
             client: self.client,
             transaction: self.transaction,
             _p: PhantomData,
+            _local: PhantomData,
         }
     }
 
     /// Commit the migration transaction and return a [Client].
     pub fn finish(self, t: &mut ThreadToken) -> Option<DbClient<S>> {
+        // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
+        // we just erased the reference on the thread token, so we should have the only reference now.
         let mut transaction = Rc::into_inner(self.transaction).unwrap();
         transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
@@ -371,15 +377,6 @@ pub struct ReadClient<'a, S>(
     PhantomData<S>,
     PhantomData<&'a ThreadToken>,
 );
-
-impl<S> Deref for ReadClient<'_, S> {
-    type Target = S;
-
-    fn deref(&self) -> &Self::Target {
-        // &self.1
-        todo!()
-    }
-}
 
 impl<S> ReadClient<'_, S> {
     /// Same as [Client::exec].

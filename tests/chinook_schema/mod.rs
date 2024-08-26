@@ -157,7 +157,9 @@ pub fn migrate(t: &mut ThreadToken) -> DbClient<v2::Schema> {
             media_type: track.media_type().name(),
             composer_table: None::<NoTable>,
             byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
-            genre: db.get(db.genre_new.unique_original(track.genre())).unwrap(),
+            genre: db
+                .get(v1::GenreNew::unique_original(track.genre()))
+                .unwrap(),
         }),
         genre_new: Box::new(|_genre_new| v2::up::GenreNewMigration {}),
     });

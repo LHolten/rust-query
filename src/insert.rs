@@ -57,6 +57,7 @@ pub(crate) fn private_try_insert<'a, T: HasId>(
         .next();
     id.map(|id| Free {
         _p: PhantomData,
+        _local: PhantomData,
         idx: id.unwrap(),
     })
 }

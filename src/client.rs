@@ -4,14 +4,7 @@ use std::{
     sync::{Condvar, Mutex},
 };
 
-use crate::{
-    ast::MySelect,
-    exec::Execute,
-    insert::{private_try_insert, Writable},
-    private::FromRow,
-    query::Query,
-    Free, HasId,
-};
+use crate::{ast::MySelect, exec::Execute, query::Query};
 
 pub struct Client {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,

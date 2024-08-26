@@ -116,8 +116,10 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Db<'t, T> {
 
 /// Table reference that can be used in any query as long as it is alive.
 /// Covariant in `'t`.
+/// Restricted to a single thread to prevent it from being used in a different transaction.
 pub struct Free<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
+    pub(crate) _local: PhantomData<*const ()>,
     pub(crate) idx: i64,
 }
 
@@ -146,6 +148,7 @@ impl<T> FromSql for Free<'_, T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(Self {
             _p: PhantomData,
+            _local: PhantomData,
             idx: value.as_i64()?,
         })
     }
