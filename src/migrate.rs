@@ -2,10 +2,12 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     path::Path,
+    rc::Rc,
     sync::{atomic::AtomicBool, Arc},
 };
 
 use ouroboros::self_referencing;
+use ref_cast::RefCast;
 use rusqlite::{config::DbConfig, Connection, Transaction};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
@@ -256,7 +258,7 @@ impl Prepare {
 
         Migrator {
             client: Client::new(self.manager),
-            transaction: owned,
+            transaction: Rc::new(owned),
             _p: PhantomData,
         }
     }
@@ -265,7 +267,7 @@ impl Prepare {
 /// This type is used to apply database migrations.
 pub struct Migrator<S> {
     client: Client,
-    transaction: OwnedTransaction,
+    transaction: Rc<OwnedTransaction>,
     _p: PhantomData<S>,
 }
 
@@ -288,12 +290,20 @@ impl<S: Schema> Migrator<S> {
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
         F: FnOnce(&'a ReadClient<'a, S>) -> M,
-        M: Migration<'a, S, S = N>,
+        M: Migration<'a, From = S, To = N>,
     {
-        let conn = self.transaction.borrow_transaction();
+        // let conn = self.transaction.borrow_transaction();
+        t.stuff = self.transaction.clone();
+        let conn = t
+            .stuff
+            .downcast_ref::<OwnedTransaction>()
+            .unwrap()
+            .borrow_transaction();
+
         if let Some(s) = new_checked::<S>(conn) {
-            let client = ReadClient(conn, s, t);
-            let res = f(client);
+            let client = ReadClient::ref_cast(conn);
+
+            let res = f(&client);
             let mut builder = SchemaBuilder {
                 scope: Default::default(),
                 conn,
@@ -312,28 +322,29 @@ impl<S: Schema> Migrator<S> {
             foreign_key_check(conn);
             set_user_version(conn, N::VERSION).unwrap();
         }
+
         Migrator {
             client: self.client,
             transaction: self.transaction,
             _p: PhantomData,
         }
-        todo!()
     }
 
     /// Commit the migration transaction and return a [Client].
-    pub fn finish(mut self) -> Option<DbClient<S>> {
-        self.transaction
-            .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
+    pub fn finish(self, t: &mut ThreadToken) -> Option<DbClient<S>> {
+        t.stuff = Rc::new(());
+        let mut transaction = Rc::into_inner(self.transaction).unwrap();
+        transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
         // TODO: clean this up
-        let Some(schema) = new_checked(self.transaction.borrow_transaction()) else {
+        let Some(schema) = new_checked(transaction.borrow_transaction()) else {
             return None;
         };
-        let Some(schema2) = new_checked(self.transaction.borrow_transaction()) else {
+        let Some(schema2) = new_checked(transaction.borrow_transaction()) else {
             return None;
         };
 
-        let heads = self.transaction.into_heads();
+        let heads = transaction.into_heads();
         heads
             .conn
             .pragma_update(None, "foreign_keys", "ON")
@@ -353,20 +364,20 @@ impl<S: Schema> Migrator<S> {
     }
 }
 
-pub struct ReadClient<'a, S>(&'a rusqlite::Transaction<'a>, &'a S, &'a ThreadToken);
-
-impl<S> Copy for ReadClient<'_, S> {}
-impl<S> Clone for ReadClient<'_, S> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
+#[derive(RefCast)]
+#[repr(transparent)]
+pub struct ReadClient<'a, S>(
+    rusqlite::Transaction<'a>,
+    PhantomData<S>,
+    PhantomData<&'a ThreadToken>,
+);
 
 impl<S> Deref for ReadClient<'_, S> {
     type Target = S;
 
     fn deref(&self) -> &Self::Target {
-        &self.1
+        // &self.1
+        todo!()
     }
 }
 

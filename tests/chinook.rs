@@ -1,42 +1,10 @@
 mod chinook_schema;
 
-use std::cell::Cell;
-use std::sync::{LazyLock, Mutex};
-use std::{cell::LazyCell, fmt::Debug};
+use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{
-    DbClient, Free, FromRow, LatestToken, Snapshot, SnapshotToken, ThreadToken, Value,
-};
-
-struct DbShared {
-    latest: Mutex<LatestToken<Schema>>,
-    snapshot: SnapshotToken<Schema>,
-}
-
-static DATABASE: LazyLock<DbShared> = LazyLock::new(|| {
-    let db = migrate();
-    DbShared {
-        latest: Mutex::new(db.latest),
-        snapshot: db.snapshot,
-    }
-});
-
-pub fn db() -> &'static Schema {
-    DB.with(|x| **x)
-}
-
-thread_local! {
-    static TOKEN: Cell<Option<ThreadToken<Schema>>> = Cell::new(None);
-
-    static DB: LazyCell<&'static Schema> = LazyCell::new(|| {
-        let token = ThreadToken::acquire().unwrap();
-        let (token, schema) = token.schema();
-        TOKEN.set(Some(token));
-        Box::leak(Box::new(schema))
-    });
-}
+use rust_query::{Free, FromRow, Snapshot, ThreadToken, Value};
 
 fn assert_dbg(val: impl Debug, file_name: &str) {
     let path = format!("chinook_tests/{file_name}.dbg");
@@ -45,13 +13,9 @@ fn assert_dbg(val: impl Debug, file_name: &str) {
 
 #[test]
 fn test_queries() {
-    LazyLock::force(&DATABASE);
-    DB.with(|db| {
-        LazyCell::force(&db);
-    });
-    let mut thread_token = TOKEN.take().unwrap();
-    let mut latest_token = DATABASE.latest.lock().unwrap();
-    let mut db = latest_token.latest(&mut thread_token);
+    let mut token = ThreadToken::acquire().unwrap();
+    let mut db = migrate(&mut token);
+    let mut db = db.latest.latest(&mut token);
 
     let res = invoice_info(&db);
     assert_dbg(&res[..20], "invoice_info");

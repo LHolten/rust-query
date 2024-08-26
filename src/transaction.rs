@@ -1,4 +1,4 @@
-use std::{cell::Cell, marker::PhantomData, ops::Deref, ptr::null, sync::Arc};
+use std::{any::Any, cell::Cell, marker::PhantomData, ops::Deref, rc::Rc, sync::Arc};
 
 use rusqlite::Transaction;
 
@@ -6,7 +6,6 @@ use crate::{
     client::{private_exec, Client},
     exec::Execute,
     insert::{private_try_insert, Writable},
-    migrate::OwnedTransaction,
     private::FromRow,
     Free, HasId,
 };
@@ -14,8 +13,8 @@ use crate::{
 /// Only one [ThreadToken] exists in each thread.
 /// It can thus not be send across threads.
 pub struct ThreadToken {
-    pub(crate) transaction: Option<OwnedTransaction>,
     _p: PhantomData<*const ()>,
+    pub(crate) stuff: Rc<dyn Any>,
 }
 
 thread_local! {
@@ -26,8 +25,8 @@ impl ThreadToken {
     /// Retrieve the [ThreadToken] if it was not retrieved yet
     pub fn acquire() -> Option<Self> {
         EXISTS.replace(false).then_some(ThreadToken {
-            transaction: None,
             _p: PhantomData,
+            stuff: Rc::new(()),
         })
     }
 }
