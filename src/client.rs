@@ -4,19 +4,12 @@ use std::{
     sync::{Condvar, Mutex},
 };
 
-use crate::{
-    ast::MySelect,
-    exec::Execute,
-    insert::{private_try_insert, Writable},
-    private::FromRow,
-    query::Query,
-    Free, HasId,
-};
+use crate::{ast::MySelect, exec::Execute, query::Query};
 
 pub struct Client {
-    manager: r2d2_sqlite::SqliteConnectionManager,
-    cvar: Condvar,
-    updates: Mutex<bool>,
+    pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
+    pub(crate) cvar: Condvar,
+    pub(crate) updates: Mutex<bool>,
 }
 
 thread_local! {
@@ -34,48 +27,6 @@ impl Client {
 }
 
 impl Client {
-    /// Execute a new query.
-    pub fn exec<'s, F, R>(&'s self, f: F) -> R
-    where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
-    {
-        use r2d2::ManageConnection;
-        // Select needs it's own connection for isolation, because
-        // sqlite does not provide isolation within a connection.
-        let mut conn = self.manager.connect().unwrap();
-        // Additionally, because rows have dynamic columns,
-        // we need to be able to do multiple selects on the same snapshot.
-        // For this we need a transaction.
-        let transaction = conn.transaction().unwrap();
-        private_exec(&transaction, f)
-    }
-
-    /// Retrieve a single value from the database.
-    /// This is convenient but quite slow.
-    pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, Out = T>) -> T {
-        use r2d2::ManageConnection;
-        let mut res = CONN.with(|conn| {
-            let conn = conn.get_or_init(|| self.manager.connect().unwrap());
-            // this is correct without a transaction, because we only consume one row
-            private_exec(conn, |e| e.into_vec(val))
-        });
-        res.pop().unwrap()
-    }
-
-    /// Try inserting a value into the database.
-    /// Returns a reference to the new inserted value or `None` if there is a conflict.
-    #[allow(clippy::needless_lifetimes)]
-    pub fn try_insert<'s, T: HasId>(&'s self, val: impl Writable<T = T>) -> Option<Free<'s, T>> {
-        use r2d2::ManageConnection;
-        let res = CONN.with(|conn| {
-            let conn = conn.get_or_init(|| self.manager.connect().unwrap());
-            private_try_insert(conn, val)
-        });
-        *self.updates.lock().unwrap() = true;
-        self.cvar.notify_all();
-        res
-    }
-
     /// Wait for any changes to the database.
     pub fn wait(&self) {
         let updates = self.updates.lock().unwrap();
@@ -85,24 +36,24 @@ impl Client {
 
 /// Extension trait to use this library with [rusqlite::Connection] directly.
 pub(crate) trait QueryBuilder {
-    fn new_query<'s, F, R>(&'s self, f: F) -> R
+    fn new_query<'s, F, R, S>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R;
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R;
 }
 
 impl QueryBuilder for rusqlite::Transaction<'_> {
-    fn new_query<'s, F, R>(&'s self, f: F) -> R
+    fn new_query<'s, F, R, S>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
     {
         private_exec(self, f)
     }
 }
 
 /// For internal use only as it does not have required bounds
-pub(crate) fn private_exec<'s, F, R>(conn: &rusqlite::Connection, f: F) -> R
+pub(crate) fn private_exec<'s, F, R, S>(conn: &rusqlite::Connection, f: F) -> R
 where
-    F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
+    F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
 {
     let mut ast = MySelect::default();
     let q = Query {

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rust_query::{schema, Client, Free, NoTable, Prepare};
+use rust_query::{schema, LatestToken, NoTable, Prepare, ThreadToken};
 
 pub use v2::*;
 
@@ -125,15 +125,14 @@ enum Schema {
     },
 }
 
-pub fn migrate() -> (Client, Schema) {
+pub fn migrate(t: &mut ThreadToken) -> LatestToken<v2::Schema> {
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
-    let (mut m, s) = m.create_db_sql(&[
+    let m = m.create_db_sql::<v0::Schema>(&[
         include_str!("Chinook_Sqlite.sql"),
         include_str!("migrate.sql"),
     ]);
-
-    let s = m.migrate(s, |_s, db| v1::up::Schema {
+    let m = m.migrate(t, |db| v1::up::Schema {
         album: Box::new(|album| v1::up::AlbumMigration {
             something: {
                 let artist = db.get(album.artist().name());
@@ -150,19 +149,21 @@ pub fn migrate() -> (Client, Schema) {
             })
         }),
     });
-    let s = m.migrate(s, |s, db| v2::up::Schema {
+    let m = m.migrate(t, |db| v2::up::Schema {
         customer: Box::new(|customer| v2::up::CustomerMigration {
             phone: db.get(customer.phone()).and_then(|x| x.parse::<i64>().ok()),
         }),
         track: Box::new(|track| v2::up::TrackMigration {
             media_type: track.media_type().name(),
-            composer_table: None::<Free<NoTable>>,
+            composer_table: None::<NoTable>,
             byte_price: db.get(track.unit_price()) / db.get(track.bytes()) as f64,
-            genre: db.get(s.genre_new.unique_original(track.genre())).unwrap(),
+            genre: db
+                .get(v1::GenreNew::unique_original(track.genre()))
+                .unwrap(),
         }),
         genre_new: Box::new(|_genre_new| v2::up::GenreNewMigration {}),
     });
-    (m.finish(), s.unwrap())
+    m.finish(t).unwrap()
 }
 
 #[cfg(test)]

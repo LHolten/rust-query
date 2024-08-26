@@ -37,7 +37,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             let generic = make_generic(col);
 
             args.push(quote! {#col: #generic});
-            constraints.push(quote! {#generic: ::rust_query::Value<'a, Typ = #typ>});
+            constraints.push(quote! {#generic: ::rust_query::Value<'a, #schema, Typ = #typ>});
             generics.push(generic);
             inits.push(col.clone());
         }
@@ -45,13 +45,13 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
 
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a #(,#constraints)*>(&self, #(#args),*) -> #table_mod::#unique_type<#(#generics),*> {
+            pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> #table_mod::#unique_type<#(#generics),*> {
                 #table_mod::#unique_type {
                     #(#inits),*
                 }
             }
         });
-        unique_defs.push(define_unique(unique, table_name, table_ident));
+        unique_defs.push(define_unique(unique, table_name, table_ident, schema));
     }
 
     let mut defs = vec![];
@@ -74,7 +74,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             }
         });
         typ_asserts.push(quote!(::rust_query::valid_in_schema::<#schema, #typ>();));
-        read_bounds.push(quote!(#generic: for<'t> ::rust_query::Value<'t, Typ=#typ>));
+        read_bounds.push(quote!(#generic: for<'t> ::rust_query::Value<'t, #schema, Typ=#typ>));
         inits.push(quote!(#ident: f.col(#ident_str)));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
@@ -95,6 +95,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         #[repr(transparent)]
         #[derive(::rust_query::private::RefCast)]
         pub struct #table_ident<T = ()>(T);
+
+        impl #table_ident {
+            pub fn join<'inner>(rows: &mut ::rust_query::Query<'inner, #schema>) -> ::rust_query::Db<'inner, Self> {
+                rows.join(#table_ident(()))
+            }
+        }
 
         impl<T: Clone> #table_ident<T> {
             #(#defs)*
@@ -120,7 +126,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
 
         impl<#(#read_bounds),*> ::rust_query::private::Writable for #dummy_ident<#(#generics),*> {
             type T = #table_ident;
-            fn read(self, f: ::rust_query::private::Reader<'_>) {
+            fn read(self, f: ::rust_query::private::Reader<'_, #schema>) {
                 #(#reads;)*
             }
         }
@@ -142,7 +148,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
     }
 }
 
-fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenStream {
+fn define_unique(
+    unique: &Unique,
+    table_str: &str,
+    table_typ: &Ident,
+    schema: &Ident,
+) -> TokenStream {
     let name = &unique.name;
     let typ_name = make_generic(name);
 
@@ -155,7 +166,7 @@ fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenSt
 
         let generic = make_generic(col);
         fields.push(quote! {pub(super) #col: #generic});
-        constraints.push(quote! {#generic: ::rust_query::Value<'t>});
+        constraints.push(quote! {#generic: ::rust_query::Value<'t, super::#schema>});
         conds.push(quote! {(#col_str, self.#col.build_expr(b))});
         generics.push(generic);
     }
@@ -166,7 +177,8 @@ fn define_unique(unique: &Unique, table_str: &str, table_typ: &Ident) -> TokenSt
             #(#fields),*
         }
 
-        impl<'t, #(#constraints),*> ::rust_query::Value<'t> for #typ_name<#(#generics),*> {
+        impl<#(#generics),*> ::rust_query::private::NoParam for #typ_name<#(#generics),*> {}
+        impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
             type Typ = Option<super::#table_typ>;
 
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {

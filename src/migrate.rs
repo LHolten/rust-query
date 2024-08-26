@@ -1,4 +1,10 @@
-use std::{any::Any, path::Path, sync::atomic::AtomicBool};
+use std::{
+    marker::PhantomData,
+    ops::Deref,
+    path::Path,
+    rc::Rc,
+    sync::{atomic::AtomicBool, Arc},
+};
 
 use ouroboros::self_referencing;
 use ref_cast::RefCast;
@@ -19,7 +25,8 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     private::FromRow,
-    Db, HasId, Free, Table,
+    transaction::{LatestToken, SnapshotToken, ThreadToken},
+    Db, Free, HasId, Table,
 };
 
 #[derive(Default)]
@@ -41,10 +48,12 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<'a, A: HasId> {
+pub trait TableMigration<A: HasId> {
     type T;
 
-    fn into_new(self, prev: Free<'a, A>, reader: Reader<'_>);
+    // there is no reason to specify the lifetime of prev
+    // because it is only used for reader, which doesn't care.
+    fn into_new(self, prev: Free<'_, A>, reader: Reader<'_, A::Schema>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -59,7 +68,7 @@ impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
     where
         M: FnMut(Free<'x, A>) -> O,
-        O: TableMigration<'x, A, T = B>,
+        O: TableMigration<A, T = B>,
     {
         self.create_from(move |db: Free<A>| Some(m(db)));
 
@@ -70,7 +79,7 @@ impl<'x> SchemaBuilder<'x> {
     pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
     where
         F: FnMut(Free<'x, A>) -> Option<O>,
-        O: TableMigration<'x, A, T = B>,
+        O: TableMigration<A, T = B>,
     {
         let new_table_name = self.scope.tmp_table();
         new_table::<B>(self.conn, new_table_name);
@@ -94,7 +103,10 @@ impl<'x> SchemaBuilder<'x> {
                     if let Some(res) = f(just_db) {
                         let ast = MySelect::default();
 
-                        let reader = Reader { ast: &ast };
+                        let reader = Reader {
+                            ast: &ast,
+                            _p: PhantomData,
+                        };
                         res.into_new(just_db, reader);
 
                         let new_select = ast.simple();
@@ -148,8 +160,9 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
     conn.execute(&sql, []).unwrap();
 }
 
-pub trait Migration<'t, From> {
-    type S: Schema;
+pub trait Migration<'t> {
+    type From: Schema;
+    type To: Schema;
 
     fn tables(self, b: &mut SchemaBuilder<'t>);
 }
@@ -173,6 +186,7 @@ pub(crate) struct OwnedTransaction {
 impl Prepare {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
+    /// TODO: return an error if the file is already opened
     pub fn open(p: impl AsRef<Path>) -> Self {
         let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
         Self::open_internal(manager)
@@ -201,8 +215,8 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement if the database was just created.
-    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> (Migrator, Option<S>) {
-        self.migrator(|conn| {
+    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Migrator<S> {
+        self.migrator::<S>(|conn| {
             for sql in sql {
                 conn.execute_batch(sql).unwrap();
             }
@@ -210,8 +224,8 @@ impl Prepare {
     }
 
     /// Create empty tables based on the schema if the database was just created.
-    pub fn create_db_empty<S: Schema>(self) -> (Migrator, Option<S>) {
-        self.migrator(|conn| {
+    pub fn create_db_empty<S: Schema>(self) -> Migrator<S> {
+        self.migrator::<S>(|conn| {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
 
@@ -221,7 +235,7 @@ impl Prepare {
         })
     }
 
-    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> (Migrator, Option<S>) {
+    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Migrator<S> {
         self.conn
             .pragma_update(None, "foreign_keys", "OFF")
             .unwrap();
@@ -242,24 +256,26 @@ impl Prepare {
             set_user_version(conn, S::VERSION).unwrap();
         }
 
-        let schema = new_checked::<S>(conn);
-        let migrator = Migrator {
+        Migrator {
             client: Client::new(self.manager),
-            transaction: owned,
-            schema: Box::new(()),
-        };
-        (migrator, schema)
+            transaction: Rc::new(owned),
+            _p: PhantomData,
+            _local: PhantomData,
+        }
     }
 }
 
 /// This type is used to apply database migrations.
-pub struct Migrator {
+pub struct Migrator<S> {
     client: Client,
-    transaction: OwnedTransaction,
-    schema: Box<dyn Any>,
+    transaction: Rc<OwnedTransaction>,
+    _p: PhantomData<S>,
+    // we want to make sure that Migrator is always used with the same ThreadToken
+    // so we make it local to the current thread
+    _local: PhantomData<*const ()>,
 }
 
-impl Migrator {
+impl<S: Schema> Migrator<S> {
     /// Execute a new query.
     // pub fn new_query<'s, F, R>(&'s self, f: F) -> Option<R>
     // where
@@ -275,16 +291,22 @@ impl Migrator {
 
     /// Apply a database migration if `s` is [Some] (because that means the migration can be applied).
     /// If the migration was applied or if the database already had the new schema it is returned.
-    pub fn migrate<'a, S: Schema, F, M, N: Schema>(&'a mut self, s: Option<S>, f: F) -> Option<N>
+    pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
-        F: FnOnce(&'a S, &'a ReadClient<'a>) -> M,
-        M: Migration<'a, S, S = N>,
+        F: FnOnce(&'a ReadClient<'a, S>) -> M,
+        M: Migration<'a, From = S, To = N>,
     {
-        let conn = self.transaction.borrow_transaction();
-        if let Some(s) = s {
-            self.schema = Box::new(s);
-            let s = self.schema.as_ref().downcast_ref().unwrap();
-            let res = f(s, ReadClient::ref_cast(conn));
+        t.stuff = self.transaction.clone();
+        let conn = t
+            .stuff
+            .downcast_ref::<OwnedTransaction>()
+            .unwrap()
+            .borrow_transaction();
+
+        if let Some(_) = new_checked::<S>(conn) {
+            let client = ReadClient::ref_cast(conn);
+
+            let res = f(&client);
             let mut builder = SchemaBuilder {
                 scope: Default::default(),
                 conn,
@@ -303,39 +325,66 @@ impl Migrator {
             foreign_key_check(conn);
             set_user_version(conn, N::VERSION).unwrap();
         }
-        new_checked::<N>(conn)
+
+        Migrator {
+            client: self.client,
+            transaction: self.transaction,
+            _p: PhantomData,
+            _local: PhantomData,
+        }
     }
 
     /// Commit the migration transaction and return a [Client].
-    pub fn finish(mut self) -> Client {
-        self.transaction
-            .with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
+    pub fn finish(self, t: &mut ThreadToken) -> Option<LatestToken<S>> {
+        // make sure that t doesn't reference our transaction anymore
+        t.stuff = Rc::new(());
+        // we just erased the reference on the thread token, so we should have the only reference now.
+        let mut transaction = Rc::into_inner(self.transaction).unwrap();
+        transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
-        let heads = self.transaction.into_heads();
+        let Some(_) = new_checked::<S>(transaction.borrow_transaction()) else {
+            return None;
+        };
+
+        let heads = transaction.into_heads();
         heads
             .conn
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        self.client
+        use r2d2::ManageConnection;
+        let client = Arc::new(self.client);
+        let conn = client.manager.connect().unwrap();
+
+        Some(LatestToken {
+            snapshot: SnapshotToken {
+                client: client,
+                schema: PhantomData,
+                conn,
+            },
+        })
     }
 }
 
 #[derive(RefCast)]
 #[repr(transparent)]
-pub struct ReadClient<'a>(rusqlite::Transaction<'a>);
+pub struct ReadClient<'a, S>(
+    rusqlite::Transaction<'a>,
+    PhantomData<S>,
+    PhantomData<&'a ThreadToken>,
+);
 
-impl ReadClient<'_> {
+impl<S> ReadClient<'_, S> {
     /// Same as [Client::exec].
     pub fn exec<'s, F, R>(&'s self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
     {
         private_exec(&self.0, f)
     }
 
     /// Same as [Client::get].
-    pub fn get<'s, T>(&'s self, val: impl for<'a> FromRow<'a, 's, Out = T>) -> T {
+    pub fn get<'s, T>(&'s self, val: impl for<'a> FromRow<'a, 's, S, Out = T>) -> T {
         self.exec(|e| e.into_vec(val)).pop().unwrap()
     }
 }

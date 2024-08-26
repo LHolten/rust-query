@@ -2,12 +2,24 @@ use std::marker::PhantomData;
 
 use sea_query::Iden;
 
-use crate::{alias::Field, ast::MySelect, value::MyTyp, Value};
+use crate::{
+    alias::Field,
+    ast::MySelect,
+    value::{MyTyp, NoParam},
+    Value,
+};
 
-#[derive(Clone, Copy)]
-pub struct Cacher<'t> {
-    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
+pub struct Cacher<'t, S> {
+    pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
     pub(crate) ast: &'t MySelect,
+}
+
+impl<S> Copy for Cacher<'_, S> {}
+
+impl<S> Clone for Cacher<'_, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 pub struct Cached<'t, T> {
@@ -22,8 +34,8 @@ impl<'t, T> Clone for Cached<'t, T> {
 }
 impl<'t, T> Copy for Cached<'t, T> {}
 
-impl<'t> Cacher<'t> {
-    pub fn cache<T>(&mut self, val: impl Value<'t, Typ = T>) -> Cached<'t, T> {
+impl<'t, S> Cacher<'t, S> {
+    pub fn cache<T>(&mut self, val: impl Value<'t, S, Typ = T>) -> Cached<'t, T> {
         let expr = val.build_expr(self.ast.builder());
         let new_field = || self.ast.scope.new_field();
         let field = *self.ast.select.get_or_init(expr, new_field);
@@ -48,27 +60,27 @@ impl<'t, 'a> Row<'_, 't, 'a> {
     }
 }
 
-pub trait FromRow<'t, 'a> {
+pub trait FromRow<'t, 'a, S> {
     type Out;
-    fn prepare(self, cacher: Cacher<'t>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
+    fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
 }
 
-impl<'t, 'a, T: Value<'t, Typ: MyTyp>> FromRow<'t, 'a> for T {
+impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp> + NoParam> FromRow<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
-    fn prepare(self, mut cacher: Cacher<'t>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+    fn prepare(self, mut cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
         let cached = cacher.cache(self);
         move |row| row.get(cached)
     }
 }
 
-impl<'t, 'a, A: Value<'t, Typ: MyTyp>, B: Value<'t, Typ: MyTyp>> FromRow<'t, 'a> for (A, B) {
-    type Out = (<A::Typ as MyTyp>::Out<'a>, <B::Typ as MyTyp>::Out<'a>);
+impl<'t, 'a, S, A: FromRow<'t, 'a, S>, B: FromRow<'t, 'a, S>> FromRow<'t, 'a, S> for (A, B) {
+    type Out = (A::Out, B::Out);
 
-    fn prepare(self, mut cacher: Cacher<'t>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
-        let cached_a = cacher.cache(self.0);
-        let cached_b = cacher.cache(self.1);
-        move |row| (row.get(cached_a), row.get(cached_b))
+    fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+        let mut prepared_a = self.0.prepare(cacher);
+        let mut prepared_b = self.1.prepare(cacher);
+        move |row| (prepared_a(row), prepared_b(row))
     }
 }
 
@@ -76,23 +88,23 @@ pub(crate) struct AdHoc<F> {
     f: F,
 }
 
-impl<'t, 'a, T, F, G> FromRow<'t, 'a> for AdHoc<F>
+impl<'t, 'a, S: 't, T, F, G> FromRow<'t, 'a, S> for AdHoc<F>
 where
     G: FnMut(Row<'_, 't, 'a>) -> T,
-    F: FnOnce(Cacher<'t>) -> G,
+    F: FnOnce(Cacher<'t, S>) -> G,
 {
     type Out = T;
 
-    fn prepare(self, cacher: Cacher<'t>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+    fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
         (self.f)(cacher)
     }
 }
 
 impl<F> AdHoc<F> {
-    pub fn new<'t, 'a, T, G>(f: F) -> Self
+    pub fn new<'t, 'a, S: 't, T, G>(f: F) -> Self
     where
         G: FnMut(Row<'_, 't, 'a>) -> T,
-        F: FnOnce(Cacher<'t>) -> G,
+        F: FnOnce(Cacher<'t, S>) -> G,
     {
         Self { f }
     }
@@ -113,14 +125,14 @@ mod tests {
         b: B,
     }
 
-    impl<'t, 'a, A, B> FromRow<'t, 'a> for UserDummy<A, B>
+    impl<'t, 'a, S, A, B> FromRow<'t, 'a, S> for UserDummy<A, B>
     where
-        A: Value<'t, Typ = i64>,
-        B: Value<'t, Typ = String>,
+        A: Value<'t, S, Typ = i64>,
+        B: Value<'t, S, Typ = String>,
     {
         type Out = User;
 
-        fn prepare(self, mut cacher: Cacher<'t>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+        fn prepare(self, mut cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
             move |row| User {

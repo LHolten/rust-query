@@ -16,20 +16,22 @@ mod migrate;
 mod mymap;
 mod pragma;
 mod query;
+mod transaction;
 mod value;
 
-pub use client::Client;
 pub use db::{Db, Free};
 pub use expect_test::expect;
 pub use migrate::{Migrator, Prepare};
 pub use query::Query;
 pub use rust_query_macros::schema;
 pub use rust_query_macros::FromRow;
+pub use transaction::{Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
+use value::NoParam;
 pub use value::{UnixEpoch, Value};
 
 pub mod ops {
     pub use crate::db::Col;
-    pub use crate::value::operations::{Add, And, Assume, Eq, Lt, MyNot, NotNull, UnwrapOr};
+    pub use crate::value::operations::{Add, And, Assume, Eq, Lt, Not, NotNull, UnwrapOr};
 }
 
 pub mod args {
@@ -45,7 +47,7 @@ pub mod private {
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
-    pub use crate::value::{MyTyp, ValueBuilder};
+    pub use crate::value::{MyTyp, NoParam, ValueBuilder};
 
     pub use expect_test::Expect;
     pub use ref_cast::RefCast;
@@ -82,7 +84,7 @@ impl TypBuilder {
 }
 
 #[doc(hidden)]
-pub trait Table: 'static {
+pub trait Table: Sized + 'static {
     // const NAME: &'static str;
     // these names are defined in `'query`
     type Dummy<T>: RefCast<From = T>;
@@ -114,4 +116,14 @@ pub trait HasId: Table {
 }
 
 /// Special table name that is used as souce of newly created tables.
+#[derive(Clone, Copy)]
 pub struct NoTable(());
+
+impl NoParam for NoTable {}
+impl<S> Value<'_, S> for NoTable {
+    type Typ = NoTable;
+
+    fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
+        unreachable!("NoTable can not be constructed")
+    }
+}

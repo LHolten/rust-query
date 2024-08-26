@@ -13,15 +13,16 @@ use crate::{
 ///
 /// [Query] mutability is only about the number of rows.
 /// Adding columns to a [Query] does not require mutation.
-pub struct Query<'inner> {
+pub struct Query<'inner, S> {
     // we might store 'inner
-    pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
+    pub(crate) phantom: PhantomData<fn(&'inner S) -> &'inner S>,
     pub(crate) ast: &'inner mut MySelect,
 }
 
-impl<'inner> Query<'inner> {
+impl<'inner, S> Query<'inner, S> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
-    pub fn join<T: Table>(&mut self, t: &T) -> Db<'inner, T> {
+    #[doc(hidden)]
+    pub fn join<T: Table>(&mut self, t: T) -> Db<'inner, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
         let table = alias;
@@ -36,7 +37,7 @@ impl<'inner> Query<'inner> {
     /// Perform a sub-query that returns a single result for each of the current rows.
     pub fn query<F, R>(&self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a>) -> R,
+        F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a, S>) -> R,
     {
         let mut ast = MySelect::default();
         let mut conds = Vec::new();
@@ -63,7 +64,7 @@ impl<'inner> Query<'inner> {
     }
 
     /// Filter rows based on a column.
-    pub fn filter(&mut self, prop: impl Value<'inner, Typ = bool>) {
+    pub fn filter(&mut self, prop: impl Value<'inner, S, Typ = bool>) {
         self.ast
             .filters
             .push(Box::new(prop.build_expr(self.ast.builder())));
@@ -72,7 +73,7 @@ impl<'inner> Query<'inner> {
     /// Filter out rows where this column is [None].
     pub fn filter_some<T, V>(&mut self, val: V) -> Assume<V>
     where
-        V: Value<'inner, Typ = Option<T>>,
+        V: Value<'inner, S, Typ = Option<T>>,
     {
         self.filter(val.clone().not_null());
         Assume(val)

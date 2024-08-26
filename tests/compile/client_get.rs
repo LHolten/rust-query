@@ -1,7 +1,7 @@
-use rust_query::{Client, Value};
+use rust_query::{Snapshot, Value};
 
 fn main() {}
 
-fn test<'a>(db: &Client, val: impl Value<'a, Typ = i64>) {
+fn test<'a, S>(db: &Snapshot<'a, S>, val: impl Value<'a, S, Typ = i64>) {
     db.get(val);
 }

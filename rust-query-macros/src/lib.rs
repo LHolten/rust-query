@@ -4,10 +4,12 @@ use from_row::from_row_impl;
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Meta, Path, Token, Type};
+use syn::{
+    punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Meta, Path, Token, Type,
+};
 
-mod table;
 mod from_row;
+mod table;
 
 /// You can use this macro to define your schema.
 /// The macro uses enum syntax, but it generates multiple modules of types.
@@ -151,7 +153,6 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     .into()
 }
 
-
 #[derive(Clone)]
 struct Table {
     uniques: Vec<Unique>,
@@ -252,7 +253,8 @@ fn define_table_migration(
             let typ = &col.typ;
 
             defs.push(quote! {pub #name: #generic});
-            constraints.push(quote! {#generic: for<'x> ::rust_query::Value<'x, Typ = #typ>});
+            constraints
+                .push(quote! {#generic: for<'x> ::rust_query::Value<'x, _PrevSchema, Typ = #typ>});
             generics.push(generic);
             into_new.push(quote! {reader.col(#name_str, self.#name.clone())});
         }
@@ -273,10 +275,10 @@ fn define_table_migration(
             #(#defs,)*
         }
 
-        impl<'a #(,#constraints)*> ::rust_query::private::TableMigration<'a, #prev_typ> for #migration_name<#(#generics),*> {
+        impl<#(#constraints),*> ::rust_query::private::TableMigration<#prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new(self, prev: ::rust_query::Free<'a, #prev_typ>, reader: ::rust_query::private::Reader<'_>) {
+            fn into_new(self, prev: ::rust_query::Free<'_, #prev_typ>, reader: ::rust_query::private::Reader<'_, _PrevSchema>) {
                 #(#into_new;)*
             }
         }
@@ -420,7 +422,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 //     #table_generic: FnMut(::rust_query::Free<'t, #table_name>) -> #table_generic_out
                 // });
                 table_constraints.push(quote! {
-                    #table_generic_out: ::rust_query::private::TableMigration<'t, #table_name, T = super::#table_name>
+                    #table_generic_out: ::rust_query::private::TableMigration<#table_name, T = super::#table_name>
                 });
                 // table_generics.push(table_generic);
                 table_generics.push(table_generic_out);
@@ -441,7 +443,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 //     #table_generic: FnMut(::rust_query::Free<'t, #table_name>) -> Option<#table_generic_out>
                 // });
                 table_constraints.push(quote! {
-                    #table_generic_out: ::rust_query::private::TableMigration<'t, #table_name, T = super::#table_name>
+                    #table_generic_out: ::rust_query::private::TableMigration<#table_name, T = super::#table_name>
                 });
                 // table_generics.push(table_generic);
                 table_generics.push(table_generic_out);
@@ -485,8 +487,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let new_mod = format_ident!("v{version}");
 
         let migrations = prev_mod.map(|prev_mod| {
-            let prelude = prelude(&new_tables, &prev_mod);
-            
+            let prelude = prelude(&new_tables, &prev_mod, schema);
+
             // FIXME: remove the lifetime `'t` if there are no table_defs
             quote! {
                 pub mod up {
@@ -498,8 +500,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(#table_defs,)*
                     }
 
-                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t, super::super::#prev_mod::#schema> for #schema<'t, #(#table_generics),*> {
-                        type S = super::#schema;
+                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t> for #schema<'t, #(#table_generics),*> {
+                        type From = _PrevSchema;
+                        type To = super::#schema;
 
                         fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#tables;)*
@@ -524,7 +527,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     Ok(output)
 }
 
-fn prelude(new_tables: &BTreeMap<usize, Table>, prev_mod: &Ident) -> TokenStream {
+fn prelude(new_tables: &BTreeMap<usize, Table>, prev_mod: &Ident, schema: &Ident) -> TokenStream {
     let mut prelude = vec![];
     for table in new_tables.values() {
         let Some(old_name) = &table.prev else {
@@ -533,8 +536,9 @@ fn prelude(new_tables: &BTreeMap<usize, Table>, prev_mod: &Ident) -> TokenStream
         let new_name = &table.name;
         prelude.push(quote! {
             #old_name as #new_name
-        })
+        });
     }
+    prelude.push(quote! {#schema as _PrevSchema});
     let mut prelude = quote! {
         #[allow(unused_imports)]
         use super::super::#prev_mod::{#(#prelude,)*};
