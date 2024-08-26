@@ -2,6 +2,7 @@
 
 use ref_cast::RefCast;
 use value::MyTyp;
+use value::NoParam;
 
 mod alias;
 mod ast;
@@ -19,25 +20,30 @@ mod query;
 mod transaction;
 mod value;
 
-pub use db::{Db, Free};
-pub use expect_test::expect;
-pub use migrate::{Migrator, Prepare};
+pub use db::Free;
 pub use query::Query;
-pub use rust_query_macros::schema;
 pub use rust_query_macros::FromRow;
 pub use transaction::{Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
-use value::NoParam;
 pub use value::{UnixEpoch, Value};
 
+/// Types that are the result of a database operation.
 pub mod ops {
-    pub use crate::db::Col;
+    pub use crate::db::{Col, Db};
+    pub use crate::group::Aggr;
     pub use crate::value::operations::{Add, And, Assume, Eq, Lt, Not, NotNull, UnwrapOr};
 }
 
+/// Types that are used as closure arguments.
 pub mod args {
     pub use crate::exec::Execute;
     pub use crate::group::Aggregate;
-    pub use crate::migrate::ReadClient;
+}
+
+/// Types to declare schemas and migrations.
+pub mod migration {
+    pub use crate::migrate::{Migrator, Prepare};
+    pub use expect_test::expect;
+    pub use rust_query_macros::schema;
 }
 
 #[doc(hidden)]

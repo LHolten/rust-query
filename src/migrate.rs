@@ -1,6 +1,5 @@
 use std::{
     marker::PhantomData,
-    ops::Deref,
     path::Path,
     rc::Rc,
     sync::{atomic::AtomicBool, Arc},
@@ -18,15 +17,14 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
-    client::{private_exec, Client, QueryBuilder},
-    exec::Execute,
+    client::{Client, QueryBuilder},
+    db::Db,
     from_row::AdHoc,
     hash,
     insert::Reader,
     pragma::read_schema,
-    private::FromRow,
     transaction::{LatestToken, SnapshotToken, ThreadToken},
-    Db, Free, HasId, Table,
+    Free, HasId, Snapshot, Table,
 };
 
 #[derive(Default)]
@@ -293,7 +291,7 @@ impl<S: Schema> Migrator<S> {
     /// If the migration was applied or if the database already had the new schema it is returned.
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
-        F: FnOnce(&'a ReadClient<'a, S>) -> M,
+        F: FnOnce(&'a Snapshot<'a, S>) -> M,
         M: Migration<'a, From = S, To = N>,
     {
         t.stuff = self.transaction.clone();
@@ -304,9 +302,9 @@ impl<S: Schema> Migrator<S> {
             .borrow_transaction();
 
         if let Some(_) = new_checked::<S>(conn) {
-            let client = ReadClient::ref_cast(conn);
+            let client = Snapshot::ref_cast(conn);
 
-            let res = f(&client);
+            let res = f(client);
             let mut builder = SchemaBuilder {
                 scope: Default::default(),
                 conn,
@@ -334,7 +332,7 @@ impl<S: Schema> Migrator<S> {
         }
     }
 
-    /// Commit the migration transaction and return a [Client].
+    /// Commit the migration transaction and return a [LatestToken].
     pub fn finish(self, t: &mut ThreadToken) -> Option<LatestToken<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
@@ -363,29 +361,6 @@ impl<S: Schema> Migrator<S> {
                 conn,
             },
         })
-    }
-}
-
-#[derive(RefCast)]
-#[repr(transparent)]
-pub struct ReadClient<'a, S>(
-    rusqlite::Transaction<'a>,
-    PhantomData<S>,
-    PhantomData<&'a ThreadToken>,
-);
-
-impl<S> ReadClient<'_, S> {
-    /// Same as [Client::exec].
-    pub fn exec<'s, F, R>(&'s self, f: F) -> R
-    where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
-    {
-        private_exec(&self.0, f)
-    }
-
-    /// Same as [Client::get].
-    pub fn get<'s, T>(&'s self, val: impl for<'a> FromRow<'a, 's, S, Out = T>) -> T {
-        self.exec(|e| e.into_vec(val)).pop().unwrap()
     }
 }
 

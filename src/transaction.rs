@@ -1,5 +1,6 @@
 use std::{any::Any, cell::Cell, marker::PhantomData, ops::Deref, rc::Rc, sync::Arc};
 
+use ref_cast::RefCast;
 use rusqlite::{Connection, Transaction};
 
 use crate::{
@@ -95,12 +96,16 @@ impl<S> LatestToken<S> {
 
 /// There can be at most one [Snapshot] or [Latest] in each thread.
 /// This is why these types are both !Send.
-/// All rows in this snapshot live for at least `'a`.
+/// All rows in this snapshot live for at most `'a`.
+#[derive(RefCast)]
+#[repr(transparent)]
 pub struct Snapshot<'a, S> {
     transaction: Transaction<'a>,
     _p: PhantomData<&'a S>,
     _local: PhantomData<*const ()>,
 }
+
+/// Same as [Snapshot], but allows inserting new rows
 pub struct Latest<'a, S>(Snapshot<'a, S>);
 
 impl<'a, S> Deref for Latest<'a, S> {

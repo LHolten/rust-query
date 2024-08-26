@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use rust_query::{schema, LatestToken, NoTable, Prepare, ThreadToken};
+use rust_query::{
+    migration::{schema, Prepare},
+    LatestToken, NoTable, ThreadToken,
+};
 
 pub use v2::*;
 
@@ -169,7 +172,7 @@ pub fn migrate(t: &mut ThreadToken) -> LatestToken<v2::Schema> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_query::expect;
+    use rust_query::migration::expect;
 
     #[test]
     fn backwards_compat() {
