@@ -23,7 +23,7 @@ thread_local! {
 }
 
 impl ThreadToken {
-    /// Retrieve the [ThreadToken] if it was not retrieved yet
+    /// Retrieve the [ThreadToken] if it was not retrieved yet on this thread.
     pub fn acquire() -> Option<Self> {
         EXISTS.replace(false).then_some(ThreadToken {
             _p: PhantomData,
@@ -38,26 +38,28 @@ impl Drop for ThreadToken {
     }
 }
 
-/// For each opened database there exists one [LatestToken].
-pub struct LatestToken<T> {
-    pub(crate) snapshot: SnapshotToken<T>,
+/// For each opened database there exists one [WriteClient].
+///
+/// [WriteClient] dereferences to a [ReadClient] which can be cloned.
+pub struct WriteClient<T> {
+    pub(crate) snapshot: ReadClient<T>,
 }
 
-impl<T> Deref for LatestToken<T> {
-    type Target = SnapshotToken<T>;
+impl<T> Deref for WriteClient<T> {
+    type Target = ReadClient<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.snapshot
     }
 }
 
-pub struct SnapshotToken<S> {
+pub struct ReadClient<S> {
     pub(crate) manager: Arc<r2d2_sqlite::SqliteConnectionManager>,
     pub(crate) conn: Connection,
     pub(crate) schema: PhantomData<S>,
 }
 
-impl<S> Clone for SnapshotToken<S> {
+impl<S> Clone for ReadClient<S> {
     fn clone(&self) -> Self {
         use r2d2::ManageConnection;
         Self {
@@ -68,10 +70,10 @@ impl<S> Clone for SnapshotToken<S> {
     }
 }
 
-impl<S> SnapshotToken<S> {
+impl<S> ReadClient<S> {
     /// Take a read-only snapshot of the database.
-    pub fn snapshot<'a>(&'a mut self, _token: &'a mut ThreadToken) -> Snapshot<'a, S> {
-        Snapshot {
+    pub fn snapshot<'a>(&'a mut self, _token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
+        ReadTransaction {
             transaction: self.conn.transaction().unwrap(),
             _p: PhantomData,
             _local: PhantomData,
@@ -79,11 +81,11 @@ impl<S> SnapshotToken<S> {
     }
 }
 
-impl<S> LatestToken<S> {
+impl<S> WriteClient<S> {
     /// Claim write access to the database.
-    pub fn latest<'a>(&'a mut self, _token: &'a mut ThreadToken) -> Latest<'a, S> {
+    pub fn latest<'a>(&'a mut self, _token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
         let connection = &mut self.snapshot.conn;
-        Latest(Snapshot {
+        WriteTransaction(ReadTransaction {
             transaction: connection
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .unwrap(),
@@ -93,29 +95,30 @@ impl<S> LatestToken<S> {
     }
 }
 
-/// There can be at most one [Snapshot] or [Latest] in each thread.
-/// This is why these types are both !Send.
-/// All rows in this snapshot live for at most `'a`.
+/// There can be at most one [ReadTransaction] or [WriteTransaction] in each thread.
+/// This is why these types are both `!Send`.
+///
+/// All [Free] row id references in this snapshot live for at most `'a`.
 #[derive(RefCast)]
 #[repr(transparent)]
-pub struct Snapshot<'a, S> {
+pub struct ReadTransaction<'a, S> {
     transaction: Transaction<'a>,
     _p: PhantomData<&'a S>,
     _local: PhantomData<*const ()>,
 }
 
-/// Same as [Snapshot], but allows inserting new rows
-pub struct Latest<'a, S>(Snapshot<'a, S>);
+/// Same as [ReadTransaction], but also allows inserting new rows.
+pub struct WriteTransaction<'a, S>(ReadTransaction<'a, S>);
 
-impl<'a, S> Deref for Latest<'a, S> {
-    type Target = Snapshot<'a, S>;
+impl<'a, S> Deref for WriteTransaction<'a, S> {
+    type Target = ReadTransaction<'a, S>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<S> Snapshot<'_, S> {
+impl<S> ReadTransaction<'_, S> {
     /// Execute a new query.
     pub fn exec<'s, F, R>(&'s self, f: F) -> R
     where
@@ -137,7 +140,7 @@ impl<S> Snapshot<'_, S> {
     }
 }
 
-impl<S> Latest<'_, S> {
+impl<S> WriteTransaction<'_, S> {
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     /// Takes a mutable reference so that it can not be interleaved with a multi row query.

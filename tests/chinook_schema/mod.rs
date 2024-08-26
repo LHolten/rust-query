@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use rust_query::{
     migration::{schema, Prepare},
-    LatestToken, NoTable, ThreadToken,
+    NoTable, ThreadToken, WriteClient,
 };
 
 pub use v2::*;
@@ -128,7 +128,7 @@ enum Schema {
     },
 }
 
-pub fn migrate(t: &mut ThreadToken) -> LatestToken<v2::Schema> {
+pub fn migrate(t: &mut ThreadToken) -> WriteClient<v2::Schema> {
     let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
     let m = m

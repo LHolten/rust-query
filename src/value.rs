@@ -60,8 +60,8 @@ pub trait NoParam {}
 
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
-/// `'t` is the context in which this value is valid
-/// `S` is the schema in which this value is valid
+/// `'t` is the context in which this value is valid.
+/// `S` is the schema in which this value is valid.
 pub trait Value<'t, S>: Clone + NoParam {
     type Typ;
 

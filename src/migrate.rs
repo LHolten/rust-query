@@ -23,8 +23,8 @@ use crate::{
     hash,
     insert::Reader,
     pragma::read_schema,
-    transaction::{LatestToken, SnapshotToken, ThreadToken},
-    Free, HasId, Snapshot, Table,
+    transaction::{ReadClient, ThreadToken, WriteClient},
+    Free, HasId, ReadTransaction, Table,
 };
 
 #[derive(Default)]
@@ -214,6 +214,7 @@ impl Prepare {
 
     /// Execute a raw sql statement if the database was just created.
     /// Returns [None] if the database schema is older than `S`.
+    /// This function will panic if the resulting schema is different, but the version matches.
     pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Option<Migrator<S>> {
         self.migrator::<S>(|conn| {
             for sql in sql {
@@ -224,6 +225,7 @@ impl Prepare {
 
     /// Create empty tables based on the schema if the database was just created.
     /// Returns [None] if the database schema is older than `S`.
+    /// This function will panic if the resulting schema is different, but the version matches.
     pub fn create_db_empty<S: Schema>(self) -> Option<Migrator<S>> {
         self.migrator::<S>(|conn| {
             let mut b = TableTypBuilder::default();
@@ -249,16 +251,19 @@ impl Prepare {
         let schema_version: i64 = conn
             .pragma_query_value(None, "schema_version", |r| r.get(0))
             .unwrap();
+
         // check if this database is newly created
         if schema_version == 0 {
             f(conn);
-            foreign_key_check::<S>(conn);
             set_user_version(conn, S::VERSION).unwrap();
         }
 
+        let user_version = user_version(conn).unwrap();
         // We can not migrate databases older than `S`
-        if user_version(conn).unwrap() < S::VERSION {
+        if user_version < S::VERSION {
             return None;
+        } else if user_version == S::VERSION {
+            foreign_key_check::<S>(conn);
         }
 
         Some(Migrator {
@@ -284,9 +289,10 @@ pub struct Migrator<S> {
 impl<S: Schema> Migrator<S> {
     /// Apply a database migration if the current schema is `S`.
     /// The result is a migrator for the next schema `N`.
+    /// This function will panic if the resulting schema is different, but the version matches.
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
-        F: FnOnce(&'a Snapshot<'a, S>) -> M,
+        F: FnOnce(&'a ReadTransaction<'a, S>) -> M,
         M: Migration<'a, From = S, To = N>,
     {
         t.stuff = self.transaction.clone();
@@ -297,7 +303,7 @@ impl<S: Schema> Migrator<S> {
             .borrow_transaction();
 
         if user_version(conn).unwrap() == S::VERSION {
-            let client = Snapshot::ref_cast(conn);
+            let client = ReadTransaction::ref_cast(conn);
 
             let res = f(client);
             let mut builder = SchemaBuilder {
@@ -327,15 +333,16 @@ impl<S: Schema> Migrator<S> {
         }
     }
 
-    /// Commit the migration transaction and return a [LatestToken].
+    /// Commit the migration transaction and return a [WriteClient].
     /// Returns [None] if the database schema version is newer than `S`.
-    pub fn finish(self, t: &mut ThreadToken) -> Option<LatestToken<S>> {
+    pub fn finish(self, t: &mut ThreadToken) -> Option<WriteClient<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
         // we just erased the reference on the thread token, so we should have the only reference now.
         let mut transaction = Rc::into_inner(self.transaction).unwrap();
 
-        if user_version(transaction.borrow_transaction()).unwrap() != S::VERSION {
+        let conn = transaction.borrow_transaction();
+        if user_version(conn).unwrap() != S::VERSION {
             return None;
         }
 
@@ -348,8 +355,8 @@ impl<S: Schema> Migrator<S> {
             .unwrap();
 
         use r2d2::ManageConnection;
-        Some(LatestToken {
-            snapshot: SnapshotToken {
+        Some(WriteClient {
+            snapshot: ReadClient {
                 conn: self.manager.connect().unwrap(),
                 manager: Arc::new(self.manager),
                 schema: PhantomData,

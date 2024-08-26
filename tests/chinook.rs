@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{Free, FromRow, Snapshot, ThreadToken, Value};
+use rust_query::{Free, FromRow, ReadTransaction, ThreadToken, Value};
 
 fn assert_dbg(val: impl Debug, file_name: &str) {
     let path = format!("chinook_tests/{file_name}.dbg");
@@ -46,7 +46,7 @@ struct InvoiceInfo<'a> {
     ivl_id: Free<'a, InvoiceLine>,
 }
 
-fn invoice_info<'a>(db: &'a Snapshot<Schema>) -> Vec<InvoiceInfo<'a>> {
+fn invoice_info<'a>(db: &'a ReadTransaction<Schema>) -> Vec<InvoiceInfo<'a>> {
     db.exec(|rows| {
         let ivl = InvoiceLine::join(rows);
         rows.into_vec(InvoiceInfoDummy {
@@ -63,7 +63,7 @@ struct PlaylistTrackCount {
     track_count: i64,
 }
 
-fn playlist_track_count(db: &Snapshot<Schema>) -> Vec<PlaylistTrackCount> {
+fn playlist_track_count(db: &ReadTransaction<Schema>) -> Vec<PlaylistTrackCount> {
     db.exec(|rows| {
         let pl = Playlist::join(rows);
         let track_count = rows.query(|rows| {
@@ -79,7 +79,7 @@ fn playlist_track_count(db: &Snapshot<Schema>) -> Vec<PlaylistTrackCount> {
     })
 }
 
-fn avg_album_track_count_for_artist(db: &Snapshot<Schema>) -> Vec<(String, Option<f64>)> {
+fn avg_album_track_count_for_artist(db: &ReadTransaction<Schema>) -> Vec<(String, Option<f64>)> {
     db.exec(|rows| {
         let artist = Artist::join(rows);
         let avg_track_count = rows.query(|rows| {
@@ -98,7 +98,7 @@ fn avg_album_track_count_for_artist(db: &Snapshot<Schema>) -> Vec<(String, Optio
     })
 }
 
-fn count_reporting(db: &Snapshot<Schema>) -> Vec<(String, i64)> {
+fn count_reporting(db: &ReadTransaction<Schema>) -> Vec<(String, i64)> {
     db.exec(|rows| {
         let receiver = Employee::join(rows);
         let report_count = rows.query(|rows| {
@@ -113,7 +113,7 @@ fn count_reporting(db: &Snapshot<Schema>) -> Vec<(String, i64)> {
     })
 }
 
-fn list_all_genres(db: &Snapshot<Schema>) -> Vec<String> {
+fn list_all_genres(db: &ReadTransaction<Schema>) -> Vec<String> {
     db.exec(|rows| {
         let genre = GenreNew::join(rows);
         rows.into_vec(genre.name())
@@ -132,7 +132,7 @@ struct Stats {
     milis: i64,
 }
 
-fn filtered_track(db: &Snapshot<Schema>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
+fn filtered_track(db: &ReadTransaction<Schema>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     db.exec(|rows| {
         let track = Track::join(rows);
         rows.filter(track.genre().name().eq(genre));
@@ -154,7 +154,7 @@ struct GenreStats {
     milis_average: Option<f64>,
 }
 
-fn genre_statistics(db: &Snapshot<Schema>) -> Vec<GenreStats> {
+fn genre_statistics(db: &ReadTransaction<Schema>) -> Vec<GenreStats> {
     db.exec(|rows| {
         let genre = GenreNew::join(rows);
         let (bytes, milis) = rows.query(|rows| {
@@ -179,7 +179,7 @@ struct CustomerSpending {
     total_spending: f64,
 }
 
-fn customer_spending(db: &Snapshot<Schema>) -> Vec<CustomerSpending> {
+fn customer_spending(db: &ReadTransaction<Schema>) -> Vec<CustomerSpending> {
     db.exec(|rows| {
         let customer = Customer::join(rows);
         let total = rows.query(|rows| {
@@ -195,7 +195,7 @@ fn customer_spending(db: &Snapshot<Schema>) -> Vec<CustomerSpending> {
     })
 }
 
-fn free_reference(db: &Snapshot<Schema>) {
+fn free_reference(db: &ReadTransaction<Schema>) {
     let tracks = db.exec(|rows| {
         let track = Track::join(rows);
         rows.into_vec(track)

@@ -23,7 +23,7 @@ mod value;
 pub use db::Free;
 pub use query::Query;
 pub use rust_query_macros::FromRow;
-pub use transaction::{Latest, LatestToken, Snapshot, SnapshotToken, ThreadToken};
+pub use transaction::{ReadClient, ReadTransaction, ThreadToken, WriteClient, WriteTransaction};
 pub use value::{UnixEpoch, Value};
 
 /// Types that are the result of a database operation.
