@@ -146,7 +146,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     }
 
     let tables = conn.new_query(|q| {
-        let table = q.join(&TableList);
+        let table = q.join(TableList);
         q.filter(table.schema().eq("main"));
         q.filter(table.r#type().eq("table"));
         q.filter(table.name().eq("sqlite_schema").not());
@@ -156,9 +156,8 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     let mut output = hash::Schema::default();
 
     for table_name in tables {
-        let table_info = TableInfo(table_name.clone());
         let mut columns = conn.new_query(|q| {
-            let table = q.join(&table_info);
+            let table = q.join(TableInfo(table_name.clone()));
 
             q.into_vec(AdHoc::new(|mut cacher| {
                 let name = cacher.cache(table.name());
@@ -174,10 +173,9 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             }))
         });
 
-        let foreign_key_list = ForeignKeyList(table_name.to_owned());
         let fks: HashMap<_, _> = conn
             .new_query(|q| {
-                let fk = q.join(&foreign_key_list);
+                let fk = q.join(ForeignKeyList(table_name.to_owned()));
                 q.into_vec((fk.from(), fk.table()))
             })
             .into_iter()
@@ -210,9 +208,8 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             table_def.columns.insert(def)
         }
 
-        let index_list = IndexList(table_name.clone());
         let uniques = conn.new_query(|q| {
-            let index = q.join(&index_list);
+            let index = q.join(IndexList(table_name.clone()));
             q.filter(index.unique());
             q.filter(index.origin().eq("u"));
             q.filter(index.partial().not());
@@ -220,9 +217,8 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         });
 
         for unique_name in uniques {
-            let index_info = IndexInfo(unique_name);
             let columns = conn.new_query(|q| {
-                let col = q.join(&index_info);
+                let col = q.join(IndexInfo(unique_name));
                 let name = q.filter_some(col.name());
                 q.into_vec(name)
             });

@@ -56,7 +56,7 @@ impl<T> Deref for LatestToken<T> {
 /// For each opened database there exist one [SnapshotToken].
 pub struct SnapshotToken<S> {
     pub(crate) client: Arc<Client>,
-    pub(crate) schema: S,
+    pub(crate) schema: PhantomData<S>,
 }
 
 impl<S> SnapshotToken<S> {
@@ -85,14 +85,6 @@ impl<'a, S> Deref for Latest<'a, S> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl<S> Deref for Snapshot<'_, S> {
-    type Target = S;
-
-    fn deref(&self) -> &Self::Target {
-        &self.1
     }
 }
 

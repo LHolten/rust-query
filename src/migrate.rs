@@ -342,11 +342,7 @@ impl<S: Schema> Migrator<S> {
         let mut transaction = Rc::into_inner(self.transaction).unwrap();
         transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
 
-        // TODO: clean this up
-        let Some(schema) = new_checked(transaction.borrow_transaction()) else {
-            return None;
-        };
-        let Some(schema2) = new_checked(transaction.borrow_transaction()) else {
+        let Some(_) = new_checked::<S>(transaction.borrow_transaction()) else {
             return None;
         };
 
@@ -360,11 +356,11 @@ impl<S: Schema> Migrator<S> {
         Some(DbClient {
             latest: LatestToken(SnapshotToken {
                 client: client.clone(),
-                schema,
+                schema: PhantomData,
             }),
             snapshot: SnapshotToken {
                 client,
-                schema: schema2,
+                schema: PhantomData,
             },
         })
     }

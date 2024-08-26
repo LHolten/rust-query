@@ -96,6 +96,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         #[derive(::rust_query::private::RefCast)]
         pub struct #table_ident<T = ()>(T);
 
+        impl #table_ident {
+            pub fn join<'inner>(rows: &mut ::rust_query::Query<'inner, #schema>) -> ::rust_query::Db<'inner, Self> {
+                rows.join(#table_ident(()))
+            }
+        }
+
         impl<T: Clone> #table_ident<T> {
             #(#defs)*
         }

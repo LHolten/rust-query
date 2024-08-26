@@ -21,7 +21,7 @@ pub struct Query<'inner, S> {
 
 impl<'inner, S> Query<'inner, S> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
-    pub fn join<T: Table>(&mut self, t: &T) -> Db<'inner, T> {
+    pub fn join<T: Table>(&mut self, t: T) -> Db<'inner, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
         let table = alias;
