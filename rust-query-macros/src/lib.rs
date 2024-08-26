@@ -500,8 +500,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(#table_defs,)*
                     }
 
-                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t, _PrevSchema> for #schema<'t, #(#table_generics),*> {
-                        type S = super::#schema;
+                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t> for #schema<'t, #(#table_generics),*> {
+                        type From = _PrevSchema;
+                        type To = super::#schema;
 
                         fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#tables;)*

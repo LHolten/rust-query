@@ -158,8 +158,9 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
     conn.execute(&sql, []).unwrap();
 }
 
-pub trait Migration<'t, From> {
-    type S: Schema;
+pub trait Migration<'t> {
+    type From: Schema;
+    type To: Schema;
 
     fn tables(self, b: &mut SchemaBuilder<'t>);
 }
