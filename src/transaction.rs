@@ -95,11 +95,11 @@ impl<'a, S> Deref for WriteTransaction<'a, S> {
     }
 }
 
-impl<S> ReadTransaction<'_, S> {
+impl<'t, S> ReadTransaction<'t, S> {
     /// Execute a new query.
-    pub fn exec<'s, F, R>(&'s self, f: F) -> R
+    pub fn exec<F, R>(&self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
+        F: for<'a> FnOnce(&'a mut Execute<'t, 'a, S>) -> R,
     {
         // Execution already happens in a transaction.
         // [Snapshot] and thus any [Latest] that it might be borrowed
@@ -109,7 +109,7 @@ impl<S> ReadTransaction<'_, S> {
 
     /// Retrieve a single row from the database.
     /// This is convenient but quite slow.
-    pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, S, Out = T>) -> T {
+    pub fn get<T>(&self, val: impl for<'x> FromRow<'x, 't, S, Out = T>) -> T {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
         let mut res = private_exec(&self.transaction, |e| e.into_vec(val));
