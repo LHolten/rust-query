@@ -23,7 +23,7 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     token::ThreadToken,
-    transaction::Client,
+    transaction::Database,
     Free, HasId, ReadTransaction, Table,
 };
 
@@ -342,9 +342,9 @@ impl<S: Schema> Migrator<S> {
         }
     }
 
-    /// Commit the migration transaction and return a [WriteClient].
+    /// Commit the migration transaction and return a [Database].
     /// Returns [None] if the database schema version is newer than `S`.
-    pub fn finish(self, t: &mut ThreadToken) -> Option<Client<S>> {
+    pub fn finish(self, t: &mut ThreadToken) -> Option<Database<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Arc::new(());
         // we just erased the reference on the thread token, so we should have the only reference now.
@@ -363,7 +363,7 @@ impl<S: Schema> Migrator<S> {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        Some(Client {
+        Some(Database {
             manager: self.manager,
             schema: PhantomData,
         })

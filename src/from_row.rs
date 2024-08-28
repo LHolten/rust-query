@@ -60,6 +60,8 @@ impl<'t, 'a> Row<'_, 't, 'a> {
     }
 }
 
+/// This trait is implemented by everything that can be retrieved from the database.
+/// Implement it using the derive proc macro on a struct.
 pub trait FromRow<'t, 'a, S> {
     type Out;
     fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;

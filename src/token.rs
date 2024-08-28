@@ -23,16 +23,16 @@ impl ThreadToken {
         }
     }
 
-    /// Retrieve the [ThreadToken] if it was not retrieved yet on this thread.
+    /// Create a [ThreadToken] if it was created not created yet on this thread.
     ///
     /// Async tasks often share their thread and can thus not use this method.
     /// Instead you should use your equivalent of `spawn_blocking` or `block_in_place`.
-    /// These functions guarantee that you have a unique thread and thus allow [ThreadToken::try_acquire].
+    /// These functions guarantee that you have a unique thread and thus allow [ThreadToken::try_new].
     ///
     /// Note that using `spawn_blocking` for sqlite is actually a good practice.
     /// Sqlite will essentially do blocking IO every time it is called.
     /// Doing so on all async runtime threads would prevent other tasks from executing.
-    pub fn try_acquire() -> Option<Self> {
+    pub fn try_new() -> Option<Self> {
         EXISTS.replace(false).then(ThreadToken::new)
     }
 }

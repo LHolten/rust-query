@@ -12,12 +12,14 @@ use crate::{
     Free, HasId,
 };
 
-pub struct Client<S> {
+/// The primary interface to the database.
+/// It allows creating read and write transactions from multiple threads.
+pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema: PhantomData<S>,
 }
 
-impl<S> Client<S> {
+impl<S> Database<S> {
     /// Take a read-only snapshot of the database.
     ///
     /// This does not block because sqlite in WAL mode allows reading while writing.
@@ -36,6 +38,8 @@ impl<S> Client<S> {
 
     /// Claim write access to the database.
     /// This will block until it can acquire a write transaction.
+    ///
+    /// This function uses <https://sqlite.org/unlock_notify.html> to wait.
     pub fn write_lock<'a>(&'a self, token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
@@ -51,6 +55,8 @@ impl<S> Client<S> {
     }
 }
 
+/// [ReadTransaction] allows querying the database.
+///
 /// There can be at most one [ReadTransaction] or [WriteTransaction] in each thread.
 /// This is why these types are both `!Send`.
 ///

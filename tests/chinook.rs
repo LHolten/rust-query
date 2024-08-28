@@ -13,7 +13,7 @@ fn assert_dbg(val: impl Debug, file_name: &str) {
 
 #[test]
 fn test_queries() {
-    let mut token = ThreadToken::try_acquire().unwrap();
+    let mut token = ThreadToken::try_new().unwrap();
     let db = migrate(&mut token);
     let mut db = db.write_lock(&mut token);
 

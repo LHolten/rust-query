@@ -26,7 +26,7 @@ pub use from_row::FromRow;
 pub use query::Query;
 pub use rust_query_macros::FromRow;
 pub use token::ThreadToken;
-pub use transaction::{Client, ReadTransaction, WriteTransaction};
+pub use transaction::{Database, ReadTransaction, WriteTransaction};
 pub use value::{UnixEpoch, Value};
 
 /// Types that are the result of a database operation.
