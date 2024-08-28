@@ -1,7 +1,7 @@
-use std::{marker::PhantomData, ops::Deref, sync::Arc};
+use std::{marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
-use rusqlite::{Connection, Transaction};
+use rusqlite::Transaction;
 
 use crate::{
     client::private_exec,
@@ -12,63 +12,42 @@ use crate::{
     Free, HasId,
 };
 
-/// For each opened database there exists one [WriteClient].
-///
-/// [WriteClient] dereferences to a [ReadClient] which can be cloned.
-pub struct WriteClient<T> {
-    pub(crate) snapshot: ReadClient<T>,
-}
-
-impl<T> Deref for WriteClient<T> {
-    type Target = ReadClient<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.snapshot
-    }
-}
-
-pub struct ReadClient<S> {
-    pub(crate) manager: Arc<r2d2_sqlite::SqliteConnectionManager>,
-    pub(crate) conn: Connection,
+pub struct Client<S> {
+    pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema: PhantomData<S>,
 }
 
-impl<S> Clone for ReadClient<S> {
-    fn clone(&self) -> Self {
-        use r2d2::ManageConnection;
-        Self {
-            conn: self.manager.connect().unwrap(),
-            manager: self.manager.clone(),
-            schema: self.schema.clone(),
-        }
-    }
-}
-
-impl<S> ReadClient<S> {
+impl<S> Client<S> {
     /// Take a read-only snapshot of the database.
-    pub fn read<'a>(&'a self, _token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
+    ///
+    /// This does not block because sqlite in WAL mode allows reading while writing.
+    pub fn read<'a>(&'a self, token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
+        use r2d2::ManageConnection;
+        let conn = token.conn.insert(self.manager.connect().unwrap());
         ReadTransaction {
             // this can not be a nested transaction, because we create it from the original connection.
             // we also know that it is not concurrent with any write transactions on the same connection.
             // (sqlite does not guarantee isolation for those)
-            transaction: self.conn.unchecked_transaction().unwrap(),
+            transaction: conn.unchecked_transaction().unwrap(),
             _p: PhantomData,
             _local: PhantomData,
         }
     }
-}
 
-impl<S> WriteClient<S> {
     /// Claim write access to the database.
-    pub fn write<'a>(&'a mut self, _token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
-        let connection = &mut self.snapshot.conn;
-        WriteTransaction(ReadTransaction {
-            transaction: connection
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .unwrap(),
-            _p: PhantomData,
-            _local: PhantomData,
-        })
+    /// This will block until it can acquire a write transaction.
+    pub fn write_lock<'a>(&'a self, token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
+        use r2d2::ManageConnection;
+        let conn = token.conn.insert(self.manager.connect().unwrap());
+        WriteTransaction {
+            inner: ReadTransaction {
+                transaction: conn
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .unwrap(),
+                _p: PhantomData,
+                _local: PhantomData,
+            },
+        }
     }
 }
 
@@ -85,13 +64,15 @@ pub struct ReadTransaction<'a, S> {
 }
 
 /// Same as [ReadTransaction], but also allows inserting new rows.
-pub struct WriteTransaction<'a, S>(ReadTransaction<'a, S>);
+pub struct WriteTransaction<'a, S> {
+    inner: ReadTransaction<'a, S>,
+}
 
 impl<'a, S> Deref for WriteTransaction<'a, S> {
     type Target = ReadTransaction<'a, S>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
 }
 
@@ -126,11 +107,11 @@ impl<S> WriteTransaction<'_, S> {
         &'s mut self,
         val: impl Writable<T = T>,
     ) -> Option<Free<'s, T>> {
-        private_try_insert(&self.0.transaction, val)
+        private_try_insert(&self.inner.transaction, val)
     }
 
     pub fn commit(self) {
-        self.0.transaction.commit().unwrap()
+        self.inner.transaction.commit().unwrap()
     }
 
     // pub fn update(&mut self) {

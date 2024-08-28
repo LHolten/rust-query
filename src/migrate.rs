@@ -23,7 +23,7 @@ use crate::{
     insert::Reader,
     pragma::read_schema,
     token::ThreadToken,
-    transaction::{ReadClient, WriteClient},
+    transaction::Client,
     Free, HasId, ReadTransaction, Table,
 };
 
@@ -184,7 +184,13 @@ pub(crate) struct OwnedTransaction {
 impl Prepare {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
-    /// TODO: return an error if the file is already opened
+    ///
+    /// Opening the same database multiple times at the same time is fine,
+    /// as long as they migrate to or use the same schema.
+    /// All locking is done by sqlite, so connections can even be made using different client implementations.
+    ///
+    /// We currently don't check that the schema is not modified between transactions.
+    /// So if that happens then the subsequent queries might fail.
     pub fn open(p: impl AsRef<Path>) -> Self {
         let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
         Self::open_internal(manager)
@@ -338,7 +344,7 @@ impl<S: Schema> Migrator<S> {
 
     /// Commit the migration transaction and return a [WriteClient].
     /// Returns [None] if the database schema version is newer than `S`.
-    pub fn finish(self, t: &mut ThreadToken) -> Option<WriteClient<S>> {
+    pub fn finish(self, t: &mut ThreadToken) -> Option<Client<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Arc::new(());
         // we just erased the reference on the thread token, so we should have the only reference now.
@@ -357,13 +363,9 @@ impl<S: Schema> Migrator<S> {
             .pragma_update(None, "foreign_keys", "ON")
             .unwrap();
 
-        use r2d2::ManageConnection;
-        Some(WriteClient {
-            snapshot: ReadClient {
-                conn: self.manager.connect().unwrap(),
-                manager: Arc::new(self.manager),
-                schema: PhantomData,
-            },
+        Some(Client {
+            manager: self.manager,
+            schema: PhantomData,
         })
     }
 }

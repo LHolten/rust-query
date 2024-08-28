@@ -13,9 +13,9 @@ fn assert_dbg(val: impl Debug, file_name: &str) {
 
 #[test]
 fn test_queries() {
-    let mut token = ThreadToken::acquire().unwrap();
-    let mut db = migrate(&mut token);
-    let mut db = db.write(&mut token);
+    let mut token = ThreadToken::try_acquire().unwrap();
+    let db = migrate(&mut token);
+    let mut db = db.write_lock(&mut token);
 
     let res = invoice_info(&db);
     assert_dbg(&res[..20], "invoice_info");

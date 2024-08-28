@@ -16,7 +16,7 @@ license = "Apache-2.0"
 elsa = "1.10.0"
 sea-query = "0.31"
 sea-query-rusqlite = "0.6"
-rusqlite = { version = "0.31", features = ["modern_sqlite"] }
+rusqlite = { version = "0.31", features = ["modern_sqlite", "unlock_notify"] }
 quote = "1.0.35"
 proc-macro2 = "1.0.79"
 heck = "0.5.0"
