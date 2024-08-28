@@ -29,13 +29,13 @@ impl<'inner, S> Query<'inner, S> {
         Db::new(table)
     }
 
-    /// Join a vector of values.
+    // Join a vector of values.
     // pub fn vec<V: Value<'inner>>(&mut self, vec: Vec<V>) -> Db<'inner, V::Typ> {
     //     todo!()
     // }
 
     /// Perform a sub-query that returns a single result for each of the current rows.
-    pub fn query<F, R>(&self, f: F) -> R
+    pub fn aggregate<F, R>(&self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a, S>) -> R,
     {

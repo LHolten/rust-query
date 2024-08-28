@@ -66,7 +66,7 @@ struct PlaylistTrackCount {
 fn playlist_track_count(db: &ReadTransaction<Schema>) -> Vec<PlaylistTrackCount> {
     db.exec(|rows| {
         let pl = Playlist::join(rows);
-        let track_count = rows.query(|rows| {
+        let track_count = rows.aggregate(|rows| {
             let plt = PlaylistTrack::join(rows);
             rows.filter_on(plt.playlist(), pl);
             rows.count_distinct(plt)
@@ -82,11 +82,11 @@ fn playlist_track_count(db: &ReadTransaction<Schema>) -> Vec<PlaylistTrackCount>
 fn avg_album_track_count_for_artist(db: &ReadTransaction<Schema>) -> Vec<(String, Option<f64>)> {
     db.exec(|rows| {
         let artist = Artist::join(rows);
-        let avg_track_count = rows.query(|rows| {
+        let avg_track_count = rows.aggregate(|rows| {
             let album = Album::join(rows);
             rows.filter_on(album.artist(), artist);
 
-            let track_count = rows.query(|rows| {
+            let track_count = rows.aggregate(|rows| {
                 let track = Track::join(rows);
                 rows.filter_on(track.album(), album);
 
@@ -101,7 +101,7 @@ fn avg_album_track_count_for_artist(db: &ReadTransaction<Schema>) -> Vec<(String
 fn count_reporting(db: &ReadTransaction<Schema>) -> Vec<(String, i64)> {
     db.exec(|rows| {
         let receiver = Employee::join(rows);
-        let report_count = rows.query(|rows| {
+        let report_count = rows.aggregate(|rows| {
             let reporter = Employee::join(rows);
             // only count employees that report to someone
             let reports_to = rows.filter_some(reporter.reports_to());
@@ -157,7 +157,7 @@ struct GenreStats {
 fn genre_statistics(db: &ReadTransaction<Schema>) -> Vec<GenreStats> {
     db.exec(|rows| {
         let genre = GenreNew::join(rows);
-        let (bytes, milis) = rows.query(|rows| {
+        let (bytes, milis) = rows.aggregate(|rows| {
             let track = Track::join(rows);
             rows.filter_on(track.genre(), genre);
             (
@@ -182,7 +182,7 @@ struct CustomerSpending {
 fn customer_spending(db: &ReadTransaction<Schema>) -> Vec<CustomerSpending> {
     db.exec(|rows| {
         let customer = Customer::join(rows);
-        let total = rows.query(|rows| {
+        let total = rows.aggregate(|rows| {
             let invoice = Invoice::join(rows);
             rows.filter_on(invoice.customer(), customer);
             rows.sum_float(invoice.total())
