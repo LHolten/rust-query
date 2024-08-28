@@ -28,14 +28,8 @@ ref-cast = "1.0.23"
 pretty_assertions = "1.4.0"
 r2d2_sqlite = "0.24.0"
 r2d2 = "0.8"
-tokio = {version = "1.39.3", default-features = false, features = ["rt"], optional = true}
 
 [dev-dependencie]
 
 [dev-dependencies]
 trybuild = "1.0.97"
-
-[features]
-default = ["thread"]
-tokio = ["dep:tokio"]
-thread = []
