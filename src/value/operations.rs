@@ -1,6 +1,6 @@
 use sea_query::{Alias, Expr, SimpleExpr};
 
-use super::{NoParam, Value, ValueBuilder};
+use super::{NoParam, NumTyp, Value, ValueBuilder};
 
 #[derive(Clone, Copy)]
 pub struct Add<A, B>(pub(crate) A, pub(crate) B);
@@ -98,5 +98,16 @@ impl<'t, S, A: Value<'t, S>> Value<'t, S> for AsFloat<A> {
     type Typ = f64;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b).cast_as(Alias::new("real"))
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Const<A>(pub(crate) A);
+
+impl<A> NoParam for Const<A> {}
+impl<'t, S, A: NumTyp> Value<'t, S> for Const<A> {
+    type Typ = A;
+    fn build_expr(&self, _b: ValueBuilder) -> SimpleExpr {
+        SimpleExpr::Constant(self.0.into_value())
     }
 }

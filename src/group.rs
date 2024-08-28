@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use sea_query::{Alias, Expr, Func, SimpleExpr};
+use sea_query::{Alias, Func, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
@@ -11,7 +11,7 @@ use crate::{
     db::{Col, TableRef},
     query::Query,
     value::{
-        operations::{NotNull, UnwrapOr},
+        operations::{Const, NotNull, UnwrapOr},
         EqTyp, NumTyp, Value,
     },
 };
@@ -86,33 +86,36 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the sum of a column.
-    pub fn sum_float<V: Value<'inner, S, Typ = f64>>(
+    pub fn sum<V: Value<'inner, S>>(
         &'inner self,
         val: V,
-    ) -> UnwrapOr<AggrCol<'outer, S, Option<f64>>, f64> {
+    ) -> UnwrapOr<AggrCol<'outer, S, Option<V::Typ>>, Const<V::Typ>>
+    where
+        V::Typ: NumTyp,
+    {
         let expr = Func::cast_as(
             Func::sum(val.build_expr(self.ast.builder())),
             Alias::new("integer"),
         );
-        UnwrapOr(self.select(expr), 0.)
+        UnwrapOr(self.select(expr), Const(V::Typ::ZERO))
     }
 
     /// Return the number of distinct values in a column.
     pub fn count_distinct<V: Value<'inner, S>>(
         &'inner self,
         val: V,
-    ) -> UnwrapOr<AggrCol<'outer, S, Option<i64>>, i64>
+    ) -> UnwrapOr<AggrCol<'outer, S, Option<i64>>, Const<i64>>
     where
         V::Typ: EqTyp,
     {
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select(expr), 0)
+        UnwrapOr(self.select(expr), Const(0))
     }
 
     /// Return whether there are any rows.
     pub fn exists(&'inner self) -> NotNull<AggrCol<'outer, S, Option<i64>>> {
-        let expr = Expr::val(1);
-        NotNull(self.select(expr))
+        let expr = SimpleExpr::Constant(1.into_value());
+        NotNull(self.select::<i64>(expr))
     }
 }
 

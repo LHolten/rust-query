@@ -42,10 +42,23 @@ impl<'x> ValueBuilder<'x> {
     }
 }
 
-pub trait NumTyp {}
+pub trait NumTyp: MyTyp + Clone + Copy {
+    const ZERO: Self;
+    fn into_value(self) -> sea_query::Value;
+}
 
-impl NumTyp for i64 {}
-impl NumTyp for f64 {}
+impl NumTyp for i64 {
+    const ZERO: Self = 0;
+    fn into_value(self) -> sea_query::Value {
+        sea_query::Value::BigInt(Some(self))
+    }
+}
+impl NumTyp for f64 {
+    const ZERO: Self = 0.;
+    fn into_value(self) -> sea_query::Value {
+        sea_query::Value::Double(Some(self))
+    }
+}
 
 pub trait EqTyp {}
 

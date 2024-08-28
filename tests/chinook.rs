@@ -185,7 +185,7 @@ fn customer_spending(db: &ReadTransaction<Schema>) -> Vec<CustomerSpending> {
         let total = rows.aggregate(|rows| {
             let invoice = Invoice::join(rows);
             rows.filter_on(invoice.customer(), customer);
-            rows.sum_float(invoice.total())
+            rows.sum(invoice.total())
         });
 
         rows.into_vec(CustomerSpendingDummy {
