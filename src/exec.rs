@@ -52,7 +52,7 @@ impl<'outer, 'inner, S> Execute<'outer, 'inner, S> {
             println!("{values:?}");
         }
 
-        let mut statement = self.conn.prepare(&sql).unwrap();
+        let mut statement = self.conn.prepare_cached(&sql).unwrap();
         let mut rows = statement.query(&*values.as_params()).unwrap();
 
         let mut out = vec![];

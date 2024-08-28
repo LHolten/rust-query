@@ -50,7 +50,7 @@ pub(crate) fn private_try_insert<'a, T: HasId>(
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-    let mut statement = conn.prepare(&sql).unwrap();
+    let mut statement = conn.prepare_cached(&sql).unwrap();
     let id = statement
         .query_map(&*values.as_params(), |row| row.get(T::ID))
         .unwrap()
