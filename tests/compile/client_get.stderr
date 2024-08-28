@@ -1,7 +1,7 @@
 error: lifetime may not live long enough
  --> tests/compile/client_get.rs:6:5
   |
-5 | fn test<'a, S>(db: &Snapshot<'a, S>, val: impl Value<'a, S, Typ = i64>) {
+5 | fn test<'a, S>(db: &ReadTransaction<'a, S>, val: impl Value<'a, S, Typ = i64>) {
   |         -- lifetime `'a` defined here
 6 |     db.get(val);
   |     ^^^^^^^^^^^ requires that `'a` must outlive `'static`
@@ -9,8 +9,8 @@ error: lifetime may not live long enough
 note: due to current limitations in the borrow checker, this implies a `'static` lifetime
  --> src/transaction.rs
   |
-  |     pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, S, Out = T>) -> T {
-  |                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |     pub fn get<T>(&self, val: impl for<'x> FromRow<'x, 't, S, Out = T>) -> T {
+  |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: implementation of `FromRow` is not general enough
  --> tests/compile/client_get.rs:6:5
@@ -32,5 +32,5 @@ error[E0308]: mismatched types
 note: the lifetime requirement is introduced here
  --> src/transaction.rs
   |
-  |     pub fn get<'s, T>(&'s self, val: impl for<'x> FromRow<'x, 's, S, Out = T>) -> T {
-  |                                                                      ^^^^^^^
+  |     pub fn get<T>(&self, val: impl for<'x> FromRow<'x, 't, S, Out = T>) -> T {
+  |                                                               ^^^^^^^

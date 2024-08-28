@@ -1,4 +1,4 @@
-use rust_query::Db;
+use rust_query::ops::Db;
 
 fn main() {}
 

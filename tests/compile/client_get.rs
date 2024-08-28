@@ -1,7 +1,7 @@
-use rust_query::{Snapshot, Value};
+use rust_query::{ReadTransaction, Value};
 
 fn main() {}
 
-fn test<'a, S>(db: &Snapshot<'a, S>, val: impl Value<'a, S, Typ = i64>) {
+fn test<'a, S>(db: &ReadTransaction<'a, S>, val: impl Value<'a, S, Typ = i64>) {
     db.get(val);
 }
