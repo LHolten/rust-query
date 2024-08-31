@@ -5,7 +5,7 @@ use rusqlite::Transaction;
 
 use crate::{
     client::private_exec,
-    exec::Execute,
+    exec::Query,
     insert::{private_try_insert, Writable},
     private::FromRow,
     token::ThreadToken,
@@ -86,7 +86,7 @@ impl<'t, S> ReadTransaction<'t, S> {
     /// Execute a new query.
     pub fn query<F, R>(&self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Execute<'t, 'a, S>) -> R,
+        F: for<'a> FnOnce(&'a mut Query<'t, 'a, S>) -> R,
     {
         // Execution already happens in a transaction.
         // [Snapshot] and thus any [Latest] that it might be borrowed

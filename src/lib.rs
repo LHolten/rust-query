@@ -39,7 +39,7 @@ pub mod ops {
 
 /// Types that are used as closure arguments.
 pub mod args {
-    pub use crate::exec::Execute;
+    pub use crate::exec::Query;
     pub use crate::group::Aggregate;
 }
 

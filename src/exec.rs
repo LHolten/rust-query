@@ -14,13 +14,13 @@ use crate::{
 
 /// This is the top level query type and dereferences to [Rows].
 /// It has methods for turning queries into vectors and for inserting in the database.
-pub struct Execute<'outer, 'inner, S> {
+pub struct Query<'outer, 'inner, S> {
     pub(crate) phantom: PhantomData<&'outer ()>,
     pub(crate) q: Rows<'inner, S>,
     pub(crate) conn: &'inner rusqlite::Connection,
 }
 
-impl<'outer, 'inner, S> Deref for Execute<'outer, 'inner, S> {
+impl<'outer, 'inner, S> Deref for Query<'outer, 'inner, S> {
     type Target = Rows<'inner, S>;
 
     fn deref(&self) -> &Self::Target {
@@ -28,13 +28,13 @@ impl<'outer, 'inner, S> Deref for Execute<'outer, 'inner, S> {
     }
 }
 
-impl<'outer, 'inner, S> DerefMut for Execute<'outer, 'inner, S> {
+impl<'outer, 'inner, S> DerefMut for Query<'outer, 'inner, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.q
     }
 }
 
-impl<'outer, 'inner, S> Execute<'outer, 'inner, S> {
+impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Turn a database query into a rust [Vec] of results.
     pub fn into_vec<D>(&'inner self, dummy: D) -> Vec<D::Out>
     where

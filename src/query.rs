@@ -8,7 +8,7 @@ use crate::{
     Table,
 };
 
-/// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Execute].
+/// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Query].
 /// It contains most query functionality like joining tables and doing sub-queries.
 ///
 /// [Rows] mutability is only about which rows are included.

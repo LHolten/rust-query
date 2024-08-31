@@ -85,7 +85,7 @@ impl<'x> SchemaBuilder<'x> {
         );
 
         self.conn.new_query(|e| {
-            // TODO: potentially replace this with Execute::join
+            // TODO: potentially replace this with Rows::join
             let table = e.ast.scope.new_alias();
             e.ast.tables.push((A::NAME.to_owned(), table));
             let db_id = Db::<A>::new(table);
