@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Not};
 
 use from_row::from_row_impl;
 use heck::{ToSnekCase, ToUpperCamelCase};
@@ -492,18 +492,18 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let migrations = prev_mod.map(|prev_mod| {
             let prelude = prelude(&new_tables, &prev_mod, schema);
 
-            // FIXME: remove the lifetime `'t` if there are no table_defs
+            let lifetime = table_generics.is_empty().not().then_some(quote! {'t,});
             quote! {
                 pub mod up {
                     #prelude
 
                     #table_migrations
 
-                    pub struct #schema<'t, #(#table_generics),*> {
+                    pub struct #schema<#lifetime #(#table_generics),*> {
                         #(#table_defs,)*
                     }
 
-                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t> for #schema<'t, #(#table_generics),*> {
+                    impl<'t #(,#table_constraints)*> ::rust_query::private::Migration<'t> for #schema<#lifetime #(#table_generics),*> {
                         type From = _PrevSchema;
                         type To = super::#schema;
 
