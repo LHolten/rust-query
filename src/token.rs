@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell, sync::Arc};
+use std::{any::Any, cell::Cell, rc::Rc};
 
 use rusqlite::Connection;
 
@@ -6,7 +6,7 @@ use rusqlite::Connection;
 /// It can thus not be send across threads.
 pub struct ThreadToken {
     _p: std::marker::PhantomData<*const ()>,
-    pub(crate) stuff: Arc<dyn Any>,
+    pub(crate) stuff: Rc<dyn Any>,
     pub(crate) conn: Option<Connection>,
 }
 
@@ -18,7 +18,7 @@ impl ThreadToken {
     fn new() -> Self {
         ThreadToken {
             _p: std::marker::PhantomData,
-            stuff: Arc::new(()),
+            stuff: Rc::new(()),
             conn: None,
         }
     }
