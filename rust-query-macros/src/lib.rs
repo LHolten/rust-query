@@ -301,7 +301,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let mut output = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
     let mut prev_mod = None;
-    for version in range.start..range.end.expect("schema has a final version") {
+    for version in range.start..range.end.unwrap_or(1) {
         let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
 
         let mut mod_output = TokenStream::new();
@@ -313,7 +313,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 if let Some(unique) = is_unique(attr.path()) {
                     let idents = attr
                         .parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)
-                        .expect("unique arguments are comma separated");
+                        .expect("expected unique arguments to be comma separated");
                     uniques.push(Unique {
                         name: unique,
                         columns: idents.into_iter().collect(),
@@ -321,9 +321,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 } else if attr.path().is_ident("create_from") {
                     let new_prev = attr
                         .parse_args()
-                        .expect("create_from is used with single ident");
+                        .expect("expected create_from to be used with single ident");
                     let none = prev.replace(new_prev).is_none();
-                    assert!(none, "can not define multiple `created_from`");
+                    assert!(none, "expected at most one `created_from`");
                 } else {
                     other_attrs.push(attr.clone());
                 }
@@ -341,7 +341,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
             let mut columns = BTreeMap::new();
             for (i, field) in table.fields.iter().enumerate() {
-                let name = field.ident.clone().expect("table columns are named");
+                let name = field
+                    .ident
+                    .clone()
+                    .expect("expected table columns to be named");
                 let mut other_attrs = vec![];
                 let mut unique = None;
                 for attr in &field.attrs {
