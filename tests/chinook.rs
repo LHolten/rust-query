@@ -47,7 +47,7 @@ struct InvoiceInfo<'a> {
 }
 
 fn invoice_info<'a>(db: &'a ReadTransaction<Schema>) -> Vec<InvoiceInfo<'a>> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let ivl = InvoiceLine::join(rows);
         rows.into_vec(InvoiceInfoDummy {
             track: ivl.track().name(),
@@ -64,7 +64,7 @@ struct PlaylistTrackCount {
 }
 
 fn playlist_track_count(db: &ReadTransaction<Schema>) -> Vec<PlaylistTrackCount> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let pl = Playlist::join(rows);
         let track_count = rows.aggregate(|rows| {
             let plt = PlaylistTrack::join(rows);
@@ -80,7 +80,7 @@ fn playlist_track_count(db: &ReadTransaction<Schema>) -> Vec<PlaylistTrackCount>
 }
 
 fn avg_album_track_count_for_artist(db: &ReadTransaction<Schema>) -> Vec<(String, Option<f64>)> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let artist = Artist::join(rows);
         let avg_track_count = rows.aggregate(|rows| {
             let album = Album::join(rows);
@@ -99,7 +99,7 @@ fn avg_album_track_count_for_artist(db: &ReadTransaction<Schema>) -> Vec<(String
 }
 
 fn count_reporting(db: &ReadTransaction<Schema>) -> Vec<(String, i64)> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let receiver = Employee::join(rows);
         let report_count = rows.aggregate(|rows| {
             let reporter = Employee::join(rows);
@@ -114,7 +114,7 @@ fn count_reporting(db: &ReadTransaction<Schema>) -> Vec<(String, i64)> {
 }
 
 fn list_all_genres(db: &ReadTransaction<Schema>) -> Vec<String> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let genre = GenreNew::join(rows);
         rows.into_vec(genre.name())
     })
@@ -133,7 +133,7 @@ struct Stats {
 }
 
 fn filtered_track(db: &ReadTransaction<Schema>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let track = Track::join(rows);
         rows.filter(track.genre().name().eq(genre));
         rows.filter(track.milliseconds().lt(max_milis));
@@ -155,7 +155,7 @@ struct GenreStats {
 }
 
 fn genre_statistics(db: &ReadTransaction<Schema>) -> Vec<GenreStats> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let genre = GenreNew::join(rows);
         let (bytes, milis) = rows.aggregate(|rows| {
             let track = Track::join(rows);
@@ -180,7 +180,7 @@ struct CustomerSpending {
 }
 
 fn customer_spending(db: &ReadTransaction<Schema>) -> Vec<CustomerSpending> {
-    db.exec(|rows| {
+    db.query(|rows| {
         let customer = Customer::join(rows);
         let total = rows.aggregate(|rows| {
             let invoice = Invoice::join(rows);
@@ -196,7 +196,7 @@ fn customer_spending(db: &ReadTransaction<Schema>) -> Vec<CustomerSpending> {
 }
 
 fn free_reference(db: &ReadTransaction<Schema>) {
-    let tracks = db.exec(|rows| {
+    let tracks = db.query(|rows| {
         let track = Track::join(rows);
         rows.into_vec(track)
     });

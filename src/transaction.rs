@@ -84,7 +84,7 @@ impl<'a, S> Deref for WriteTransaction<'a, S> {
 
 impl<'t, S> ReadTransaction<'t, S> {
     /// Execute a new query.
-    pub fn exec<F, R>(&self, f: F) -> R
+    pub fn query<F, R>(&self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Execute<'t, 'a, S>) -> R,
     {

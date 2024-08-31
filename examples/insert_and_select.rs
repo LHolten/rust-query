@@ -48,7 +48,7 @@ fn do_stuff_with_database(db: &mut WriteTransaction<MySchema>) {
     db.try_insert(dog_picture).unwrap();
 
     // Now we want to get all pictures for 'mike'.
-    let mike_pictures = db.exec(|rows| {
+    let mike_pictures = db.query(|rows| {
         // Initially there is one empty row.
         // Lets join the pictures table.
         let picture = Image::join(rows);
