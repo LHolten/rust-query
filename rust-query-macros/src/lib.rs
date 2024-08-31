@@ -16,7 +16,7 @@ mod table;
 ///
 /// For example:
 /// ```
-/// #[rust_query::schema]
+/// #[rust_query::migration::schema]
 /// #[version(0..1)]
 /// enum Schema {
 ///     User {
@@ -42,7 +42,7 @@ mod table;
 /// # Adding tables
 /// At some point you might want to add a new table.
 /// ```
-/// #[rust_query::schema]
+/// #[rust_query::migration::schema]
 /// #[version(0..2)]
 /// enum Schema {
 ///     User {
@@ -59,7 +59,7 @@ mod table;
 /// }
 /// # fn main() {}
 /// ```
-/// We now have two schema version which generates two modules `v0` and `v1`.
+/// We now have two schema versions which generates two modules `v0` and `v1`.
 /// They look something like this:
 /// ```rust,ignore
 /// mod v0 {
@@ -76,7 +76,7 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
-/// #[rust_query::schema]
+/// #[rust_query::migration::schema]
 /// #[version(0..2)]
 /// enum Schema {
 ///     User {
@@ -90,15 +90,15 @@ mod table;
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
 /// // This is done with the `v1::up::UserMigration`:
-/// pub fn migrate() -> (rust_query::Client, v1::Schema) {
-///     let m = rust_query::Prepare::open_in_memory(); // we use an in memory database for this test
-///     let (mut m, s) = m.create_db_empty();
-///     let s = m.migrate(s, |_s, db| v1::up::Schema {
+/// pub fn migrate(t: &mut rust_query::ThreadToken) -> rust_query::Database<v1::Schema> {
+///     let m = rust_query::migration::Prepare::open_in_memory(); // we use an in memory database for this test
+///     let m = m.create_db_empty().expect("database is version is before supported versions");
+///     let m = m.migrate(t, |db| v1::up::Schema {
 ///         user: Box::new(|user| v1::up::UserMigration {
-///             score: db.get(user.email()).len() as i64
+///             score: db.get(user.email()).len() as i64 // use the email length as the new score
 ///         }),
 ///     });
-///     (m.finish(), s.unwrap())
+///     m.finish(t).expect("database version is after supported versions")
 /// }
 /// # fn main() {}
 /// ```
