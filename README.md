@@ -82,7 +82,7 @@ fn do_stuff_with_database(db: &mut WriteTransaction<MySchema>) {
         rows.into_vec(picture.description())
     });
 
-    println!("{mike_pictures:?}"); // this should print `vec!["dog"]`
+    println!("{mike_pictures:?}"); // this should print `["dog"]`
 }
 ```
 Some featurs not shown in this example are:
