@@ -1,11 +1,14 @@
 # Type safe queries using the rust type system.
-The idea is to have a deep embedding, this means that we reuse rust concepts for queries:
-- Query ~ Function
-- Column ~ Variable
-- Scope ~ Lifetime
-- Query phase ~ Mutability
+The goal of this library is to allow writing relational database queries using familiar rust syntax.
+Writing queries using this library involves:
+- Symbolic execution of rust closures.
+- Assigning row/column references to variables.
+- Lifetimes to check the scopes of row/column references.
+- Imperative mutation of row sets with methods like `filter` and `join`.
 
-Using the full expressiveness of the rust type system like this allows us to write queries that can not fail at runtime and get (nice) error messages.
+Notably it does not involve any new syntax or macro, while still being completely type safe.
+The library should guarantee that a query can not fail if it compiles.
+This already includes preventing use after free for row ids passed between queries and even database migrations!
 
 ## Current limitations
 This project is under development and currently has a number of limitations.
