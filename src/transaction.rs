@@ -108,11 +108,7 @@ impl<S> WriteTransaction<'_, S> {
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     /// Takes a mutable reference so that it can not be interleaved with a multi row query.
-    #[allow(clippy::needless_lifetimes)]
-    pub fn try_insert<'s, T: HasId>(
-        &'s mut self,
-        val: impl Writable<T = T>,
-    ) -> Option<Free<'s, T>> {
+    pub fn try_insert<'s, T: HasId>(&mut self, val: impl Writable<T = T>) -> Option<Free<'s, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 
