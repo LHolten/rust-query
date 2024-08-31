@@ -8,7 +8,9 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::Free,
-    hash, HasId, NoTable,
+    hash,
+    migrate::NoTable,
+    HasId,
 };
 
 #[derive(Clone, Copy)]

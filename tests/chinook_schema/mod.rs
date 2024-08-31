@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use rust_query::{
-    migration::{schema, Prepare},
-    Database, NoTable, ThreadToken,
+    migration::{schema, NoTable, Prepare},
+    Database, ThreadToken,
 };
 
 pub use v2::*;

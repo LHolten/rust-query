@@ -20,7 +20,7 @@ use crate::{
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    Free, HasId, ReadTransaction, Table,
+    value, Free, HasId, ReadTransaction, Table, Value,
 };
 
 #[derive(Default)]
@@ -391,4 +391,17 @@ fn foreign_key_check<S: Schema>(conn: &rusqlite::Transaction) {
         read_schema(conn),
         "schema is different (expected left, but got right)",
     );
+}
+
+/// Special table name that is used as souce of newly created tables.
+#[derive(Clone, Copy)]
+pub struct NoTable(());
+
+impl value::NoParam for NoTable {}
+impl<S> Value<'_, S> for NoTable {
+    type Typ = NoTable;
+
+    fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
+        unreachable!("NoTable can not be constructed")
+    }
 }

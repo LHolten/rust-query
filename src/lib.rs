@@ -2,7 +2,6 @@
 
 use ref_cast::RefCast;
 use value::MyTyp;
-use value::NoParam;
 
 mod alias;
 mod ast;
@@ -45,7 +44,7 @@ pub mod args {
 
 /// Types to declare schemas and migrations.
 pub mod migration {
-    pub use crate::migrate::{Migrator, Prepare};
+    pub use crate::migrate::{Migrator, NoTable, Prepare};
     pub use expect_test::expect;
     pub use rust_query_macros::schema;
 }
@@ -123,17 +122,4 @@ pub fn valid_in_schema<S, T: ValidInSchema<S>>() {}
 pub trait HasId: Table {
     const ID: &'static str;
     const NAME: &'static str;
-}
-
-/// Special table name that is used as souce of newly created tables.
-#[derive(Clone, Copy)]
-pub struct NoTable(());
-
-impl NoParam for NoTable {}
-impl<S> Value<'_, S> for NoTable {
-    type Typ = NoTable;
-
-    fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
-        unreachable!("NoTable can not be constructed")
-    }
 }

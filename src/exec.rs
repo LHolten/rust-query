@@ -69,7 +69,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
 }
 
 thread_local! {
-    static SHOW_SQL: Cell<bool> = Cell::new(false);
+    static SHOW_SQL: Cell<bool> = const { Cell::new(false) };
 }
 
 pub fn show_sql<R>(f: impl FnOnce() -> R) -> R {
