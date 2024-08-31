@@ -17,6 +17,7 @@ mod migrate;
 mod mymap;
 mod pragma;
 mod query;
+mod ref_cast_impl;
 mod token;
 mod transaction;
 mod value;
