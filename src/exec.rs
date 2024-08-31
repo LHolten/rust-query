@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// This is the top level query type and dereferences to [Rows].
-/// It has methods for turning queries into vectors and for inserting in the database.
+/// Most importantly it can turn the query result into a [Vec].
 pub struct Query<'outer, 'inner, S> {
     pub(crate) phantom: PhantomData<&'outer ()>,
     pub(crate) q: Rows<'inner, S>,
