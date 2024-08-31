@@ -1,6 +1,4 @@
-# This is a WIP rust query builder.
-WIP means that it is probably not yet suitable for your project, but you can try it out and give me feedback.
-
+# Type safe queries using the rust type system.
 The idea is to have a deep embedding, this means that we reuse rust concepts for queries:
 - Query ~ Function
 - Column ~ Variable
@@ -10,7 +8,7 @@ The idea is to have a deep embedding, this means that we reuse rust concepts for
 Using the full expressiveness of the rust type system like this allows us to write queries that can not fail at runtime and get (nice) error messages.
 
 ## Current limitations
-This is a WIP project and thus has a number of limitations.
+This project is under development and currently has a number of limitations.
 - Only supports sqlite (with rusqlite).
 - Only support for select and insert statements.
 - Very small number of operators.
@@ -90,11 +88,10 @@ Some featurs not shown in this example are:
 - Lookups by unique constraint
 - Aggregations
 
+
+## Examples
 For more example queries you can look at [the chinook example](/tests/chinook.rs).
 
-## Example/Practice
-First download the `Chinook_Sqlite.sql` from here https://github.com/lerocha/chinook-database/releases and put it in the `chinook` folder of the rust-query repositorty.
+First download the `Chinook_Sqlite.sql` from here https://github.com/lerocha/chinook-database/releases and put it in the `tests/chinook_schema` folder of this repository.
 
-Then you can run with `cd chinook` && `cargo run`
-
-There are some queries there that you can implement to test out the query builder.
+Then you can run with `cargo test`
