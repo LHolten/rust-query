@@ -97,7 +97,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         ::rust_query::unsafe_impl_ref_cast! {#table_ident}
 
         impl #table_ident {
-            pub fn join<'inner>(rows: &mut ::rust_query::Query<'inner, #schema>) -> ::rust_query::ops::Db<'inner, Self> {
+            pub fn join<'inner>(rows: &mut ::rust_query::Rows<'inner, #schema>) -> ::rust_query::ops::Db<'inner, Self> {
                 rows.join(#table_ident(()))
             }
         }

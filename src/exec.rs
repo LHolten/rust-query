@@ -9,19 +9,19 @@ use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
     from_row::{Cacher, FromRow, Row},
-    query::Query,
+    query::Rows,
 };
 
-/// This is the top level query type and dereferences to [Query].
+/// This is the top level query type and dereferences to [Rows].
 /// It has methods for turning queries into vectors and for inserting in the database.
 pub struct Execute<'outer, 'inner, S> {
     pub(crate) phantom: PhantomData<&'outer ()>,
-    pub(crate) q: Query<'inner, S>,
+    pub(crate) q: Rows<'inner, S>,
     pub(crate) conn: &'inner rusqlite::Connection,
 }
 
 impl<'outer, 'inner, S> Deref for Execute<'outer, 'inner, S> {
-    type Target = Query<'inner, S>;
+    type Target = Rows<'inner, S>;
 
     fn deref(&self) -> &Self::Target {
         &self.q

@@ -11,15 +11,15 @@ use crate::{
 /// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Execute].
 /// It contains most query functionality like joining tables and doing sub-queries.
 ///
-/// [Query] mutability is only about the number of rows.
-/// Adding columns to a [Query] does not require mutation.
-pub struct Query<'inner, S> {
+/// [Rows] mutability is only about which rows are included.
+/// Adding new columns does not require mutating [Rows].
+pub struct Rows<'inner, S> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner S) -> &'inner S>,
     pub(crate) ast: &'inner mut MySelect,
 }
 
-impl<'inner, S> Query<'inner, S> {
+impl<'inner, S> Rows<'inner, S> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
     #[doc(hidden)]
     pub fn join<T: Table>(&mut self, t: T) -> Db<'inner, T> {
@@ -41,7 +41,7 @@ impl<'inner, S> Query<'inner, S> {
     {
         let mut ast = MySelect::default();
         let mut conds = Vec::new();
-        let inner = Query {
+        let inner = Rows {
             phantom: PhantomData,
             ast: &mut ast,
         };

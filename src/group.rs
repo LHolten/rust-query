@@ -9,7 +9,7 @@ use crate::{
     alias::{Field, MyAlias},
     ast::MySelect,
     db::{Col, TableRef},
-    query::Query,
+    query::Rows,
     value::{
         operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, NumTyp, Value,
@@ -18,17 +18,17 @@ use crate::{
 
 /// This is the query type used in sub-queries.
 /// It can only produce one result (for each outer result).
-/// This type dereferences to [Query].
+/// This type dereferences to [Rows].
 pub struct Aggregate<'outer, 'inner, S> {
     pub(crate) outer_ast: &'inner MySelect,
     pub(crate) conds: &'inner mut Vec<(Field, SimpleExpr)>,
-    pub(crate) query: Query<'inner, S>,
+    pub(crate) query: Rows<'inner, S>,
     pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
 }
 
 impl<'outer, 'inner, S> Deref for Aggregate<'outer, 'inner, S> {
-    type Target = Query<'inner, S>;
+    type Target = Rows<'inner, S>;
 
     fn deref(&self) -> &Self::Target {
         &self.query

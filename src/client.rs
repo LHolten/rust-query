@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{ast::MySelect, exec::Execute, query::Query};
+use crate::{ast::MySelect, exec::Execute, query::Rows};
 
 /// Extension trait to use this library with [rusqlite::Connection] directly.
 pub(crate) trait QueryBuilder {
@@ -24,7 +24,7 @@ where
     F: for<'a> FnOnce(&'a mut Execute<'s, 'a, S>) -> R,
 {
     let mut ast = MySelect::default();
-    let q = Query {
+    let q = Rows {
         phantom: PhantomData,
         ast: &mut ast,
     };
