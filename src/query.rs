@@ -75,7 +75,7 @@ impl<'inner, S> Query<'inner, S> {
     where
         V: Value<'inner, S, Typ = Option<T>>,
     {
-        self.filter(val.clone().not_null());
+        self.filter(val.clone().is_not_null());
         Assume(val)
     }
 }

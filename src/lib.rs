@@ -34,7 +34,7 @@ pub use value::{UnixEpoch, Value};
 pub mod ops {
     pub use crate::db::{Col, Db};
     pub use crate::group::Aggr;
-    pub use crate::value::operations::{Add, And, Assume, Const, Eq, Lt, Not, NotNull, UnwrapOr};
+    pub use crate::value::operations::{Add, And, Assume, Const, Eq, IsNotNull, Lt, Not, UnwrapOr};
 }
 
 /// Types that are used as closure arguments.

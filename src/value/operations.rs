@@ -69,10 +69,10 @@ impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for UnwrapOr<A, B> {
 }
 
 #[derive(Clone, Copy)]
-pub struct NotNull<A>(pub(crate) A);
+pub struct IsNotNull<A>(pub(crate) A);
 
-impl<A> NoParam for NotNull<A> {}
-impl<'t, S, A: Value<'t, S>> Value<'t, S> for NotNull<A> {
+impl<A> NoParam for IsNotNull<A> {}
+impl<'t, S, A: Value<'t, S>> Value<'t, S> for IsNotNull<A> {
     type Typ = bool;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::expr(self.0.build_expr(b)).is_not_null()

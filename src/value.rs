@@ -1,6 +1,6 @@
 pub mod operations;
 
-use operations::{Add, And, AsFloat, Eq, Lt, Not, NotNull, UnwrapOr};
+use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
@@ -123,11 +123,11 @@ pub trait Value<'t, S>: Clone + NoParam {
         UnwrapOr(self, rhs)
     }
 
-    fn not_null<Typ>(self) -> NotNull<Self>
+    fn is_not_null<Typ>(self) -> IsNotNull<Self>
     where
         Self: Value<'t, S, Typ = Option<Typ>>,
     {
-        NotNull(self)
+        IsNotNull(self)
     }
 
     fn as_float(self) -> AsFloat<Self>

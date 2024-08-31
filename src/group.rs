@@ -11,7 +11,7 @@ use crate::{
     db::{Col, TableRef},
     query::Query,
     value::{
-        operations::{Const, NotNull, UnwrapOr},
+        operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, NumTyp, Value,
     },
 };
@@ -113,9 +113,9 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> NotNull<AggrCol<'outer, S, Option<i64>>> {
+    pub fn exists(&'inner self) -> IsNotNull<AggrCol<'outer, S, Option<i64>>> {
         let expr = SimpleExpr::Constant(1.into_value());
-        NotNull(self.select::<i64>(expr))
+        IsNotNull(self.select::<i64>(expr))
     }
 }
 

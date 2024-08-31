@@ -21,7 +21,7 @@ Query types:
 - [ ] UPDATE
 
 Basic operations:
-- [x] Eq, Add, Not, And, Lt, UnwrapOr, NotNull, AsFloat
+- [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat
 - [ ] Everything else
 
 Advanced operations:
