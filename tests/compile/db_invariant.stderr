@@ -9,6 +9,6 @@ error: lifetime may not live long enough
   |     ^^^ function was supposed to return data with lifetime `'a` but it is returning data with lifetime `'b`
   |
   = help: consider adding the following bound: `'b: 'a`
-  = note: requirement occurs because of the type `Join<'_, ()>`, which makes the generic argument `'_` invariant
-  = note: the struct `Join<'t, T>` is invariant over the parameter `'t`
+  = note: requirement occurs because of the type `rust_query::ops::Join<'_, ()>`, which makes the generic argument `'_` invariant
+  = note: the struct `rust_query::ops::Join<'t, T>` is invariant over the parameter `'t`
   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

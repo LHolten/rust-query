@@ -1,244 +1,76 @@
--- altered from https://github.com/lerocha/chinook-database
-CREATE TABLE [Album2] (
-    [id] INTEGER PRIMARY KEY,
-    [title] TEXT NOT NULL,
-    [artist] INTEGER NOT NULL,
-    FOREIGN KEY ([artist]) REFERENCES [artist] ([id])
-) STRICT;
+INSERT INTO
+    album (id, title, artist)
+SELECT
+    AlbumId, Title, ArtistId
+FROM
+    old.Album;
 
 INSERT INTO
-    Album2
+    artist (id, name)
 SELECT
-    *
+    ArtistId, Name
 FROM
-    Album;
-
-DROP TABLE Album;
-
-ALTER TABLE
-    Album2 RENAME TO album;
-
-CREATE TABLE [Artist2] (
-    [id] INTEGER PRIMARY KEY,
-    [name] TEXT NOT NULL
-) STRICT;
+    old.Artist;
 
 INSERT INTO
-    Artist2
+    customer (id, first_name, last_name, company, address, city, state, country, postal_code, phone, fax, email, support_rep)
 SELECT
-    *
+    CustomerId, FirstName, LastName, Company, Address, City, State, Country, PostalCode, Phone, Fax, Email, SupportRepId
 FROM
-    Artist;
-
-DROP TABLE Artist;
-
-ALTER TABLE
-    Artist2 RENAME TO artist;
-
-CREATE TABLE [Customer2] (
-    [id] INTEGER PRIMARY KEY,
-    [first_name] TEXT NOT NULL,
-    [last_name] TEXT NOT NULL,
-    [company] TEXT,
-    [address] TEXT NOT NULL,
-    [city] TEXT NOT NULL,
-    [state] TEXT,
-    [country] TEXT NOT NULL,
-    [postal_code] TEXT,
-    [phone] TEXT,
-    [fax] TEXT,
-    [email] TEXT NOT NULL,
-    [support_rep] INTEGER NOT NULL,
-    FOREIGN KEY ([support_rep]) REFERENCES [employee] ([id])
-) STRICT;
+    old.Customer;
 
 INSERT INTO
-    Customer2
+    employee (id, first_name, last_name, title, reports_to, birth_date, hire_date, address, city, state, country, postal_code, phone, fax, email)
 SELECT
-    *
+    EmployeeId, LastName, FirstName, Title, ReportsTo, BirthDate, HireDate, Address, City, State, Country, PostalCode, Phone, Fax, Email
 FROM
-    Customer;
-
-DROP TABLE Customer;
-
-ALTER TABLE
-    Customer2 RENAME TO customer;
-
-CREATE TABLE [Employee2] (
-    [id] INTEGER PRIMARY KEY,
-    [last_name] TEXT NOT NULL,
-    [first_name] TEXT NOT NULL,
-    [title] TEXT,
-    [reports_to] INTEGER,
-    [birth_day] TEXT,
-    [hire_date] TEXT,
-    [address] TEXT,
-    [city] TEXT,
-    [state] TEXT,
-    [country] TEXT,
-    [postal_code] TEXT,
-    [phone] TEXT,
-    [fax] TEXT,
-    [email] TEXT NOT NULL,
-    FOREIGN KEY ([reports_to]) REFERENCES [employee] ([id])
-) STRICT;
+    old.Employee;
 
 INSERT INTO
-    Employee2
+    genre (id, name)
 SELECT
-    *
+    GenreId, Name
 FROM
-    Employee;
-
-DROP TABLE Employee;
-
-ALTER TABLE
-    Employee2 RENAME TO employee;
-
-CREATE TABLE [Genre2] (
-    [id] INTEGER PRIMARY KEY,
-    [name] TEXT NOT NULL
-) STRICT;
+    old.Genre;
 
 INSERT INTO
-    Genre2
+    invoice (id, customer, invoice_date, billing_address, billing_city, billing_state, billing_country, billing_postal_code, total)
 SELECT
-    *
+    InvoiceId, CustomerId, InvoiceDate, BillingAddress, BillingCity, BillingState, BillingCountry, BillingPostalCode, Total
 FROM
-    Genre;
-
-DROP TABLE Genre;
-
-ALTER TABLE
-    Genre2 RENAME TO genre;
-
-CREATE TABLE [Invoice2] (
-    [id] INTEGER PRIMARY KEY,
-    [customer] INTEGER NOT NULL,
-    [invoice_date] TEXT NOT NULL,
-    [billing_address] TEXT,
-    [billing_city] TEXT,
-    [billing_state] TEXT,
-    [billing_country] TEXT,
-    [billing_postal_code] TEXT,
-    [total] REAL NOT NULL,
-    FOREIGN KEY ([customer]) REFERENCES [customer] ([id])
-) STRICT;
+    old.Invoice;
 
 INSERT INTO
-    Invoice2
+    invoice_line (id, invoice, track, unit_price, quantity)
 SELECT
-    *
+    InvoiceLineId, InvoiceId, TrackId, UnitPrice, Quantity
 FROM
-    Invoice;
-
-DROP TABLE Invoice;
-
-ALTER TABLE
-    Invoice2 RENAME TO invoice;
-
-CREATE TABLE [InvoiceLine2] (
-    [id] INTEGER PRIMARY KEY,
-    [invoice] INTEGER NOT NULL,
-    [track] INTEGER NOT NULL,
-    [unit_price] REAL NOT NULL,
-    [quantity] INTEGER NOT NULL,
-    FOREIGN KEY ([invoice]) REFERENCES [invoice] ([id]),
-    FOREIGN KEY ([track]) REFERENCES [track] ([id])
-) STRICT;
+    old.InvoiceLine;
 
 INSERT INTO
-    InvoiceLine2
+    media_type (id, name)
 SELECT
-    *
+    MediaTypeId, Name
 FROM
-    InvoiceLine;
-
-DROP TABLE InvoiceLine;
-
-ALTER TABLE
-    InvoiceLine2 RENAME TO invoice_line;
-
-CREATE TABLE [MediaType2] (
-    [id] INTEGER PRIMARY KEY,
-    [name] TEXT NOT NULL
-) STRICT;
+    old.MediaType;
 
 INSERT INTO
-    MediaType2
+    playlist (id, name)
 SELECT
-    *
+    PlaylistId, Name
 FROM
-    MediaType;
-
-DROP TABLE MediaType;
-
-ALTER TABLE
-    MediaType2 RENAME TO media_type;
-
-CREATE TABLE [Playlist2] (
-    [id] INTEGER PRIMARY KEY,
-    [name] TEXT NOT NULL
-) STRICT;
+    old.Playlist;
 
 INSERT INTO
-    Playlist2
+    playlist_track (id, playlist, track)
 SELECT
-    *
+    ROWID, PlaylistId, TrackId
 FROM
-    Playlist;
-
-DROP TABLE Playlist;
-
-ALTER TABLE
-    Playlist2 RENAME TO playlist;
-
-CREATE TABLE [PlaylistTrack2] (
-    [id] INTEGER PRIMARY KEY,
-    [playlist] INTEGER NOT NULL,
-    [track] INTEGER NOT NULL,
-    CONSTRAINT [PlaylistTrackUnique] UNIQUE ([playlist], [track]),
-    FOREIGN KEY ([playlist]) REFERENCES [playlist] ([id]),
-    FOREIGN KEY ([track]) REFERENCES [track] ([id])
-) STRICT;
+    old.PlaylistTrack;
 
 INSERT INTO
-    PlaylistTrack2
+    track (id, name, album, media_type, genre, composer, milliseconds, bytes, unit_price)
 SELECT
-    ROWID,
-    PlaylistId,
-    TrackId
+    TrackId, Name, AlbumId, MediaTypeId, GenreId, Composer, Milliseconds, Bytes, UnitPrice
 FROM
-    PlaylistTrack;
-
-DROP TABLE PlaylistTrack;
-
-ALTER TABLE
-    PlaylistTrack2 RENAME TO playlist_track;
-
-CREATE TABLE [Track2] (
-    [id] INTEGER PRIMARY KEY,
-    [name] TEXT NOT NULL,
-    [album] INTEGER NOT NULL,
-    [media_type] INTEGER NOT NULL,
-    [genre] INTEGER NOT NULL,
-    [composer] TEXT,
-    [milliseconds] INTEGER NOT NULL,
-    [bytes] INTEGER NOT NULL,
-    [unit_price] REAL NOT NULL,
-    FOREIGN KEY ([album]) REFERENCES [album] ([id]),
-    FOREIGN KEY ([genre]) REFERENCES [genre] ([id]),
-    FOREIGN KEY ([media_type]) REFERENCES [media_type] ([id])
-) STRICT;
-
-INSERT INTO
-    Track2
-SELECT
-    *
-FROM
-    Track;
-
-DROP TABLE Track;
-
-ALTER TABLE
-    Track2 RENAME TO track;
+    old.Track;

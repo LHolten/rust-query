@@ -215,10 +215,18 @@ impl Prepare {
     }
 
     /// Execute a raw sql statement if the database was just created.
+    /// The sql code is executed after creating the empty database.
     /// Returns [None] if the database schema is older than `S`.
     /// This function will panic if the resulting schema is different, but the version matches.
     pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Option<Migrator<S>> {
         self.migrator::<S>(|conn| {
+            let mut b = TableTypBuilder::default();
+            S::typs(&mut b);
+
+            for (table_name, table) in &*b.ast.tables {
+                new_table_inner(conn, table, Alias::new(table_name));
+            }
+
             for sql in sql {
                 conn.execute_batch(sql).unwrap();
             }

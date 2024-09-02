@@ -47,7 +47,7 @@ enum Schema {
         first_name: String,
         title: Option<String>,
         reports_to: Option<Employee>,
-        birth_day: Option<String>,
+        birth_date: Option<String>,
         hire_date: Option<String>,
         address: Option<String>,
         city: Option<String>,
@@ -133,7 +133,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
     let m = Prepare::open_in_memory();
     let m = m
         .create_db_sql::<v0::Schema>(&[
-            include_str!("Chinook_Sqlite.sql"),
+            "ATTACH 'Chinook_Sqlite.sqlite' AS old;",
             include_str!("migrate.sql"),
         ])
         .unwrap();
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn backwards_compat() {
-        v0::assert_hash(expect!["63a07c45f3286c66"]);
-        v1::assert_hash(expect!["a9fa0c89bbe4fc3a"]);
+        v0::assert_hash(expect!["f62a50a3ac341a65"]);
+        v1::assert_hash(expect!["63dcef403a40bc8a"]);
     }
 }
