@@ -551,7 +551,7 @@ fn prelude(new_tables: &BTreeMap<usize, Table>, prev_mod: &Ident, schema: &Ident
             let new_name = &table.name;
             prelude.extend(quote! {
                 #[allow(unused_imports)]
-                use ::rust_query::NoTable as #new_name;
+                use ::rust_query::migration::NoTable as #new_name;
             })
         }
     }
