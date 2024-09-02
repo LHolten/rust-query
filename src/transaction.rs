@@ -7,7 +7,7 @@ use crate::{
     client::private_exec,
     exec::Query,
     insert::{private_try_insert, Writable},
-    private::FromRow,
+    private::Dummy,
     token::ThreadToken,
     Free, HasId,
 };
@@ -96,7 +96,7 @@ impl<'t, S> ReadTransaction<'t, S> {
 
     /// Retrieve a single row from the database.
     /// This is convenient but quite slow.
-    pub fn get<T>(&self, val: impl for<'x> FromRow<'x, 't, S, Out = T>) -> T {
+    pub fn get<T>(&self, val: impl for<'x> Dummy<'x, 't, S, Out = T>) -> T {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
         let mut res = private_exec(&self.transaction, |e| e.into_vec(val));

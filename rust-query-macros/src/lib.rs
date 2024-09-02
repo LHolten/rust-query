@@ -143,7 +143,7 @@ pub fn schema(
     .into()
 }
 
-#[proc_macro_derive(FromRow)]
+#[proc_macro_derive(FromDummy)]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
     match from_row_impl(item) {

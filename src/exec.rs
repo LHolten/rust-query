@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    from_row::{Cacher, FromRow, Row},
+    from_row::{Cacher, Dummy, Row},
     query::Rows,
 };
 
@@ -38,7 +38,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Turn a database query into a rust [Vec] of results.
     pub fn into_vec<D>(&'inner self, dummy: D) -> Vec<D::Out>
     where
-        D: FromRow<'inner, 'outer, S>,
+        D: Dummy<'inner, 'outer, S>,
     {
         let mut f = dummy.prepare(Cacher {
             _p: PhantomData,

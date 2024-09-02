@@ -62,12 +62,12 @@ impl<'t, 'a> Row<'_, 't, 'a> {
 
 /// This trait is implemented by everything that can be retrieved from the database.
 /// Implement it using the derive proc macro on a struct.
-pub trait FromRow<'t, 'a, S> {
+pub trait Dummy<'t, 'a, S> {
     type Out;
     fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
 }
 
-impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp> + NoParam> FromRow<'t, 'a, S> for T {
+impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp> + NoParam> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
     fn prepare(self, mut cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
@@ -76,7 +76,7 @@ impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp> + NoParam> FromRow<'t, 'a, S> for T 
     }
 }
 
-impl<'t, 'a, S, A: FromRow<'t, 'a, S>, B: FromRow<'t, 'a, S>> FromRow<'t, 'a, S> for (A, B) {
+impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (A, B) {
     type Out = (A::Out, B::Out);
 
     fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
@@ -90,7 +90,7 @@ pub(crate) struct AdHoc<F> {
     f: F,
 }
 
-impl<'t, 'a, S: 't, T, F, G> FromRow<'t, 'a, S> for AdHoc<F>
+impl<'t, 'a, S: 't, T, F, G> Dummy<'t, 'a, S> for AdHoc<F>
 where
     G: FnMut(Row<'_, 't, 'a>) -> T,
     F: FnOnce(Cacher<'t, S>) -> G,
@@ -127,7 +127,7 @@ mod tests {
         b: B,
     }
 
-    impl<'t, 'a, S, A, B> FromRow<'t, 'a, S> for UserDummy<A, B>
+    impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
     where
         A: Value<'t, S, Typ = i64>,
         B: Value<'t, S, Typ = String>,

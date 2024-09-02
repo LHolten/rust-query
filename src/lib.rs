@@ -22,9 +22,8 @@ mod transaction;
 mod value;
 
 pub use db::Free;
-pub use from_row::FromRow;
 pub use query::Rows;
-pub use rust_query_macros::FromRow;
+pub use rust_query_macros::FromDummy;
 pub use token::ThreadToken;
 pub use transaction::{Database, ReadTransaction, WriteTransaction};
 pub use value::{UnixEpoch, Value};
@@ -52,7 +51,7 @@ pub mod migration {
 #[doc(hidden)]
 pub mod private {
     pub use crate::exec::show_sql;
-    pub use crate::from_row::{Cached, Cacher, FromRow, Row};
+    pub use crate::from_row::{Cached, Cacher, Dummy, Row};
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};

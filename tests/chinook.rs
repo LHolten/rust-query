@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{Free, FromRow, ReadTransaction, ThreadToken, Value};
+use rust_query::{Free, FromDummy, ReadTransaction, ThreadToken, Value};
 
 fn assert_dbg(val: impl Debug, file_name: &str) {
     let path = format!("chinook_tests/{file_name}.dbg");
@@ -39,7 +39,7 @@ fn test_queries() {
     assert!(id.is_some());
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromDummy)]
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
@@ -57,7 +57,7 @@ fn invoice_info<'a>(db: &'a ReadTransaction<Schema>) -> Vec<InvoiceInfo<'a>> {
     })
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromDummy)]
 struct PlaylistTrackCount {
     playlist: String,
     track_count: i64,
@@ -120,14 +120,14 @@ fn list_all_genres(db: &ReadTransaction<Schema>) -> Vec<String> {
     })
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromDummy)]
 struct FilteredTrack {
     track_name: String,
     album_name: String,
     stats: Stats,
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromDummy)]
 struct Stats {
     milis: i64,
 }
@@ -147,7 +147,7 @@ fn filtered_track(db: &ReadTransaction<Schema>, genre: &str, max_milis: i64) -> 
     })
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromDummy)]
 struct GenreStats {
     genre_name: String,
     byte_average: Option<f64>,
@@ -173,7 +173,7 @@ fn genre_statistics(db: &ReadTransaction<Schema>) -> Vec<GenreStats> {
     })
 }
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromDummy)]
 struct CustomerSpending {
     customer_name: String,
     total_spending: f64,
