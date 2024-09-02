@@ -66,14 +66,15 @@ impl<'t, T: HasId, P: TableRef<'t>> TableRef<'t> for Col<T, P> {
     }
 }
 
-/// Table reference that can only be used in the query where it was created.
+/// Table reference that is the result of a join.
+/// It can only be used in the query where it was created.
 /// Invariant in `'t`.
-pub struct Db<'t, T> {
+pub struct Join<'t, T> {
     pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
 }
 
-impl<'t, T> Db<'t, T> {
+impl<'t, T> Join<'t, T> {
     pub(crate) fn new(table: MyAlias) -> Self {
         Self {
             table,
@@ -82,15 +83,15 @@ impl<'t, T> Db<'t, T> {
     }
 }
 
-impl<'t, T> Clone for Db<'t, T> {
+impl<'t, T> Clone for Join<'t, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'t, T> Copy for Db<'t, T> {}
+impl<'t, T> Copy for Join<'t, T> {}
 
-impl<'t, T: Table> Deref for Db<'t, T> {
+impl<'t, T: Table> Deref for Join<'t, T> {
     type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
@@ -98,15 +99,15 @@ impl<'t, T: Table> Deref for Db<'t, T> {
     }
 }
 
-impl<'t, T: Table> TableRef<'t> for Db<'t, T> {
+impl<'t, T: Table> TableRef<'t> for Join<'t, T> {
     type Schema = T::Schema;
     fn build_table(&self, _: ValueBuilder) -> MyAlias {
         self.table
     }
 }
 
-impl<T> NoParam for Db<'_, T> {}
-impl<'t, T: HasId> Value<'t, T::Schema> for Db<'t, T> {
+impl<T> NoParam for Join<'_, T> {}
+impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
     type Typ = T;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -209,7 +210,7 @@ mod tests {
         }
     }
 
-    fn test(x: Db<Admin>) {
+    fn test(x: Join<Admin>) {
         let _res = &x.a().b().a().a();
     }
 }

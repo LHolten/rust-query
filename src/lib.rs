@@ -30,7 +30,7 @@ pub use value::{UnixEpoch, Value};
 
 /// Types that are the result of a database operation.
 pub mod ops {
-    pub use crate::db::{Col, Db};
+    pub use crate::db::{Col, Join};
     pub use crate::group::Aggr;
     pub use crate::value::operations::{Add, And, Assume, Const, Eq, IsNotNull, Lt, Not, UnwrapOr};
 }

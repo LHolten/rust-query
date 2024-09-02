@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     ast::{MySelect, Source},
-    db::Db,
+    db::Join,
     group::Aggregate,
     value::{operations::Assume, Value},
     Table,
@@ -22,15 +22,15 @@ pub struct Rows<'inner, S> {
 impl<'inner, S> Rows<'inner, S> {
     /// Join a table, this is like [Iterator::flat_map] but for queries.
     #[doc(hidden)]
-    pub fn join<T: Table>(&mut self, t: T) -> Db<'inner, T> {
+    pub fn join<T: Table>(&mut self, t: T) -> Join<'inner, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
         let table = alias;
-        Db::new(table)
+        Join::new(table)
     }
 
     // Join a vector of values.
-    // pub fn vec<V: Value<'inner>>(&mut self, vec: Vec<V>) -> Db<'inner, V::Typ> {
+    // pub fn vec<V: Value<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
     //     todo!()
     // }
 

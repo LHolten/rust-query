@@ -13,7 +13,7 @@ use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::QueryBuilder,
-    db::Db,
+    db::Join,
     from_row::AdHoc,
     hash,
     insert::Reader,
@@ -88,7 +88,7 @@ impl<'x> SchemaBuilder<'x> {
             // TODO: potentially replace this with Rows::join
             let table = e.ast.scope.new_alias();
             e.ast.tables.push((A::NAME.to_owned(), table));
-            let db_id = Db::<A>::new(table);
+            let db_id = Join::<A>::new(table);
 
             e.into_vec(AdHoc::new(|mut row| {
                 let just_db_cache = row.cache(db_id);
