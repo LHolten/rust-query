@@ -89,12 +89,12 @@ mod table;
 ///     },
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
-/// // This is done with the `v1::up::UserMigration`:
+/// // This is done with the `v1::update::UserMigration`:
 /// pub fn migrate(t: &mut rust_query::ThreadToken) -> rust_query::Database<v1::Schema> {
 ///     let m = rust_query::migration::Prepare::open_in_memory(); // we use an in memory database for this test
 ///     let m = m.create_db_empty().expect("database is version is before supported versions");
-///     let m = m.migrate(t, |db| v1::up::Schema {
-///         user: Box::new(|user| v1::up::UserMigration {
+///     let m = m.migrate(t, |db| v1::update::Schema {
+///         user: Box::new(|user| v1::update::UserMigration {
 ///             score: db.get(user.email()).len() as i64 // use the email length as the new score
 ///         }),
 ///     });
@@ -511,7 +511,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
             let lifetime = table_generics.is_empty().not().then_some(quote! {'t,});
             quote! {
-                pub mod up {
+                pub mod update {
                     #prelude
 
                     #table_migrations
