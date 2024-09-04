@@ -1,5 +1,6 @@
 /target
 Chinook_Sqlite.sql
+Chinook_Sqlite.sqlite
 test.db
 /src/experiment
 /src/experiment.rs

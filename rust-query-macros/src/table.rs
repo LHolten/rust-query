@@ -10,7 +10,7 @@ use syn::Ident;
 
 use super::Table;
 
-pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
+pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenStream> {
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_mod = format_ident!("{table_name}");
@@ -32,7 +32,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
             let typ = &columns
                 .values()
                 .find(|x| &x.name == col)
-                .expect("a column exists for every name in the unique constraint")
+                .ok_or_else(|| {
+                    syn::Error::new_spanned(
+                        col,
+                        "a column exists for every name in the unique constraint",
+                    )
+                })?
                 .typ;
             let generic = make_generic(col);
 
@@ -91,7 +96,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         }
     );
 
-    quote! {
+    Ok(quote! {
         #[repr(transparent)]
         pub struct #table_ident<T = ()>(T);
         ::rust_query::unsafe_impl_ref_cast! {#table_ident}
@@ -145,7 +150,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> TokenStream {
         };
 
         #has_id
-    }
+    })
 }
 
 fn define_unique(

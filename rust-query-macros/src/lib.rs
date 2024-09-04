@@ -199,9 +199,10 @@ impl syn::parse::Parse for Range {
 
         let res = Range {
             start: start
-                .map(|x| x.base10_parse().expect("version start is a decimal"))
+                .map(|x| x.base10_parse())
+                .transpose()?
                 .unwrap_or_default(),
-            end: end.map(|x| x.base10_parse().expect("version end is a decimal")),
+            end: end.map(|x| x.base10_parse()).transpose()?,
         };
         Ok(res)
     }
@@ -211,7 +212,12 @@ fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
     let mut version = None;
     for attr in attrs {
         if attr.path().is_ident("version") {
-            assert!(version.is_none(), "there should be only one version");
+            if version.is_some() {
+                return Err(syn::Error::new_spanned(
+                    attr,
+                    "there should be only one version",
+                ));
+            }
             version = Some(attr.parse_args()?);
         } else {
             return Err(syn::Error::new_spanned(attr, "unexpected attribute"));
@@ -311,19 +317,22 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             let mut prev = None;
             for attr in &table.attrs {
                 if let Some(unique) = is_unique(attr.path()) {
-                    let idents = attr
-                        .parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)
-                        .expect("expected unique arguments to be comma separated");
+                    let idents = attr.parse_args_with(
+                        Punctuated::<Ident, Token![,]>::parse_separated_nonempty,
+                    )?;
                     uniques.push(Unique {
                         name: unique,
                         columns: idents.into_iter().collect(),
                     })
                 } else if attr.path().is_ident("create_from") {
-                    let new_prev = attr
-                        .parse_args()
-                        .expect("expected create_from to be used with single ident");
-                    let none = prev.replace(new_prev).is_none();
-                    assert!(none, "expected at most one `created_from`");
+                    let new_prev = attr.parse_args()?;
+                    if prev.is_some() {
+                        return Err(syn::Error::new_spanned(
+                            attr,
+                            "expected at most one `created_from`",
+                        ));
+                    }
+                    prev = new_prev;
                 } else {
                     other_attrs.push(attr.clone());
                 }
@@ -341,16 +350,21 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
             let mut columns = BTreeMap::new();
             for (i, field) in table.fields.iter().enumerate() {
-                let name = field
-                    .ident
-                    .clone()
-                    .expect("expected table columns to be named");
+                let Some(name) = field.ident.clone() else {
+                    return Err(syn::Error::new_spanned(
+                        field,
+                        "expected table columns to be named",
+                    ));
+                };
                 let mut other_attrs = vec![];
                 let mut unique = None;
                 for attr in &field.attrs {
                     if let Some(unique_name) = is_unique(attr.path()) {
                         let Meta::Path(_) = &attr.meta else {
-                            panic!("expected no arguments to field specific unique");
+                            return Err(syn::Error::new_spanned(
+                                attr,
+                                "expected no arguments to field specific unique",
+                            ));
                         };
                         unique = Some(Unique {
                             name: unique_name,
@@ -379,7 +393,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 uniques,
             };
 
-            mod_output.extend(table::define_table(&table, schema));
+            mod_output.extend(table::define_table(&table, schema)?);
             new_tables.insert(i, table);
         }
 
@@ -433,7 +447,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 // no table existed, but the previous table is specified, make a filter migration
 
                 let Some(migration) = define_table_migration(&BTreeMap::new(), table) else {
-                    panic!("can not use `create_from` on an empty table");
+                    return Err(syn::Error::new_spanned(
+                        &table.name,
+                        "can not use `create_from` on an empty table",
+                    ));
                 };
                 table_migrations.extend(migration);
 

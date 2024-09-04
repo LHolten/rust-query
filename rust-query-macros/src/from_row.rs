@@ -9,11 +9,11 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let dummy_name = format_ident!("{name}Dummy");
     let original_generics = item.generics.params.iter().map(|x| {
         let GenericParam::Lifetime(lt) = x else {
-            panic!("only support lifetime generics")
+            return Err(syn::Error::new_spanned(x, "only support lifetime generics"));
         };
-        lt.lifetime.clone()
+        Ok(lt.lifetime.clone())
     });
-    let original_generics: Vec<_> = original_generics.collect();
+    let original_generics: Vec<_> = original_generics.collect::<Result<_, _>>()?;
 
     let mut defs = vec![];
     let mut generics = vec![];
@@ -21,7 +21,12 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut prepared = vec![];
     let mut inits = vec![];
     for field in item.fields {
-        let name = field.ident.expect("tuple structs are not supported yet");
+        let Some(name) = field.ident else {
+            return Err(syn::Error::new_spanned(
+                field,
+                "tuple structs are not supported yet",
+            ));
+        };
         let name_prepared = format_ident!("{name}_prepared");
         let generic = make_generic(&name);
         let typ = field.ty;
