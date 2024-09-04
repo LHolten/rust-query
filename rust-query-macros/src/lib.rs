@@ -95,7 +95,7 @@ mod table;
 ///     let m = m.create_db_empty().expect("database is version is before supported versions");
 ///     let m = m.migrate(t, |db| v1::update::Schema {
 ///         user: Box::new(|user| v1::update::UserMigration {
-///             score: db.get(user.email()).len() as i64 // use the email length as the new score
+///             score: db.query_one(user.email()).len() as i64 // use the email length as the new score
 ///         }),
 ///     });
 ///     m.finish(t).expect("database version is after supported versions")
