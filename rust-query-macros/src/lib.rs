@@ -176,7 +176,22 @@ struct Column {
 #[derive(Clone)]
 struct Range {
     start: u32,
-    end: Option<u32>,
+    end: Option<RangeEnd>,
+}
+
+#[derive(Clone)]
+struct RangeEnd {
+    inclusive: bool,
+    num: u32,
+}
+
+impl RangeEnd {
+    pub fn end_exclusive(&self) -> u32 {
+        match self.inclusive {
+            true => self.num + 1,
+            false => self.num,
+        }
+    }
 }
 
 impl Range {
@@ -184,8 +199,8 @@ impl Range {
         if idx < self.start {
             return false;
         }
-        if let Some(end) = self.end {
-            return idx < end;
+        if let Some(end) = &self.end {
+            return idx < end.end_exclusive();
         }
         true
     }
@@ -195,14 +210,27 @@ impl syn::parse::Parse for Range {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let start: Option<syn::LitInt> = input.parse()?;
         let _: Token![..] = input.parse()?;
-        let end: Option<syn::LitInt> = input.parse()?;
+        let end: Option<RangeEnd> = input.is_empty().not().then(|| input.parse()).transpose()?;
 
         let res = Range {
             start: start
                 .map(|x| x.base10_parse())
                 .transpose()?
                 .unwrap_or_default(),
-            end: end.map(|x| x.base10_parse()).transpose()?,
+            end,
+        };
+        Ok(res)
+    }
+}
+
+impl syn::parse::Parse for RangeEnd {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let equals: Option<Token![=]> = input.parse()?;
+        let end: syn::LitInt = input.parse()?;
+
+        let res = RangeEnd {
+            inclusive: equals.is_some(),
+            num: end.base10_parse()?,
         };
         Ok(res)
     }
@@ -307,7 +335,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let mut output = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
     let mut prev_mod = None;
-    for version in range.start..range.end.unwrap_or(1) {
+    for version in range.start..range.end.map(|x| x.end_exclusive()).unwrap_or(1) {
         let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
 
         let mut mod_output = TokenStream::new();

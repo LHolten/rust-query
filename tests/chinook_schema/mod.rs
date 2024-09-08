@@ -8,7 +8,7 @@ use rust_query::{
 pub use v2::*;
 
 #[schema]
-#[version(0..3)]
+#[version(0..=2)]
 enum Schema {
     Album {
         #[version(1..)]
