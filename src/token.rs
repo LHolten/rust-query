@@ -2,8 +2,11 @@ use std::{any::Any, cell::Cell, rc::Rc};
 
 use rusqlite::Connection;
 
-/// Only one [ThreadToken] exists in each thread.
-/// It can thus not be send across threads.
+/// [ThreadToken] is used to separate transactions in time for each thread.
+///
+/// Only one [ThreadToken] can exist in each thread and transactions need to mutably borrow a thread token.
+/// Furthermore, neither [ThreadToken] nor any of the transaction types can be moved between threads.
+/// This makes it impossible to have access to two transactions from one thread.
 pub struct ThreadToken {
     _p: std::marker::PhantomData<*const ()>,
     pub(crate) stuff: Rc<dyn Any>,
@@ -30,7 +33,7 @@ impl ThreadToken {
     /// These functions guarantee that you have a unique thread and thus allow [ThreadToken::try_new].
     ///
     /// Note that using `spawn_blocking` for sqlite is actually a good practice.
-    /// Sqlite will essentially do blocking IO every time it is called.
+    /// Sqlite queries can be expensive, it might need to read from disk which is slow.
     /// Doing so on all async runtime threads would prevent other tasks from executing.
     pub fn try_new() -> Option<Self> {
         EXISTS.replace(false).then(ThreadToken::new)
@@ -38,6 +41,7 @@ impl ThreadToken {
 }
 
 impl Drop for ThreadToken {
+    /// Dropping a [ThreadToken] allows retrieving it with [ThreadToken::try_new] again.
     fn drop(&mut self) {
         EXISTS.set(true)
     }

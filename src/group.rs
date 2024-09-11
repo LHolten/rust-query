@@ -16,9 +16,10 @@ use crate::{
     },
 };
 
-/// This is the query type used in sub-queries.
-/// It can only produce one result (for each outer result).
-/// This type dereferences to [Rows].
+/// This is the argument type used for aggregates.
+///
+/// While it is possible to join many tables in an aggregate, there can be only one result.
+/// (The result can be a tuple or struct with multiple values though).
 pub struct Aggregate<'outer, 'inner, S> {
     pub(crate) outer_ast: &'inner MySelect,
     pub(crate) conds: &'inner mut Vec<(Field, SimpleExpr)>,

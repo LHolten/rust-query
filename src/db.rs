@@ -115,9 +115,9 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
     }
 }
 
-/// Table reference that can be used in any query as long as it is alive.
-/// Covariant in `'t`.
-/// Restricted to a single thread to prevent it from being used in a different transaction.
+/// Row reference that can be used in any query in the same transaction.
+///
+/// [Row] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
 pub struct Row<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
     pub(crate) _local: PhantomData<ThreadToken>,
