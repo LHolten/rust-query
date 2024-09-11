@@ -93,6 +93,8 @@ enum Schema {
     },
     Playlist {
         name: String,
+        #[version(2..)]
+        awesome: bool,
     },
     #[unique(playlist, track)]
     PlaylistTrack {
@@ -175,6 +177,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
                 .unwrap(),
         }),
         genre_new: Box::new(|_genre_new| v2::update::GenreNewMigration {}),
+        playlist: Box::new(|_playlist| v2::update::PlaylistMigration { awesome: true }),
     });
 
     m.finish(t).unwrap()
@@ -187,7 +190,7 @@ mod tests {
 
     #[test]
     fn backwards_compat() {
-        v0::assert_hash(expect!["f62a50a3ac341a65"]);
-        v1::assert_hash(expect!["63dcef403a40bc8a"]);
+        v0::assert_hash(expect!["306e83f40b54b177"]);
+        v1::assert_hash(expect!["3a1854492482f6eb"]);
     }
 }

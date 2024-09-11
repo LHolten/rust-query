@@ -332,8 +332,11 @@ impl<S: Schema> Migrator<S> {
                 let sql = rename.to_string(SqliteQueryBuilder);
                 conn.execute(&sql, []).unwrap();
             }
-            foreign_key_check::<N>(conn);
             set_user_version(conn, N::VERSION).unwrap();
+        }
+
+        if user_version(conn).unwrap() == N::VERSION {
+            foreign_key_check::<N>(conn);
         }
 
         Migrator {

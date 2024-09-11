@@ -109,6 +109,7 @@ pub trait Table: Sized + 'static {
 pub trait ValidInSchema<S> {}
 
 impl<S> ValidInSchema<S> for String {}
+impl<S> ValidInSchema<S> for bool {}
 impl<S> ValidInSchema<S> for i64 {}
 impl<S> ValidInSchema<S> for f64 {}
 impl<S, T: ValidInSchema<S>> ValidInSchema<S> for Option<T> {}

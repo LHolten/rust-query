@@ -217,27 +217,22 @@ impl<'t, S> Value<'t, S> for UnixEpoch {
 }
 
 pub trait MyTyp: 'static {
-    #[doc(hidden)]
     const NULLABLE: bool = false;
-    #[doc(hidden)]
     const TYP: hash::ColumnType;
-    #[doc(hidden)]
     const FK: Option<(&'static str, &'static str)> = None;
-    #[doc(hidden)]
     type Out<'t>: FromSql;
-    #[doc(hidden)]
     type Sql;
 }
 
 impl<T: HasId> MyTyp for T {
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer { is_bool: false };
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = Row<'t, Self>;
     type Sql = i64;
 }
 
 impl MyTyp for i64 {
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer { is_bool: false };
     type Out<'t> = Self;
     type Sql = i64;
 }
@@ -249,7 +244,7 @@ impl MyTyp for f64 {
 }
 
 impl MyTyp for bool {
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer { is_bool: true };
     type Out<'t> = Self;
     type Sql = bool;
 }
@@ -269,7 +264,7 @@ impl<T: MyTyp> MyTyp for Option<T> {
 }
 
 impl MyTyp for NoTable {
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
+    const TYP: hash::ColumnType = hash::ColumnType::Integer { is_bool: false };
     type Out<'t> = Row<'t, Self>;
     type Sql = i64;
 }

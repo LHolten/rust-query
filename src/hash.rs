@@ -12,23 +12,31 @@ use k12::{
     digest::{core_api::CoreWrapper, ExtendableOutput},
     KangarooTwelve, KangarooTwelveCore,
 };
-use sea_query::TableCreateStatement;
+use sea_query::{Alias, ColumnDef, Expr, TableCreateStatement};
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(usize)]
 pub enum ColumnType {
-    Integer = 0,
+    Integer { is_bool: bool } = 0,
     Float = 1,
     String = 2,
 }
 
 impl ColumnType {
-    pub fn sea_type(&self) -> sea_query::ColumnType {
+    pub fn sea_def(&self, name: Alias) -> ColumnDef {
         use sea_query::ColumnType as T;
-        match self {
-            ColumnType::Integer => T::Integer,
-            ColumnType::Float => T::custom("REAL"),
+        let typ = match self {
+            ColumnType::Integer { is_bool } => {
+                let mut col = ColumnDef::new_with_type(name.clone(), T::Integer);
+                if *is_bool {
+                    col.check(Expr::col(name).is_in([0, 1]));
+                }
+                return col;
+            }
+            ColumnType::Float => T::custom("real"),
             ColumnType::String => T::Text,
-        }
+        };
+        ColumnDef::new_with_type(name, typ)
     }
 }
 
@@ -55,6 +63,16 @@ pub struct Table {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MyVec<T> {
     inner: Vec<T>,
+}
+
+impl<T: Ord, I: Into<T>> FromIterator<I> for MyVec<T> {
+    fn from_iter<X: IntoIterator<Item = I>>(iter: X) -> Self {
+        let mut res = Self::default();
+        for item in iter {
+            res.insert(item.into())
+        }
+        res
+    }
 }
 
 impl<T> Default for MyVec<T> {
@@ -86,7 +104,7 @@ impl Table {
         let mut create = Table::create();
         for col in &*self.columns {
             let name = Alias::new(&col.name);
-            let mut def = ColumnDef::new_with_type(name.clone(), col.typ.sea_type());
+            let mut def = col.typ.sea_def(name.clone());
             if col.nullable {
                 def.null();
             } else {
