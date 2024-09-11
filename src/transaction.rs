@@ -14,15 +14,25 @@ use crate::{
 
 /// The primary interface to the database.
 /// It allows creating read and write transactions from multiple threads.
+/// It is also safe to create multiple [Database] instances for the same database (from one or multiple processes).
+///
+/// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html). The effect of this mode is that there can be any number of readers with one concurrent writer.
+/// What is nice about this is that a [ReadTransaction] can always be made immediately.
+/// Making a [WriteTransaction] has to wait until all other [WriteTransaction]s are finished.
+///
+/// From the perspective of a [ReadTransaction] each [WriteTransaction] is fully applied or not at all.
+/// Futhermore, [WriteTransaction]s have a global order.
+/// So if we have mutations A and then B, it is impossible to see the effect of B without seeing the effect of A.
+///
+/// Sqlite is also configured with [`synchronous=NORMAL`](https://www.sqlite.org/pragma.html#pragma_synchronous). This gives better performance by fsyncing less.
+/// The database will not lose transactions due to application crashes, but it might due to system crashes or power loss.
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema: PhantomData<S>,
 }
 
 impl<S> Database<S> {
-    /// Take a read-only snapshot of the database.
-    ///
-    /// This does not block because sqlite in WAL mode allows reading while writing.
+    /// Create a [ReadTransaction]. This operation always completes immediately as it does not need to wait on other transactions.
     pub fn read<'a>(&'a self, token: &'a mut ThreadToken) -> ReadTransaction<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
@@ -36,10 +46,11 @@ impl<S> Database<S> {
         }
     }
 
-    /// Claim write access to the database.
-    /// This will block until it can acquire a write transaction.
+    /// Create a [WriteTransaction].
+    /// This operation needs to wait for all other [WriteTransaction]s for this database to be finished.
     ///
-    /// This function uses <https://sqlite.org/unlock_notify.html> to wait.
+    /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
+    /// This makes it work across processes.
     pub fn write_lock<'a>(&'a self, token: &'a mut ThreadToken) -> WriteTransaction<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
