@@ -118,26 +118,26 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
 /// Table reference that can be used in any query as long as it is alive.
 /// Covariant in `'t`.
 /// Restricted to a single thread to prevent it from being used in a different transaction.
-pub struct Free<'t, T> {
+pub struct Row<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
     pub(crate) _local: PhantomData<ThreadToken>,
     pub(crate) idx: i64,
 }
 
-impl<T> Debug for Free<'_, T> {
+impl<T> Debug for Row<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "db_{}", self.idx)
     }
 }
 
-impl<T> Clone for Free<'_, T> {
+impl<T> Clone for Row<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T> Copy for Free<'_, T> {}
+impl<T> Copy for Row<'_, T> {}
 
-impl<T: Table> Deref for Free<'_, T> {
+impl<T: Table> Deref for Row<'_, T> {
     type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
@@ -145,7 +145,7 @@ impl<T: Table> Deref for Free<'_, T> {
     }
 }
 
-impl<T> FromSql for Free<'_, T> {
+impl<T> FromSql for Row<'_, T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(Self {
             _p: PhantomData,
@@ -155,14 +155,14 @@ impl<T> FromSql for Free<'_, T> {
     }
 }
 
-impl<'t, T> From<Free<'t, T>> for sea_query::Value {
-    fn from(value: Free<T>) -> Self {
+impl<'t, T> From<Row<'t, T>> for sea_query::Value {
+    fn from(value: Row<T>) -> Self {
         value.idx.into()
     }
 }
 
-impl<T> NoParam for Free<'_, T> {}
-impl<'t, T: HasId> Value<'t, T::Schema> for Free<'_, T> {
+impl<T> NoParam for Row<'_, T> {}
+impl<'t, T: HasId> Value<'t, T::Schema> for Row<'_, T> {
     type Typ = T;
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -170,7 +170,7 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Free<'_, T> {
     }
 }
 
-impl<'t, T: HasId> TableRef<'t> for Free<'_, T> {
+impl<'t, T: HasId> TableRef<'t> for Row<'_, T> {
     type Schema = T::Schema;
     fn build_table(&self, b: ValueBuilder) -> MyAlias {
         b.get_join::<T>(self.build_expr(b))

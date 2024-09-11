@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{Free, FromDummy, ReadTransaction, ThreadToken, Value};
+use rust_query::{FromDummy, ReadTransaction, Row, ThreadToken, Value};
 
 fn assert_dbg(val: impl Debug, file_name: &str) {
     let path = format!("chinook_tests/{file_name}.dbg");
@@ -43,7 +43,7 @@ fn test_queries() {
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
-    ivl_id: Free<'a, InvoiceLine>,
+    ivl_id: Row<'a, InvoiceLine>,
 }
 
 fn invoice_info<'a>(db: &'a ReadTransaction<Schema>) -> Vec<InvoiceInfo<'a>> {

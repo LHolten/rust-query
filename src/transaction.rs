@@ -9,7 +9,7 @@ use crate::{
     insert::{private_try_insert, Writable},
     private::Dummy,
     token::ThreadToken,
-    Free, HasId,
+    HasId, Row,
 };
 
 /// The primary interface to the database.
@@ -71,7 +71,7 @@ impl<S> Database<S> {
 /// There can be at most one [ReadTransaction] or [WriteTransaction] in each thread.
 /// This is why these types are both `!Send`.
 ///
-/// All [Free] row id references in this snapshot live for at most `'a`.
+/// All [Row] references in this snapshot live for at most `'a`.
 #[derive(RefCast)]
 #[repr(transparent)]
 pub struct ReadTransaction<'a, S> {
@@ -119,7 +119,7 @@ impl<S> WriteTransaction<'_, S> {
     /// Try inserting a value into the database.
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     /// Takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<'s, T: HasId>(&mut self, val: impl Writable<T = T>) -> Option<Free<'s, T>> {
+    pub fn try_insert<'s, T: HasId>(&mut self, val: impl Writable<T = T>) -> Option<Row<'s, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 

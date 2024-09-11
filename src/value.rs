@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
-    db::Free,
+    db::Row,
     hash,
     migrate::NoTable,
     HasId,
@@ -232,7 +232,7 @@ pub trait MyTyp: 'static {
 impl<T: HasId> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out<'t> = Free<'t, Self>;
+    type Out<'t> = Row<'t, Self>;
     type Sql = i64;
 }
 
@@ -270,7 +270,7 @@ impl<T: MyTyp> MyTyp for Option<T> {
 
 impl MyTyp for NoTable {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
-    type Out<'t> = Free<'t, Self>;
+    type Out<'t> = Row<'t, Self>;
     type Sql = i64;
 }
 

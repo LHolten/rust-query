@@ -21,7 +21,7 @@ mod token;
 mod transaction;
 mod value;
 
-pub use db::Free;
+pub use db::Row;
 pub use query::Rows;
 pub use rust_query_macros::FromDummy;
 pub use token::ThreadToken;

@@ -20,7 +20,7 @@ use crate::{
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, Free, HasId, ReadTransaction, Table, Value,
+    value, HasId, ReadTransaction, Row, Table, Value,
 };
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ pub trait TableMigration<A: HasId> {
 
     // there is no reason to specify the lifetime of prev
     // because it is only used for reader, which doesn't care.
-    fn into_new(self, prev: Free<'_, A>, reader: Reader<'_, A::Schema>);
+    fn into_new(self, prev: Row<'_, A>, reader: Reader<'_, A::Schema>);
 }
 
 pub struct SchemaBuilder<'x> {
@@ -61,10 +61,10 @@ pub struct SchemaBuilder<'x> {
 impl<'x> SchemaBuilder<'x> {
     pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
     where
-        M: FnMut(Free<'x, A>) -> O,
+        M: FnMut(Row<'x, A>) -> O,
         O: TableMigration<A, T = B>,
     {
-        self.create_from(move |db: Free<A>| Some(m(db)));
+        self.create_from(move |db: Row<A>| Some(m(db)));
 
         self.drop
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
@@ -72,7 +72,7 @@ impl<'x> SchemaBuilder<'x> {
 
     pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
     where
-        F: FnMut(Free<'x, A>) -> Option<O>,
+        F: FnMut(Row<'x, A>) -> Option<O>,
         O: TableMigration<A, T = B>,
     {
         let new_table_name = self.scope.tmp_table();
@@ -228,7 +228,8 @@ impl Prepare {
             }
 
             for sql in sql {
-                conn.execute_batch(sql).unwrap();
+                conn.execute_batch(sql)
+                    .expect("raw sql statement to initilize db failed");
             }
         })
     }
