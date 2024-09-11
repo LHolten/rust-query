@@ -2,7 +2,7 @@ use std::{marker::PhantomData, path::Path, rc::Rc, sync::atomic::AtomicBool};
 
 use ouroboros::self_referencing;
 use ref_cast::RefCast;
-use rusqlite::{config::DbConfig, Connection, Transaction};
+use rusqlite::{config::DbConfig, Connection};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
@@ -20,7 +20,7 @@ use crate::{
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, HasId, ReadTransaction, Row, Table, Value,
+    value, HasId, Row, Table, Transaction, Value,
 };
 
 #[derive(Default)]
@@ -174,7 +174,7 @@ pub(crate) struct OwnedTransaction {
     pub(crate) conn: Connection,
     #[borrows(mut conn)]
     #[covariant]
-    pub(crate) transaction: Transaction<'this>,
+    pub(crate) transaction: rusqlite::Transaction<'this>,
 }
 
 impl Prepare {
@@ -248,7 +248,7 @@ impl Prepare {
         })
     }
 
-    fn migrator<S: Schema>(self, f: impl FnOnce(&Transaction)) -> Option<Migrator<S>> {
+    fn migrator<S: Schema>(self, f: impl FnOnce(&rusqlite::Transaction)) -> Option<Migrator<S>> {
         self.conn
             .pragma_update(None, "foreign_keys", "OFF")
             .unwrap();
@@ -303,7 +303,7 @@ impl<S: Schema> Migrator<S> {
     /// This function will panic if the resulting schema is different, but the version matches.
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
-        F: FnOnce(&'a ReadTransaction<'a, S>) -> M,
+        F: FnOnce(&'a Transaction<'a, S>) -> M,
         M: Migration<'a, From = S, To = N>,
     {
         t.stuff = self.transaction.clone();
@@ -314,7 +314,7 @@ impl<S: Schema> Migrator<S> {
             .borrow_transaction();
 
         if user_version(conn).unwrap() == S::VERSION {
-            let client = ReadTransaction::ref_cast(conn);
+            let client = Transaction::ref_cast(conn);
 
             let res = f(client);
             let mut builder = SchemaBuilder {

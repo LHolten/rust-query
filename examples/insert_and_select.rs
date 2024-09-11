@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Prepare},
-    ThreadToken, Value, WriteTransaction,
+    ThreadToken, TransactionMut, Value,
 };
 
 // Start by defining your schema.
@@ -36,7 +36,7 @@ fn main() {
 }
 
 // Use the database to insert and query.
-fn do_stuff_with_database(db: &mut WriteTransaction<MySchema>) {
+fn do_stuff_with_database(db: &mut TransactionMut<MySchema>) {
     // Lets make a new user 'mike',
     let mike = UserDummy { name: "mike" };
     let mike_id = db.try_insert(mike).unwrap();

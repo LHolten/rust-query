@@ -1,7 +1,7 @@
 error: lifetime may not live long enough
  --> tests/compile/client_get.rs:6:5
   |
-5 | fn test<'a, S>(db: &ReadTransaction<'a, S>, val: impl Value<'a, S, Typ = i64>) {
+5 | fn test<'a, S>(db: &Transaction<'a, S>, val: impl Value<'a, S, Typ = i64>) {
   |         -- lifetime `'a` defined here
 6 |     db.query_one(val);
   |     ^^^^^^^^^^^^^^^^^ requires that `'a` must outlive `'static`
