@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs};
 
 use rust_query::{
     migration::{schema, NoTable, Prepare},
@@ -129,14 +129,19 @@ enum Schema {
 }
 
 pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
-    let artist_title = HashMap::from([("a", "b")]);
     let m = Prepare::open_in_memory();
+
+    if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {
+        panic!("test data file 'Chinook_Sqlite.sqlite' does not exist");
+    }
     let m = m
         .create_db_sql::<v0::Schema>(&[
             "ATTACH 'Chinook_Sqlite.sqlite' AS old;",
             include_str!("migrate.sql"),
         ])
         .unwrap();
+
+    let artist_title = HashMap::from([("a", "b")]);
     let m = m.migrate(t, |db| v1::update::Schema {
         album: Box::new(|album| v1::update::AlbumMigration {
             something: {
@@ -154,6 +159,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
             })
         }),
     });
+
     let m = m.migrate(t, |db| v2::update::Schema {
         customer: Box::new(|customer| v2::update::CustomerMigration {
             phone: db
@@ -170,6 +176,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
         }),
         genre_new: Box::new(|_genre_new| v2::update::GenreNewMigration {}),
     });
+
     m.finish(t).unwrap()
 }
 
