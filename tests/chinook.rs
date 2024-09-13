@@ -6,7 +6,8 @@ use chinook_schema::*;
 use expect_test::expect_file;
 use rust_query::{FromDummy, Row, ThreadToken, Transaction, Value};
 
-fn assert_dbg(val: impl Debug, file_name: &str) {
+/// requires [PartialEq] to get rid of unused warnings.
+fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
     let path = format!("chinook_tests/{file_name}.dbg");
     expect_file![path].assert_debug_eq(&val);
 }
@@ -34,12 +35,14 @@ fn test_queries() {
     let res = customer_spending(&db);
     assert_dbg(&res[..20], "customer_spending");
 
+    free_reference(&db);
+
     let artist_name = "my cool artist".to_string();
     let id = db.try_insert(ArtistDummy { name: artist_name });
     assert!(id.is_some());
 }
 
-#[derive(Debug, FromDummy)]
+#[derive(Debug, FromDummy, PartialEq)]
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
@@ -57,7 +60,7 @@ fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
     })
 }
 
-#[derive(Debug, FromDummy)]
+#[derive(Debug, FromDummy, PartialEq)]
 struct PlaylistTrackCount {
     playlist: String,
     track_count: i64,
@@ -120,14 +123,14 @@ fn list_all_genres(db: &Transaction<Schema>) -> Vec<String> {
     })
 }
 
-#[derive(Debug, FromDummy)]
+#[derive(Debug, FromDummy, PartialEq)]
 struct FilteredTrack {
     track_name: String,
     album_name: String,
     stats: Stats,
 }
 
-#[derive(Debug, FromDummy)]
+#[derive(Debug, FromDummy, PartialEq)]
 struct Stats {
     milis: i64,
 }
@@ -147,7 +150,7 @@ fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<
     })
 }
 
-#[derive(Debug, FromDummy)]
+#[derive(Debug, FromDummy, PartialEq)]
 struct GenreStats {
     genre_name: String,
     byte_average: Option<f64>,
@@ -173,7 +176,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
     })
 }
 
-#[derive(Debug, FromDummy)]
+#[derive(Debug, FromDummy, PartialEq)]
 struct CustomerSpending {
     customer_name: String,
     total_spending: f64,
@@ -202,6 +205,6 @@ fn free_reference(db: &Transaction<Schema>) {
     });
 
     for track in tracks {
-        let name = db.query_one(track.album().artist().name());
+        let _name = db.query_one(track.album().artist().name());
     }
 }

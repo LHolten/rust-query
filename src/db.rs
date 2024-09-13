@@ -124,6 +124,12 @@ pub struct Row<'t, T> {
     pub(crate) idx: i64,
 }
 
+impl<'t, T> PartialEq for Row<'t, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.idx == other.idx
+    }
+}
+
 impl<T> Debug for Row<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "db_{}", self.idx)
