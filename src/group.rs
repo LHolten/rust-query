@@ -94,10 +94,7 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     where
         V::Typ: NumTyp,
     {
-        let expr = Func::cast_as(
-            Func::sum(val.build_expr(self.ast.builder())),
-            Alias::new("integer"),
-        );
+        let expr = Func::sum(val.build_expr(self.ast.builder()));
         UnwrapOr(self.select(expr), Const(V::Typ::ZERO))
     }
 
