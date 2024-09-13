@@ -11,13 +11,23 @@ use syn::{
 mod from_row;
 mod table;
 
-/// You can use this macro to define your schema.
-/// The macro uses enum syntax, but it generates multiple modules of types.
+/// Use this macro to define your schema.
+///
+/// ## Supported data types:
+/// - `i64` (sqlite `integer`)
+/// - `f64` (sqlite `real`)
+/// - `String` (sqlite `text`)
+/// - Any table in the same schema (sqlite `integer` with foreign key constraint)
+/// - `Option<T>` where `T` is not an `Option` (sqlite nullable)
+///
+/// Booleans are not supported in schemas yet.
+///
+/// ## Unique constraints
 ///
 /// For example:
 /// ```
 /// #[rust_query::migration::schema]
-/// #[version(0..1)]
+/// #[version(0..=0)]
 /// enum Schema {
 ///     User {
 ///         #[unique_email]
@@ -30,7 +40,11 @@ mod table;
 /// ```
 /// This will create a single schema with a single table called `user` and two columns.
 /// The table will also have two unique contraints.
-/// Note that the schema version range is `0..1` so there is only a version 0.
+///
+/// ## Multiple versions
+/// The macro uses enum syntax, but it generates multiple modules of types.
+///
+/// Note that the schema version range is `0..=0` so there is only a version 0.
 /// The generated code will have a structure like this:
 /// ```rust,ignore
 /// mod v0 {
@@ -43,7 +57,7 @@ mod table;
 /// At some point you might want to add a new table.
 /// ```
 /// #[rust_query::migration::schema]
-/// #[version(0..2)]
+/// #[version(0..=1)]
 /// enum Schema {
 ///     User {
 ///         #[unique_email]
@@ -77,7 +91,7 @@ mod table;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// #[rust_query::migration::schema]
-/// #[version(0..2)]
+/// #[version(0..=1)]
 /// enum Schema {
 ///     User {
 ///         #[unique_email]
@@ -143,6 +157,41 @@ pub fn schema(
     .into()
 }
 
+/// Derive [FromDummy] to create a new `*Dummy` struct.
+///
+/// This `*Dummy` struct can then be used with [Query::into_vec] or [Transaction::query_one].
+/// Usage can also be nested.
+///
+/// Example:
+/// ```
+/// #[derive(FromDummy)]
+/// struct MyData {
+///     seconds: i64,
+///     is_it_real: bool,
+///     name: String,
+///     other: OtherData
+/// }
+///
+/// #[derive(FromDummy)]
+/// struct OtherData {
+///     alpha: f64,
+///     beta: f64,
+/// }
+///
+/// db.query(|rows| {
+///     let thing = Thing::join(rows);
+///
+///     rows.into_vec(MyDataDummy {
+///         seconds: thing.seconds(),
+///         is_it_real: true,
+///         name: thing.details().name(),
+///         other: OtherDataDummy {
+///             alpha: 0.5,
+///             beta: thing.beta(),
+///         },
+///     })
+/// })
+/// ```
 #[proc_macro_derive(FromDummy)]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);

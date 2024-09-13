@@ -104,15 +104,30 @@ pub trait Table: Sized + 'static {
     fn typs(f: &mut TypBuilder);
 }
 
-// TODO: maybe remove this trait?
-#[doc(hidden)]
-pub trait ValidInSchema<S> {}
+struct Null;
+struct NotNull;
 
-impl<S> ValidInSchema<S> for String {}
-impl<S> ValidInSchema<S> for i64 {}
-impl<S> ValidInSchema<S> for f64 {}
-impl<S, T: ValidInSchema<S>> ValidInSchema<S> for Option<T> {}
-impl<T: Table> ValidInSchema<T::Schema> for T {}
+// TODO: maybe remove this trait?
+// currently this prevents storing booleans and nested enums.
+trait ValidInSchema<S> {
+    type N;
+}
+
+impl<S> ValidInSchema<S> for String {
+    type N = NotNull;
+}
+impl<S> ValidInSchema<S> for i64 {
+    type N = NotNull;
+}
+impl<S> ValidInSchema<S> for f64 {
+    type N = NotNull;
+}
+impl<S, T: ValidInSchema<S, N = NotNull>> ValidInSchema<S> for Option<T> {
+    type N = Null;
+}
+impl<T: Table> ValidInSchema<T::Schema> for T {
+    type N = NotNull;
+}
 
 #[doc(hidden)]
 pub fn valid_in_schema<S, T: ValidInSchema<S>>() {}
