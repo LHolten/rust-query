@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use sea_query::{Expr, SimpleExpr};
+
 use crate::{
     ast::{MySelect, Source},
     db::Join,
@@ -75,9 +77,11 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl Value<'inner, S, Typ = bool>) {
-        self.ast
-            .filters
-            .push(Box::new(prop.build_expr(self.ast.builder())));
+        self.filter_private(prop.build_expr(self.ast.builder()));
+    }
+
+    fn filter_private(&mut self, prop: SimpleExpr) {
+        self.ast.filters.push(Box::new(prop));
     }
 
     /// Filter out rows where this column is [None].
@@ -87,7 +91,7 @@ impl<'inner, S> Rows<'inner, S> {
     where
         V: Value<'inner, S, Typ = Option<T>>,
     {
-        self.filter(val.clone().is_not_null());
+        self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
         Assume(val)
     }
 }

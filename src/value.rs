@@ -77,7 +77,7 @@ pub trait NoParam {}
 /// This includes dummies from queries and rust values.
 /// `'t` is the context in which this value is valid.
 /// `S` is the schema in which this value is valid.
-pub trait Value<'t, S>: Clone + NoParam {
+pub trait Value<'t, S>: NoParam {
     type Typ;
 
     #[doc(hidden)]
@@ -86,6 +86,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn add<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Add<Self, T>
     where
         Self::Typ: NumTyp,
+        Self: Sized,
     {
         Add(self, rhs)
     }
@@ -93,6 +94,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn lt<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Lt<Self, T>
     where
         Self::Typ: NumTyp,
+        Self: Sized,
     {
         Lt(self, rhs)
     }
@@ -100,6 +102,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn eq<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Eq<Self, T>
     where
         Self::Typ: EqTyp,
+        Self: Sized,
     {
         Eq(self, rhs)
     }
@@ -107,6 +110,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn not(self) -> Not<Self>
     where
         Self: Value<'t, S, Typ = bool>,
+        Self: Sized,
     {
         Not(self)
     }
@@ -114,6 +118,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn and<T: Value<'t, S, Typ = bool>>(self, rhs: T) -> And<Self, T>
     where
         Self: Value<'t, S, Typ = bool>,
+        Self: Sized,
     {
         And(self, rhs)
     }
@@ -121,6 +126,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn unwrap_or<T: Value<'t, S>>(self, rhs: T) -> UnwrapOr<Self, T>
     where
         Self: Value<'t, S, Typ = Option<T::Typ>>,
+        Self: Sized,
     {
         UnwrapOr(self, rhs)
     }
@@ -128,6 +134,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn is_not_null<Typ>(self) -> IsNotNull<Self>
     where
         Self: Value<'t, S, Typ = Option<Typ>>,
+        Self: Sized,
     {
         IsNotNull(self)
     }
@@ -135,6 +142,7 @@ pub trait Value<'t, S>: Clone + NoParam {
     fn as_float(self) -> AsFloat<Self>
     where
         Self: Value<'t, S, Typ = i64>,
+        Self: Sized,
     {
         AsFloat(self)
     }
