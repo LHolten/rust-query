@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use sea_query::{Alias, Func, SimpleExpr};
+use sea_query::{Func, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
@@ -66,45 +66,45 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
-    pub fn avg<V: Value<'inner, S, Typ = f64>>(
+    pub fn avg(
         &'inner self,
-        val: V,
+        val: impl Value<'inner, S, Typ = f64>,
     ) -> AggrCol<'outer, S, Option<f64>> {
-        let expr = Func::cast_as(
-            Func::avg(val.build_expr(self.ast.builder())),
-            Alias::new("real"),
-        );
+        let expr = Func::avg(val.build_expr(self.ast.builder()));
         self.select(expr)
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
-    pub fn max<V: Value<'inner, S>>(&'inner self, val: V) -> AggrCol<'outer, S, Option<V::Typ>>
+    pub fn max<T>(
+        &'inner self,
+        val: impl Value<'inner, S, Typ = T>,
+    ) -> AggrCol<'outer, S, Option<T>>
     where
-        V::Typ: NumTyp,
+        T: NumTyp,
     {
         let expr = Func::max(val.build_expr(self.ast.builder()));
         self.select(expr)
     }
 
     /// Return the sum of a column.
-    pub fn sum<V: Value<'inner, S>>(
+    pub fn sum<T>(
         &'inner self,
-        val: V,
-    ) -> UnwrapOr<AggrCol<'outer, S, Option<V::Typ>>, Const<V::Typ>>
+        val: impl Value<'inner, S, Typ = T>,
+    ) -> UnwrapOr<AggrCol<'outer, S, Option<T>>, Const<T>>
     where
-        V::Typ: NumTyp,
+        T: NumTyp,
     {
         let expr = Func::sum(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select(expr), Const(V::Typ::ZERO))
+        UnwrapOr(self.select(expr), Const(T::ZERO))
     }
 
     /// Return the number of distinct values in a column.
-    pub fn count_distinct<V: Value<'inner, S>>(
+    pub fn count_distinct<T>(
         &'inner self,
-        val: V,
+        val: impl Value<'inner, S, Typ = T>,
     ) -> UnwrapOr<AggrCol<'outer, S, Option<i64>>, Const<i64>>
     where
-        V::Typ: EqTyp,
+        T: EqTyp,
     {
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
         UnwrapOr(self.select(expr), Const(0))
