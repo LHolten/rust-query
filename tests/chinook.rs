@@ -192,7 +192,7 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
         });
 
         rows.into_vec(CustomerSpendingDummy {
-            customer_name: customer_last_name(&customer),
+            customer_name: customer_last_name(customer),
             total_spending: total,
         })
     })
@@ -209,6 +209,6 @@ fn free_reference(db: &Transaction<Schema>) {
     }
 }
 
-fn customer_last_name<'t>(customer: &Customer<impl Val<'t, Customer>>) -> impl Val<'t, String> {
-    customer.last_name()
+fn customer_last_name<'t>(customer: impl Val<'t, Customer>) -> impl Val<'t, String> {
+    customer.ref_cast().last_name()
 }

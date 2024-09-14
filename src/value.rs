@@ -3,6 +3,7 @@ pub mod operations;
 use std::rc::Rc;
 
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
+use ref_cast::RefCast;
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
 
@@ -12,7 +13,7 @@ use crate::{
     db::Row,
     hash,
     migrate::NoTable,
-    HasId,
+    HasId, Table,
 };
 
 #[derive(Clone, Copy)]
@@ -156,11 +157,12 @@ pub trait Value<'t, S>: NoParam {
         AsFloat(self.clone())
     }
 
-    fn into_dyn<'a>(self) -> Rc<dyn Value<'t, S, Typ = Self::Typ> + 'a>
+    fn ref_cast(&self) -> &<Self::Typ as Table>::Dummy<Self>
     where
-        Self: Sized + 'a,
+        Self::Typ: Table,
+        Self: Clone,
     {
-        Rc::new(self)
+        RefCast::ref_cast(self)
     }
 }
 
