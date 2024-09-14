@@ -30,7 +30,7 @@ impl Scope {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(super) struct MyAlias {
+pub struct MyAlias {
     name: u64,
 }
 

@@ -10,11 +10,6 @@ use crate::{
     HasId, Table, ThreadToken, Value,
 };
 
-pub(crate) trait TableRef<'t>: Clone {
-    type Schema;
-    fn build_table(&self, b: ValueBuilder) -> MyAlias;
-}
-
 pub struct Col<T, X> {
     pub(crate) _p: PhantomData<T>,
     pub(crate) field: Field,
@@ -52,17 +47,13 @@ impl<T: Table, X: Clone> Deref for Col<T, X> {
 }
 
 impl<T, P> NoParam for Col<T, P> {}
-impl<'t, T, P: TableRef<'t>> Value<'t, P::Schema> for Col<T, P> {
+impl<'t, S, T, P: Value<'t, S>> Value<'t, S> for Col<T, P>
+where
+    P::Typ: HasId,
+{
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.inner.build_table(b), self.field)).into()
-    }
-}
-
-impl<'t, T: HasId, P: TableRef<'t>> TableRef<'t> for Col<T, P> {
-    type Schema = T::Schema;
-    fn build_table(&self, b: ValueBuilder) -> MyAlias {
-        b.get_join::<T>(self.build_expr(b))
     }
 }
 
@@ -99,19 +90,15 @@ impl<'t, T: Table> Deref for Join<'t, T> {
     }
 }
 
-impl<'t, T: Table> TableRef<'t> for Join<'t, T> {
-    type Schema = T::Schema;
-    fn build_table(&self, _: ValueBuilder) -> MyAlias {
-        self.table
-    }
-}
-
 impl<T> NoParam for Join<'_, T> {}
 impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
     type Typ = T;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.build_table(b), Alias::new(T::ID))).into()
+    }
+    fn build_table(&self, _: ValueBuilder) -> MyAlias {
+        self.table
     }
 }
 
@@ -176,17 +163,10 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Row<'_, T> {
     }
 }
 
-impl<'t, T: HasId> TableRef<'t> for Row<'_, T> {
-    type Schema = T::Schema;
-    fn build_table(&self, b: ValueBuilder) -> MyAlias {
-        b.get_join::<T>(self.build_expr(b))
-    }
-}
-
 #[cfg(test)]
 #[allow(unused)]
 mod tests {
-    use ref_cast::RefCast;
+    use crate::Table;
 
     use super::*;
     struct Admin;

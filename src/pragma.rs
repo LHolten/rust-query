@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ref_cast::RefCast;
 
-use crate::{client::QueryBuilder, db::Col, from_row::AdHoc, hash, value::Value, Table};
+use crate::{client::QueryBuilder, db::Col, from_row::AdHoc, hash, value::Value, HasId, Table};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -13,6 +13,15 @@ macro_rules! field {
     ($name:ident($name_str:literal): $typ:ty) => {
         pub fn $name(&self) -> Col<$typ, T> {
             Col::new($name_str, self.0.clone())
+        }
+    };
+}
+
+macro_rules! has_no_id {
+    ($typ:ident) => {
+        impl HasId for $typ {
+            const ID: &'static str = "";
+            const NAME: &'static str = "";
         }
     };
 }
@@ -45,6 +54,7 @@ impl Table for TableList {
 
     fn typs(_f: &mut crate::TypBuilder) {}
 }
+has_no_id! {TableList}
 
 pub struct TableInfo(pub String);
 
@@ -69,6 +79,7 @@ impl Table for TableInfo {
 
     fn typs(_f: &mut crate::TypBuilder) {}
 }
+has_no_id! {TableInfo}
 pub struct ForeignKeyList(pub String);
 
 #[repr(transparent)]
@@ -92,6 +103,7 @@ impl Table for ForeignKeyList {
 
     fn typs(_f: &mut crate::TypBuilder) {}
 }
+has_no_id! {ForeignKeyList}
 
 pub struct IndexList(String);
 
@@ -116,6 +128,7 @@ impl Table for IndexList {
 
     fn typs(_f: &mut crate::TypBuilder) {}
 }
+has_no_id! {IndexList}
 
 pub struct IndexInfo(String);
 
@@ -137,6 +150,7 @@ impl Table for IndexInfo {
 
     fn typs(_f: &mut crate::TypBuilder) {}
 }
+has_no_id! {IndexInfo}
 
 pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     #[derive(Clone)]

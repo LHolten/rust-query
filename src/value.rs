@@ -84,6 +84,13 @@ pub trait Value<'t, S>: NoParam {
 
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
+    #[doc(hidden)]
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    where
+        Self::Typ: HasId,
+    {
+        b.get_join::<Self::Typ>(self.build_expr(b))
+    }
 
     fn add<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Add<Self, T>
     where
@@ -219,13 +226,19 @@ impl<'t, S> Value<'t, S> for f64 {
     }
 }
 
-impl<T: NoParam> NoParam for Rc<T> {}
+impl<T: ?Sized + NoParam> NoParam for Rc<T> {}
 
-impl<'t, S, T: Value<'t, S>> Value<'t, S> for Rc<T> {
+impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
     type Typ = T::Typ;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.as_ref().build_expr(b)
+    }
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    where
+        Self::Typ: HasId,
+    {
+        self.as_ref().build_table(b)
     }
 }
 

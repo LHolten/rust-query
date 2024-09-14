@@ -3,16 +3,15 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use sea_query::{Func, SimpleExpr};
+use sea_query::{Expr, Func, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
     ast::MySelect,
-    db::{Col, TableRef},
     query::Rows,
     value::{
         operations::{Const, IsNotNull, UnwrapOr},
-        EqTyp, NumTyp, Value,
+        EqTyp, NoParam, NumTyp, Value,
     },
 };
 
@@ -43,12 +42,12 @@ impl<'outer, 'inner, S> DerefMut for Aggregate<'outer, 'inner, S> {
 }
 
 impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
-    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> AggrCol<'outer, S, Option<T>> {
+    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> Aggr<'outer, S, Option<T>> {
         let alias = self
             .ast
             .select
             .get_or_init(expr.into(), || self.ast.scope.new_field());
-        AggrCol::db(self.table, *alias)
+        Aggr::db(self.table, *alias)
     }
 
     /// Filter the rows of this sub-query based on a value from the outer query.
@@ -69,16 +68,13 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     pub fn avg(
         &'inner self,
         val: impl Value<'inner, S, Typ = f64>,
-    ) -> AggrCol<'outer, S, Option<f64>> {
+    ) -> Aggr<'outer, S, Option<f64>> {
         let expr = Func::avg(val.build_expr(self.ast.builder()));
         self.select(expr)
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
-    pub fn max<T>(
-        &'inner self,
-        val: impl Value<'inner, S, Typ = T>,
-    ) -> AggrCol<'outer, S, Option<T>>
+    pub fn max<T>(&'inner self, val: impl Value<'inner, S, Typ = T>) -> Aggr<'outer, S, Option<T>>
     where
         T: NumTyp,
     {
@@ -90,7 +86,7 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     pub fn sum<T>(
         &'inner self,
         val: impl Value<'inner, S, Typ = T>,
-    ) -> UnwrapOr<AggrCol<'outer, S, Option<T>>, Const<T>>
+    ) -> UnwrapOr<Aggr<'outer, S, Option<T>>, Const<T>>
     where
         T: NumTyp,
     {
@@ -102,7 +98,7 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     pub fn count_distinct<T>(
         &'inner self,
         val: impl Value<'inner, S, Typ = T>,
-    ) -> UnwrapOr<AggrCol<'outer, S, Option<i64>>, Const<i64>>
+    ) -> UnwrapOr<Aggr<'outer, S, Option<i64>>, Const<i64>>
     where
         T: EqTyp,
     {
@@ -111,42 +107,43 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> IsNotNull<AggrCol<'outer, S, Option<i64>>> {
+    pub fn exists(&'inner self) -> IsNotNull<Aggr<'outer, S, Option<i64>>> {
         let expr = SimpleExpr::Constant(1.into_value());
         IsNotNull(self.select::<i64>(expr))
     }
 }
 
-pub struct Aggr<'t, S> {
+pub struct Aggr<'t, S, T> {
     pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
+    pub(crate) _p2: PhantomData<T>,
+    pub(crate) field: Field,
 }
 
-impl<S> Copy for Aggr<'_, S> {}
-impl<S> Clone for Aggr<'_, S> {
+impl<S, T> Aggr<'_, S, T> {
+    fn db(table: MyAlias, field: Field) -> Self {
+        Aggr {
+            _p: PhantomData,
+            _p2: PhantomData,
+            field,
+            table,
+        }
+    }
+}
+
+impl<S, T> Copy for Aggr<'_, S, T> {}
+impl<S, T> Clone for Aggr<'_, S, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-type AggrCol<'t, S, T> = Col<T, Aggr<'t, S>>;
+impl<'t, S, T> NoParam for Aggr<'t, S, T> {}
 
-impl<'t, S, T> AggrCol<'t, S, T> {
-    fn db(table: MyAlias, field: Field) -> Self {
-        Col {
-            _p: PhantomData,
-            field,
-            inner: Aggr {
-                table,
-                _p: PhantomData,
-            },
-        }
-    }
-}
+impl<'t, S, T> Value<'t, S> for Aggr<'t, S, T> {
+    type Typ = T;
 
-impl<'t, S> TableRef<'t> for Aggr<'t, S> {
-    type Schema = S;
-    fn build_table(&self, _: crate::value::ValueBuilder) -> MyAlias {
-        self.table
+    fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {
+        Expr::col((self.table, self.field)).into()
     }
 }
