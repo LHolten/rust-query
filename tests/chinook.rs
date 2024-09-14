@@ -32,7 +32,7 @@ fn test_queries() {
     assert_dbg(&res[..], "filtered_track");
     let res = genre_statistics(&db);
     assert_dbg(&res[..20], "genre_statistics");
-    let res = customer_spending(&db);
+    let res = all_customer_spending(&db);
     assert_dbg(&res[..20], "customer_spending");
 
     free_reference(&db);
@@ -182,7 +182,7 @@ struct CustomerSpending {
     total_spending: f64,
 }
 
-fn customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
+fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
     db.query(|rows| {
         let customer = Customer::join(rows);
         let total = rows.aggregate(|rows| {
@@ -207,4 +207,9 @@ fn free_reference(db: &Transaction<Schema>) {
     for track in tracks {
         let _name = db.query_one(track.album().artist().name());
     }
+}
+
+fn customer_spending<'a>(customer: impl Val<'a, Customer>) -> Dyn<'a, f64> {
+    customer.;
+    todo!()
 }

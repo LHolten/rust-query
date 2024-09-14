@@ -1,11 +1,16 @@
-use std::{collections::HashMap, fs};
+use std::{collections::HashMap, fs, rc::Rc};
 
 use rust_query::{
     migration::{schema, NoTable, Prepare},
-    Database, ThreadToken,
+    Database, ThreadToken, Value,
 };
 
 pub use v2::*;
+
+pub trait Val<'t, T>: Value<'t, Schema, Typ = T> + Clone {}
+impl<'t, T, X: Value<'t, Schema, Typ = T> + Clone> Val<'t, T> for X {}
+
+pub type Dyn<'t, T> = Rc<dyn Value<'t, Schema, Typ = T>>;
 
 #[schema]
 #[version(0..=2)]
