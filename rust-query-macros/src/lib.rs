@@ -339,7 +339,7 @@ fn define_table_migration(
             constraints
                 .push(quote! {#generic: for<'x> ::rust_query::Value<'x, _PrevSchema, Typ = #typ>});
             generics.push(generic);
-            into_new.push(quote! {reader.col(#name_str, self.#name.clone())});
+            into_new.push(quote! {reader.col(#name_str, self.#name)});
         }
     }
 
