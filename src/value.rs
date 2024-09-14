@@ -1,5 +1,7 @@
 pub mod operations;
 
+use std::rc::Rc;
+
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SimpleExpr};
@@ -83,68 +85,68 @@ pub trait Value<'t, S>: NoParam {
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
 
-    fn add<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Add<Self, T>
+    fn add<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Add<Self, T>
     where
         Self::Typ: NumTyp,
-        Self: Sized,
+        Self: Clone,
     {
-        Add(self, rhs)
+        Add(self.clone(), rhs)
     }
 
-    fn lt<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Lt<Self, T>
+    fn lt<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Lt<Self, T>
     where
         Self::Typ: NumTyp,
-        Self: Sized,
+        Self: Clone,
     {
-        Lt(self, rhs)
+        Lt(self.clone(), rhs)
     }
 
-    fn eq<T: Value<'t, S, Typ = Self::Typ>>(self, rhs: T) -> Eq<Self, T>
+    fn eq<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Eq<Self, T>
     where
         Self::Typ: EqTyp,
-        Self: Sized,
+        Self: Clone,
     {
-        Eq(self, rhs)
+        Eq(self.clone(), rhs)
     }
 
     fn not(self) -> Not<Self>
     where
         Self: Value<'t, S, Typ = bool>,
-        Self: Sized,
+        Self: Clone,
     {
-        Not(self)
+        Not(self.clone())
     }
 
-    fn and<T: Value<'t, S, Typ = bool>>(self, rhs: T) -> And<Self, T>
+    fn and<T: Value<'t, S, Typ = bool>>(&self, rhs: T) -> And<Self, T>
     where
         Self: Value<'t, S, Typ = bool>,
-        Self: Sized,
+        Self: Clone,
     {
-        And(self, rhs)
+        And(self.clone(), rhs)
     }
 
-    fn unwrap_or<T: Value<'t, S>>(self, rhs: T) -> UnwrapOr<Self, T>
+    fn unwrap_or<T: Value<'t, S>>(&self, rhs: T) -> UnwrapOr<Self, T>
     where
         Self: Value<'t, S, Typ = Option<T::Typ>>,
-        Self: Sized,
+        Self: Clone,
     {
-        UnwrapOr(self, rhs)
+        UnwrapOr(self.clone(), rhs)
     }
 
-    fn is_not_null<Typ>(self) -> IsNotNull<Self>
+    fn is_not_null<Typ>(&self) -> IsNotNull<Self>
     where
         Self: Value<'t, S, Typ = Option<Typ>>,
-        Self: Sized,
+        Self: Clone,
     {
-        IsNotNull(self)
+        IsNotNull(self.clone())
     }
 
-    fn as_float(self) -> AsFloat<Self>
+    fn as_float(&self) -> AsFloat<Self>
     where
         Self: Value<'t, S, Typ = i64>,
-        Self: Sized,
+        Self: Clone,
     {
-        AsFloat(self)
+        AsFloat(self.clone())
     }
 }
 
@@ -207,6 +209,16 @@ impl<'t, S> Value<'t, S> for f64 {
 
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
+    }
+}
+
+impl<T: NoParam> NoParam for Rc<T> {}
+
+impl<'t, S, T: Value<'t, S>> Value<'t, S> for Rc<T> {
+    type Typ = T::Typ;
+
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.as_ref().build_expr(b)
     }
 }
 
