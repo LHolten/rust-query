@@ -148,6 +148,13 @@ pub trait Value<'t, S>: NoParam {
     {
         AsFloat(self.clone())
     }
+
+    fn into_dyn<'a>(self) -> Rc<dyn Value<'t, S, Typ = Self::Typ> + 'a>
+    where
+        Self: Sized + 'a,
+    {
+        Rc::new(self)
+    }
 }
 
 impl<T: NoParam> NoParam for Option<T> {}
