@@ -209,6 +209,8 @@ fn free_reference(db: &Transaction<Schema>) {
     }
 }
 
-fn customer_last_name<'t>(customer: impl Val<'t, Customer>) -> impl Val<'t, String> {
-    customer.ref_cast().last_name()
+fn customer_last_name<'t>(
+    customer: impl MyVal<'t, Typ = Customer>,
+) -> impl MyVal<'t, Typ = String> {
+    customer.last_name()
 }

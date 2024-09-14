@@ -11,7 +11,7 @@ use crate::{
     query::Rows,
     value::{
         operations::{Const, IsNotNull, UnwrapOr},
-        EqTyp, NoParam, NumTyp, Value,
+        EqTyp, MyTyp, NoParam, NumTyp, Value,
     },
 };
 
@@ -140,7 +140,7 @@ impl<S, T> Clone for Aggr<'_, S, T> {
 
 impl<'t, S, T> NoParam for Aggr<'t, S, T> {}
 
-impl<'t, S, T> Value<'t, S> for Aggr<'t, S, T> {
+impl<'t, S, T: MyTyp> Value<'t, S> for Aggr<'t, S, T> {
     type Typ = T;
 
     fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {

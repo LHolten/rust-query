@@ -6,8 +6,8 @@ use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
-    value::{NoParam, ValueBuilder},
-    HasId, Table, ThreadToken, Value,
+    value::{MyTyp, NoParam, ValueBuilder},
+    HasId, ThreadToken, Value,
 };
 
 pub struct Col<T, X> {
@@ -38,8 +38,8 @@ impl<T, X> Col<T, X> {
     }
 }
 
-impl<T: Table, X: Clone> Deref for Col<T, X> {
-    type Target = T::Dummy<Self>;
+impl<T: MyTyp, X: Clone> Deref for Col<T, X> {
+    type Target = T::Wrap<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -47,7 +47,7 @@ impl<T: Table, X: Clone> Deref for Col<T, X> {
 }
 
 impl<T, P> NoParam for Col<T, P> {}
-impl<'t, S, T, P: Value<'t, S>> Value<'t, S> for Col<T, P>
+impl<'t, S, T: MyTyp, P: Value<'t, S>> Value<'t, S> for Col<T, P>
 where
     P::Typ: HasId,
 {
@@ -82,8 +82,8 @@ impl<'t, T> Clone for Join<'t, T> {
 
 impl<'t, T> Copy for Join<'t, T> {}
 
-impl<'t, T: Table> Deref for Join<'t, T> {
-    type Target = T::Dummy<Self>;
+impl<'t, T: MyTyp> Deref for Join<'t, T> {
+    type Target = T::Wrap<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -130,8 +130,8 @@ impl<T> Clone for Row<'_, T> {
 }
 impl<T> Copy for Row<'_, T> {}
 
-impl<T: Table> Deref for Row<'_, T> {
-    type Target = T::Dummy<Self>;
+impl<T: MyTyp> Deref for Row<'_, T> {
+    type Target = T::Wrap<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)

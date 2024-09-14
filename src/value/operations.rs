@@ -1,6 +1,6 @@
 use sea_query::{Alias, Expr, SimpleExpr};
 
-use super::{NoParam, NumTyp, Value, ValueBuilder};
+use super::{MyTyp, NoParam, NumTyp, Value, ValueBuilder};
 
 #[derive(Clone, Copy)]
 pub struct Add<A, B>(pub(crate) A, pub(crate) B);
@@ -83,7 +83,7 @@ impl<'t, S, A: Value<'t, S>> Value<'t, S> for IsNotNull<A> {
 pub struct Assume<A>(pub(crate) A);
 
 impl<A> NoParam for Assume<A> {}
-impl<'t, S, T, A: Value<'t, S, Typ = Option<T>>> Value<'t, S> for Assume<A> {
+impl<'t, S, T: MyTyp, A: Value<'t, S, Typ = Option<T>>> Value<'t, S> for Assume<A> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b)

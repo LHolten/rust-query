@@ -2,13 +2,13 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     migration::{schema, NoTable, Prepare},
-    Database, ThreadToken, Value,
+    Database, ThreadToken, Val,
 };
 
 pub use v2::*;
 
-pub trait Val<'t, T>: Value<'t, Schema, Typ = T> + Clone {}
-impl<'t, T, X: Value<'t, Schema, Typ = T> + Clone> Val<'t, T> for X {}
+pub trait MyVal<'t>: Val<'t, Schema> {}
+impl<'t, X: Val<'t, Schema>> MyVal<'t> for X {}
 
 #[schema]
 #[version(0..=2)]
