@@ -1,8 +1,5 @@
 #![allow(private_bounds)]
 
-use ref_cast::RefCast;
-use value::MyTyp;
-
 mod alias;
 mod ast;
 mod client;
@@ -22,7 +19,9 @@ mod transaction;
 mod value;
 
 pub use db::Row;
+use hash::TypBuilder;
 pub use query::Rows;
+use ref_cast::RefCast;
 pub use rust_query_macros::FromDummy;
 pub use token::ThreadToken;
 pub use transaction::{Database, Transaction, TransactionMut};
@@ -52,6 +51,7 @@ pub mod migration {
 pub mod private {
     pub use crate::exec::show_sql;
     pub use crate::from_row::{Cached, Cacher, Dummy, Row};
+    pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
@@ -60,80 +60,49 @@ pub mod private {
     pub use expect_test::Expect;
     pub use ref_cast::RefCast;
     pub use sea_query::SimpleExpr;
-}
 
-#[derive(Default)]
-#[doc(hidden)]
-pub struct TypBuilder {
-    ast: hash::Table,
-}
+    struct Null;
+    struct NotNull;
 
-impl TypBuilder {
-    pub fn col<T: MyTyp>(&mut self, name: &'static str) {
-        let mut item = hash::Column {
-            name: name.to_owned(),
-            typ: T::TYP,
-            nullable: T::NULLABLE,
-            fk: None,
-        };
-        if let Some((table, fk)) = T::FK {
-            item.fk = Some((table.to_owned(), fk.to_owned()))
-        }
-        self.ast.columns.insert(item)
+    // TODO: maybe remove this trait?
+    // currently this prevents storing booleans and nested enums.
+    trait ValidInSchema<S> {
+        type N;
     }
 
-    pub fn unique(&mut self, cols: &[&'static str]) {
-        let mut unique = hash::Unique::default();
-        for &col in cols {
-            unique.columns.insert(col.to_owned());
-        }
-        self.ast.uniques.insert(unique);
+    impl<S> ValidInSchema<S> for String {
+        type N = NotNull;
     }
+    impl<S> ValidInSchema<S> for i64 {
+        type N = NotNull;
+    }
+    impl<S> ValidInSchema<S> for f64 {
+        type N = NotNull;
+    }
+    impl<S, T: ValidInSchema<S, N = NotNull>> ValidInSchema<S> for Option<T> {
+        type N = Null;
+    }
+    impl<T: crate::Table> ValidInSchema<T::Schema> for T {
+        type N = NotNull;
+    }
+
+    pub fn valid_in_schema<S, T: ValidInSchema<S>>() {}
 }
 
-#[doc(hidden)]
 pub trait Table: Sized + 'static {
-    // const NAME: &'static str;
-    // these names are defined in `'query`
+    // TODO: rename this
     type Dummy<T>: RefCast<From = T>;
 
     type Schema;
 
-    fn name(&self) -> String;
-
+    // used for the first join (useful for pragmas)
+    #[doc(hidden)]
+    fn name(&self) -> String {
+        Self::NAME.to_owned()
+    }
+    #[doc(hidden)]
     fn typs(f: &mut TypBuilder);
-}
 
-struct Null;
-struct NotNull;
-
-// TODO: maybe remove this trait?
-// currently this prevents storing booleans and nested enums.
-trait ValidInSchema<S> {
-    type N;
-}
-
-impl<S> ValidInSchema<S> for String {
-    type N = NotNull;
-}
-impl<S> ValidInSchema<S> for i64 {
-    type N = NotNull;
-}
-impl<S> ValidInSchema<S> for f64 {
-    type N = NotNull;
-}
-impl<S, T: ValidInSchema<S, N = NotNull>> ValidInSchema<S> for Option<T> {
-    type N = Null;
-}
-impl<T: Table> ValidInSchema<T::Schema> for T {
-    type N = NotNull;
-}
-
-#[doc(hidden)]
-pub fn valid_in_schema<S, T: ValidInSchema<S>>() {}
-
-#[doc(hidden)]
-pub trait HasId: Table {
-    const ID: &'static str;
-    const NAME: &'static str;
+    const ID: &'static str = "";
+    const NAME: &'static str = "";
 }

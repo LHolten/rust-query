@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use ref_cast::RefCast;
 
-use crate::{client::QueryBuilder, db::Col, from_row::AdHoc, hash, value::Value, HasId, Table};
+use crate::{client::QueryBuilder, db::Col, from_row::AdHoc, hash, value::Value, Table};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -13,15 +13,6 @@ macro_rules! field {
     ($name:ident($name_str:literal): $typ:ty) => {
         pub fn $name(&self) -> Col<$typ, T> {
             Col::new($name_str, self.0.clone())
-        }
-    };
-}
-
-macro_rules! has_no_id {
-    ($typ:ident) => {
-        impl HasId for $typ {
-            const ID: &'static str = "";
-            const NAME: &'static str = "";
         }
     };
 }
@@ -52,9 +43,8 @@ impl Table for TableList {
         "pragma_table_list".to_owned()
     }
 
-    fn typs(_f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder) {}
 }
-has_no_id! {TableList}
 
 pub struct TableInfo(pub String);
 
@@ -77,9 +67,8 @@ impl Table for TableInfo {
         format!("pragma_table_info('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder) {}
 }
-has_no_id! {TableInfo}
 pub struct ForeignKeyList(pub String);
 
 #[repr(transparent)]
@@ -101,9 +90,8 @@ impl Table for ForeignKeyList {
         format!("pragma_foreign_key_list('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder) {}
 }
-has_no_id! {ForeignKeyList}
 
 pub struct IndexList(String);
 
@@ -126,9 +114,8 @@ impl Table for IndexList {
         format!("pragma_index_list('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder) {}
 }
-has_no_id! {IndexList}
 
 pub struct IndexInfo(String);
 
@@ -148,9 +135,8 @@ impl Table for IndexInfo {
         format!("pragma_index_info('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut crate::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder) {}
 }
-has_no_id! {IndexInfo}
 
 pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     #[derive(Clone)]

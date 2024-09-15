@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Typed, ValueBuilder},
-    HasId, Table, ThreadToken, Value,
+    Table, ThreadToken, Value,
 };
 
 pub struct Col<T, X> {
@@ -51,7 +51,7 @@ impl<T: MyTyp, P> Typed for Col<T, P> {
 }
 impl<'t, S, T: MyTyp, P: Value<'t, S>> Value<'t, S> for Col<T, P>
 where
-    P::Typ: HasId,
+    P::Typ: Table,
 {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.inner.build_table(b), self.field)).into()
@@ -94,7 +94,7 @@ impl<'t, T: Table> Deref for Join<'t, T> {
 impl<T: MyTyp> Typed for Join<'_, T> {
     type Typ = T;
 }
-impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
+impl<'t, T: Table> Value<'t, T::Schema> for Join<'t, T> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
@@ -158,7 +158,7 @@ impl<'t, T> From<Row<'t, T>> for sea_query::Value {
 impl<T: MyTyp> Typed for Row<'_, T> {
     type Typ = T;
 }
-impl<'t, T: HasId> Value<'t, T::Schema> for Row<'_, T> {
+impl<'t, T: Table> Value<'t, T::Schema> for Row<'_, T> {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
     }
@@ -167,8 +167,6 @@ impl<'t, T: HasId> Value<'t, T::Schema> for Row<'_, T> {
 #[cfg(test)]
 #[allow(unused)]
 mod tests {
-    use crate::Table;
-
     use super::*;
     struct Admin;
 
@@ -177,11 +175,7 @@ mod tests {
 
         type Schema = ();
 
-        fn name(&self) -> String {
-            todo!()
-        }
-
-        fn typs(_: &mut crate::TypBuilder) {}
+        fn typs(_: &mut crate::hash::TypBuilder) {}
     }
 
     #[repr(transparent)]

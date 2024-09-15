@@ -7,15 +7,15 @@ use rust_query::{
 
 pub use v2::*;
 
-pub trait MyVal<'t>: Value<'t, Schema> + Clone {}
-impl<'t, X> MyVal<'t> for X where X: Value<'t, Schema> + Clone {}
+pub trait MyValue<'t>: Value<'t, Schema> + Clone {}
+impl<'t, X> MyValue<'t> for X where X: Value<'t, Schema> + Clone {}
 
 pub trait MyTable<'t>:
-    MyVal<'t, Typ: rust_query::Table> + Deref<Target = <Self::Typ as rust_query::Table>::Dummy<Self>>
+    MyValue<'t, Typ: rust_query::Table> + Deref<Target = <Self::Typ as rust_query::Table>::Dummy<Self>>
 {
 }
 impl<'t, X> MyTable<'t> for X where
-    X: MyVal<'t, Typ: rust_query::Table>
+    X: MyValue<'t, Typ: rust_query::Table>
         + Deref<Target = <Self::Typ as rust_query::Table>::Dummy<Self>>
 {
 }

@@ -8,7 +8,7 @@ use crate::{
     insert::{private_try_insert, Writable},
     private::Dummy,
     token::ThreadToken,
-    HasId, Row,
+    Row, Table,
 };
 
 /// The primary interface to the database.
@@ -134,7 +134,7 @@ impl<S> TransactionMut<'_, S> {
     /// Conflicts can occur due too unique constraints in the schema.
     ///
     /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<'s, T: HasId>(&mut self, val: impl Writable<T = T>) -> Option<Row<'s, T>> {
+    pub fn try_insert<'s, T: Table>(&mut self, val: impl Writable<T = T>) -> Option<Row<'s, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 

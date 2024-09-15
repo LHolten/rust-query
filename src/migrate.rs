@@ -20,7 +20,7 @@ use crate::{
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, HasId, Row, Table, Transaction, Value,
+    value, Row, Table, Transaction, Value,
 };
 
 #[derive(Default)]
@@ -29,8 +29,8 @@ pub struct TableTypBuilder {
 }
 
 impl TableTypBuilder {
-    pub fn table<T: HasId>(&mut self) {
-        let mut b = crate::TypBuilder::default();
+    pub fn table<T: Table>(&mut self) {
+        let mut b = hash::TypBuilder::default();
         T::typs(&mut b);
         self.ast.tables.insert((T::NAME.to_owned(), b.ast));
     }
@@ -42,7 +42,7 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<A: HasId> {
+pub trait TableMigration<A: Table> {
     type T;
 
     // there is no reason to specify the lifetime of prev
@@ -59,7 +59,7 @@ pub struct SchemaBuilder<'x> {
 }
 
 impl<'x> SchemaBuilder<'x> {
-    pub fn migrate_table<M, O, A: HasId, B: HasId>(&mut self, mut m: M)
+    pub fn migrate_table<M, O, A: Table, B: Table>(&mut self, mut m: M)
     where
         M: FnMut(Row<'x, A>) -> O,
         O: TableMigration<A, T = B>,
@@ -70,7 +70,7 @@ impl<'x> SchemaBuilder<'x> {
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
     }
 
-    pub fn create_from<F, O, A: HasId, B: HasId>(&mut self, mut f: F)
+    pub fn create_from<F, O, A: Table, B: Table>(&mut self, mut f: F)
     where
         F: FnMut(Row<'x, A>) -> Option<O>,
         O: TableMigration<A, T = B>,
@@ -120,13 +120,13 @@ impl<'x> SchemaBuilder<'x> {
         });
     }
 
-    pub fn drop_table<T: HasId>(&mut self) {
+    pub fn drop_table<T: Table>(&mut self) {
         let name = Alias::new(T::NAME);
         let step = sea_query::Table::drop().table(name).take();
         self.drop.push(step);
     }
 
-    pub fn new_table<T: HasId>(&mut self) {
+    pub fn new_table<T: Table>(&mut self) {
         let new_table_name = self.scope.tmp_table();
         new_table::<T>(self.conn, new_table_name);
 
@@ -139,7 +139,7 @@ impl<'x> SchemaBuilder<'x> {
 }
 
 fn new_table<T: Table>(conn: &Connection, alias: TmpTable) {
-    let mut f = crate::TypBuilder::default();
+    let mut f = crate::hash::TypBuilder::default();
     T::typs(&mut f);
     new_table_inner(conn, &f.ast, alias);
 }

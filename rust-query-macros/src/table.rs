@@ -78,7 +78,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 ::rust_query::ops::Col::new(#ident_str, self.0.clone())
             }
         });
-        typ_asserts.push(quote!(::rust_query::valid_in_schema::<#schema, #typ>();));
+        typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
         read_bounds.push(quote!(#generic: for<'t> ::rust_query::Value<'t, #schema, Typ=#typ>));
         inits.push(quote!(#ident: f.col(#ident_str)));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
@@ -88,13 +88,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     }
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);
-
-    let has_id = quote!(
-        impl ::rust_query::HasId for #table_ident {
-            const ID: &'static str = "id";
-            const NAME: &'static str = #table_name;
-        }
-    );
 
     Ok(quote! {
         #[repr(transparent)]
@@ -115,14 +108,13 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             type Dummy<T> = #table_ident<T>;
             type Schema = #schema;
 
-            fn name(&self) -> String {
-                #table_name.to_owned()
-            }
-
-            fn typs(f: &mut ::rust_query::TypBuilder) {
+            fn typs(f: &mut ::rust_query::private::TypBuilder) {
                 #(#def_typs;)*
                 #(#unique_typs;)*
             }
+
+            const ID: &'static str = "id";
+            const NAME: &'static str = #table_name;
         }
 
         pub struct #dummy_ident<#(#generics),*> {
@@ -148,8 +140,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         const _: fn() = || {
             #(#typ_asserts)*
         };
-
-        #has_id
     })
 }
 

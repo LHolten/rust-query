@@ -13,7 +13,7 @@ use crate::{
     db::Row,
     hash,
     migrate::NoTable,
-    HasId, Table,
+    Table,
 };
 
 #[derive(Clone, Copy)]
@@ -22,7 +22,7 @@ pub struct ValueBuilder<'x> {
 }
 
 impl<'x> ValueBuilder<'x> {
-    pub(crate) fn get_join<T: HasId>(self, expr: SimpleExpr) -> MyAlias {
+    pub(crate) fn get_join<T: Table>(self, expr: SimpleExpr) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: vec![(Field::Str(T::ID), expr)],
@@ -71,7 +71,7 @@ impl EqTyp for String {}
 impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
-impl<T: HasId> EqTyp for T {}
+impl<T: Table> EqTyp for T {}
 
 /// Typ does not depend on scope, so it gets its own trait
 pub trait Typed {
@@ -88,7 +88,7 @@ pub trait Value<'t, S>: Typed {
     #[doc(hidden)]
     fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
     where
-        Self::Typ: HasId,
+        Self::Typ: Table,
     {
         b.get_join::<Self::Typ>(self.build_expr(b))
     }
@@ -238,7 +238,7 @@ impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
     }
     fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
     where
-        Self::Typ: HasId,
+        Self::Typ: Table,
     {
         self.as_ref().build_table(b)
     }
@@ -271,7 +271,7 @@ pub trait MyTyp: 'static {
     type Sql;
 }
 
-impl<T: HasId> MyTyp for T {
+impl<T: Table> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = Row<'t, Self>;

@@ -14,6 +14,8 @@ use k12::{
 };
 use sea_query::TableCreateStatement;
 
+use crate::value::MyTyp;
+
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
     Integer = 0,
@@ -148,4 +150,32 @@ pub fn hash_schema<S: crate::migrate::Schema>() -> String {
     let mut hasher = KangarooHasher::default();
     b.ast.hash(&mut hasher);
     format!("{:x}", hasher.finish())
+}
+
+#[derive(Default)]
+pub struct TypBuilder {
+    pub(crate) ast: Table,
+}
+
+impl TypBuilder {
+    pub fn col<T: MyTyp>(&mut self, name: &'static str) {
+        let mut item = Column {
+            name: name.to_owned(),
+            typ: T::TYP,
+            nullable: T::NULLABLE,
+            fk: None,
+        };
+        if let Some((table, fk)) = T::FK {
+            item.fk = Some((table.to_owned(), fk.to_owned()))
+        }
+        self.ast.columns.insert(item)
+    }
+
+    pub fn unique(&mut self, cols: &[&'static str]) {
+        let mut unique = Unique::default();
+        for &col in cols {
+            unique.columns.insert(col.to_owned());
+        }
+        self.ast.uniques.insert(unique);
+    }
 }
