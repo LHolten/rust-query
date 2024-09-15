@@ -7,17 +7,11 @@ use rust_query::{
 
 pub use v2::*;
 
-pub trait MyValue<'t>: Value<'t, Schema> + Clone {}
-impl<'t, X> MyValue<'t> for X where X: Value<'t, Schema> + Clone {}
+pub trait MyValue<'t, T>: Value<'t, Schema, Typ = T> + Clone {}
+impl<'t, X> MyValue<'t, X::Typ> for X where X: Value<'t, Schema> + Clone {}
 
-pub trait MyTable<'t>:
-    MyValue<'t, Typ: Table> + Deref<Target = <Self::Typ as Table>::Ext<Self>>
-{
-}
-impl<'t, X> MyTable<'t> for X where
-    X: MyValue<'t, Typ: Table> + Deref<Target = <Self::Typ as Table>::Ext<Self>>
-{
-}
+pub trait MyTable<'t, T: Table>: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
+impl<'t, T: Table, X> MyTable<'t, T> for X where X: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
 
 #[schema]
 #[version(0..=2)]

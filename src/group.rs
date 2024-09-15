@@ -3,6 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use ref_cast::RefCast;
 use sea_query::{Expr, Func, SimpleExpr};
 
 use crate::{
@@ -13,6 +14,7 @@ use crate::{
         operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, MyTyp, NumTyp, Typed, Value,
     },
+    Table,
 };
 
 /// This is the argument type used for aggregates.
@@ -145,5 +147,13 @@ impl<'t, S, T: MyTyp> Typed for Aggr<'t, S, T> {
 impl<'t, S, T: MyTyp> Value<'t, S> for Aggr<'t, S, T> {
     fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {
         Expr::col((self.table, self.field)).into()
+    }
+}
+
+impl<S, T: Table> Deref for Aggr<'_, S, T> {
+    type Target = T::Ext<Self>;
+
+    fn deref(&self) -> &Self::Target {
+        RefCast::ref_cast(self)
     }
 }
