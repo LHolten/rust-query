@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{FromDummy, Row, Table, ThreadToken, Transaction, Value};
+use rust_query::{DynValue, FromDummy, Row, Table, ThreadToken, Transaction, Value};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -192,7 +192,7 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
         });
 
         rows.into_vec(CustomerSpendingDummy {
-            customer_name: customer_last_name(customer),
+            customer_name: customer.last_name(),
             total_spending: total,
         })
     })
@@ -209,6 +209,18 @@ fn free_reference(db: &Transaction<Schema>) {
     }
 }
 
-fn customer_last_name<'t>(customer: impl MyTable<'t, Customer>) -> impl MyValue<'t, String> {
-    customer.last_name()
+struct CustomerDetails<'a, 't> {
+    first_name: DynValue<'a, 't, Schema, String>,
+    phone: DynValue<'a, 't, Schema, Option<i64>>,
+    rep: DynValue<'a, 't, Schema, Employee>,
+}
+
+fn customer_details<'a, 't: 'a>(
+    customer: impl MyTable<'t, Customer> + 'a,
+) -> CustomerDetails<'a, 't> {
+    CustomerDetails {
+        first_name: customer.first_name().into_dyn(),
+        phone: customer.phone().into_dyn(),
+        rep: customer.support_rep().into_dyn(),
+    }
 }

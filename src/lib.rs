@@ -25,7 +25,7 @@ use ref_cast::RefCast;
 pub use rust_query_macros::FromDummy;
 pub use token::ThreadToken;
 pub use transaction::{Database, Transaction, TransactionMut};
-pub use value::{UnixEpoch, Value};
+pub use value::{DynValue, UnixEpoch, Value};
 
 /// Types that are the result of a database operation.
 pub mod ops {

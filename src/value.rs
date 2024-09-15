@@ -1,6 +1,6 @@
 pub mod operations;
 
-use std::rc::Rc;
+use std::{ops::Deref, rc::Rc};
 
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
 use ref_cast::RefCast;
@@ -157,12 +157,11 @@ pub trait Value<'t, S>: Typed {
         AsFloat(self.clone())
     }
 
-    fn ref_cast(&self) -> &<Self::Typ as Table>::Ext<Self>
+    fn into_dyn<'a>(&self) -> DynValue<'a, 't, S, Self::Typ>
     where
-        Self::Typ: Table,
-        Self: Clone,
+        Self: Clone + 'a,
     {
-        RefCast::ref_cast(self)
+        DynValue(Rc::new(self.clone()))
     }
 }
 
@@ -314,6 +313,39 @@ impl MyTyp for NoTable {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Row<'t, Self>;
     type Sql = i64;
+}
+
+pub struct DynValue<'a, 't, S, T>(Rc<dyn Value<'t, S, Typ = T> + 'a>);
+
+impl<'t, S, T> Clone for DynValue<'_, 't, S, T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<'t, S, T> Typed for DynValue<'_, 't, S, T> {
+    type Typ = T;
+}
+
+impl<'t, S, T> Value<'t, S> for DynValue<'_, 't, S, T> {
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.as_ref().build_expr(b)
+    }
+
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    where
+        Self::Typ: Table,
+    {
+        self.0.as_ref().build_table(b)
+    }
+}
+
+impl<'t, S, T: Table> Deref for DynValue<'_, 't, S, T> {
+    type Target = T::Ext<Self>;
+
+    fn deref(&self) -> &Self::Target {
+        RefCast::ref_cast(self)
+    }
 }
 
 #[test]
