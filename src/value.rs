@@ -1,6 +1,6 @@
 pub mod operations;
 
-use std::{ops::Deref, rc::Rc};
+use std::rc::Rc;
 
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
 use ref_cast::RefCast;
@@ -73,16 +73,9 @@ impl EqTyp for f64 {}
 impl EqTyp for bool {}
 impl<T: HasId> EqTyp for T {}
 
-pub trait Val<'t, S>:
-    Value<'t, S> + Clone + Deref<Target = <Self::Typ as MyTyp>::Wrap<Self>>
-{
-}
-
-impl<'t, S, T: Value<'t, S> + Clone + Deref<Target = <T::Typ as MyTyp>::Wrap<T>>> Val<'t, S> for T {}
-
 /// Typ does not depend on scope, so it gets its own trait
 pub trait Typed {
-    type Typ: MyTyp;
+    type Typ;
 }
 
 /// Trait for all values that can be used in queries.
@@ -266,7 +259,6 @@ impl<'t, S> Value<'t, S> for UnixEpoch {
 }
 
 pub trait MyTyp: 'static {
-    type Wrap<V>: RefCast<From = V>;
     #[doc(hidden)]
     const NULLABLE: bool = false;
     #[doc(hidden)]
@@ -279,12 +271,7 @@ pub trait MyTyp: 'static {
     type Sql;
 }
 
-#[derive(RefCast)]
-#[repr(transparent)]
-pub struct Useless<T>(T);
-
 impl<T: HasId> MyTyp for T {
-    type Wrap<V> = T::Dummy<V>;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = Row<'t, Self>;
@@ -292,35 +279,30 @@ impl<T: HasId> MyTyp for T {
 }
 
 impl MyTyp for i64 {
-    type Wrap<V> = Useless<V>;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = i64;
 }
 
 impl MyTyp for f64 {
-    type Wrap<V> = Useless<V>;
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
     type Sql = f64;
 }
 
 impl MyTyp for bool {
-    type Wrap<V> = Useless<V>;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = bool;
 }
 
 impl MyTyp for String {
-    type Wrap<V> = Useless<V>;
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
     type Sql = String;
 }
 
 impl<T: MyTyp> MyTyp for Option<T> {
-    type Wrap<V> = Useless<V>;
     const TYP: hash::ColumnType = T::TYP;
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
@@ -329,7 +311,6 @@ impl<T: MyTyp> MyTyp for Option<T> {
 }
 
 impl MyTyp for NoTable {
-    type Wrap<V> = Useless<V>;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Row<'t, Self>;
     type Sql = i64;

@@ -107,7 +107,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
         }
 
-        impl<'y, T: Clone + ::rust_query::Value<'y, #schema, Typ = #table_ident>> #table_ident<T> {
+        impl<T: Clone + ::rust_query::private::Typed<Typ = #table_ident>> #table_ident<T> {
             #(#defs)*
         }
 

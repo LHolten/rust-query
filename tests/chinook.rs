@@ -210,7 +210,7 @@ fn free_reference(db: &Transaction<Schema>) {
 }
 
 fn customer_last_name<'t>(
-    customer: impl MyVal<'t, Typ = Customer>,
+    customer: impl MyTable<'t, Typ = Customer>,
 ) -> impl MyVal<'t, Typ = String> {
     customer.last_name()
 }

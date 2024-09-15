@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Typed, ValueBuilder},
-    HasId, ThreadToken, Value,
+    HasId, Table, ThreadToken, Value,
 };
 
 pub struct Col<T, X> {
@@ -38,8 +38,8 @@ impl<T, X> Col<T, X> {
     }
 }
 
-impl<T: MyTyp, X: Clone> Deref for Col<T, X> {
-    type Target = T::Wrap<Self>;
+impl<T: Table, X: Clone> Deref for Col<T, X> {
+    type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -83,8 +83,8 @@ impl<'t, T> Clone for Join<'t, T> {
 
 impl<'t, T> Copy for Join<'t, T> {}
 
-impl<'t, T: MyTyp> Deref for Join<'t, T> {
-    type Target = T::Wrap<Self>;
+impl<'t, T: Table> Deref for Join<'t, T> {
+    type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -131,8 +131,8 @@ impl<T> Clone for Row<'_, T> {
 }
 impl<T> Copy for Row<'_, T> {}
 
-impl<T: MyTyp> Deref for Row<'_, T> {
-    type Target = T::Wrap<Self>;
+impl<T: Table> Deref for Row<'_, T> {
+    type Target = T::Dummy<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -187,11 +187,6 @@ mod tests {
     #[repr(transparent)]
     #[derive(RefCast)]
     struct AdminDummy<X>(X);
-
-    impl HasId for Admin {
-        const ID: &'static str = "";
-        const NAME: &'static str = "";
-    }
 
     impl<X: Clone> AdminDummy<X> {
         fn a(&self) -> Col<Admin, X> {
