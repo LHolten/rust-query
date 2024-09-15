@@ -20,17 +20,3 @@ error: implementation of `Dummy` is not general enough
   |
   = note: `impl Value<'a, S, Typ = i64>` must implement `Dummy<'0, '_, S>`, for any lifetime `'0`...
   = note: ...but it actually implements `Dummy<'1, '_, S>`, for some specific lifetime `'1`
-
-error[E0308]: mismatched types
- --> tests/compile/client_get.rs:6:5
-  |
-6 |     db.query_one(val);
-  |     ^^^^^^^^^^^^^^^^^ one type is more general than the other
-  |
-  = note: expected associated type `<impl Value<'a, S, Typ = i64> as rust_query::Value<'_, S>>::Typ`
-             found associated type `<impl Value<'a, S, Typ = i64> as rust_query::Value<'x, S>>::Typ`
-note: the lifetime requirement is introduced here
- --> src/transaction.rs
-  |
-  |     pub fn query_one<T>(&self, val: impl for<'x> Dummy<'x, 't, S, Out = T>) -> T {
-  |                                                                   ^^^^^^^
