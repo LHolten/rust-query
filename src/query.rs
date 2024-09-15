@@ -30,12 +30,18 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// The resulting [Rows] has rows for the combinations of each original row with each row of the table.
     /// (Also called the "Carthesian product")
-    #[doc(hidden)]
-    pub fn join<T: Table>(&mut self, t: T) -> Join<'inner, T> {
+    ///
+    /// For convenience there is also [Table::join].
+    pub fn join<T: Table>(&mut self) -> Join<'inner, T> {
+        let alias = self.ast.scope.new_alias();
+        self.ast.tables.push((T::NAME.to_owned(), alias));
+        Join::new(alias)
+    }
+
+    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<'inner, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
-        let table = alias;
-        Join::new(table)
+        Join::new(alias)
     }
 
     // Join a vector of values.

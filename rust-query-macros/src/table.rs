@@ -94,12 +94,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         pub struct #table_ident<T = ()>(T);
         ::rust_query::unsafe_impl_ref_cast! {#table_ident}
 
-        impl #table_ident {
-            pub fn join<'inner>(rows: &mut ::rust_query::Rows<'inner, #schema>) -> ::rust_query::ops::Join<'inner, Self> {
-                rows.join(#table_ident(()))
-            }
-        }
-
         impl<T: Clone + ::rust_query::private::Typed<Typ = #table_ident>> #table_ident<T> {
             #(#defs)*
         }

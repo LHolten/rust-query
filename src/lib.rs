@@ -94,6 +94,10 @@ pub trait Table: Sized + 'static {
 
     type Schema;
 
+    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> ops::Join<'inner, Self> {
+        rows.join()
+    }
+
     // used for the first join (useful for pragmas)
     #[doc(hidden)]
     fn name(&self) -> String {
