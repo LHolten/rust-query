@@ -2,12 +2,7 @@ use std::marker::PhantomData;
 
 use sea_query::Iden;
 
-use crate::{
-    alias::Field,
-    ast::MySelect,
-    value::{MyTyp, NoParam},
-    Value,
-};
+use crate::{alias::Field, ast::MySelect, value::MyTyp, Value};
 
 pub struct Cacher<'t, S> {
     pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
@@ -67,7 +62,7 @@ pub trait Dummy<'t, 'a, S> {
     fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
 }
 
-impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp> + NoParam> Dummy<'t, 'a, S> for T {
+impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
     fn prepare(self, mut cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {

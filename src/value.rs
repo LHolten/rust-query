@@ -73,9 +73,6 @@ impl EqTyp for f64 {}
 impl EqTyp for bool {}
 impl<T: HasId> EqTyp for T {}
 
-// This prevents implementing `Value<S>` downstream on upstream types with a downstream `S`.
-pub trait NoParam {}
-
 pub trait Val<'t, S>:
     Value<'t, S> + Clone + Deref<Target = <Self::Typ as MyTyp>::Wrap<Self>>
 {
@@ -83,13 +80,16 @@ pub trait Val<'t, S>:
 
 impl<'t, S, T: Value<'t, S> + Clone + Deref<Target = <T::Typ as MyTyp>::Wrap<T>>> Val<'t, S> for T {}
 
+/// Typ does not depend on scope, so it gets its own trait
+pub trait Typed {
+    type Typ: MyTyp;
+}
+
 /// Trait for all values that can be used in queries.
 /// This includes dummies from queries and rust values.
 /// `'t` is the context in which this value is valid.
 /// `S` is the schema in which this value is valid.
-pub trait Value<'t, S>: NoParam {
-    type Typ: MyTyp;
-
+pub trait Value<'t, S>: Typed {
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
     #[doc(hidden)]
@@ -173,11 +173,11 @@ pub trait Value<'t, S>: NoParam {
     }
 }
 
-impl<T: NoParam> NoParam for Option<T> {}
+impl<T: Typed> Typed for Option<T> {
+    type Typ = Option<T::Typ>;
+}
 
 impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for Option<T> {
-    type Typ = Option<T::Typ>;
-
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.as_ref()
             .map(|x| T::build_expr(x, b))
@@ -185,61 +185,61 @@ impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for 
     }
 }
 
-impl NoParam for &str {}
+impl Typed for &str {
+    type Typ = String;
+}
 
 impl<'t, S> Value<'t, S> for &str {
-    type Typ = String;
-
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl NoParam for String {}
+impl Typed for String {
+    type Typ = String;
+}
 
 impl<'t, S> Value<'t, S> for String {
-    type Typ = String;
-
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(self)
     }
 }
 
-impl NoParam for bool {}
+impl Typed for bool {
+    type Typ = bool;
+}
 
 impl<'t, S> Value<'t, S> for bool {
-    type Typ = bool;
-
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl NoParam for i64 {}
+impl Typed for i64 {
+    type Typ = i64;
+}
 
 impl<'t, S> Value<'t, S> for i64 {
-    type Typ = i64;
-
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl NoParam for f64 {}
+impl Typed for f64 {
+    type Typ = f64;
+}
 
 impl<'t, S> Value<'t, S> for f64 {
-    type Typ = f64;
-
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl<T: ?Sized + NoParam> NoParam for Rc<T> {}
+impl<T: ?Sized + Typed> Typed for Rc<T> {
+    type Typ = T::Typ;
+}
 
 impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
-    type Typ = T::Typ;
-
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.as_ref().build_expr(b)
     }
@@ -255,11 +255,11 @@ impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
 #[derive(Clone)]
 pub struct UnixEpoch;
 
-impl NoParam for UnixEpoch {}
+impl Typed for UnixEpoch {
+    type Typ = i64;
+}
 
 impl<'t, S> Value<'t, S> for UnixEpoch {
-    type Typ = i64;
-
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
     }

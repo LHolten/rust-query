@@ -6,7 +6,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
-    value::{MyTyp, NoParam, ValueBuilder},
+    value::{MyTyp, Typed, ValueBuilder},
     HasId, ThreadToken, Value,
 };
 
@@ -46,12 +46,13 @@ impl<T: MyTyp, X: Clone> Deref for Col<T, X> {
     }
 }
 
-impl<T, P> NoParam for Col<T, P> {}
+impl<T: MyTyp, P> Typed for Col<T, P> {
+    type Typ = T;
+}
 impl<'t, S, T: MyTyp, P: Value<'t, S>> Value<'t, S> for Col<T, P>
 where
     P::Typ: HasId,
 {
-    type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.inner.build_table(b), self.field)).into()
     }
@@ -90,10 +91,10 @@ impl<'t, T: MyTyp> Deref for Join<'t, T> {
     }
 }
 
-impl<T> NoParam for Join<'_, T> {}
-impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
+impl<T: MyTyp> Typed for Join<'_, T> {
     type Typ = T;
-
+}
+impl<'t, T: HasId> Value<'t, T::Schema> for Join<'t, T> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
@@ -154,10 +155,10 @@ impl<'t, T> From<Row<'t, T>> for sea_query::Value {
     }
 }
 
-impl<T> NoParam for Row<'_, T> {}
-impl<'t, T: HasId> Value<'t, T::Schema> for Row<'_, T> {
+impl<T: MyTyp> Typed for Row<'_, T> {
     type Typ = T;
-
+}
+impl<'t, T: HasId> Value<'t, T::Schema> for Row<'_, T> {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
     }
@@ -186,6 +187,11 @@ mod tests {
     #[repr(transparent)]
     #[derive(RefCast)]
     struct AdminDummy<X>(X);
+
+    impl HasId for Admin {
+        const ID: &'static str = "";
+        const NAME: &'static str = "";
+    }
 
     impl<X: Clone> AdminDummy<X> {
         fn a(&self) -> Col<Admin, X> {

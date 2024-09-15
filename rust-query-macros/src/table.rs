@@ -182,10 +182,10 @@ fn define_unique(
             #(#fields),*
         }
 
-        impl<#(#generics),*> ::rust_query::private::NoParam for #typ_name<#(#generics),*> {}
-        impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
+        impl<#(#generics),*> ::rust_query::private::Typed for #typ_name<#(#generics),*> {
             type Typ = Option<super::#table_typ>;
-
+        }
+        impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
                 b.get_unique(#table_str, vec![#(#conds),*])
             }

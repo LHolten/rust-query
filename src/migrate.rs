@@ -406,10 +406,10 @@ fn foreign_key_check<S: Schema>(conn: &rusqlite::Transaction) {
 #[derive(Clone, Copy)]
 pub struct NoTable(());
 
-impl value::NoParam for NoTable {}
-impl<S> Value<'_, S> for NoTable {
+impl value::Typed for NoTable {
     type Typ = NoTable;
-
+}
+impl<S> Value<'_, S> for NoTable {
     fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
         unreachable!("NoTable can not be constructed")
     }
