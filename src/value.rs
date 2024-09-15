@@ -157,7 +157,7 @@ pub trait Value<'t, S>: Typed {
         AsFloat(self.clone())
     }
 
-    fn ref_cast(&self) -> &<Self::Typ as Table>::Dummy<Self>
+    fn ref_cast(&self) -> &<Self::Typ as Table>::Ext<Self>
     where
         Self::Typ: Table,
         Self: Clone,

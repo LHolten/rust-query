@@ -105,7 +105,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         }
 
         impl ::rust_query::Table for #table_ident {
-            type Dummy<T> = #table_ident<T>;
+            type Ext<T> = #table_ident<T>;
             type Schema = #schema;
 
             fn typs(f: &mut ::rust_query::private::TypBuilder) {

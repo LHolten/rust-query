@@ -39,7 +39,7 @@ impl<T, X> Col<T, X> {
 }
 
 impl<T: Table, X: Clone> Deref for Col<T, X> {
-    type Target = T::Dummy<Self>;
+    type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -84,7 +84,7 @@ impl<'t, T> Clone for Join<'t, T> {
 impl<'t, T> Copy for Join<'t, T> {}
 
 impl<'t, T: Table> Deref for Join<'t, T> {
-    type Target = T::Dummy<Self>;
+    type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -132,7 +132,7 @@ impl<T> Clone for Row<'_, T> {
 impl<T> Copy for Row<'_, T> {}
 
 impl<T: Table> Deref for Row<'_, T> {
-    type Target = T::Dummy<Self>;
+    type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
@@ -171,7 +171,7 @@ mod tests {
     struct Admin;
 
     impl Table for Admin {
-        type Dummy<T> = AdminDummy<T>;
+        type Ext<T> = AdminDummy<T>;
 
         type Schema = ();
 

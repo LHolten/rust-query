@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
     migration::{schema, NoTable, Prepare},
-    Database, ThreadToken, Value,
+    Database, Table, ThreadToken, Value,
 };
 
 pub use v2::*;
@@ -11,12 +11,11 @@ pub trait MyValue<'t>: Value<'t, Schema> + Clone {}
 impl<'t, X> MyValue<'t> for X where X: Value<'t, Schema> + Clone {}
 
 pub trait MyTable<'t>:
-    MyValue<'t, Typ: rust_query::Table> + Deref<Target = <Self::Typ as rust_query::Table>::Dummy<Self>>
+    MyValue<'t, Typ: Table> + Deref<Target = <Self::Typ as Table>::Ext<Self>>
 {
 }
 impl<'t, X> MyTable<'t> for X where
-    X: MyValue<'t, Typ: rust_query::Table>
-        + Deref<Target = <Self::Typ as rust_query::Table>::Dummy<Self>>
+    X: MyValue<'t, Typ: Table> + Deref<Target = <Self::Typ as Table>::Ext<Self>>
 {
 }
 

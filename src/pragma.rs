@@ -36,7 +36,7 @@ impl<T: Clone> TableListDummy<T> {
 }
 
 impl Table for TableList {
-    type Dummy<T> = TableListDummy<T>;
+    type Ext<T> = TableListDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
@@ -60,7 +60,7 @@ impl<T: Clone> TableInfoDummy<T> {
 }
 
 impl Table for TableInfo {
-    type Dummy<T> = TableInfoDummy<T>;
+    type Ext<T> = TableInfoDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
@@ -83,7 +83,7 @@ impl<T: Clone> ForeignKeyListDummy<T> {
 }
 
 impl Table for ForeignKeyList {
-    type Dummy<T> = ForeignKeyListDummy<T>;
+    type Ext<T> = ForeignKeyListDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
@@ -107,7 +107,7 @@ impl<T: Clone> IndexListDummy<T> {
 }
 
 impl Table for IndexList {
-    type Dummy<T> = IndexListDummy<T>;
+    type Ext<T> = IndexListDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {
@@ -128,7 +128,7 @@ impl<T: Clone> IndexInfoDummy<T> {
 }
 
 impl Table for IndexInfo {
-    type Dummy<T> = IndexInfoDummy<T>;
+    type Ext<T> = IndexInfoDummy<T>;
     type Schema = Pragma;
 
     fn name(&self) -> String {

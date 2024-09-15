@@ -90,8 +90,7 @@ pub mod private {
 }
 
 pub trait Table: Sized + 'static {
-    // TODO: rename this
-    type Dummy<T>: RefCast<From = T>;
+    type Ext<T>: RefCast<From = T>;
 
     type Schema;
 
