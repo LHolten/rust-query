@@ -209,15 +209,13 @@ fn free_reference(db: &Transaction<Schema>) {
     }
 }
 
-struct CustomerDetails<'a, 't> {
-    first_name: DynValue<'a, 't, Schema, String>,
-    phone: DynValue<'a, 't, Schema, Option<i64>>,
-    rep: DynValue<'a, 't, Schema, Employee>,
+struct CustomerDetails<'t> {
+    first_name: DynValue<'t, Schema, String>,
+    phone: DynValue<'t, Schema, Option<i64>>,
+    rep: DynValue<'t, Schema, Employee>,
 }
 
-fn customer_details<'a, 't: 'a>(
-    customer: impl MyTable<'t, Customer> + 'a,
-) -> CustomerDetails<'a, 't> {
+fn customer_details<'t>(customer: impl MyTable<'t, Customer>) -> CustomerDetails<'t> {
     CustomerDetails {
         first_name: customer.first_name().into_dyn(),
         phone: customer.phone().into_dyn(),

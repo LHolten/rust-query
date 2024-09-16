@@ -157,9 +157,9 @@ pub trait Value<'t, S>: Typed {
         AsFloat(self.clone())
     }
 
-    fn into_dyn<'a>(&self) -> DynValue<'a, 't, S, Self::Typ>
+    fn into_dyn(&self) -> DynValue<'t, S, Self::Typ>
     where
-        Self: Clone + 'a,
+        Self: Clone + 't,
     {
         DynValue(Rc::new(self.clone()))
     }
@@ -315,19 +315,19 @@ impl MyTyp for NoTable {
     type Sql = i64;
 }
 
-pub struct DynValue<'a, 't, S, T>(Rc<dyn Value<'t, S, Typ = T> + 'a>);
+pub struct DynValue<'t, S, T>(Rc<dyn Value<'t, S, Typ = T> + 't>);
 
-impl<'t, S, T> Clone for DynValue<'_, 't, S, T> {
+impl<'t, S, T> Clone for DynValue<'t, S, T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<'t, S, T> Typed for DynValue<'_, 't, S, T> {
+impl<'t, S, T> Typed for DynValue<'t, S, T> {
     type Typ = T;
 }
 
-impl<'t, S, T> Value<'t, S> for DynValue<'_, 't, S, T> {
+impl<'t, S, T> Value<'t, S> for DynValue<'t, S, T> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.as_ref().build_expr(b)
     }
@@ -340,7 +340,7 @@ impl<'t, S, T> Value<'t, S> for DynValue<'_, 't, S, T> {
     }
 }
 
-impl<'t, S, T: Table> Deref for DynValue<'_, 't, S, T> {
+impl<'t, S, T: Table> Deref for DynValue<'t, S, T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
