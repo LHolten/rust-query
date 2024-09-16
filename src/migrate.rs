@@ -14,7 +14,6 @@ use crate::{
     ast::MySelect,
     client::QueryBuilder,
     db::Join,
-    from_row::AdHoc,
     hash,
     insert::Reader,
     pragma::read_schema,
@@ -90,33 +89,29 @@ impl<'x> SchemaBuilder<'x> {
             e.ast.tables.push((A::NAME.to_owned(), table));
             let db_id = Join::<A>::new(table);
 
-            e.into_vec(AdHoc::new(|mut row| {
-                let just_db_cache = row.cache(db_id);
-                move |row| {
-                    let just_db = row.get(just_db_cache);
-                    if let Some(res) = f(just_db) {
-                        let ast = MySelect::default();
+            for just_db in e.into_vec(db_id) {
+                if let Some(res) = f(just_db) {
+                    let ast = MySelect::default();
 
-                        let reader = Reader {
-                            ast: &ast,
-                            _p: PhantomData,
-                        };
-                        res.into_new(just_db, reader);
+                    let reader = Reader {
+                        ast: &ast,
+                        _p: PhantomData,
+                    };
+                    res.into_new(just_db, reader);
 
-                        let new_select = ast.simple();
+                    let new_select = ast.simple();
 
-                        let mut insert = InsertStatement::new();
-                        let names = ast.select.iter().map(|(_field, name)| *name);
-                        insert.into_table(new_table_name);
-                        insert.columns(names);
-                        insert.select_from(new_select).unwrap();
+                    let mut insert = InsertStatement::new();
+                    let names = ast.select.iter().map(|(_field, name)| *name);
+                    insert.into_table(new_table_name);
+                    insert.columns(names);
+                    insert.select_from(new_select).unwrap();
 
-                        let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+                    let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-                        self.conn.execute(&sql, &*values.as_params()).unwrap();
-                    }
+                    self.conn.execute(&sql, &*values.as_params()).unwrap();
                 }
-            }))
+            }
         });
     }
 

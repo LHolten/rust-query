@@ -81,32 +81,6 @@ impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (
     }
 }
 
-pub(crate) struct AdHoc<F> {
-    f: F,
-}
-
-impl<'t, 'a, S: 't, T, F, G> Dummy<'t, 'a, S> for AdHoc<F>
-where
-    G: FnMut(Row<'_, 't, 'a>) -> T,
-    F: FnOnce(Cacher<'t, S>) -> G,
-{
-    type Out = T;
-
-    fn prepare(self, cacher: Cacher<'t, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
-        (self.f)(cacher)
-    }
-}
-
-impl<F> AdHoc<F> {
-    pub fn new<'t, 'a, S: 't, T, G>(f: F) -> Self
-    where
-        G: FnMut(Row<'_, 't, 'a>) -> T,
-        F: FnOnce(Cacher<'t, S>) -> G,
-    {
-        Self { f }
-    }
-}
-
 #[cfg(test)]
 #[allow(unused)]
 mod tests {

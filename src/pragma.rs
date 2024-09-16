@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use ref_cast::RefCast;
+use rust_query_macros::FromDummy;
 
-use crate::{client::QueryBuilder, db::Col, from_row::AdHoc, hash, value::Value, Table};
+use crate::{client::QueryBuilder, db::Col, hash, value::Value, Table};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -139,7 +140,7 @@ impl Table for IndexInfo {
 }
 
 pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
-    #[derive(Clone)]
+    #[derive(Clone, FromDummy)]
     struct Column {
         name: String,
         typ: String,
@@ -161,18 +162,12 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         let mut columns = conn.new_query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
 
-            q.into_vec(AdHoc::new(|mut cacher| {
-                let name = cacher.cache(table.name());
-                let typ = cacher.cache(table.r#type());
-                let pk = cacher.cache(table.pk());
-                let notnull = cacher.cache(table.notnull());
-                move |row| Column {
-                    name: row.get(name),
-                    typ: row.get(typ),
-                    pk: row.get(pk) != 0,
-                    notnull: row.get(notnull) != 0,
-                }
-            }))
+            q.into_vec(ColumnDummy {
+                name: table.name(),
+                typ: table.r#type(),
+                pk: table.pk().eq(0).not(),
+                notnull: table.notnull().eq(0).not(),
+            })
         });
 
         let fks: HashMap<_, _> = conn

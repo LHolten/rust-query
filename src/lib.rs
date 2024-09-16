@@ -1,5 +1,7 @@
 #![allow(private_bounds)]
 
+extern crate self as rust_query;
+
 mod alias;
 mod ast;
 mod client;
