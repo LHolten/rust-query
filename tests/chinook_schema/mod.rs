@@ -151,7 +151,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
     let m = m.migrate(t, |db| v1::update::Schema {
         album: Box::new(|album| v1::update::AlbumMigration {
             something: {
-                let artist = db.query_one(album.artist().name());
+                let artist = db.query_one(|_| album.artist().name().into_dyn());
                 artist_title.get(&*artist).copied().unwrap_or("unknown")
             },
         }),
@@ -169,15 +169,16 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
     let m = m.migrate(t, |db| v2::update::Schema {
         customer: Box::new(|customer| v2::update::CustomerMigration {
             phone: db
-                .query_one(customer.phone())
+                .query_one(|_| customer.phone().into_dyn())
                 .and_then(|x| x.parse::<i64>().ok()),
         }),
         track: Box::new(|track| v2::update::TrackMigration {
             media_type: track.media_type().name(),
             composer_table: None::<NoTable>,
-            byte_price: db.query_one(track.unit_price()) / db.query_one(track.bytes()) as f64,
+            byte_price: db.query_one(|_| track.unit_price().into_dyn())
+                / db.query_one(|_| track.bytes().into_dyn()) as f64,
             genre: db
-                .query_one(v1::GenreNew::unique_original(track.genre()))
+                .query_one(|_| v1::GenreNew::unique_original(track.genre()).into_dyn())
                 .unwrap(),
         }),
         genre_new: Box::new(|_genre_new| v2::update::GenreNewMigration {}),

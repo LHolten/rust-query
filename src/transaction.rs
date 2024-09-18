@@ -8,7 +8,8 @@ use crate::{
     insert::{private_try_insert, Writable},
     private::Dummy,
     token::ThreadToken,
-    Row, Table,
+    value::MyTyp,
+    DynValue, Row, Table,
 };
 
 /// The primary interface to the database.
@@ -119,10 +120,13 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<T>(&self, val: impl for<'x> Dummy<'x, 't, S, Out = T>) -> T {
+    pub fn query_one<T: MyTyp>(
+        &self,
+        f: impl for<'x> FnOnce(&'x Query<'t, 'x, S>) -> DynValue<'x, S, T>,
+    ) -> T::Out<'t> {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
-        let mut res = private_exec(&self.transaction, |e| e.into_vec(val));
+        let mut res = private_exec(&self.transaction, |e| e.into_vec(f(e)));
         res.pop().unwrap()
     }
 }

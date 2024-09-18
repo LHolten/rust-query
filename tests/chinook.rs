@@ -205,7 +205,7 @@ fn free_reference(db: &Transaction<Schema>) {
     });
 
     for track in tracks {
-        let _name = db.query_one(track.album().artist().name());
+        let _name = db.query_one(|_| track.album().artist().name().into_dyn());
     }
 }
 
