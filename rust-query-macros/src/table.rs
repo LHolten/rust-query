@@ -80,7 +80,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
         });
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
-        reads.push(quote!(f.col(#ident_str, self.#ident)));
+        reads.push(quote!(f.col::<#schema>(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
         col_defs.push(quote! {pub #ident: <#typ as ::rust_query::private::MyTyp>::Out<'a>});
     }
@@ -115,9 +115,9 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             #(#col_defs),*
         }
 
-        impl<#generic> ::rust_query::private::Writable for #dummy_ident<#generic> {
+        impl<'x, #generic> ::rust_query::private::Writable<'x> for #dummy_ident<#generic> {
             type T = #table_ident;
-            fn read(self, f: ::rust_query::private::Reader<'_, #schema>) {
+            fn read(self, f: ::rust_query::private::Reader<'x, #schema>) {
                 #(#reads;)*
             }
         }

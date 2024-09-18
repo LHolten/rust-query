@@ -16,12 +16,12 @@ use crate::{
     db::Join,
     exec::Query,
     hash,
-    insert::Reader,
+    insert::{Reader, Writable},
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
     value::{self, MyTyp},
-    Row, Rows, Table, Transaction, Value,
+    DynValue, Row, Rows, Table, Transaction, Value,
 };
 
 #[derive(Default)]
@@ -43,17 +43,10 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<A: Table> {
-    type T;
+pub trait TableMigration<'a, A: Table> {
+    type T: Table;
 
-    // there is no reason to specify the lifetime of prev
-    // because it is only used for reader, which doesn't care.
-    fn into_new(
-        self,
-        prev: Row<'_, A>,
-        t: &Transaction<'_, A::Schema>,
-        reader: Reader<'_, A::Schema>,
-    );
+    fn into_new(self, prev: DynValue<'a, A::Schema, A>) -> impl Writable<'a, T = Self::T>;
 }
 
 pub struct SchemaBuilder<'x> {
@@ -65,21 +58,19 @@ pub struct SchemaBuilder<'x> {
 }
 
 impl<'x> SchemaBuilder<'x> {
-    pub fn migrate_table<M, O, A: Table, B: Table>(&mut self, mut m: M)
+    pub fn migrate_table<M, A: Table, B: Table>(&mut self, m: M)
     where
-        M: FnMut(Row<'x, A>) -> O,
-        O: TableMigration<A, T = B>,
+        M: for<'a> TableMigration<'a, A, T = B>,
     {
-        self.create_from(move |db: Row<A>| Some(m(db)));
+        self.create_from::<M, A, B>(m);
 
         self.drop
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
     }
 
-    pub fn create_from<F, O, A: Table, B: Table>(&mut self, mut f: F)
+    pub fn create_from<F, A: Table, B: Table>(&mut self, mut f: F)
     where
-        F: FnMut(Row<'x, A>) -> Option<O>,
-        O: TableMigration<A, T = B>,
+        F: for<'a> TableMigration<'a, A, T = B>,
     {
         let new_table_name = self.scope.tmp_table();
         new_table::<B>(self.conn, new_table_name);
@@ -90,37 +81,36 @@ impl<'x> SchemaBuilder<'x> {
                 .take(),
         );
 
-        self.conn.new_query(|e| {
-            // TODO: potentially replace this with Rows::join
-            let table = e.ast.scope.new_alias();
-            e.ast.tables.push((A::NAME.to_owned(), table));
-            let db_id = Join::<A>::new(table);
+        // self.conn.new_query(|e| {
+        //     // TODO: potentially replace this with Rows::join
+        //     let table = e.ast.scope.new_alias();
+        //     e.ast.tables.push((A::NAME.to_owned(), table));
+        //     let db_id = Join::<A>::new(table);
 
-            for just_db in e.into_vec(db_id) {
-                if let Some(res) = f(just_db) {
-                    let ast = MySelect::default();
+        //     for just_db in e.into_vec(db_id) {
+        //         if let Some(res) = f.into_new(just_db.into_dyn()) {
+        //             let ast = MySelect::default();
 
-                    let reader = Reader {
-                        ast: &ast,
-                        _p: PhantomData,
-                    };
-                    let t = RefCast::ref_cast(self.conn);
-                    res.into_new(just_db, t, reader);
+        //             let reader = Reader {
+        //                 ast: &ast,
+        //                 _p: PhantomData,
+        //             };
+        //             res.read(reader);
 
-                    let new_select = ast.simple();
+        //             let new_select = ast.simple();
 
-                    let mut insert = InsertStatement::new();
-                    let names = ast.select.iter().map(|(_field, name)| *name);
-                    insert.into_table(new_table_name);
-                    insert.columns(names);
-                    insert.select_from(new_select).unwrap();
+        //             let mut insert = InsertStatement::new();
+        //             let names = ast.select.iter().map(|(_field, name)| *name);
+        //             insert.into_table(new_table_name);
+        //             insert.columns(names);
+        //             insert.select_from(new_select).unwrap();
 
-                    let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+        //             let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-                    self.conn.execute(&sql, &*values.as_params()).unwrap();
-                }
-            }
-        });
+        //             self.conn.execute(&sql, &*values.as_params()).unwrap();
+        //         }
+        //     }
+        // });
     }
 
     pub fn drop_table<T: Table>(&mut self) {

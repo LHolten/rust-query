@@ -7,9 +7,9 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{alias::Field, ast::MySelect, Row, Table, Value};
 
 /// this trait is not safe to implement
-pub trait Writable {
+pub trait Writable<'a> {
     type T: Table;
-    fn read(self, f: Reader<'_, <Self::T as Table>::Schema>);
+    fn read(self, f: Reader<'a, <Self::T as Table>::Schema>);
 }
 
 pub struct Reader<'x, S> {
@@ -17,8 +17,8 @@ pub struct Reader<'x, S> {
     pub(crate) _p: PhantomData<S>,
 }
 
-impl<S> Reader<'_, S> {
-    pub fn col(&self, name: &'static str, val: impl for<'a> Value<'a, S>) {
+impl<'a, S> Reader<'a, S> {
+    pub fn col<S2>(&self, name: &'static str, val: impl Value<'a, S2>) {
         let field = Field::Str(name);
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))
@@ -27,7 +27,7 @@ impl<S> Reader<'_, S> {
 
 pub(crate) fn private_try_insert<'a, T: Table>(
     conn: &Connection,
-    val: impl Writable<T = T>,
+    val: impl for<'x> Writable<'x, T = T>,
 ) -> Option<Row<'a, T>> {
     let ast = MySelect::default();
 
