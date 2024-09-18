@@ -68,7 +68,7 @@ impl<'x> SchemaBuilder<'x> {
             .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
     }
 
-    pub fn create_from<F, A: Table, B: Table>(&mut self, mut f: F)
+    pub fn create_from<F, A: Table, B: Table>(&mut self, f: F)
     where
         F: for<'a> TableMigration<'a, A, T = B>,
     {
@@ -81,36 +81,34 @@ impl<'x> SchemaBuilder<'x> {
                 .take(),
         );
 
-        // self.conn.new_query(|e| {
-        //     // TODO: potentially replace this with Rows::join
-        //     let table = e.ast.scope.new_alias();
-        //     e.ast.tables.push((A::NAME.to_owned(), table));
-        //     let db_id = Join::<A>::new(table);
+        let mut ast = MySelect::default();
+        let q = Rows::<A::Schema> {
+            phantom: PhantomData,
+            ast: &mut ast,
+        };
+        let table = q.ast.scope.new_alias();
+        q.ast.tables.push((A::NAME.to_owned(), table));
+        let db_id = Join::<A>::new(table);
 
-        //     for just_db in e.into_vec(db_id) {
-        //         if let Some(res) = f.into_new(just_db.into_dyn()) {
-        //             let ast = MySelect::default();
+        let res = f.into_new(db_id.into_dyn());
 
-        //             let reader = Reader {
-        //                 ast: &ast,
-        //                 _p: PhantomData,
-        //             };
-        //             res.read(reader);
+        let reader = Reader {
+            ast: &ast,
+            _p: PhantomData,
+        };
+        res.read(reader);
 
-        //             let new_select = ast.simple();
+        let new_select = ast.simple();
 
-        //             let mut insert = InsertStatement::new();
-        //             let names = ast.select.iter().map(|(_field, name)| *name);
-        //             insert.into_table(new_table_name);
-        //             insert.columns(names);
-        //             insert.select_from(new_select).unwrap();
+        let mut insert = InsertStatement::new();
+        let names = ast.select.iter().map(|(_field, name)| *name);
+        insert.into_table(new_table_name);
+        insert.columns(names);
+        insert.select_from(new_select).unwrap();
 
-        //             let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+        let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-        //             self.conn.execute(&sql, &*values.as_params()).unwrap();
-        //         }
-        //     }
-        // });
+        self.conn.execute(&sql, &*values.as_params()).unwrap();
     }
 
     pub fn drop_table<T: Table>(&mut self) {
@@ -147,11 +145,11 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
     conn.execute(&sql, []).unwrap();
 }
 
-pub trait Migration<'t> {
+pub trait Migration {
     type From: Schema;
     type To: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder<'t>);
+    fn tables(self, b: &mut SchemaBuilder<'_>);
 }
 
 /// [Prepare] is used to open a database from a file or in memory.
@@ -297,7 +295,7 @@ impl<S: Schema> Migrator<S> {
     pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
     where
         F: FnOnce(&'a Transaction<'a, S>) -> M,
-        M: Migration<'a, From = S, To = N>,
+        M: Migration<From = S, To = N>,
     {
         t.stuff = self.transaction.clone();
         let conn = t

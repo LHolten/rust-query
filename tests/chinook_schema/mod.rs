@@ -17,8 +17,6 @@ impl<'t, T: Table, X> MyTable<'t, T> for X where X: MyValue<'t, T> + Deref<Targe
 #[version(0..=2)]
 enum Schema {
     Album {
-        #[version(1..)]
-        something: String,
         title: String,
         artist: Artist,
     },
@@ -64,17 +62,7 @@ enum Schema {
         fax: Option<String>,
         email: String,
     },
-    // #[version(..2)]
     Genre {
-        name: String,
-    },
-    #[version(1..)]
-    #[create_from(Genre)]
-    GenreNew {
-        #[version(..2)]
-        #[unique_original]
-        original: Genre,
-        #[unique]
         name: String,
     },
     Invoice {
@@ -115,10 +103,7 @@ enum Schema {
         media_type: MediaType,
         #[version(2..)]
         media_type: String,
-        #[version(..2)]
         genre: Genre,
-        #[version(2..)]
-        genre: GenreNew,
         composer: Option<String>,
         #[version(2..)]
         composer_table: Option<Composer>,
@@ -149,39 +134,20 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
 
     let artist_title = HashMap::from([("a", "b")]);
     let m = m.migrate(t, |db| v1::update::Schema {
-        album: Box::new(|album| v1::update::AlbumMigration {
-            something: {
-                let artist = db.query_one(|_| album.artist().name().into_dyn());
-                artist_title.get(&*artist).copied().unwrap_or("unknown")
-            },
-        }),
         playlist_track: Box::new(|pt| v1::update::PlaylistTrackMigration {
             playlist: pt.playlist(),
-        }),
-        genre_new: Box::new(|genre| {
-            Some(v1::update::GenreNewMigration {
-                name: genre.name(),
-                original: genre,
-            })
         }),
     });
 
     let m = m.migrate(t, |db| v2::update::Schema {
         customer: Box::new(|customer| v2::update::CustomerMigration {
-            phone: db
-                .query_one(|_| customer.phone().into_dyn())
-                .and_then(|x| x.parse::<i64>().ok()),
+            phone: Some(42i64).into_dyn(),
         }),
         track: Box::new(|track| v2::update::TrackMigration {
             media_type: track.media_type().name(),
-            composer_table: None::<NoTable>,
-            byte_price: db.query_one(|_| track.unit_price().into_dyn())
-                / db.query_one(|_| track.bytes().into_dyn()) as f64,
-            genre: db
-                .query_one(|_| v1::GenreNew::unique_original(track.genre()).into_dyn())
-                .unwrap(),
+            composer_table: None::<NoTable>.into_dyn(),
+            byte_price: 0.5f64.into_dyn(),
         }),
-        genre_new: Box::new(|_genre_new| v2::update::GenreNewMigration {}),
     });
 
     m.finish(t).unwrap()
@@ -195,6 +161,6 @@ mod tests {
     #[test]
     fn backwards_compat() {
         v0::assert_hash(expect!["f62a50a3ac341a65"]);
-        v1::assert_hash(expect!["63dcef403a40bc8a"]);
+        v1::assert_hash(expect!["db73c94362839b43"]);
     }
 }

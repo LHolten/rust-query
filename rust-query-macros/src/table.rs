@@ -82,7 +82,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
         reads.push(quote!(f.col::<#schema>(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
-        col_defs.push(quote! {pub #ident: <#typ as ::rust_query::private::MyTyp>::Out<'a>});
+        col_defs.push(quote! {pub #ident: <#typ as ::rust_query::private::MyTyp>::In<'a>});
     }
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);

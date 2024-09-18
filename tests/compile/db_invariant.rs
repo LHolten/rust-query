@@ -1,7 +1,7 @@
-use rust_query::ops::Join;
+use rust_query::DynValue;
 
 fn main() {}
 
-fn test<'a: 'b, 'b>(val: Join<'a, ()>) -> Join<'b, ()> {
+fn test<'a: 'b, 'b>(val: DynValue<'a, (), ()>) -> DynValue<'b, (), ()> {
     val
 }
