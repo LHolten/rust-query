@@ -5,7 +5,7 @@ use std::{ops::Deref, rc::Rc};
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
 use ref_cast::RefCast;
 use rusqlite::types::FromSql;
-use sea_query::{Alias, Expr, Nullable, SimpleExpr};
+use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias, RawAlias},
@@ -22,6 +22,19 @@ pub struct ValueBuilder<'x> {
 }
 
 impl<'x> ValueBuilder<'x> {
+    pub(crate) fn get_aggr(
+        self,
+        aggr: SelectStatement,
+        conds: Vec<(Field, SimpleExpr)>,
+    ) -> MyAlias {
+        let source = Source {
+            kind: crate::ast::SourceKind::Aggregate(aggr),
+            conds,
+        };
+        let new_alias = || self.inner.scope.new_alias();
+        *self.inner.extra.get_or_init(source, new_alias)
+    }
+
     pub(crate) fn get_join<T: Table>(self, expr: SimpleExpr) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),

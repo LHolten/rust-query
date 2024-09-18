@@ -12,16 +12,14 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
-    client::QueryBuilder,
     db::Join,
-    exec::Query,
     hash,
     insert::{Reader, Writable},
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value::{self, MyTyp},
-    DynValue, Row, Rows, Table, Transaction, Value,
+    value::{self},
+    DynValue, Rows, Table, Transaction, Value,
 };
 
 #[derive(Default)]

@@ -3,9 +3,8 @@ use std::marker::PhantomData;
 use sea_query::{Expr, SimpleExpr};
 
 use crate::{
-    ast::{MySelect, Source},
+    ast::MySelect,
     db::Join,
-    group::Aggregate,
     value::{operations::Assume, Value},
     DynValue, Table,
 };
@@ -32,7 +31,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// For convenience there is also [Table::join].
-    pub fn join<T: Table>(&mut self) -> DynValue<'inner, T::Schema, T> {
+    pub fn join<T: Table<Schema = S>>(&mut self) -> DynValue<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
         Value::into_dyn(Join::new(alias))
@@ -53,33 +52,6 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// You can filter the rows in the aggregate based on values from the outer query.
     /// That is the only way to get a different aggregate for each outer row.
-    pub fn aggregate<F, R>(&self, f: F) -> R
-    where
-        F: for<'a> FnOnce(&'a mut Aggregate<'inner, 'a, S>) -> R,
-    {
-        let mut ast = MySelect::default();
-        let mut conds = Vec::new();
-        let inner = Rows {
-            phantom: PhantomData,
-            ast: &mut ast,
-        };
-        let table = self.ast.scope.new_alias();
-        let mut group = Aggregate {
-            outer_ast: self.ast,
-            conds: &mut conds,
-            query: inner,
-            table,
-            phantom2: PhantomData,
-        };
-        let res = f(&mut group);
-
-        let source = Source {
-            conds,
-            kind: crate::ast::SourceKind::Aggregate(ast),
-        };
-        self.ast.extra.get_or_init(source, || table);
-        res
-    }
 
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl Value<'inner, S, Typ = bool>) {

@@ -29,7 +29,7 @@ pub(super) struct Source {
 }
 
 pub(super) enum SourceKind {
-    Aggregate(MySelect),
+    Aggregate(SelectStatement),
     // table and pk
     Implicit(String),
 }
@@ -38,6 +38,7 @@ impl PartialEq for SourceKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Implicit(l0), Self::Implicit(r0)) => l0 == r0,
+            (Self::Aggregate(l0), Self::Aggregate(l1)) => l0 == l1,
             _ => false,
         }
     }
@@ -56,7 +57,7 @@ impl MySelect {
         select
     }
 
-    fn build_select(&self, is_group: bool) -> SelectStatement {
+    pub fn build_select(&self, is_group: bool) -> SelectStatement {
         let mut select = SelectStatement::new();
 
         let mut any_from = false;
@@ -81,7 +82,7 @@ impl MySelect {
             match &source.kind {
                 SourceKind::Aggregate(ast) => {
                     let join_type = sea_query::JoinType::LeftJoin;
-                    select.join_subquery(join_type, ast.build_select(true), *table_alias, cond);
+                    select.join_subquery(join_type, ast.clone(), *table_alias, cond);
                 }
                 SourceKind::Implicit(table) => {
                     let join_type = sea_query::JoinType::LeftJoin;

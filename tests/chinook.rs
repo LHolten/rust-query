@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{DynValue, FromDummy, Row, Table, ThreadToken, Transaction, Value};
+use rust_query::{aggregate, DynValue, FromDummy, Row, Table, ThreadToken, Transaction, Value};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -70,9 +70,9 @@ struct PlaylistTrackCount {
 fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
     db.query(|rows| {
         let pl = Playlist::join(rows);
-        let track_count = rows.aggregate(|rows| {
+        let track_count = aggregate(|rows| {
             let plt = PlaylistTrack::join(rows);
-            rows.filter_on(plt.playlist(), &pl);
+            rows.filter_on(plt.playlist(), pl.clone());
             rows.count_distinct(plt)
         });
 
@@ -86,11 +86,11 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
 fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Option<f64>)> {
     db.query(|rows| {
         let artist = Artist::join(rows);
-        let avg_track_count = rows.aggregate(|rows| {
+        let avg_track_count = aggregate(|rows| {
             let album = Album::join(rows);
-            rows.filter_on(album.artist(), &artist);
+            rows.filter_on(album.artist(), artist.clone());
 
-            let track_count = rows.aggregate(|rows| {
+            let track_count = aggregate(|rows| {
                 let track = Track::join(rows);
                 rows.filter_on(track.album(), album);
 
@@ -105,11 +105,11 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
 fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
     db.query(|rows| {
         let receiver = Employee::join(rows);
-        let report_count = rows.aggregate(|rows| {
+        let report_count = aggregate(|rows| {
             let reporter = Employee::join(rows);
             // only count employees that report to someone
             let reports_to = rows.filter_some(reporter.reports_to());
-            rows.filter_on(reports_to, &receiver);
+            rows.filter_on(reports_to, receiver.clone());
             rows.count_distinct(reporter)
         });
 
@@ -161,9 +161,9 @@ struct GenreStats {
 fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
     db.query(|rows| {
         let genre = Genre::join(rows);
-        let (bytes, milis) = rows.aggregate(|rows| {
+        let (bytes, milis) = aggregate(|rows| {
             let track = Track::join(rows);
-            rows.filter_on(track.genre(), &genre);
+            rows.filter_on(track.genre(), genre.clone());
             (
                 rows.avg(track.bytes().as_float()),
                 rows.avg(track.milliseconds().as_float()),
@@ -186,9 +186,9 @@ struct CustomerSpending {
 fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
     db.query(|rows| {
         let customer = Customer::join(rows);
-        let total = rows.aggregate(|rows| {
+        let total = aggregate(|rows| {
             let invoice = Invoice::join(rows);
-            rows.filter_on(invoice.customer(), &customer);
+            rows.filter_on(invoice.customer(), customer.clone());
             rows.sum(invoice.total())
         });
 

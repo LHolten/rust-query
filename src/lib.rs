@@ -21,6 +21,7 @@ mod transaction;
 mod value;
 
 pub use db::Row;
+pub use group::aggregate;
 use hash::TypBuilder;
 pub use query::Rows;
 use ref_cast::RefCast;

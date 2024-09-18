@@ -1,10 +1,11 @@
 use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 use ref_cast::RefCast;
-use sea_query::{Expr, Func, SimpleExpr};
+use sea_query::{Expr, Func, SelectStatement, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
@@ -12,7 +13,7 @@ use crate::{
     query::Rows,
     value::{
         operations::{Const, IsNotNull, UnwrapOr},
-        EqTyp, MyTyp, NumTyp, Typed, Value,
+        EqTyp, MyTyp, NumTyp, Typed, Value, ValueBuilder,
     },
     Table,
 };
@@ -22,10 +23,10 @@ use crate::{
 /// While it is possible to join many tables in an aggregate, there can be only one result.
 /// (The result can be a tuple or struct with multiple values though).
 pub struct Aggregate<'outer, 'inner, S> {
-    pub(crate) outer_ast: &'inner MySelect,
-    pub(crate) conds: &'inner mut Vec<(Field, SimpleExpr)>,
+    // pub(crate) outer_ast: &'inner MySelect,
+    pub(crate) conds: Vec<(Field, Rc<dyn 'outer + Fn(ValueBuilder) -> SimpleExpr>)>,
     pub(crate) query: Rows<'inner, S>,
-    pub(crate) table: MyAlias,
+    // pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
 }
 
@@ -49,18 +50,24 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
             .ast
             .select
             .get_or_init(expr.into(), || self.ast.scope.new_field());
-        Aggr::db(self.table, *alias)
+        Aggr {
+            _p: PhantomData,
+            _p2: PhantomData,
+            select: self.query.ast.build_select(true),
+            field: *alias,
+            conds: self.conds.clone(),
+        }
     }
 
     /// Filter the rows of this sub-query based on a value from the outer query.
     pub fn filter_on<T>(
         &mut self,
         val: impl Value<'inner, S, Typ = T>,
-        on: impl Value<'outer, S, Typ = T>,
+        on: impl Value<'outer, S, Typ = T> + 'outer,
     ) {
         let alias = self.ast.scope.new_alias();
         self.conds
-            .push((Field::U64(alias), on.build_expr(self.outer_ast.builder())));
+            .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
         self.ast
             .filter_on
             .push(Box::new((val.build_expr(self.ast.builder()), alias)))
@@ -116,27 +123,22 @@ impl<'outer: 'inner, 'inner, S> Aggregate<'outer, 'inner, S> {
 }
 
 pub struct Aggr<'t, S, T> {
-    pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
     pub(crate) _p2: PhantomData<T>,
+    pub(crate) select: SelectStatement,
+    pub(crate) conds: Vec<(Field, Rc<dyn 't + Fn(ValueBuilder) -> SimpleExpr>)>,
     pub(crate) field: Field,
 }
 
-impl<S, T> Aggr<'_, S, T> {
-    fn db(table: MyAlias, field: Field) -> Self {
-        Aggr {
-            _p: PhantomData,
-            _p2: PhantomData,
-            field,
-            table,
-        }
-    }
-}
-
-impl<S, T> Copy for Aggr<'_, S, T> {}
 impl<S, T> Clone for Aggr<'_, S, T> {
     fn clone(&self) -> Self {
-        *self
+        Self {
+            _p: PhantomData,
+            _p2: PhantomData,
+            select: self.select.clone(),
+            conds: self.conds.clone(),
+            field: self.field,
+        }
     }
 }
 
@@ -144,9 +146,16 @@ impl<'t, S, T: MyTyp> Typed for Aggr<'t, S, T> {
     type Typ = T;
 }
 
+impl<'t, S, T> Aggr<'t, S, T> {
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias {
+        let conds = self.conds.iter().map(|(field, expr)| (*field, expr(b)));
+        b.get_aggr(self.select.clone(), conds.collect())
+    }
+}
+
 impl<'t, S, T: MyTyp> Value<'t, S> for Aggr<'t, S, T> {
-    fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {
-        Expr::col((self.table, self.field)).into()
+    fn build_expr(&self, b: crate::value::ValueBuilder) -> SimpleExpr {
+        Expr::col((self.build_table(b), self.field)).into()
     }
 }
 
@@ -156,4 +165,21 @@ impl<S, T: Table> Deref for Aggr<'_, S, T> {
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
     }
+}
+
+pub fn aggregate<'outer, S, F, R>(f: F) -> R
+where
+    F: for<'a> FnOnce(&'a mut Aggregate<'outer, 'a, S>) -> R,
+{
+    let mut ast = MySelect::default();
+    let inner = Rows {
+        phantom: PhantomData,
+        ast: &mut ast,
+    };
+    let mut group = Aggregate {
+        conds: Vec::new(),
+        query: inner,
+        phantom2: PhantomData,
+    };
+    f(&mut group)
 }
