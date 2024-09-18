@@ -14,12 +14,14 @@ use crate::{
     ast::MySelect,
     client::QueryBuilder,
     db::Join,
+    exec::Query,
     hash,
     insert::Reader,
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, Row, Table, Transaction, Value,
+    value::{self, MyTyp},
+    Row, Rows, Table, Transaction, Value,
 };
 
 #[derive(Default)]
@@ -46,7 +48,12 @@ pub trait TableMigration<A: Table> {
 
     // there is no reason to specify the lifetime of prev
     // because it is only used for reader, which doesn't care.
-    fn into_new(self, prev: Row<'_, A>, reader: Reader<'_, A::Schema>);
+    fn into_new(
+        self,
+        prev: Row<'_, A>,
+        t: &Transaction<'_, A::Schema>,
+        reader: Reader<'_, A::Schema>,
+    );
 }
 
 pub struct SchemaBuilder<'x> {
@@ -97,7 +104,8 @@ impl<'x> SchemaBuilder<'x> {
                         ast: &ast,
                         _p: PhantomData,
                     };
-                    res.into_new(just_db, reader);
+                    let t = RefCast::ref_cast(self.conn);
+                    res.into_new(just_db, t, reader);
 
                     let new_select = ast.simple();
 

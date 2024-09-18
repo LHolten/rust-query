@@ -31,7 +31,7 @@ pub use value::{DynValue, UnixEpoch, Value};
 
 /// Types that are the result of a database operation.
 pub mod ops {
-    pub use crate::db::{Col, Join};
+    pub use crate::db::Col;
     pub use crate::group::Aggr;
     pub use crate::value::operations::{Add, And, Assume, Const, Eq, IsNotNull, Lt, Not, UnwrapOr};
 }
@@ -96,7 +96,7 @@ pub trait Table: Sized + 'static {
 
     type Schema;
 
-    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> ops::Join<'inner, Self> {
+    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> DynValue<'inner, Self::Schema, Self> {
         rows.join()
     }
 

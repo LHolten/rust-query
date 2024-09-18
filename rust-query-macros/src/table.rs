@@ -1,3 +1,5 @@
+use std::ops::Not;
+
 use crate::Unique;
 
 use super::make_generic;
@@ -61,33 +63,31 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
 
     let mut defs = vec![];
     let mut typ_asserts = vec![];
-    let mut read_bounds = vec![];
-    let mut inits = vec![];
     let mut reads = vec![];
     let mut def_typs = vec![];
     let mut col_defs = vec![];
-    let mut generics = vec![];
 
     for col in columns.values() {
         let typ = &col.typ;
         let ident = &col.name;
         let ident_str = ident.to_string();
-        let generic = make_generic(ident);
         defs.push(quote! {
-            pub fn #ident(&self) -> ::rust_query::ops::Col<#typ, T> {
-                ::rust_query::ops::Col::new(#ident_str, self.0.clone())
+            pub fn #ident<'t>(&self) -> ::rust_query::DynValue<'t, #schema, #typ>
+            where
+                T: ::rust_query::Value<'t, #schema, Typ = #table_ident> + 't
+            {
+                ::rust_query::Value::into_dyn(&::rust_query::ops::Col::new(#ident_str, self.0.clone()))
             }
         });
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
-        read_bounds.push(quote!(#generic: for<'t> ::rust_query::Value<'t, #schema, Typ=#typ>));
-        inits.push(quote!(#ident: f.col(#ident_str)));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
-        col_defs.push(quote! {pub #ident: #generic});
-        generics.push(generic);
+        col_defs.push(quote! {pub #ident: <#typ as ::rust_query::private::MyTyp>::Out<'a>});
     }
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);
+
+    let generic = col_defs.is_empty().not().then_some(quote! {'a});
 
     Ok(quote! {
         #[repr(transparent)]
@@ -111,11 +111,11 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             const NAME: &'static str = #table_name;
         }
 
-        pub struct #dummy_ident<#(#generics),*> {
+        pub struct #dummy_ident<#generic> {
             #(#col_defs),*
         }
 
-        impl<#(#read_bounds),*> ::rust_query::private::Writable for #dummy_ident<#(#generics),*> {
+        impl<#generic> ::rust_query::private::Writable for #dummy_ident<#generic> {
             type T = #table_ident;
             fn read(self, f: ::rust_query::private::Reader<'_, #schema>) {
                 #(#reads;)*

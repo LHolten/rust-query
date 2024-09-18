@@ -330,16 +330,21 @@ fn define_table_migration(
         let name = &col.name;
         let name_str = col.name.to_string();
         if prev_columns.contains_key(i) {
-            into_new.push(quote! {reader.col(#name_str, prev.#name())});
+            into_new.push(
+                quote! {reader.col(#name_str, |_| ::rust_query::Value::into_dyn(&prev.#name()))},
+            );
         } else {
             let generic = make_generic(name);
             let typ = &col.typ;
 
             defs.push(quote! {pub #name: #generic});
-            constraints
-                .push(quote! {#generic: for<'x> ::rust_query::Value<'x, _PrevSchema, Typ = #typ>});
+            constraints.push(
+                quote! {#generic: for<'x> ::rust_query::Value<'x, _PrevSchema, Typ = #typ> + Clone},
+            );
             generics.push(generic);
-            into_new.push(quote! {reader.col(#name_str, self.#name)});
+            into_new.push(
+                quote! {reader.col(#name_str, |_| ::rust_query::Value::into_dyn(&self.#name))},
+            );
         }
     }
 
@@ -361,8 +366,13 @@ fn define_table_migration(
         impl<#(#constraints),*> ::rust_query::private::TableMigration<#prev_typ> for #migration_name<#(#generics),*> {
             type T = super::#table_name;
 
-            fn into_new(self, prev: ::rust_query::Row<'_, #prev_typ>, reader: ::rust_query::private::Reader<'_, _PrevSchema>) {
-                #(#into_new;)*
+            fn into_new<'x>(
+                self,
+                prev: ::rust_query::Row<'_, #prev_typ>,
+                t: &::rust_query::Transaction<'_, _PrevSchema>,
+                reader: ::rust_query::private::Reader<'_, _PrevSchema>,
+            ) {
+                // #(#into_new;)*
             }
         }
     })

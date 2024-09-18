@@ -7,7 +7,7 @@ use crate::{
     db::Join,
     group::Aggregate,
     value::{operations::Assume, Value},
-    Table,
+    DynValue, Table,
 };
 
 /// [Rows] keeps track of rows from which tables are in use.
@@ -32,10 +32,10 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// For convenience there is also [Table::join].
-    pub fn join<T: Table>(&mut self) -> Join<'inner, T> {
+    pub fn join<T: Table>(&mut self) -> DynValue<'inner, T::Schema, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
-        Join::new(alias)
+        Value::into_dyn(&Join::new(alias))
     }
 
     pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<'inner, T> {

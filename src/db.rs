@@ -61,7 +61,7 @@ where
 /// Table reference that is the result of a join.
 /// It can only be used in the query where it was created.
 /// Invariant in `'t`.
-pub struct Join<'t, T> {
+pub(crate) struct Join<'t, T> {
     pub(crate) table: MyAlias,
     pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
 }

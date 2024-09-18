@@ -6,7 +6,6 @@ use crate::{
     client::private_exec,
     exec::Query,
     insert::{private_try_insert, Writable},
-    private::Dummy,
     token::ThreadToken,
     value::MyTyp,
     DynValue, Row, Table,
@@ -79,9 +78,9 @@ impl<S> Database<S> {
 #[derive(RefCast)]
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
-    transaction: rusqlite::Transaction<'a>,
-    _p: PhantomData<&'a S>,
-    _local: PhantomData<ThreadToken>,
+    pub(crate) transaction: rusqlite::Transaction<'a>,
+    pub(crate) _p: PhantomData<&'a S>,
+    pub(crate) _local: PhantomData<ThreadToken>,
 }
 
 /// Same as [Transaction], but allows inserting new rows.
