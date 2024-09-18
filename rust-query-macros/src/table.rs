@@ -44,7 +44,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             let generic = make_generic(col);
 
             args.push(quote! {#col: #generic});
-            constraints.push(quote! {#generic: ::rust_query::Value<'a, #schema, Typ = #typ>});
+            constraints.push(quote! {#generic: ::rust_query::Value<'a, #schema, Typ = #typ> + 'a});
             generics.push(generic);
             inits.push(col.clone());
         }
@@ -52,10 +52,10 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
 
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> #table_mod::#unique_type<#(#generics),*> {
-                #table_mod::#unique_type {
+            pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> ::rust_query::DynValue<'a, #schema, Option<#table_ident>> {
+                ::rust_query::Value::into_dyn(#table_mod::#unique_type {
                     #(#inits),*
-                }
+                })
             }
         });
         unique_defs.push(define_unique(unique, table_name, table_ident, schema));
@@ -76,7 +76,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             where
                 T: ::rust_query::Value<'t, #schema, Typ = #table_ident> + 't
             {
-                ::rust_query::Value::into_dyn(&::rust_query::ops::Col::new(#ident_str, self.0.clone()))
+                ::rust_query::Value::into_dyn(::rust_query::ops::Col::new(#ident_str, self.0.clone()))
             }
         });
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));

@@ -157,11 +157,11 @@ pub trait Value<'t, S>: Typed {
         AsFloat(self.clone())
     }
 
-    fn into_dyn(&self) -> DynValue<'t, S, Self::Typ>
+    fn into_dyn(self) -> DynValue<'t, S, Self::Typ>
     where
-        Self: Clone + 't,
+        Self: Sized + 't,
     {
-        DynValue(Rc::new(self.clone()))
+        DynValue(Rc::new(self))
     }
 }
 

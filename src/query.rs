@@ -35,7 +35,7 @@ impl<'inner, S> Rows<'inner, S> {
     pub fn join<T: Table>(&mut self) -> DynValue<'inner, T::Schema, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
-        Value::into_dyn(&Join::new(alias))
+        Value::into_dyn(Join::new(alias))
     }
 
     pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<'inner, T> {
