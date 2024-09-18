@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{aggregate, DynValue, FromDummy, Row, Table, ThreadToken, Transaction, Value};
+use rust_query::{aggregate, FromDummy, Row, Table, ThreadToken, Transaction, Value};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -72,7 +72,7 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
         let pl = Playlist::join(rows);
         let track_count = aggregate(|rows| {
             let plt = PlaylistTrack::join(rows);
-            rows.filter_on(plt.playlist(), pl.clone());
+            rows.filter_on(plt.playlist(), &pl);
             rows.count_distinct(plt)
         });
 
@@ -88,11 +88,11 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
         let artist = Artist::join(rows);
         let avg_track_count = aggregate(|rows| {
             let album = Album::join(rows);
-            rows.filter_on(album.artist(), artist.clone());
+            rows.filter_on(album.artist(), &artist);
 
             let track_count = aggregate(|rows| {
                 let track = Track::join(rows);
-                rows.filter_on(track.album(), album);
+                rows.filter_on(track.album(), &album);
 
                 rows.count_distinct(track)
             });
@@ -109,7 +109,7 @@ fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
             let reporter = Employee::join(rows);
             // only count employees that report to someone
             let reports_to = rows.filter_some(reporter.reports_to());
-            rows.filter_on(reports_to, receiver.clone());
+            rows.filter_on(reports_to, &receiver);
             rows.count_distinct(reporter)
         });
 
@@ -163,7 +163,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         let genre = Genre::join(rows);
         let (bytes, milis) = aggregate(|rows| {
             let track = Track::join(rows);
-            rows.filter_on(track.genre(), genre.clone());
+            rows.filter_on(track.genre(), &genre);
             (
                 rows.avg(track.bytes().as_float()),
                 rows.avg(track.milliseconds().as_float()),
@@ -186,17 +186,26 @@ struct CustomerSpending {
 fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
     db.query(|rows| {
         let customer = Customer::join(rows);
-        let total = aggregate(|rows| {
-            let invoice = Invoice::join(rows);
-            rows.filter_on(invoice.customer(), customer.clone());
-            rows.sum(invoice.total())
-        });
+        let total = customer_spending(&customer);
 
         rows.into_vec(CustomerSpendingDummy {
             customer_name: customer.last_name(),
             total_spending: total,
         })
     })
+}
+
+fn customer_spending<'t>(customer: &impl MyTable<'t, Customer>) -> MyDyn<'t, f64> {
+    aggregate(|rows| {
+        let invoice = Invoice::join(rows);
+        rows.filter_on(invoice.customer(), customer);
+        rows.sum(invoice.total())
+    })
+}
+
+fn customer_spending_by_email(db: &Transaction<Schema>, email: &str) -> Option<f64> {
+    let customer = db.query_one(|_| Customer::unique_by_email(email));
+    customer.map(|x| db.query_one(|_| customer_spending(&x)))
 }
 
 fn free_reference(db: &Transaction<Schema>) {
@@ -207,19 +216,5 @@ fn free_reference(db: &Transaction<Schema>) {
 
     for track in tracks {
         let _name = db.query_one(|_| track.album().artist().name());
-    }
-}
-
-struct CustomerDetails<'t> {
-    first_name: DynValue<'t, Schema, String>,
-    phone: DynValue<'t, Schema, Option<i64>>,
-    rep: DynValue<'t, Schema, Employee>,
-}
-
-fn customer_details<'t>(customer: impl MyTable<'t, Customer>) -> CustomerDetails<'t> {
-    CustomerDetails {
-        first_name: customer.first_name(),
-        phone: customer.phone(),
-        rep: customer.support_rep(),
     }
 }

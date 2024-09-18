@@ -256,27 +256,27 @@ impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
     }
 }
 
-impl<X> Typed for &X
-where
-    X: Typed,
-{
-    type Typ = X::Typ;
-}
+// impl<X> Typed for &X
+// where
+//     X: Typed,
+// {
+//     type Typ = X::Typ;
+// }
 
-impl<'t, S, X> Value<'t, S> for &X
-where
-    X: Value<'t, S>,
-{
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        X::build_expr(self, b)
-    }
-    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        X::build_table(self, b)
-    }
-}
+// impl<'t, S, X> Value<'t, S> for &X
+// where
+//     X: Value<'t, S>,
+// {
+//     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+//         X::build_expr(self, b)
+//     }
+//     fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+//     where
+//         Self::Typ: Table,
+//     {
+//         X::build_table(self, b)
+//     }
+// }
 
 /// Use this a value in a query to get the current datetime as a number.
 #[derive(Clone)]

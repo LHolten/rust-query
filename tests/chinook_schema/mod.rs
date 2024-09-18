@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
     migration::{schema, NoTable, Prepare},
-    Database, Table, ThreadToken, Value,
+    Database, DynValue, Table, ThreadToken, Value,
 };
 
 pub use v2::*;
@@ -12,6 +12,8 @@ impl<'t, X> MyValue<'t, X::Typ> for X where X: Value<'t, Schema> + Clone + 't {}
 
 pub trait MyTable<'t, T: Table>: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
 impl<'t, T: Table, X> MyTable<'t, T> for X where X: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
+
+pub type MyDyn<'t, T> = DynValue<'t, Schema, T>;
 
 #[schema]
 #[version(0..=2)]
@@ -37,6 +39,7 @@ enum Schema {
         country: String,
         postal_code: Option<String>,
         fax: Option<String>,
+        #[unique_by_email]
         email: String,
         support_rep: Employee,
     },
@@ -160,7 +163,7 @@ mod tests {
 
     #[test]
     fn backwards_compat() {
-        v0::assert_hash(expect!["f62a50a3ac341a65"]);
-        v1::assert_hash(expect!["db73c94362839b43"]);
+        v0::assert_hash(expect!["a5821c5b83d30d7c"]);
+        v1::assert_hash(expect!["6f6486b3a4ae709"]);
     }
 }
