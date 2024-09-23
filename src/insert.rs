@@ -18,7 +18,7 @@ pub struct Reader<'x, S> {
 }
 
 impl<'a, S> Reader<'a, S> {
-    pub fn col<S2>(&self, name: &'static str, val: impl Value<'a, S2>) {
+    pub fn col(&self, name: &'static str, val: impl Value<'a, S>) {
         let field = Field::Str(name);
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))

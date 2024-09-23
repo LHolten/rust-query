@@ -12,15 +12,25 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
-    db::Join,
     hash,
-    insert::{Reader, Writable},
+    insert::Reader,
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value::{self},
-    DynValue, Rows, Table, Transaction, Value,
+    value, DynValue, Rows, Table, Transaction, Value,
 };
+
+pub struct M<B: TableMigration>(
+    Box<
+        dyn for<'a> FnOnce(
+            ::rust_query::DynValue<'a, <B::From as Table>::Schema, B::From>,
+        ) -> B::Update<'a>,
+    >,
+);
+
+pub struct C<B: TableCreation>(
+    Box<dyn for<'a> FnOnce(&mut Rows<'a, B::FromSchema>) -> B::Update<'a>>,
+);
 
 #[derive(Default)]
 pub struct TableTypBuilder {
@@ -41,10 +51,31 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration<'a, A: Table> {
-    type T: Table;
+pub trait TableMigration: Table {
+    type From: Table;
+    type Update<'x>;
 
-    fn into_new(self, prev: DynValue<'a, A::Schema, A>) -> impl Writable<'a, T = Self::T>;
+    fn into_new<'x>(
+        new: Self::Update<'x>,
+        prev: DynValue<'x, <Self::From as Table>::Schema, Self::From>,
+        reader: Reader<'x, <Self::From as Table>::Schema>,
+    );
+}
+
+pub trait TableCreation: Table {
+    type FromSchema;
+    type Update<'x>;
+
+    fn into_new<'x>(new: Self::Update<'x>, reader: Reader<'x, Self::FromSchema>);
+}
+
+impl<'inner, S> Rows<'inner, S> {
+    fn reader(&'inner self) -> Reader<'inner, S> {
+        Reader {
+            ast: self.ast,
+            _p: PhantomData,
+        }
+    }
 }
 
 pub struct SchemaBuilder<'x> {
@@ -56,45 +87,48 @@ pub struct SchemaBuilder<'x> {
 }
 
 impl<'x> SchemaBuilder<'x> {
-    pub fn migrate_table<M, A: Table, B: Table>(&mut self, m: M)
-    where
-        M: for<'a> TableMigration<'a, A, T = B>,
-    {
-        self.create_from::<M, A, B>(m);
+    pub fn migrate_table<B: TableMigration>(&mut self, m: M<B>) {
+        self.create_inner::<<B::From as Table>::Schema, B>(|rows| {
+            let db_id = B::From::join(rows);
+            // keep the ID the same
+            rows.reader().col(B::From::ID, db_id.clone());
+            let res = (m.0)(db_id.clone());
+            B::into_new(res, db_id, rows.reader());
+        });
 
-        self.drop
-            .push(sea_query::Table::drop().table(Alias::new(A::NAME)).take());
+        self.drop.push(
+            sea_query::Table::drop()
+                .table(Alias::new(B::From::NAME))
+                .take(),
+        );
     }
 
-    pub fn create_from<F, A: Table, B: Table>(&mut self, f: F)
-    where
-        F: for<'a> TableMigration<'a, A, T = B>,
-    {
+    pub fn create_from<B: TableCreation>(&mut self, f: C<B>) {
+        self.create_inner::<B::FromSchema, B>(|rows| {
+            let res = (f.0)(rows);
+            B::into_new(res, rows.reader());
+        });
+    }
+
+    fn create_inner<FromSchema, To: Table>(
+        &mut self,
+        f: impl for<'a> FnOnce(&'a mut Rows<'a, FromSchema>),
+    ) {
         let new_table_name = self.scope.tmp_table();
-        new_table::<B>(self.conn, new_table_name);
+        new_table::<To>(self.conn, new_table_name);
 
         self.rename.push(
             sea_query::Table::rename()
-                .table(new_table_name, Alias::new(B::NAME))
+                .table(new_table_name, Alias::new(To::NAME))
                 .take(),
         );
 
         let mut ast = MySelect::default();
-        let q = Rows::<A::Schema> {
+        let mut q = Rows::<FromSchema> {
             phantom: PhantomData,
             ast: &mut ast,
         };
-        let table = q.ast.scope.new_alias();
-        q.ast.tables.push((A::NAME.to_owned(), table));
-        let db_id = Join::<A>::new(table);
-
-        let res = f.into_new(db_id.into_dyn());
-
-        let reader = Reader {
-            ast: &ast,
-            _p: PhantomData,
-        };
-        res.read(reader);
+        f(&mut q);
 
         let new_select = ast.simple();
 

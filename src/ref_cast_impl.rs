@@ -5,7 +5,7 @@
 #[doc(hidden)]
 macro_rules! unsafe_impl_ref_cast {
     ($name:ident) => {
-        impl<T> $crate::private::RefCast for $name<T> {
+        impl<T> ::rust_query::private::RefCast for $name<T> {
             type From = T;
 
             #[inline]

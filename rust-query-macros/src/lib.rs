@@ -323,21 +323,17 @@ fn define_table_migration(
 ) -> Option<(TokenStream, Option<TokenStream>)> {
     let mut defs = vec![];
     let mut into_new = vec![];
-    let mut into_tmp = vec![];
-    let mut tmp_defs = vec![];
 
     for (i, col) in &table.columns {
         let name = &col.name;
         let name_str = col.name.to_string();
         let typ = &col.typ;
         if prev_columns.contains_key(i) {
-            into_tmp.push(quote! {#name: prev.#name()});
+            into_new.push(quote! {reader.col(#name_str, prev.#name())});
         } else {
             defs.push(quote! {pub #name: ::rust_query::DynValue<'a, _PrevSchema, #typ>});
-            into_tmp.push(quote! {#name: migrated.#name});
+            into_new.push(quote! {reader.col(#name_str, migrated.#name)});
         }
-        tmp_defs.push(quote! {#name: ::rust_query::DynValue<'y, _PrevSchema, #typ>});
-        into_new.push(quote! {reader.col::<_PrevSchema>(#name_str, self.#name)});
     }
 
     // check that nothing was added or removed
@@ -356,27 +352,16 @@ fn define_table_migration(
             #(#defs,)*
         }
 
-        impl<'t> ::rust_query::private::TableMigration<'t, #prev_typ> for
-            Box<dyn '_ + for<'a> FnOnce(::rust_query::DynValue<'a, _PrevSchema, #prev_typ>) -> #migration_name<#generic>>
-        {
-            type T = super::#table_name;
-            fn into_new(self, prev: ::rust_query::DynValue<'t, _PrevSchema, #prev_typ>)
-                -> impl ::rust_query::private::Writable<'t, T = Self::T>
-            {
-                let migrated = (self)(prev.clone());
-                struct _Temp<'y> {
-                    #(#tmp_defs,)*
-                }
-                impl<'y> ::rust_query::private::Writable<'y> for _Temp<'y> {
-                    type T = super::#table_name;
+        impl ::rust_query::private::TableMigration for super::#table_name {
+            type From = #prev_typ;
+            type Update<'a> = #migration_name<#generic>;
 
-                    fn read(self, reader: ::rust_query::private::Reader<'y, super::Schema>) {
-                        #(#into_new;)*
-                    }
-                }
-                _Temp {
-                    #(#into_tmp,)*
-                }
+            fn into_new<'x>(
+                migrated: Self::Update<'x>,
+                prev: ::rust_query::DynValue<'x, <Self::From as ::rust_query::Table>::Schema, Self::From>,
+                reader: ::rust_query::private::Reader<'x, <Self::From as ::rust_query::Table>::Schema>,
+            ) {
+                #(#into_new;)*
             }
         }
     };
