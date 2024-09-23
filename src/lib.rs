@@ -57,7 +57,9 @@ pub mod private {
     pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};
-    pub use crate::migrate::{Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder};
+    pub use crate::migrate::{
+        Migration, Schema, SchemaBuilder, TableMigration, TableTypBuilder, C, M,
+    };
     pub use crate::value::{MyTyp, Typed, ValueBuilder};
 
     pub use expect_test::Expect;

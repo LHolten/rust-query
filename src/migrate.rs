@@ -20,17 +20,15 @@ use crate::{
     value, DynValue, Rows, Table, Transaction, Value,
 };
 
-pub struct M<B: TableMigration>(
-    Box<
-        dyn for<'a> FnOnce(
+pub type M<'t, B: TableMigration> = Box<
+    dyn 't
+        + for<'a> FnOnce(
             ::rust_query::DynValue<'a, <B::From as Table>::Schema, B::From>,
         ) -> B::Update<'a>,
-    >,
-);
+>;
 
-pub struct C<B: TableCreation>(
-    Box<dyn for<'a> FnOnce(&mut Rows<'a, B::FromSchema>) -> B::Update<'a>>,
-);
+pub type C<'t, B: TableCreation> =
+    Box<dyn 't + for<'a> FnOnce(&mut Rows<'a, B::FromSchema>) -> B::Update<'a>>;
 
 #[derive(Default)]
 pub struct TableTypBuilder {
@@ -92,7 +90,7 @@ impl<'x> SchemaBuilder<'x> {
             let db_id = B::From::join(rows);
             // keep the ID the same
             rows.reader().col(B::From::ID, db_id.clone());
-            let res = (m.0)(db_id.clone());
+            let res = m(db_id.clone());
             B::into_new(res, db_id, rows.reader());
         });
 
@@ -105,7 +103,7 @@ impl<'x> SchemaBuilder<'x> {
 
     pub fn create_from<B: TableCreation>(&mut self, f: C<B>) {
         self.create_inner::<B::FromSchema, B>(|rows| {
-            let res = (f.0)(rows);
+            let res = f(rows);
             B::into_new(res, rows.reader());
         });
     }

@@ -504,9 +504,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: Box<dyn 't + for<'a> FnOnce(::rust_query::DynValue<'a, _PrevSchema, #table_name>) -> #migration_name<#generic>>
+                    pub #table_lower: ::rust_query::private::M<'t, super::#table_name>
                 });
-                tables.push(quote! {b.migrate_table(self.#table_lower)});
+                tables.push(quote! {b.migrate_table::<super::#table_name>(self.#table_lower)});
             } else if table.prev.is_some() {
                 // no table existed, but the previous table is specified, make a filter migration
 
@@ -520,9 +520,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: Box<dyn 't + for<'a> FnOnce(::rust_query::DynValue<'a, _PrevSchema, #table_name>) -> #migration_name<#generic>>
+                    pub #table_lower: ::rust_query::private::C<'t, super::#table_name>
                 });
-                tables.push(quote! {b.create_from(self.#table_lower)});
+                tables.push(quote! {b.create_from::<super::#table_name>(self.#table_lower)});
             } else {
                 // this is a new table
 
