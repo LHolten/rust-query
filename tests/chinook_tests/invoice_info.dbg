@@ -1,102 +1,102 @@
 [
     InvoiceInfo {
-        track: "\"40\"",
-        artist: "U2",
-        ivl_id: db_579,
-    },
-    InvoiceInfo {
         track: "\"?\"",
         artist: "Lost",
-        ivl_id: db_1,
-    },
-    InvoiceInfo {
-        track: "\"?\"",
-        artist: "Lost",
-        ivl_id: db_1154,
-    },
-    InvoiceInfo {
-        track: "\"Eine Kleine Nachtmusik\" Serenade In G, K. 525: I. Allegro",
-        artist: "Academy of St. Martin in the Fields Chamber Ensemble & Sir Neville Marriner",
-        ivl_id: db_1728,
-    },
-    InvoiceInfo {
-        track: "#1 Zero",
-        artist: "Audioslave",
-        ivl_id: db_2,
+        ivl_id: db_1627,
     },
     InvoiceInfo {
         track: "#9 Dream",
         artist: "U2",
-        ivl_id: db_580,
+        ivl_id: db_535,
     },
     InvoiceInfo {
         track: "'Round Midnight",
         artist: "Miles Davis",
-        ivl_id: db_3,
+        ivl_id: db_1820,
     },
     InvoiceInfo {
-        track: "(Da Le) Yaleo",
-        artist: "Santana",
-        ivl_id: db_4,
-    },
-    InvoiceInfo {
-        track: "(Da Le) Yaleo",
-        artist: "Santana",
-        ivl_id: db_1155,
-    },
-    InvoiceInfo {
-        track: "(I Can't Help) Falling In Love With You",
-        artist: "UB40",
-        ivl_id: db_581,
-    },
-    InvoiceInfo {
-        track: "(I Can't Help) Falling In Love With You",
-        artist: "UB40",
-        ivl_id: db_1729,
-    },
-    InvoiceInfo {
-        track: "(Oh) Pretty Woman",
-        artist: "Van Halen",
-        ivl_id: db_5,
-    },
-    InvoiceInfo {
-        track: "(We Are) The Road Crew",
-        artist: "Motörhead",
-        ivl_id: db_6,
+        track: "(Anesthesia) Pulling Teeth",
+        artist: "Metallica",
+        ivl_id: db_874,
     },
     InvoiceInfo {
         track: "(White Man) In Hammersmith Palais",
         artist: "The Clash",
-        ivl_id: db_582,
+        ivl_id: db_1005,
     },
     InvoiceInfo {
         track: "(Wish I Could) Hideaway",
         artist: "Creedence Clearwater Revival",
-        ivl_id: db_1156,
+        ivl_id: db_696,
     },
     InvoiceInfo {
         track: "...And Found",
         artist: "Lost",
-        ivl_id: db_1730,
+        ivl_id: db_1049,
     },
     InvoiceInfo {
         track: "...And Justice For All",
         artist: "Metallica",
-        ivl_id: db_7,
+        ivl_id: db_1464,
     },
     InvoiceInfo {
         track: "01 - Prowler",
         artist: "Iron Maiden",
-        ivl_id: db_583,
+        ivl_id: db_213,
     },
     InvoiceInfo {
-        track: "02 - Sanctuary",
+        track: "04 - Running Free",
         artist: "Iron Maiden",
-        ivl_id: db_8,
+        ivl_id: db_1931,
     },
     InvoiceInfo {
-        track: "02 - Sanctuary",
+        track: "05 - Phantom of the Opera",
         artist: "Iron Maiden",
-        ivl_id: db_1157,
+        ivl_id: db_786,
+    },
+    InvoiceInfo {
+        track: "09 - Iron Maiden",
+        artist: "Iron Maiden",
+        ivl_id: db_1359,
+    },
+    InvoiceInfo {
+        track: "1/2 Full",
+        artist: "Pearl Jam",
+        ivl_id: db_2082,
+    },
+    InvoiceInfo {
+        track: "14 Years",
+        artist: "Guns N' Roses",
+        ivl_id: db_1920,
+    },
+    InvoiceInfo {
+        track: "2 A.M.",
+        artist: "Iron Maiden",
+        ivl_id: db_234,
+    },
+    InvoiceInfo {
+        track: "2 Minutes To Midnight",
+        artist: "Iron Maiden",
+        ivl_id: db_780,
+    },
+    InvoiceInfo {
+        track: "2 Minutes To Midnight",
+        artist: "Iron Maiden",
+        ivl_id: db_1367,
+    },
+    InvoiceInfo {
+        track: "2 Minutes To Midnight",
+        artist: "Iron Maiden",
+        ivl_id: db_1933,
+    },
+    InvoiceInfo {
+        track: "2 X 4",
+        artist: "Metallica",
+        ivl_id: db_301,
+    },
+    InvoiceInfo {
+        track: "32 Dentes",
+        artist: "Titãs",
+        ivl_id: db_461,
     },
 ]

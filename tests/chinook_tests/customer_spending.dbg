@@ -1,39 +1,39 @@
 [
     CustomerSpending {
         customer_name: "Almeida",
-        total_spending: 37.620000000000005,
+        total_spending: 37.62,
     },
     CustomerSpending {
         customer_name: "Barnett",
-        total_spending: 37.620000000000005,
+        total_spending: 43.620000000000005,
     },
     CustomerSpending {
         customer_name: "Bernard",
-        total_spending: 40.620000000000005,
-    },
-    CustomerSpending {
-        customer_name: "Brooks",
-        total_spending: 45.62,
-    },
-    CustomerSpending {
-        customer_name: "Brown",
-        total_spending: 37.620000000000005,
-    },
-    CustomerSpending {
-        customer_name: "Chase",
-        total_spending: 39.620000000000005,
-    },
-    CustomerSpending {
-        customer_name: "Cunningham",
         total_spending: 38.620000000000005,
     },
     CustomerSpending {
+        customer_name: "Brooks",
+        total_spending: 37.620000000000005,
+    },
+    CustomerSpending {
+        customer_name: "Brown",
+        total_spending: 37.62,
+    },
+    CustomerSpending {
+        customer_name: "Chase",
+        total_spending: 37.62,
+    },
+    CustomerSpending {
+        customer_name: "Cunningham",
+        total_spending: 47.620000000000005,
+    },
+    CustomerSpending {
         customer_name: "Dubois",
-        total_spending: 39.62,
+        total_spending: 37.620000000000005,
     },
     CustomerSpending {
         customer_name: "Fernandes",
-        total_spending: 37.620000000000005,
+        total_spending: 39.620000000000005,
     },
     CustomerSpending {
         customer_name: "Francis",
@@ -41,31 +41,31 @@
     },
     CustomerSpending {
         customer_name: "Girard",
-        total_spending: 36.64,
-    },
-    CustomerSpending {
-        customer_name: "Gonçalves",
-        total_spending: 38.620000000000005,
-    },
-    CustomerSpending {
-        customer_name: "Gordon",
-        total_spending: 37.620000000000005,
-    },
-    CustomerSpending {
-        customer_name: "Goyer",
-        total_spending: 46.62,
-    },
-    CustomerSpending {
-        customer_name: "Gray",
-        total_spending: 40.62,
-    },
-    CustomerSpending {
-        customer_name: "Gruber",
         total_spending: 39.62,
     },
     CustomerSpending {
-        customer_name: "Gutiérrez",
+        customer_name: "Gonçalves",
+        total_spending: 39.62,
+    },
+    CustomerSpending {
+        customer_name: "Gordon",
         total_spending: 37.62,
+    },
+    CustomerSpending {
+        customer_name: "Goyer",
+        total_spending: 38.620000000000005,
+    },
+    CustomerSpending {
+        customer_name: "Gray",
+        total_spending: 37.620000000000005,
+    },
+    CustomerSpending {
+        customer_name: "Gruber",
+        total_spending: 42.62,
+    },
+    CustomerSpending {
+        customer_name: "Gutiérrez",
+        total_spending: 37.620000000000005,
     },
     CustomerSpending {
         customer_name: "Hansen",
@@ -77,6 +77,6 @@
     },
     CustomerSpending {
         customer_name: "Holý",
-        total_spending: 37.62,
+        total_spending: 49.620000000000005,
     },
 ]

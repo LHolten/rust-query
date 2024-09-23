@@ -5,7 +5,7 @@ use sea_query::{Expr, SimpleExpr};
 use crate::{
     ast::MySelect,
     db::Join,
-    value::{operations::Assume, Value},
+    value::{operations::Assume, Typed, Value},
     DynValue, Table,
 };
 
@@ -71,5 +71,20 @@ impl<'inner, S> Rows<'inner, S> {
     {
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
         Assume(val)
+    }
+
+    pub fn empty<T: 'inner>(&mut self) -> DynValue<'inner, S, T> {
+        self.filter(false);
+        Never(PhantomData).into_dyn()
+    }
+}
+
+struct Never<'t, T>(PhantomData<fn(&'t T) -> &'t T>);
+impl<T> Typed for Never<'_, T> {
+    type Typ = T;
+}
+impl<'t, S, T> Value<'t, S> for Never<'t, T> {
+    fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {
+        SimpleExpr::Keyword(sea_query::Keyword::Null)
     }
 }

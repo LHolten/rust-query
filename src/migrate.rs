@@ -20,15 +20,23 @@ use crate::{
     value, DynValue, Rows, Table, Transaction, Value,
 };
 
-pub type M<'t, B: TableMigration> = Box<
+pub type M<'t, B> = Box<
     dyn 't
         + for<'a> FnOnce(
-            ::rust_query::DynValue<'a, <B::From as Table>::Schema, B::From>,
-        ) -> B::Update<'a>,
+            ::rust_query::DynValue<
+                'a,
+                <<B as TableMigration>::From as Table>::Schema,
+                <B as TableMigration>::From,
+            >,
+        ) -> <B as TableMigration>::Update<'a>,
 >;
 
-pub type C<'t, B: TableCreation> =
-    Box<dyn 't + for<'a> FnOnce(&mut Rows<'a, B::FromSchema>) -> B::Update<'a>>;
+pub type C<'t, B> = Box<
+    dyn 't
+        + for<'a> FnOnce(
+            &mut Rows<'a, <B as TableCreation>::FromSchema>,
+        ) -> <B as TableCreation>::Update<'a>,
+>;
 
 #[derive(Default)]
 pub struct TableTypBuilder {

@@ -318,27 +318,30 @@ fn to_lower(name: &Ident) -> Ident {
 
 // prev_table is only used for the columns
 fn define_table_migration(
-    prev_columns: &BTreeMap<usize, Column>,
+    prev_columns: Option<&BTreeMap<usize, Column>>,
     table: &Table,
-) -> Option<(TokenStream, Option<TokenStream>)> {
+) -> Option<TokenStream> {
     let mut defs = vec![];
+    let mut empty_init = vec![];
     let mut into_new = vec![];
+    let prev_columns_uwrapped = prev_columns.unwrap_or(const { &BTreeMap::new() });
 
     for (i, col) in &table.columns {
         let name = &col.name;
         let name_str = col.name.to_string();
         let typ = &col.typ;
-        if prev_columns.contains_key(i) {
+        if prev_columns_uwrapped.contains_key(i) {
             into_new.push(quote! {reader.col(#name_str, prev.#name())});
         } else {
             defs.push(quote! {pub #name: ::rust_query::DynValue<'a, _PrevSchema, #typ>});
+            empty_init.push(quote! {#name: rows.empty()});
             into_new.push(quote! {reader.col(#name_str, migrated.#name)});
         }
     }
 
     // check that nothing was added or removed
     // we don't need input if only stuff was removed, but it still needs migrating
-    if defs.is_empty() && table.columns.len() == prev_columns.len() {
+    if defs.is_empty() && table.columns.len() == prev_columns_uwrapped.len() {
         return None;
     }
 
@@ -346,26 +349,52 @@ fn define_table_migration(
     let migration_name = format_ident!("{table_name}Migration");
     let prev_typ = quote! {#table_name};
     let generic = defs.is_empty().not().then_some(quote! {'a});
+    let generic_unnamed = defs.is_empty().not().then_some(quote! {'_});
+
+    let trait_impl = if prev_columns.is_some() {
+        quote! {
+            impl ::rust_query::private::TableMigration for super::#table_name {
+                type From = #prev_typ;
+                type Update<'a> = #migration_name<#generic>;
+
+                fn into_new<'x>(
+                    migrated: Self::Update<'x>,
+                    prev: ::rust_query::DynValue<'x, <Self::From as ::rust_query::Table>::Schema, Self::From>,
+                    reader: ::rust_query::private::Reader<'x, <Self::From as ::rust_query::Table>::Schema>,
+                ) {
+                    #(#into_new;)*
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl ::rust_query::private::TableCreation for super::#table_name {
+                type FromSchema = _PrevSchema;
+                type Update<'a> = #migration_name<#generic>;
+
+                fn into_new<'x>(migrated: Self::Update<'x>, reader: ::rust_query::private::Reader<'x, Self::FromSchema>) {
+                    #(#into_new;)*
+                }
+            }
+
+            impl #migration_name<#generic_unnamed> {
+                pub fn empty<'a>(rows: &mut ::rust_query::Rows<'a, _PrevSchema>) -> #migration_name<#generic> {
+                    #migration_name {
+                        #(#empty_init,)*
+                    }
+                }
+            }
+        }
+    };
 
     let migration = quote! {
         pub struct #migration_name<#generic> {
             #(#defs,)*
         }
 
-        impl ::rust_query::private::TableMigration for super::#table_name {
-            type From = #prev_typ;
-            type Update<'a> = #migration_name<#generic>;
-
-            fn into_new<'x>(
-                migrated: Self::Update<'x>,
-                prev: ::rust_query::DynValue<'x, <Self::From as ::rust_query::Table>::Schema, Self::From>,
-                reader: ::rust_query::private::Reader<'x, <Self::From as ::rust_query::Table>::Schema>,
-            ) {
-                #(#into_new;)*
-            }
-        }
+        #trait_impl
     };
-    Some((migration, generic))
+    Some(migration)
 }
 
 fn is_unique(path: &Path) -> Option<Ident> {
@@ -486,7 +515,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         // loop over all new table and see what changed
         for (i, table) in &new_tables {
             let table_name = &table.name;
-            let migration_name = format_ident!("{table_name}Migration");
 
             let table_lower = to_lower(table_name);
 
@@ -497,7 +525,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             if let Some(prev_table) = prev_tables.remove(i) {
                 // a table already existed, so we need to define a migration
 
-                let Some((migration, generic)) = define_table_migration(&prev_table.columns, table)
+                let Some(migration) = define_table_migration(Some(&prev_table.columns), table)
                 else {
                     continue;
                 };
@@ -507,11 +535,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: ::rust_query::private::M<'t, super::#table_name>
                 });
                 tables.push(quote! {b.migrate_table::<super::#table_name>(self.#table_lower)});
-            } else if table.prev.is_some() {
-                // no table existed, but the previous table is specified, make a filter migration
-
-                let Some((migration, generic)) = define_table_migration(&BTreeMap::new(), table)
-                else {
+            } else {
+                let Some(migration) = define_table_migration(None, table) else {
                     return Err(syn::Error::new_spanned(
                         &table.name,
                         "can not use `create_from` on an empty table",
@@ -523,10 +548,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub #table_lower: ::rust_query::private::C<'t, super::#table_name>
                 });
                 tables.push(quote! {b.create_from::<super::#table_name>(self.#table_lower)});
-            } else {
-                // this is a new table
-
-                tables.push(quote! {b.new_table::<super::#table_name>()})
             }
         }
         for prev_table in prev_tables.into_values() {

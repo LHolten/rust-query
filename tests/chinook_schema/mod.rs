@@ -68,6 +68,10 @@ enum Schema {
     Genre {
         name: String,
     },
+    #[version(1..)]
+    GenreNew {
+        name: String,
+    },
     Invoice {
         customer: Customer,
         invoice_date: String,
@@ -140,6 +144,11 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
         playlist_track: Box::new(|pt| v1::update::PlaylistTrackMigration {
             playlist: pt.playlist(),
         }),
+        listens_to: Box::new(v1::update::ListensToMigration::empty),
+        genre_new: Box::new(|rows| {
+            let genre = v0::Genre::join(rows);
+            v1::update::GenreNewMigration { name: genre.name() }
+        }),
     });
 
     let m = m.migrate(t, |db| v2::update::Schema {
@@ -151,6 +160,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
             composer_table: None::<NoTable>.into_dyn(),
             byte_price: 0.5f64.into_dyn(),
         }),
+        composer: Box::new(v2::update::ComposerMigration::empty),
     });
 
     m.finish(t).unwrap()
@@ -164,6 +174,6 @@ mod tests {
     #[test]
     fn backwards_compat() {
         v0::assert_hash(expect!["a5821c5b83d30d7c"]);
-        v1::assert_hash(expect!["6f6486b3a4ae709"]);
+        v1::assert_hash(expect!["6dec069b8b65eeeb"]);
     }
 }
