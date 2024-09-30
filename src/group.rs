@@ -63,9 +63,9 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
     pub fn filter_on<T>(
         &mut self,
         val: impl Value<'inner, S, Typ = T>,
-        on: &(impl Value<'outer, S, Typ = T> + Clone + 'outer),
+        on: impl Value<'outer, S, Typ = T>,
     ) {
-        let on = on.clone();
+        let on = on.into_owned();
         let alias = self.ast.scope.new_alias();
         self.conds
             .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
@@ -145,6 +145,9 @@ impl<S, T> Clone for Aggr<'_, S, T> {
 
 impl<'t, S, T: MyTyp> Typed for Aggr<'t, S, T> {
     type Typ = T;
+    fn build_expr(&self, b: crate::value::ValueBuilder) -> SimpleExpr {
+        Expr::col((self.build_table(b), self.field)).into()
+    }
 }
 
 impl<'t, S, T> Aggr<'t, S, T> {
@@ -155,8 +158,10 @@ impl<'t, S, T> Aggr<'t, S, T> {
 }
 
 impl<'t, S, T: MyTyp> Value<'t, S> for Aggr<'t, S, T> {
-    fn build_expr(&self, b: crate::value::ValueBuilder) -> SimpleExpr {
-        Expr::col((self.build_table(b), self.field)).into()
+    type Owned = Self;
+
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 

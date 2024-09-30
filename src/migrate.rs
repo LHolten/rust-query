@@ -437,9 +437,14 @@ pub struct NoTable(());
 
 impl value::Typed for NoTable {
     type Typ = NoTable;
-}
-impl<S> Value<'_, S> for NoTable {
     fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
         unreachable!("NoTable can not be constructed")
+    }
+}
+impl<S> Value<'_, S> for NoTable {
+    type Owned = Self;
+
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }

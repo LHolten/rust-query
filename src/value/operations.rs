@@ -5,119 +5,145 @@ use super::{MyTyp, NumTyp, Typed, Value, ValueBuilder};
 #[derive(Clone, Copy)]
 pub struct Add<A, B>(pub(crate) A, pub(crate) B);
 
-impl<A: Typed, B> Typed for Add<A, B> {
-    type Typ = A::Typ;
+macro_rules! binop {
+    ($name:ident) => {
+        impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for $name<A, B> {
+            type Owned = $name<A::Owned, B::Owned>;
+
+            fn into_owned(self) -> Self::Owned {
+                $name(self.0.into_owned(), self.1.into_owned())
+            }
+        }
+    };
 }
-impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for Add<A, B> {
+
+macro_rules! unop {
+    ($name:ident) => {
+        impl<'t, S, T: Value<'t, S>> Value<'t, S> for $name<T> {
+            type Owned = $name<T::Owned>;
+
+            fn into_owned(self) -> Self::Owned {
+                $name(self.0.into_owned())
+            }
+        }
+    };
+}
+
+impl<A: Typed, B: Typed> Typed for Add<A, B> {
+    type Typ = A::Typ;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b).add(self.1.build_expr(b))
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Not<T>(pub(crate) T);
-
-impl<T> Typed for Not<T> {
-    type Typ = bool;
-}
-impl<'t, S, T: Value<'t, S>> Value<'t, S> for Not<T> {
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.0.build_expr(b).not()
-    }
-}
+binop! {Add}
 
 #[derive(Clone, Copy)]
 pub struct And<A, B>(pub(crate) A, pub(crate) B);
 
-impl<A, B> Typed for And<A, B> {
+impl<A: Typed, B: Typed> Typed for And<A, B> {
     type Typ = bool;
-}
-impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for And<A, B> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b).and(self.1.build_expr(b))
     }
 }
+binop! {And}
 
 #[derive(Clone, Copy)]
 pub struct Lt<A, B>(pub(crate) A, pub(crate) B);
 
-impl<A, B> Typed for Lt<A, B> {
+impl<A: Typed, B: Typed> Typed for Lt<A, B> {
     type Typ = bool;
-}
-impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for Lt<A, B> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::expr(self.0.build_expr(b)).lt(self.1.build_expr(b))
     }
 }
+binop! {Lt}
 
 #[derive(Clone, Copy)]
 pub struct Eq<A, B>(pub(crate) A, pub(crate) B);
 
-impl<A, B> Typed for Eq<A, B> {
+impl<A: Typed, B: Typed> Typed for Eq<A, B> {
     type Typ = bool;
-}
-impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for Eq<A, B> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b).eq(self.1.build_expr(b))
     }
 }
+binop! {Eq}
 
 #[derive(Clone, Copy)]
 pub struct UnwrapOr<A, B>(pub(crate) A, pub(crate) B);
 
-impl<A, B: Typed> Typed for UnwrapOr<A, B> {
+impl<A: Typed, B: Typed> Typed for UnwrapOr<A, B> {
     type Typ = B::Typ;
-}
-impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for UnwrapOr<A, B> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::expr(self.0.build_expr(b)).if_null(self.1.build_expr(b))
     }
 }
+binop! {UnwrapOr}
+
+#[derive(Clone, Copy)]
+pub struct Not<T>(pub(crate) T);
+
+impl<T: Typed> Typed for Not<T> {
+    type Typ = bool;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).not()
+    }
+}
+unop! {Not}
 
 #[derive(Clone, Copy)]
 pub struct IsNotNull<A>(pub(crate) A);
 
-impl<A> Typed for IsNotNull<A> {
+impl<A: Typed> Typed for IsNotNull<A> {
     type Typ = bool;
-}
-impl<'t, S, A: Value<'t, S>> Value<'t, S> for IsNotNull<A> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::expr(self.0.build_expr(b)).is_not_null()
     }
 }
+unop! {IsNotNull}
 
 #[derive(Clone, Copy)]
 pub struct Assume<A>(pub(crate) A);
 
-impl<T: MyTyp, A: Typed<Typ = Option<T>>> Typed for Assume<A> {
+impl<T, A: Typed<Typ = Option<T>>> Typed for Assume<A> {
     type Typ = T;
-}
-impl<'t, S, T: MyTyp, A: Value<'t, S, Typ = Option<T>>> Value<'t, S> for Assume<A> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b)
+    }
+}
+impl<'t, S, T: Value<'t, S, Typ = Option<X>>, X> Value<'t, S> for Assume<T> {
+    type Owned = Assume<T::Owned>;
+    fn into_owned(self) -> Self::Owned {
+        Assume(self.0.into_owned())
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct AsFloat<A>(pub(crate) A);
 
-impl<A> Typed for AsFloat<A> {
+impl<A: Typed> Typed for AsFloat<A> {
     type Typ = f64;
-}
-impl<'t, S, A: Value<'t, S>> Value<'t, S> for AsFloat<A> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b).cast_as(Alias::new("real"))
     }
 }
+unop! {AsFloat}
 
 #[derive(Clone, Copy)]
 pub struct Const<A>(pub(crate) A);
 
-impl<A: MyTyp> Typed for Const<A> {
+impl<A: NumTyp> Typed for Const<A> {
     type Typ = A;
-}
-impl<'t, S, A: NumTyp> Value<'t, S> for Const<A> {
     fn build_expr(&self, _b: ValueBuilder) -> SimpleExpr {
         SimpleExpr::Constant(self.0.into_value())
+    }
+}
+impl<'t, S, A: NumTyp> Value<'t, S> for Const<A> {
+    type Owned = Self;
+
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }

@@ -147,7 +147,10 @@ fn define_unique(
     let typ_name = make_generic(name);
 
     let mut generics = vec![];
+    let mut generics_owned = vec![];
     let mut fields = vec![];
+    let mut fields_owned = vec![];
+    let mut constraints_typed = vec![];
     let mut constraints = vec![];
     let mut conds = vec![];
     for col in &unique.columns {
@@ -155,8 +158,11 @@ fn define_unique(
 
         let generic = make_generic(col);
         fields.push(quote! {pub(super) #col: #generic});
+        fields_owned.push(quote! {#col: self.#col.into_owned()});
         constraints.push(quote! {#generic: ::rust_query::Value<'t, super::#schema>});
+        constraints_typed.push(quote! {#generic: ::rust_query::private::Typed});
         conds.push(quote! {(#col_str, self.#col.build_expr(b))});
+        generics_owned.push(quote! {#generic::Owned});
         generics.push(generic);
     }
 
@@ -166,12 +172,18 @@ fn define_unique(
             #(#fields),*
         }
 
-        impl<#(#generics),*> ::rust_query::private::Typed for #typ_name<#(#generics),*> {
+        impl<#(#constraints_typed),*> ::rust_query::private::Typed for #typ_name<#(#generics),*> {
             type Typ = Option<super::#table_typ>;
-        }
-        impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
                 b.get_unique(#table_str, vec![#(#conds),*])
+            }
+        }
+        impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
+            type Owned = #typ_name<#(#generics_owned),*>;
+            fn into_owned(self) -> Self::Owned {
+                #typ_name{
+                    #(#fields_owned,)*
+                }
             }
         }
     }

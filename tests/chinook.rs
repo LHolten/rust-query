@@ -92,7 +92,7 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
 
             let track_count = aggregate(|rows| {
                 let track = Track::join(rows);
-                rows.filter_on(track.album(), &album);
+                rows.filter_on(track.album(), album);
 
                 rows.count_distinct(track)
             });

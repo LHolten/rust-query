@@ -46,15 +46,21 @@ impl<T: Table, X: Clone> Deref for Col<T, X> {
     }
 }
 
-impl<T: MyTyp, P> Typed for Col<T, P> {
+impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
     type Typ = T;
-}
-impl<'t, S, T: MyTyp, P: Value<'t, S>> Value<'t, S> for Col<T, P>
-where
-    P::Typ: Table,
-{
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.inner.build_table(b), self.field)).into()
+    }
+}
+impl<'t, S, T: MyTyp, P: Value<'t, S, Typ: Table>> Value<'t, S> for Col<T, P> {
+    type Owned = Col<T, P::Owned>;
+
+    fn into_owned(self) -> Self::Owned {
+        Col {
+            _p: PhantomData,
+            field: self.field,
+            inner: self.inner.into_owned(),
+        }
     }
 }
 
@@ -91,15 +97,20 @@ impl<'t, T: Table> Deref for Join<'t, T> {
     }
 }
 
-impl<T: MyTyp> Typed for Join<'_, T> {
+impl<T: Table> Typed for Join<'_, T> {
     type Typ = T;
-}
-impl<'t, T: Table> Value<'t, T::Schema> for Join<'t, T> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
     fn build_table(&self, _: ValueBuilder) -> MyAlias {
         self.table
+    }
+}
+impl<'t, T: Table> Value<'t, T::Schema> for Join<'t, T> {
+    type Owned = Self;
+
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 
@@ -155,12 +166,28 @@ impl<'t, T> From<Row<'t, T>> for sea_query::Value {
     }
 }
 
-impl<T: MyTyp> Typed for Row<'_, T> {
+impl<T: Table> Typed for Row<'_, T> {
     type Typ = T;
-}
-impl<'t, T: Table> Value<'t, T::Schema> for Row<'_, T> {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
+    }
+}
+
+pub struct UnsafeRow<T>(i64, PhantomData<T>);
+
+impl<T> Typed for UnsafeRow<T> {
+    type Typ = T;
+
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        Expr::val(self.0).into()
+    }
+}
+
+impl<'t, T: Table> Value<'t, T::Schema> for Row<'_, T> {
+    type Owned = UnsafeRow<T>;
+
+    fn into_owned(self) -> Self::Owned {
+        UnsafeRow(self.idx, PhantomData)
     }
 }
 

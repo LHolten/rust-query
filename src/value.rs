@@ -1,6 +1,6 @@
 pub mod operations;
 
-use std::{ops::Deref, rc::Rc};
+use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
 use ref_cast::RefCast;
@@ -89,13 +89,7 @@ impl<T: Table> EqTyp for T {}
 /// Typ does not depend on scope, so it gets its own trait
 pub trait Typed {
     type Typ;
-}
 
-/// Trait for all values that can be used in queries.
-/// This includes dummies from queries and rust values.
-/// `'t` is the context in which this value is valid.
-/// `S` is the schema in which this value is valid.
-pub trait Value<'t, S>: Typed {
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
     #[doc(hidden)]
@@ -105,11 +99,26 @@ pub trait Value<'t, S>: Typed {
     {
         b.get_join::<Self::Typ>(self.build_expr(b))
     }
+}
+
+/// Trait for all values that can be used in queries.
+/// This includes dummies from queries and rust values.
+/// `'t` is the context in which this value is valid.
+/// `S` is the schema in which this value is valid.
+pub trait Value<'t, S>: Typed + Clone {
+    #[doc(hidden)]
+    type Owned: Typed<Typ = Self::Typ> + 't;
+
+    #[doc(hidden)]
+    fn into_owned(self) -> Self::Owned;
+
+    fn into_dyn(self) -> DynValue<'t, S, Self::Typ> {
+        DynValue(Rc::new(self.into_owned()), PhantomData)
+    }
 
     fn add<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Add<Self, T>
     where
         Self::Typ: NumTyp,
-        Self: Clone,
     {
         Add(self.clone(), rhs)
     }
@@ -117,7 +126,6 @@ pub trait Value<'t, S>: Typed {
     fn lt<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Lt<Self, T>
     where
         Self::Typ: NumTyp,
-        Self: Clone,
     {
         Lt(self.clone(), rhs)
     }
@@ -125,7 +133,6 @@ pub trait Value<'t, S>: Typed {
     fn eq<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Eq<Self, T>
     where
         Self::Typ: EqTyp,
-        Self: Clone,
     {
         Eq(self.clone(), rhs)
     }
@@ -133,7 +140,6 @@ pub trait Value<'t, S>: Typed {
     fn not(self) -> Not<Self>
     where
         Self: Value<'t, S, Typ = bool>,
-        Self: Clone,
     {
         Not(self.clone())
     }
@@ -141,7 +147,6 @@ pub trait Value<'t, S>: Typed {
     fn and<T: Value<'t, S, Typ = bool>>(&self, rhs: T) -> And<Self, T>
     where
         Self: Value<'t, S, Typ = bool>,
-        Self: Clone,
     {
         And(self.clone(), rhs)
     }
@@ -149,7 +154,6 @@ pub trait Value<'t, S>: Typed {
     fn unwrap_or<T: Value<'t, S>>(&self, rhs: T) -> UnwrapOr<Self, T>
     where
         Self: Value<'t, S, Typ = Option<T::Typ>>,
-        Self: Clone,
     {
         UnwrapOr(self.clone(), rhs)
     }
@@ -157,7 +161,6 @@ pub trait Value<'t, S>: Typed {
     fn is_not_null<Typ>(&self) -> IsNotNull<Self>
     where
         Self: Value<'t, S, Typ = Option<Typ>>,
-        Self: Clone,
     {
         IsNotNull(self.clone())
     }
@@ -165,32 +168,14 @@ pub trait Value<'t, S>: Typed {
     fn as_float(&self) -> AsFloat<Self>
     where
         Self: Value<'t, S, Typ = i64>,
-        Self: Clone,
     {
         AsFloat(self.clone())
     }
-
-    fn into_dyn(&self) -> DynValue<'t, S, Self::Typ>
-    where
-        Self: ToOwnedValue<'t, S> + Sized,
-    {
-        DynValue(Rc::new(self.to_owned()))
-    }
 }
 
-pub trait ToOwnedValue<'t, S>: Value<'t, S> {
-    #[doc(hidden)]
-    type Owned: Value<'t, S, Typ = Self::Typ> + 't;
-
-    #[doc(hidden)]
-    fn to_owned(&self) -> Self::Owned;
-}
-
-impl<T: Typed> Typed for Option<T> {
+impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
     type Typ = Option<T::Typ>;
-}
 
-impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for Option<T> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.as_ref()
             .map(|x| T::build_expr(x, b))
@@ -198,139 +183,88 @@ impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for 
     }
 }
 
-impl<'t, S, T, X> ToOwnedValue<'t, S> for Option<T>
-where
-    T: ToOwnedValue<'t, S, Typ = X>,
-    X: MyTyp<Sql: Nullable>,
-{
+impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for Option<T> {
     type Owned = Option<T::Owned>;
-    fn to_owned(&self) -> Self::Owned {
-        self.as_ref().map(ToOwnedValue::to_owned)
+    fn into_owned(self) -> Self::Owned {
+        self.map(Value::into_owned)
     }
 }
 
 impl Typed for &str {
     type Typ = String;
-}
-
-impl<'t, S> Value<'t, S> for &str {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl<'t, S> ToOwnedValue<'t, S> for &str {
+impl<'t, S> Value<'t, S> for &str {
     type Owned = String;
-    fn to_owned(&self) -> Self::Owned {
-        (*self).to_owned()
+    fn into_owned(self) -> Self::Owned {
+        self.to_owned()
     }
 }
 
 impl Typed for String {
     type Typ = String;
-}
-
-impl<'t, S> Value<'t, S> for String {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(self)
     }
 }
 
-impl<'t, S> ToOwnedValue<'t, S> for String {
+impl<'t, S> Value<'t, S> for String {
     type Owned = String;
-    fn to_owned(&self) -> Self::Owned {
-        self.clone()
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 
 impl Typed for bool {
     type Typ = bool;
-}
-
-impl<'t, S> Value<'t, S> for bool {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl<'t, S> ToOwnedValue<'t, S> for bool {
+impl<'t, S> Value<'t, S> for bool {
     type Owned = Self;
-    fn to_owned(&self) -> Self::Owned {
-        *self
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 
 impl Typed for i64 {
     type Typ = i64;
-}
-
-impl<'t, S> Value<'t, S> for i64 {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl<'t, S> ToOwnedValue<'t, S> for i64 {
+impl<'t, S> Value<'t, S> for i64 {
     type Owned = Self;
-    fn to_owned(&self) -> Self::Owned {
-        *self
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 
 impl Typed for f64 {
     type Typ = f64;
-}
-
-impl<'t, S> Value<'t, S> for f64 {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
 
-impl<'t, S> ToOwnedValue<'t, S> for f64 {
+impl<'t, S> Value<'t, S> for f64 {
     type Owned = Self;
-    fn to_owned(&self) -> Self::Owned {
-        *self
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 
-impl<T: ?Sized + Typed> Typed for Rc<T> {
+impl<T> Typed for &T
+where
+    T: Typed,
+{
     type Typ = T::Typ;
-}
-
-impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.as_ref().build_expr(b)
-    }
-    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        self.as_ref().build_table(b)
-    }
-}
-
-impl<'t, S, T> ToOwnedValue<'t, S> for Rc<T>
-where
-    T: ?Sized + ToOwnedValue<'t, S>,
-{
-    type Owned = Rc<T::Owned>;
-    fn to_owned(&self) -> Self::Owned {
-        Rc::new(self.as_ref().to_owned())
-    }
-}
-
-impl<X> Typed for &X
-where
-    X: Typed,
-{
-    type Typ = X::Typ;
-}
-
-impl<'t, S, T> Value<'t, S> for &T
-where
-    T: Value<'t, S>,
-{
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         T::build_expr(self, b)
     }
@@ -342,13 +276,13 @@ where
     }
 }
 
-impl<'t, S, T> ToOwnedValue<'t, S> for &T
+impl<'t, S, T> Value<'t, S> for &T
 where
-    T: ToOwnedValue<'t, S>,
+    T: Value<'t, S>,
 {
     type Owned = T::Owned;
-    fn to_owned(&self) -> Self::Owned {
-        T::to_owned(*self)
+    fn into_owned(self) -> Self::Owned {
+        T::into_owned(self.clone())
     }
 }
 
@@ -358,18 +292,15 @@ pub struct UnixEpoch;
 
 impl Typed for UnixEpoch {
     type Typ = i64;
-}
-
-impl<'t, S> ToOwnedValue<'t, S> for UnixEpoch {
-    type Owned = Self;
-    fn to_owned(&self) -> Self::Owned {
-        *self
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
     }
 }
 
 impl<'t, S> Value<'t, S> for UnixEpoch {
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
+    type Owned = Self;
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 
@@ -445,19 +376,17 @@ impl FromSql for NoTable {
     }
 }
 
-pub struct DynValue<'t, S, T>(Rc<dyn Value<'t, S, Typ = T> + 't>);
+pub struct DynValue<'t, S, T>(Rc<dyn Typed<Typ = T> + 't>, PhantomData<S>);
 
 impl<'t, S, T> Clone for DynValue<'t, S, T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self(self.0.clone(), PhantomData)
     }
 }
 
 impl<'t, S, T> Typed for DynValue<'t, S, T> {
     type Typ = T;
-}
 
-impl<'t, S, T> Value<'t, S> for DynValue<'t, S, T> {
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         self.0.as_ref().build_expr(b)
     }
@@ -470,10 +399,10 @@ impl<'t, S, T> Value<'t, S> for DynValue<'t, S, T> {
     }
 }
 
-impl<'t, S: 't, T: 't> ToOwnedValue<'t, S> for DynValue<'t, S, T> {
+impl<'t, S: 't, T: 't> Value<'t, S> for DynValue<'t, S, T> {
     type Owned = Self;
-    fn to_owned(&self) -> Self::Owned {
-        self.clone()
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
 

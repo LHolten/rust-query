@@ -21,6 +21,7 @@ use crate::{
 pub struct Rows<'inner, S> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner S) -> &'inner S>,
+    // TODO: inline this
     pub(crate) ast: &'inner mut MySelect,
 }
 
@@ -80,11 +81,24 @@ impl<'inner, S> Rows<'inner, S> {
 }
 
 struct Never<'t, T>(PhantomData<fn(&'t T) -> &'t T>);
+
+impl<'t, T> Copy for Never<'t, T> {}
+impl<'t, T> Clone for Never<'t, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 impl<T> Typed for Never<'_, T> {
     type Typ = T;
-}
-impl<'t, S, T> Value<'t, S> for Never<'t, T> {
     fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {
         SimpleExpr::Keyword(sea_query::Keyword::Null)
+    }
+}
+impl<'t, S, T> Value<'t, S> for Never<'t, T> {
+    type Owned = Self;
+
+    fn into_owned(self) -> Self::Owned {
+        self
     }
 }
