@@ -218,3 +218,37 @@ fn free_reference(db: &Transaction<Schema>) {
         let _name = db.query_one(track.album().artist().name());
     }
 }
+
+#[derive(FromDummy)]
+struct TrackStats {
+    avg_len_milis: Option<f64>,
+    max_len_milis: Option<i64>,
+    genre_count: i64,
+}
+
+#[derive(FromDummy)]
+struct ArtistDetails {
+    name: String,
+    album_count: i64,
+    track_stats: TrackStats,
+}
+
+fn artist_details(db: &Transaction<Schema>, artist: Row<Artist>) -> ArtistDetails {
+    db.query_one(ArtistDetailsDummy {
+        name: artist.name(),
+        album_count: aggregate(|rows| {
+            let album = Album::join(rows);
+            rows.filter_on(album.artist(), artist);
+            rows.count_distinct(album)
+        }),
+        track_stats: aggregate(|rows| {
+            let track = Track::join(rows);
+            rows.filter_on(track.album().artist(), artist);
+            TrackStatsDummy {
+                avg_len_milis: rows.avg(track.milliseconds().as_float()),
+                max_len_milis: rows.max(track.milliseconds()),
+                genre_count: rows.count_distinct(track.genre()),
+            }
+        }),
+    })
+}
