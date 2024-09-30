@@ -204,8 +204,8 @@ fn customer_spending<'t>(customer: &impl MyTable<'t, Customer>) -> MyDyn<'t, f64
 }
 
 fn customer_spending_by_email(db: &Transaction<Schema>, email: &str) -> Option<f64> {
-    let customer = db.query_one(|_| Customer::unique_by_email(email));
-    customer.map(|x| db.query_one(|_| customer_spending(&x)))
+    let customer = db.query_one(Customer::unique_by_email(email));
+    customer.map(|x| db.query_one(customer_spending(&x)))
 }
 
 fn free_reference(db: &Transaction<Schema>) {
@@ -215,6 +215,6 @@ fn free_reference(db: &Transaction<Schema>) {
     });
 
     for track in tracks {
-        let _name = db.query_one(|_| track.album().artist().name());
+        let _name = db.query_one(track.album().artist().name());
     }
 }

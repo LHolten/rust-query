@@ -376,7 +376,10 @@ impl FromSql for NoTable {
     }
 }
 
-pub struct DynValue<'t, S, T>(Rc<dyn Typed<Typ = T> + 't>, PhantomData<S>);
+pub struct DynValue<'t, S, T>(
+    pub(crate) Rc<dyn Typed<Typ = T> + 't>,
+    pub(crate) PhantomData<fn(&'t S) -> &'t S>,
+);
 
 impl<'t, S, T> Clone for DynValue<'t, S, T> {
     fn clone(&self) -> Self {

@@ -1,6 +1,6 @@
 use sea_query::{Alias, Expr, SimpleExpr};
 
-use super::{MyTyp, NumTyp, Typed, Value, ValueBuilder};
+use super::{NumTyp, Typed, Value, ValueBuilder};
 
 #[derive(Clone, Copy)]
 pub struct Add<A, B>(pub(crate) A, pub(crate) B);

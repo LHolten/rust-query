@@ -44,7 +44,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             let generic = make_generic(col);
 
             args.push(quote! {#col: #generic});
-            constraints.push(quote! {#generic: ::rust_query::Value<'a, #schema, Typ = #typ> + 'a});
+            constraints.push(quote! {#generic: ::rust_query::Value<'a, #schema, Typ = #typ>});
             generics.push(generic);
             inits.push(col.clone());
         }
@@ -74,7 +74,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         defs.push(quote! {
             pub fn #ident<'t>(&self) -> ::rust_query::DynValue<'t, #schema, #typ>
             where
-                T: ::rust_query::Value<'t, #schema, Typ = #table_ident> + 't
+                T: ::rust_query::Value<'t, #schema, Typ = #table_ident>
             {
                 ::rust_query::Value::into_dyn(::rust_query::ops::Col::new(#ident_str, self.0.clone()))
             }
@@ -94,7 +94,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         pub struct #table_ident<T = ()>(T);
         ::rust_query::unsafe_impl_ref_cast! {#table_ident}
 
-        impl<T: Clone + ::rust_query::private::Typed<Typ = #table_ident>> #table_ident<T> {
+        impl<T> #table_ident<T> {
             #(#defs)*
         }
 
