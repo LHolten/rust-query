@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref, rc::Rc};
+use std::{marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
 
@@ -6,9 +6,9 @@ use crate::{
     client::private_exec,
     exec::Query,
     insert::{private_try_insert, Writable},
+    private::Dummy,
     token::ThreadToken,
-    value::MyTyp,
-    DynValue, Row, Table, Value,
+    Row, Table,
 };
 
 /// The primary interface to the database.
@@ -119,14 +119,16 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<T: MyTyp>(&self, val: DynValue<'static, S, T>) -> T::Out<'t> {
+    pub fn query_one<O>(&self, val: impl Dummy<'static, 't, S, Out = O>) -> O
+    where
+        S: 'static,
+    {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
         let mut res = private_exec(&self.transaction, |e| {
             // Cast the static lifetime to any lifetime necessary, this is fine because we know the static lifetime
             // can not be guaranteed by a query scope.
-            let val: DynValue<'_, S, T> = DynValue(Rc::new(val.into_owned()), PhantomData);
-            e.into_vec(val)
+            e.into_vec_private(val)
         });
         res.pop().unwrap()
     }

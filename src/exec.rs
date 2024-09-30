@@ -40,6 +40,14 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     where
         D: Dummy<'inner, 'outer, S>,
     {
+        self.into_vec_private(dummy)
+    }
+
+    pub(crate) fn into_vec_private<'x, D>(&'inner self, dummy: D) -> Vec<D::Out>
+    where
+        D: Dummy<'x, 'outer, S>,
+        S: 'x,
+    {
         let mut f = dummy.prepare(Cacher {
             _p: PhantomData,
             ast: self.ast,
