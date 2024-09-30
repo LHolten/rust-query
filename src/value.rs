@@ -170,12 +170,20 @@ pub trait Value<'t, S>: Typed {
         AsFloat(self.clone())
     }
 
-    fn into_dyn(self) -> DynValue<'t, S, Self::Typ>
+    fn into_dyn(&self) -> DynValue<'t, S, Self::Typ>
     where
-        Self: Sized + 't,
+        Self: ToOwnedValue<'t, S> + Sized,
     {
-        DynValue(Rc::new(self))
+        DynValue(Rc::new(self.to_owned()))
     }
+}
+
+pub trait ToOwnedValue<'t, S>: Value<'t, S> {
+    #[doc(hidden)]
+    type Owned: Value<'t, S, Typ = Self::Typ> + 't;
+
+    #[doc(hidden)]
+    fn to_owned(&self) -> Self::Owned;
 }
 
 impl<T: Typed> Typed for Option<T> {
@@ -190,6 +198,17 @@ impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for 
     }
 }
 
+impl<'t, S, T, X> ToOwnedValue<'t, S> for Option<T>
+where
+    T: ToOwnedValue<'t, S, Typ = X>,
+    X: MyTyp<Sql: Nullable>,
+{
+    type Owned = Option<T::Owned>;
+    fn to_owned(&self) -> Self::Owned {
+        self.as_ref().map(ToOwnedValue::to_owned)
+    }
+}
+
 impl Typed for &str {
     type Typ = String;
 }
@@ -197,6 +216,13 @@ impl Typed for &str {
 impl<'t, S> Value<'t, S> for &str {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
+    }
+}
+
+impl<'t, S> ToOwnedValue<'t, S> for &str {
+    type Owned = String;
+    fn to_owned(&self) -> Self::Owned {
+        (*self).to_owned()
     }
 }
 
@@ -210,6 +236,13 @@ impl<'t, S> Value<'t, S> for String {
     }
 }
 
+impl<'t, S> ToOwnedValue<'t, S> for String {
+    type Owned = String;
+    fn to_owned(&self) -> Self::Owned {
+        self.clone()
+    }
+}
+
 impl Typed for bool {
     type Typ = bool;
 }
@@ -217,6 +250,13 @@ impl Typed for bool {
 impl<'t, S> Value<'t, S> for bool {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
+    }
+}
+
+impl<'t, S> ToOwnedValue<'t, S> for bool {
+    type Owned = Self;
+    fn to_owned(&self) -> Self::Owned {
+        *self
     }
 }
 
@@ -230,6 +270,13 @@ impl<'t, S> Value<'t, S> for i64 {
     }
 }
 
+impl<'t, S> ToOwnedValue<'t, S> for i64 {
+    type Owned = Self;
+    fn to_owned(&self) -> Self::Owned {
+        *self
+    }
+}
+
 impl Typed for f64 {
     type Typ = f64;
 }
@@ -237,6 +284,13 @@ impl Typed for f64 {
 impl<'t, S> Value<'t, S> for f64 {
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
+    }
+}
+
+impl<'t, S> ToOwnedValue<'t, S> for f64 {
+    type Owned = Self;
+    fn to_owned(&self) -> Self::Owned {
+        *self
     }
 }
 
@@ -256,34 +310,61 @@ impl<'t, S, T: ?Sized + Value<'t, S>> Value<'t, S> for Rc<T> {
     }
 }
 
-// impl<X> Typed for &X
-// where
-//     X: Typed,
-// {
-//     type Typ = X::Typ;
-// }
+impl<'t, S, T> ToOwnedValue<'t, S> for Rc<T>
+where
+    T: ?Sized + ToOwnedValue<'t, S>,
+{
+    type Owned = Rc<T::Owned>;
+    fn to_owned(&self) -> Self::Owned {
+        Rc::new(self.as_ref().to_owned())
+    }
+}
 
-// impl<'t, S, X> Value<'t, S> for &X
-// where
-//     X: Value<'t, S>,
-// {
-//     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-//         X::build_expr(self, b)
-//     }
-//     fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
-//     where
-//         Self::Typ: Table,
-//     {
-//         X::build_table(self, b)
-//     }
-// }
+impl<X> Typed for &X
+where
+    X: Typed,
+{
+    type Typ = X::Typ;
+}
+
+impl<'t, S, T> Value<'t, S> for &T
+where
+    T: Value<'t, S>,
+{
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        T::build_expr(self, b)
+    }
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    where
+        Self::Typ: Table,
+    {
+        T::build_table(self, b)
+    }
+}
+
+impl<'t, S, T> ToOwnedValue<'t, S> for &T
+where
+    T: ToOwnedValue<'t, S>,
+{
+    type Owned = T::Owned;
+    fn to_owned(&self) -> Self::Owned {
+        T::to_owned(*self)
+    }
+}
 
 /// Use this a value in a query to get the current datetime as a number.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct UnixEpoch;
 
 impl Typed for UnixEpoch {
     type Typ = i64;
+}
+
+impl<'t, S> ToOwnedValue<'t, S> for UnixEpoch {
+    type Owned = Self;
+    fn to_owned(&self) -> Self::Owned {
+        *self
+    }
 }
 
 impl<'t, S> Value<'t, S> for UnixEpoch {
@@ -386,6 +467,13 @@ impl<'t, S, T> Value<'t, S> for DynValue<'t, S, T> {
         Self::Typ: Table,
     {
         self.0.as_ref().build_table(b)
+    }
+}
+
+impl<'t, S: 't, T: 't> ToOwnedValue<'t, S> for DynValue<'t, S, T> {
+    type Owned = Self;
+    fn to_owned(&self) -> Self::Owned {
+        self.clone()
     }
 }
 
