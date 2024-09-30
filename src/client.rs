@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{ast::MySelect, exec::Query, query::Rows};
+use crate::{ast::MySelect, exec::Query, rows::Rows};
 
 /// Extension trait to use this library with [rusqlite::Connection] directly.
 pub(crate) trait QueryBuilder {

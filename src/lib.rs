@@ -2,29 +2,29 @@
 
 extern crate self as rust_query;
 
+mod aggregate;
 mod alias;
 mod ast;
 mod client;
 mod db;
+mod dummy;
 mod exec;
-mod from_row;
-mod group;
 mod hash;
 mod insert;
 mod migrate;
 mod mymap;
 mod pragma;
-mod query;
 mod ref_cast_impl;
+mod rows;
 mod token;
 mod transaction;
 mod value;
 
+pub use aggregate::aggregate;
 pub use db::Row;
-pub use group::aggregate;
 use hash::TypBuilder;
-pub use query::Rows;
 use ref_cast::RefCast;
+pub use rows::Rows;
 pub use rust_query_macros::FromDummy;
 pub use token::ThreadToken;
 pub use transaction::{Database, Transaction, TransactionMut};
@@ -32,15 +32,15 @@ pub use value::{DynValue, UnixEpoch, Value};
 
 /// Types that are the result of a database operation.
 pub mod ops {
+    pub use crate::aggregate::Aggr;
     pub use crate::db::Col;
-    pub use crate::group::Aggr;
     pub use crate::value::operations::{Add, And, Assume, Const, Eq, IsNotNull, Lt, Not, UnwrapOr};
 }
 
 /// Types that are used as closure arguments.
 pub mod args {
+    pub use crate::aggregate::Aggregate;
     pub use crate::exec::Query;
-    pub use crate::group::Aggregate;
 }
 
 /// Types to declare schemas and migrations.
@@ -52,8 +52,8 @@ pub mod migration {
 
 #[doc(hidden)]
 pub mod private {
+    pub use crate::dummy::{Cached, Cacher, Dummy, Row};
     pub use crate::exec::show_sql;
-    pub use crate::from_row::{Cached, Cacher, Dummy, Row};
     pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::insert::{Reader, Writable};

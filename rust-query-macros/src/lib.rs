@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ops::Not};
 
-use from_row::from_row_impl;
+use dummy::from_row_impl;
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -8,7 +8,7 @@ use syn::{
     punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Meta, Path, Token, Type,
 };
 
-mod from_row;
+mod dummy;
 mod table;
 
 /// Use this macro to define your schema.

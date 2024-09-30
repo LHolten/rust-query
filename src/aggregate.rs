@@ -10,7 +10,7 @@ use sea_query::{Expr, Func, SelectStatement, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     ast::MySelect,
-    query::Rows,
+    rows::Rows,
     value::{
         operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, MyTyp, NumTyp, Typed, Value, ValueBuilder,

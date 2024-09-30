@@ -8,8 +8,8 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    from_row::{Cacher, Dummy, Row},
-    query::Rows,
+    dummy::{Cacher, Dummy, Row},
+    rows::Rows,
 };
 
 /// This is the top level query type and dereferences to [Rows].
