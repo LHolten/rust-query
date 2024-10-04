@@ -57,9 +57,28 @@ impl<'t, 'a> Row<'_, 't, 'a> {
 
 /// This trait is implemented by everything that can be retrieved from the database.
 /// Implement it using the derive proc macro on a struct.
-pub trait Dummy<'t, 'a, S> {
+pub trait Dummy<'t, 'a, S>: Sized {
     type Out;
     fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
+
+    fn map<T>(self, f: impl FnMut(Self::Out) -> T) -> impl Dummy<'t, 'a, S, Out = T> {
+        DummyMap(self, f)
+    }
+}
+
+struct DummyMap<A, F>(A, F);
+
+impl<'t, 'a, S, A, F, T> Dummy<'t, 'a, S> for DummyMap<A, F>
+where
+    A: Dummy<'t, 'a, S>,
+    F: FnMut(A::Out) -> T,
+{
+    type Out = T;
+
+    fn prepare(mut self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+        let mut cached = self.0.prepare(cacher);
+        move |row| self.1(cached(row))
+    }
 }
 
 impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {

@@ -20,6 +20,7 @@ mod token;
 mod transaction;
 mod value;
 
+pub use crate::dummy::Dummy;
 pub use aggregate::aggregate;
 pub use db::Row;
 use hash::TypBuilder;

@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{aggregate, FromDummy, Row, Table, ThreadToken, Transaction, Value};
+use rust_query::{aggregate, Dummy, FromDummy, Row, Table, ThreadToken, Transaction, Value};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -154,8 +154,8 @@ fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<
 #[derive(Debug, FromDummy, PartialEq)]
 struct GenreStats {
     genre_name: String,
-    byte_average: Option<f64>,
-    milis_average: Option<f64>,
+    byte_average: f64,
+    milis_average: f64,
 }
 
 fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
@@ -171,8 +171,8 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         });
         rows.into_vec(GenreStatsDummy {
             genre_name: genre.name(),
-            byte_average: bytes,
-            milis_average: milis,
+            byte_average: bytes.map(|x| x.unwrap()),
+            milis_average: milis.map(|x| x.unwrap()),
         })
     })
 }
