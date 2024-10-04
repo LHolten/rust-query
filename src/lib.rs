@@ -30,13 +30,6 @@ pub use token::ThreadToken;
 pub use transaction::{Database, Transaction, TransactionMut};
 pub use value::{DynValue, UnixEpoch, Value};
 
-/// Types that are the result of a database operation.
-pub mod ops {
-    pub use crate::aggregate::Aggr;
-    pub use crate::db::Col;
-    pub use crate::value::operations::{Add, And, Assume, Const, Eq, IsNotNull, Lt, Not, UnwrapOr};
-}
-
 /// Types that are used as closure arguments.
 pub mod args {
     pub use crate::aggregate::Aggregate;
@@ -52,6 +45,7 @@ pub mod migration {
 
 #[doc(hidden)]
 pub mod private {
+    pub use crate::db::Col;
     pub use crate::dummy::{Cached, Cacher, Dummy, Row};
     pub use crate::exec::show_sql;
     pub use crate::hash::TypBuilder;

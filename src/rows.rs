@@ -49,11 +49,6 @@ impl<'inner, S> Rows<'inner, S> {
     //     todo!()
     // }
 
-    /// Perform an aggregate that returns a single result for each of the current rows.
-    ///
-    /// You can filter the rows in the aggregate based on values from the outer query.
-    /// That is the only way to get a different aggregate for each outer row.
-
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl Value<'inner, S, Typ = bool>) {
         self.filter_private(prop.build_expr(self.ast.builder()));
@@ -66,12 +61,12 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter out rows where this column is [None].
     ///
     /// Returns a new column reference with the unwrapped type.
-    pub fn filter_some<T, V>(&mut self, val: V) -> Assume<V>
-    where
-        V: Value<'inner, S, Typ = Option<T>>,
-    {
+    pub fn filter_some<Typ>(
+        &mut self,
+        val: impl Value<'inner, S, Typ = Option<Typ>>,
+    ) -> DynValue<'inner, S, Typ> {
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
-        Assume(val)
+        Assume(val).into_dyn()
     }
 
     pub fn empty<T: 'inner>(&mut self) -> DynValue<'inner, S, T> {

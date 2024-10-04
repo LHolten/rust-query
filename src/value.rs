@@ -116,60 +116,60 @@ pub trait Value<'t, S>: Typed + Clone {
         DynValue(Rc::new(self.into_owned()), PhantomData)
     }
 
-    fn add<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Add<Self, T>
+    fn add(&self, rhs: impl Value<'t, S, Typ = Self::Typ>) -> DynValue<'t, S, Self::Typ>
     where
         Self::Typ: NumTyp,
     {
-        Add(self.clone(), rhs)
+        Add(self, rhs).into_dyn()
     }
 
-    fn lt<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Lt<Self, T>
+    fn lt(&self, rhs: impl Value<'t, S, Typ = Self::Typ>) -> DynValue<'t, S, bool>
     where
         Self::Typ: NumTyp,
     {
-        Lt(self.clone(), rhs)
+        Lt(self, rhs).into_dyn()
     }
 
-    fn eq<T: Value<'t, S, Typ = Self::Typ>>(&self, rhs: T) -> Eq<Self, T>
+    fn eq(&self, rhs: impl Value<'t, S, Typ = Self::Typ>) -> DynValue<'t, S, bool>
     where
         Self::Typ: EqTyp,
     {
-        Eq(self.clone(), rhs)
+        Eq(self, rhs).into_dyn()
     }
 
-    fn not(self) -> Not<Self>
+    fn not(&self) -> DynValue<'t, S, bool>
     where
         Self: Value<'t, S, Typ = bool>,
     {
-        Not(self.clone())
+        Not(self).into_dyn()
     }
 
-    fn and<T: Value<'t, S, Typ = bool>>(&self, rhs: T) -> And<Self, T>
+    fn and(&self, rhs: impl Value<'t, S, Typ = bool>) -> DynValue<'t, S, bool>
     where
         Self: Value<'t, S, Typ = bool>,
     {
-        And(self.clone(), rhs)
+        And(self, rhs).into_dyn()
     }
 
-    fn unwrap_or<T: Value<'t, S>>(&self, rhs: T) -> UnwrapOr<Self, T>
-    where
-        Self: Value<'t, S, Typ = Option<T::Typ>>,
-    {
-        UnwrapOr(self.clone(), rhs)
-    }
-
-    fn is_not_null<Typ>(&self) -> IsNotNull<Self>
+    fn unwrap_or<Typ>(&self, rhs: impl Value<'t, S, Typ = Typ>) -> DynValue<'t, S, Typ>
     where
         Self: Value<'t, S, Typ = Option<Typ>>,
     {
-        IsNotNull(self.clone())
+        UnwrapOr(self, rhs).into_dyn()
     }
 
-    fn as_float(&self) -> AsFloat<Self>
+    fn is_not_null<Typ>(&self) -> DynValue<'t, S, bool>
+    where
+        Self: Value<'t, S, Typ = Option<Typ>>,
+    {
+        IsNotNull(self).into_dyn()
+    }
+
+    fn as_float(&self) -> DynValue<'t, S, f64>
     where
         Self: Value<'t, S, Typ = i64>,
     {
-        AsFloat(self.clone())
+        AsFloat(self).into_dyn()
     }
 }
 

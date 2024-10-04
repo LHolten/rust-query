@@ -76,7 +76,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             where
                 T: ::rust_query::Value<'t, #schema, Typ = #table_ident>
             {
-                ::rust_query::Value::into_dyn(::rust_query::ops::Col::new(#ident_str, self.0.clone()))
+                ::rust_query::Value::into_dyn(::rust_query::private::Col::new(#ident_str, self.0.clone()))
             }
         });
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));

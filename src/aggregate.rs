@@ -117,9 +117,9 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> IsNotNull<Aggr<'outer, S, Option<i64>>> {
+    pub fn exists(&'inner self) -> DynValue<'outer, S, bool> {
         let expr = SimpleExpr::Constant(1.into_value());
-        IsNotNull(self.select::<i64>(expr))
+        IsNotNull(self.select::<i64>(expr)).into_dyn()
     }
 }
 
@@ -173,6 +173,10 @@ impl<S, T: Table> Deref for Aggr<'_, S, T> {
     }
 }
 
+/// Perform an aggregate that returns a single result for each of the current rows.
+///
+/// You can filter the rows in the aggregate based on values from the outer query.
+/// That is the only way to get a different aggregate for each outer row.
 pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
     F: for<'a> FnOnce(&'a mut Aggregate<'outer, 'a, S>) -> R,
