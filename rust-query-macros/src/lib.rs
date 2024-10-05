@@ -322,7 +322,6 @@ fn define_table_migration(
     table: &Table,
 ) -> Option<TokenStream> {
     let mut defs = vec![];
-    let mut empty_init = vec![];
     let mut into_new = vec![];
     let prev_columns_uwrapped = prev_columns.unwrap_or(const { &BTreeMap::new() });
 
@@ -333,8 +332,7 @@ fn define_table_migration(
         if prev_columns_uwrapped.contains_key(i) {
             into_new.push(quote! {reader.col(#name_str, prev.#name())});
         } else {
-            defs.push(quote! {pub #name: ::rust_query::DynValue<'a, _PrevSchema, #typ>});
-            empty_init.push(quote! {#name: rows.empty()});
+            defs.push(quote! {pub #name: <#typ as ::rust_query::private::MyTyp>::Out<'a>});
             into_new.push(quote! {reader.col(#name_str, migrated.#name)});
         }
     }
@@ -349,7 +347,6 @@ fn define_table_migration(
     let migration_name = format_ident!("{table_name}Migration");
     let prev_typ = quote! {#table_name};
     let generic = defs.is_empty().not().then_some(quote! {'a});
-    let generic_unnamed = defs.is_empty().not().then_some(quote! {'_});
 
     let trait_impl = if prev_columns.is_some() {
         quote! {
@@ -359,8 +356,8 @@ fn define_table_migration(
 
                 fn into_new<'x>(
                     migrated: Self::Update<'x>,
-                    prev: ::rust_query::DynValue<'x, <Self::From as ::rust_query::Table>::Schema, Self::From>,
-                    reader: ::rust_query::private::Reader<'x, <Self::From as ::rust_query::Table>::Schema>,
+                    prev: ::rust_query::Row<'x, Self::From>,
+                    reader: ::rust_query::private::Reader<'_, <Self::From as ::rust_query::Table>::Schema>,
                 ) {
                     #(#into_new;)*
                 }
@@ -372,22 +369,15 @@ fn define_table_migration(
                 type FromSchema = _PrevSchema;
                 type Update<'a> = #migration_name<#generic>;
 
-                fn into_new<'x>(migrated: Self::Update<'x>, reader: ::rust_query::private::Reader<'x, Self::FromSchema>) {
+                fn into_new<'x>(migrated: Self::Update<'x>, reader: ::rust_query::private::Reader<'_, Self::FromSchema>) {
                     #(#into_new;)*
-                }
-            }
-
-            impl #migration_name<#generic_unnamed> {
-                pub fn empty<'a>(rows: &mut ::rust_query::Rows<'a, _PrevSchema>) -> #migration_name<#generic> {
-                    #migration_name {
-                        #(#empty_init,)*
-                    }
                 }
             }
         }
     };
 
     let migration = quote! {
+        // #[derive(::rust_query::FromDummy)]
         pub struct #migration_name<#generic> {
             #(#defs,)*
         }
@@ -597,11 +587,11 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(#table_defs,)*
                     }
 
-                    impl<#lifetime> ::rust_query::private::Migration for #schema<#lifetime> {
+                    impl<'t> ::rust_query::private::Migration<'t> for #schema<#lifetime> {
                         type From = _PrevSchema;
                         type To = super::#schema;
 
-                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'_>) {
+                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#tables;)*
                         }
                     }

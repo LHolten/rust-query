@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
     migration::{schema, NoTable, Prepare},
-    Database, DynValue, Table, ThreadToken, Value,
+    Database, Dummy, DynValue, Table, ThreadToken, Value,
 };
 
 pub use v2::*;
@@ -142,25 +142,28 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
     let artist_title = HashMap::from([("a", "b")]);
     let m = m.migrate(t, |db| v1::update::Schema {
         playlist_track: Box::new(|pt| v1::update::PlaylistTrackMigration {
-            playlist: pt.playlist(),
+            playlist: db.query_one(pt.playlist()),
         }),
-        listens_to: Box::new(v1::update::ListensToMigration::empty),
-        genre_new: Box::new(|rows| {
+        listens_to: Box::new(vec![].into_iter()),
+        genre_new: Box::new(db.query(|rows| {
             let genre = v0::Genre::join(rows);
-            v1::update::GenreNewMigration { name: genre.name() }
-        }),
+            rows.into_vec(
+                genre
+                    .name()
+                    .map(|name| v1::update::GenreNewMigration { name }),
+            )
+            .into_iter()
+        })),
     });
 
     let m = m.migrate(t, |db| v2::update::Schema {
-        customer: Box::new(|customer| v2::update::CustomerMigration {
-            phone: Some(42i64).into_dyn(),
-        }),
+        customer: Box::new(|customer| v2::update::CustomerMigration { phone: Some(42i64) }),
         track: Box::new(|track| v2::update::TrackMigration {
-            media_type: track.media_type().name(),
-            composer_table: None::<NoTable>.into_dyn(),
-            byte_price: 0.5f64.into_dyn(),
+            media_type: db.query_one(track.media_type().name()),
+            composer_table: None::<NoTable>,
+            byte_price: 0.5f64,
         }),
-        composer: Box::new(v2::update::ComposerMigration::empty),
+        composer: Box::new(vec![].into_iter()),
     });
 
     m.finish(t).unwrap()

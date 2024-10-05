@@ -1,5 +1,3 @@
-use std::ops::Not;
-
 use crate::Unique;
 
 use super::make_generic;
@@ -66,11 +64,14 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let mut reads = vec![];
     let mut def_typs = vec![];
     let mut col_defs = vec![];
+    let mut generics = vec![];
+    let mut bounds = vec![];
 
     for col in columns.values() {
         let typ = &col.typ;
         let ident = &col.name;
         let ident_str = ident.to_string();
+        let generic = make_generic(ident);
         defs.push(quote! {
             pub fn #ident<'t>(&self) -> ::rust_query::DynValue<'t, #schema, #typ>
             where
@@ -82,12 +83,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
-        col_defs.push(quote! {pub #ident: <#typ as ::rust_query::private::MyTyp>::In<'a>});
+        col_defs.push(quote! {pub #ident: #generic});
+        bounds.push(quote! {#generic: ::rust_query::Value<'static, #schema, Typ = #typ>});
+        generics.push(generic);
     }
 
     let dummy_ident = format_ident!("{}Dummy", table_ident);
-
-    let generic = col_defs.is_empty().not().then_some(quote! {'a});
 
     Ok(quote! {
         #[repr(transparent)]
@@ -111,11 +112,11 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             const NAME: &'static str = #table_name;
         }
 
-        pub struct #dummy_ident<#generic> {
+        pub struct #dummy_ident<#(#generics),*> {
             #(#col_defs),*
         }
 
-        impl<#generic> ::rust_query::private::Writable for #dummy_ident<#generic> {
+        impl<#(#bounds),*> ::rust_query::private::Writable for #dummy_ident<#(#generics),*> {
             type T = #table_ident;
             fn read(self, f: ::rust_query::private::Reader<'_, #schema>) {
                 #(#reads;)*
