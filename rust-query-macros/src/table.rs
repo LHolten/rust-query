@@ -115,9 +115,9 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             #(#col_defs),*
         }
 
-        impl<'x, #generic> ::rust_query::private::Writable<'x> for #dummy_ident<#generic> {
+        impl<#generic> ::rust_query::private::Writable for #dummy_ident<#generic> {
             type T = #table_ident;
-            fn read(self, f: ::rust_query::private::Reader<'x, #schema>) {
+            fn read(self, f: ::rust_query::private::Reader<'_, #schema>) {
                 #(#reads;)*
             }
         }
