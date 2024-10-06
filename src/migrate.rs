@@ -24,6 +24,7 @@ use crate::{
 pub type M<'a, From, To> = Box<
     dyn 'a
         + for<'t> FnOnce(
+            [&'t &'a (); 0],
             ::rust_query::DynValue<'t, <From as Table>::Schema, From>,
         ) -> Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
 >;
@@ -31,6 +32,7 @@ pub type M<'a, From, To> = Box<
 pub type C<'a, FromSchema, To> = Box<
     dyn 'a
         + for<'t> FnOnce(
+            [&'t &'a (); 0],
             &mut Rows<'t, FromSchema>,
         )
             -> Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
@@ -129,7 +131,7 @@ impl<'a> SchemaBuilder<'a> {
     pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
         self.create_inner::<From::Schema, To>(|[], rows| {
             let db_id = From::join(rows);
-            let migration = m(db_id.clone());
+            let migration = m([], db_id.clone());
             Box::new(Wrapper(migration, db_id))
         });
 
@@ -141,7 +143,7 @@ impl<'a> SchemaBuilder<'a> {
     }
 
     pub fn create_from<FromSchema, To: Table>(&mut self, f: C<'a, FromSchema, To>) {
-        self.create_inner::<FromSchema, To>(|[], x| f(x));
+        self.create_inner::<FromSchema, To>(|[], x| f([], x));
     }
 
     fn create_inner<FromSchema, To: Table>(

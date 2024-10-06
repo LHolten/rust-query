@@ -71,6 +71,8 @@ enum Schema {
     #[version(1..)]
     GenreNew {
         name: String,
+        #[version(2..)]
+        extra: i64,
     },
     Invoice {
         customer: Customer,
@@ -139,32 +141,33 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
         ])
         .unwrap();
 
-    let artist_title = HashMap::from([("a", "b")]);
+    let genre_extra = HashMap::from([("rock", 10)]);
     let m = m.migrate(t, |_| v1::update::Schema {
-        playlist_track: Box::new(|pt| {
+        playlist_track: Box::new(|[], pt| {
             Box::new(v1::update::PlaylistTrackMigration {
                 playlist: pt.playlist(),
             })
         }),
-        listens_to: Box::new(|rows| {
+        listens_to: Box::new(|[], rows| {
             Box::new(v1::update::ListensToMigration {
                 employee: rows.empty::<v0::Employee>(),
                 artist: rows.empty::<v0::Artist>(),
             })
         }),
-        genre_new: Box::new(|rows| {
+        genre_new: Box::new(|[], rows| {
             let genre = v0::Genre::join(rows);
             Box::new(v1::update::GenreNewMigration { name: genre.name() })
         }),
     });
 
     let m = m.migrate(t, |_| v2::update::Schema {
-        customer: Box::new(|customer| {
+        customer: Box::new(|[], customer| {
             Box::new(v2::update::CustomerMigration {
-                phone: 0.map(|x| Some(x)), // customer.phone().map(|x| x.and_then(|x| x.parse().ok())),
+                // lets do some cursed phone number parsing :D
+                phone: customer.phone().map(|x| x.and_then(|x| x.parse().ok())),
             })
         }),
-        track: Box::new(|track| {
+        track: Box::new(|[], track| {
             Box::new(v2::update::TrackMigration {
                 media_type: track.media_type().name(),
                 composer_table: None::<NoTable>,
@@ -172,9 +175,16 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
                     .map(|(price, bytes)| price as f64 / bytes as f64),
             })
         }),
-        composer: Box::new(|rows| {
+        composer: Box::new(|[], rows| {
             Box::new(v2::update::ComposerMigration {
                 name: rows.empty::<String>(),
+            })
+        }),
+        genre_new: Box::new(|[], genre| {
+            Box::new(v2::update::GenreNewMigration {
+                extra: genre
+                    .name()
+                    .map(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
             })
         }),
     });
