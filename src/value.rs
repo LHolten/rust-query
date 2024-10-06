@@ -313,7 +313,6 @@ pub trait MyTyp: 'static {
     const FK: Option<(&'static str, &'static str)> = None;
     #[doc(hidden)]
     type Out<'t>: FromSql;
-    type In<'t>;
     #[doc(hidden)]
     type Sql;
 }
@@ -322,35 +321,30 @@ impl<T: Table> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = Row<'t, Self>;
-    type In<'t> = Row<'t, Self>;
     type Sql = i64;
 }
 
 impl MyTyp for i64 {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
-    type In<'t> = Self;
     type Sql = i64;
 }
 
 impl MyTyp for f64 {
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
-    type In<'t> = Self;
     type Sql = f64;
 }
 
 impl MyTyp for bool {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
-    type In<'t> = Self;
     type Sql = bool;
 }
 
 impl MyTyp for String {
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
-    type In<'t> = &'t str;
     type Sql = String;
 }
 
@@ -359,14 +353,12 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out<'t> = Option<T::Out<'t>>;
-    type In<'t> = Option<T::In<'t>>;
     type Sql = T::Sql;
 }
 
 impl MyTyp for NoTable {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = NoTable;
-    type In<'t> = NoTable;
     type Sql = i64;
 }
 
