@@ -59,9 +59,9 @@ impl<'t, 'a> Row<'_, 't, 'a> {
 /// Implement it using the derive proc macro on a struct.
 pub trait Dummy<'t, 'a, S>: Sized {
     type Out;
-    fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out;
+    fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't;
 
-    fn map<T>(self, f: impl FnMut(Self::Out) -> T) -> impl Dummy<'t, 'a, S, Out = T> {
+    fn map<T>(self, f: impl FnMut(Self::Out) -> T + 't) -> impl Dummy<'t, 'a, S, Out = T> {
         DummyMap(self, f)
     }
 }
@@ -71,11 +71,14 @@ struct DummyMap<A, F>(A, F);
 impl<'t, 'a, S, A, F, T> Dummy<'t, 'a, S> for DummyMap<A, F>
 where
     A: Dummy<'t, 'a, S>,
-    F: FnMut(A::Out) -> T,
+    F: FnMut(A::Out) -> T + 't,
 {
     type Out = T;
 
-    fn prepare(mut self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+    fn prepare(
+        mut self,
+        cacher: Cacher<'_, 't, S>,
+    ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
         let mut cached = self.0.prepare(cacher);
         move |row| self.1(cached(row))
     }
@@ -84,7 +87,10 @@ where
 impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
-    fn prepare(self, mut cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+    fn prepare(
+        self,
+        mut cacher: Cacher<'_, 't, S>,
+    ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
         let cached = cacher.cache(self);
         move |row| row.get(cached)
     }
@@ -93,7 +99,7 @@ impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
 impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (A, B) {
     type Out = (A::Out, B::Out);
 
-    fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+    fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
         move |row| (prepared_a(row), prepared_b(row))
@@ -125,7 +131,7 @@ mod tests {
         fn prepare(
             self,
             mut cacher: Cacher<'_, 't, S>,
-        ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out {
+        ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
             move |row| User {

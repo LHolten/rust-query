@@ -46,7 +46,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         impl<'_t, '_a #(,#original_generics)*, S #(,#constraints)*> ::rust_query::private::Dummy<'_t, '_a, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
 
-            fn prepare(self, mut cacher: ::rust_query::private::Cacher<'_, '_t, S>) -> impl FnMut(::rust_query::private::Row<'_, '_t, '_a>) -> Self::Out {
+            fn prepare(self, mut cacher: ::rust_query::private::Cacher<'_, '_t, S>) -> impl FnMut(::rust_query::private::Row<'_, '_t, '_a>) -> Self::Out + '_t {
                 #(#prepared;)*
                 move |row| #name {
                     #(#inits,)*

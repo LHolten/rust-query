@@ -140,7 +140,7 @@ impl<'a> SchemaBuilder<'a> {
         );
     }
 
-    pub fn create_from<FromSchema: Table, To: Table>(&mut self, f: C<'a, FromSchema, To>) {
+    pub fn create_from<FromSchema, To: Table>(&mut self, f: C<'a, FromSchema, To>) {
         self.create_inner::<FromSchema, To>(|[], x| f(x));
     }
 

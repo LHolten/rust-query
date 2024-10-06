@@ -140,30 +140,43 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
         .unwrap();
 
     let artist_title = HashMap::from([("a", "b")]);
-    let m = m.migrate(t, |db| v1::update::Schema {
-        playlist_track: Box::new(|pt| v1::update::PlaylistTrackMigration {
-            playlist: db.query_one(pt.playlist()),
+    let m = m.migrate(t, |_| v1::update::Schema {
+        playlist_track: Box::new(|pt| {
+            Box::new(v1::update::PlaylistTrackMigration {
+                playlist: pt.playlist(),
+            })
         }),
-        listens_to: Box::new(vec![].into_iter()),
-        genre_new: Box::new(db.query(|rows| {
+        listens_to: Box::new(|rows| {
+            Box::new(v1::update::ListensToMigration {
+                employee: rows.empty::<v0::Employee>(),
+                artist: rows.empty::<v0::Artist>(),
+            })
+        }),
+        genre_new: Box::new(|rows| {
             let genre = v0::Genre::join(rows);
-            rows.into_vec(
-                genre
-                    .name()
-                    .map(|name| v1::update::GenreNewMigration { name }),
-            )
-            .into_iter()
-        })),
+            Box::new(v1::update::GenreNewMigration { name: genre.name() })
+        }),
     });
 
-    let m = m.migrate(t, |db| v2::update::Schema {
-        customer: Box::new(|customer| v2::update::CustomerMigration { phone: Some(42i64) }),
-        track: Box::new(|track| v2::update::TrackMigration {
-            media_type: db.query_one(track.media_type().name()),
-            composer_table: None::<NoTable>,
-            byte_price: 0.5f64,
+    let m = m.migrate(t, |_| v2::update::Schema {
+        customer: Box::new(|customer| {
+            Box::new(v2::update::CustomerMigration {
+                phone: 0.map(|x| Some(x)), // customer.phone().map(|x| x.and_then(|x| x.parse().ok())),
+            })
         }),
-        composer: Box::new(vec![].into_iter()),
+        track: Box::new(|track| {
+            Box::new(v2::update::TrackMigration {
+                media_type: track.media_type().name(),
+                composer_table: None::<NoTable>,
+                byte_price: (track.unit_price(), track.bytes())
+                    .map(|(price, bytes)| price as f64 / bytes as f64),
+            })
+        }),
+        composer: Box::new(|rows| {
+            Box::new(v2::update::ComposerMigration {
+                name: rows.empty::<String>(),
+            })
+        }),
     });
 
     m.finish(t).unwrap()

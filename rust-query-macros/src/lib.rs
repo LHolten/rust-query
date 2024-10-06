@@ -323,17 +323,27 @@ fn define_table_migration(
 ) -> Option<TokenStream> {
     let mut defs = vec![];
     let mut into_new = vec![];
+    let mut generics = vec![];
+    let mut bounds = vec![];
+    let mut prepare = vec![];
     let prev_columns_uwrapped = prev_columns.unwrap_or(const { &BTreeMap::new() });
 
     for (i, col) in &table.columns {
         let name = &col.name;
+        let prepared_name = format_ident!("prepared_{name}");
         let name_str = col.name.to_string();
         let typ = &col.typ;
+        let generic = make_generic(name);
         if prev_columns_uwrapped.contains_key(i) {
             into_new.push(quote! {reader.col(#name_str, prev.#name())});
         } else {
-            defs.push(quote! {pub #name: <#typ as ::rust_query::private::MyTyp>::Out<'a>});
-            into_new.push(quote! {reader.col(#name_str, migrated.#name)});
+            defs.push(quote! {pub #name: #generic});
+            bounds.push(quote! {#generic: 't + ::rust_query::Dummy<'t, 'a, _PrevSchema, Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>>});
+            generics.push(generic);
+            prepare.push(
+                quote! {let mut #prepared_name = ::rust_query::Dummy::prepare(self.#name, cacher)},
+            );
+            into_new.push(quote! {reader.col(#name_str, #prepared_name(row))});
         }
     }
 
@@ -346,39 +356,57 @@ fn define_table_migration(
     let table_name = &table.name;
     let migration_name = format_ident!("{table_name}Migration");
     let prev_typ = quote! {#table_name};
-    let generic = defs.is_empty().not().then_some(quote! {'a});
 
     let trait_impl = if prev_columns.is_some() {
         quote! {
-            impl ::rust_query::private::TableMigration for super::#table_name {
+            impl<'t, 'a #(,#bounds)*> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<#(#generics),*> {
                 type From = #prev_typ;
-                type Update<'a> = #migration_name<#generic>;
+                type To = super::#table_name;
 
-                fn into_new<'x>(
-                    migrated: Self::Update<'x>,
-                    prev: ::rust_query::Row<'x, Self::From>,
-                    reader: ::rust_query::private::Reader<'_, <Self::From as ::rust_query::Table>::Schema>,
-                ) {
-                    #(#into_new;)*
+                fn prepare(
+                    self: Box<Self>,
+                    prev: ::rust_query::private::Cached<'t, Self::From>,
+                    cacher: ::rust_query::private::Cacher<'_, 't, <Self::From as ::rust_query::Table>::Schema>,
+                ) -> Box<
+                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, <Self::From as ::rust_query::Table>::Schema>) + 't,
+                >
+                where
+                    'a: 't
+                {
+                    #(#prepare;)*
+                    Box::new(move |row, reader| {
+                        let prev = row.get(prev);
+                        #(#into_new;)*
+                    })
                 }
             }
         }
     } else {
         quote! {
-            impl ::rust_query::private::TableCreation for super::#table_name {
+            impl<'t, 'a #(,#bounds)*> ::rust_query::private::TableCreation<'t, 'a> for #migration_name<#(#generics),*>{
                 type FromSchema = _PrevSchema;
-                type Update<'a> = #migration_name<#generic>;
+                type To = super::#table_name;
 
-                fn into_new<'x>(migrated: Self::Update<'x>, reader: ::rust_query::private::Reader<'_, Self::FromSchema>) {
-                    #(#into_new;)*
+                fn prepare(
+                    self: Box<Self>,
+                    cacher: ::rust_query::private::Cacher<'_, 't, Self::FromSchema>,
+                ) -> Box<
+                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, Self::FromSchema>) + 't,
+                >
+                where
+                    'a: 't
+                {
+                    #(#prepare;)*
+                    Box::new(move |row, reader| {
+                        #(#into_new;)*
+                    })
                 }
             }
         }
     };
 
     let migration = quote! {
-        // #[derive(::rust_query::FromDummy)]
-        pub struct #migration_name<#generic> {
+        pub struct #migration_name<#(#generics),*> {
             #(#defs,)*
         }
 
@@ -522,9 +550,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: ::rust_query::private::M<'t, super::#table_name>
+                    pub #table_lower: ::rust_query::private::M<'t, #table_name, super::#table_name>
                 });
-                tables.push(quote! {b.migrate_table::<super::#table_name>(self.#table_lower)});
+                tables.push(quote! {b.migrate_table(self.#table_lower)});
             } else {
                 let Some(migration) = define_table_migration(None, table) else {
                     return Err(syn::Error::new_spanned(
@@ -535,9 +563,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 table_defs.push(quote! {
-                    pub #table_lower: ::rust_query::private::C<'t, super::#table_name>
+                    pub #table_lower: ::rust_query::private::C<'t, _PrevSchema, super::#table_name>
                 });
-                tables.push(quote! {b.create_from::<super::#table_name>(self.#table_lower)});
+                tables.push(quote! {b.create_from(self.#table_lower)});
             }
         }
         for prev_table in prev_tables.into_values() {
