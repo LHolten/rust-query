@@ -133,15 +133,6 @@ mod table;
 ///     score: i64,
 /// }
 /// ```
-/// You can create a table from another table with the `create_from` attribute
-/// ```rust,ignore
-/// #[version(1..)]
-/// #[create_from(user)]
-/// UserAlias {
-///     user: User,
-///     name: String,
-/// }
-/// ```
 #[proc_macro_attribute]
 pub fn schema(
     attr: proc_macro::TokenStream,
@@ -438,7 +429,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         for (i, table) in item.variants.iter().enumerate() {
             let mut other_attrs = vec![];
             let mut uniques = vec![];
-            let mut prev = None;
             for attr in &table.attrs {
                 if let Some(unique) = is_unique(attr.path()) {
                     let idents = attr.parse_args_with(
@@ -448,15 +438,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         name: unique,
                         columns: idents.into_iter().collect(),
                     })
-                } else if attr.path().is_ident("create_from") {
-                    let new_prev = attr.parse_args()?;
-                    if prev.is_some() {
-                        return Err(syn::Error::new_spanned(
-                            attr,
-                            "expected at most one `created_from`",
-                        ));
-                    }
-                    prev = new_prev;
                 } else {
                     other_attrs.push(attr.clone());
                 }
@@ -466,6 +447,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             if !range.includes(version) {
                 continue;
             }
+            let mut prev = None;
             // if this is not the first schema version where this table exists
             if version != range.start {
                 // the previous name of this table is the current name
@@ -557,7 +539,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 let Some(migration) = define_table_migration(None, table) else {
                     return Err(syn::Error::new_spanned(
                         &table.name,
-                        "can not use `create_from` on an empty table",
+                        "can not create empty table",
                     ));
                 };
                 table_migrations.extend(migration);

@@ -208,17 +208,6 @@ impl<'a> SchemaBuilder<'a> {
         let step = sea_query::Table::drop().table(name).take();
         self.drop.push(step);
     }
-
-    pub fn new_table<T: Table>(&mut self) {
-        let new_table_name = self.scope.tmp_table();
-        new_table::<T>(self.conn, new_table_name);
-
-        self.rename.push(
-            sea_query::Table::rename()
-                .table(new_table_name, Alias::new(T::NAME))
-                .take(),
-        );
-    }
 }
 
 fn new_table<T: Table>(conn: &Connection, alias: TmpTable) {
