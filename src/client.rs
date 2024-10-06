@@ -23,10 +23,10 @@ pub(crate) fn private_exec<'s, F, R, S>(conn: &rusqlite::Connection, f: F) -> R
 where
     F: for<'a> FnOnce(&'a mut Query<'s, 'a, S>) -> R,
 {
-    let mut ast = MySelect::default();
+    let ast = MySelect::default();
     let q = Rows {
         phantom: PhantomData,
-        ast: &mut ast,
+        ast,
     };
     f(&mut Query {
         q,

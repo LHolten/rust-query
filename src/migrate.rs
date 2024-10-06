@@ -12,23 +12,29 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
-    client::QueryBuilder,
+    dummy::{Cached, Cacher},
     hash,
     insert::Reader,
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, Table, Transaction, Value,
+    value, DynValue, Rows, Table, Transaction, Value,
 };
 
-pub type M<'t, B> = Box<
-    dyn 't
-        + FnMut(
-            ::rust_query::Row<'t, <B as TableMigration>::From>,
-        ) -> <B as TableMigration>::Update<'t>,
+pub type M<'a, From, To> = Box<
+    dyn 'a
+        + for<'t> FnOnce(
+            ::rust_query::DynValue<'t, <From as Table>::Schema, From>,
+        ) -> Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
 >;
 
-pub type C<'t, B> = Box<dyn 't + Iterator<Item = <B as TableCreation>::Update<'t>>>;
+pub type C<'a, FromSchema, To> = Box<
+    dyn 'a
+        + for<'t> FnOnce(
+            &mut Rows<'t, FromSchema>,
+        )
+            -> Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
+>;
 
 #[derive(Default)]
 pub struct TableTypBuilder {
@@ -49,110 +55,149 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder);
 }
 
-pub trait TableMigration: Table {
+pub trait TableMigration<'t, 'a> {
     type From: Table;
-    type Update<'x>;
+    type To: Table;
 
-    fn into_new<'x>(
-        new: Self::Update<'x>,
-        prev: crate::Row<'x, Self::From>,
-        reader: Reader<'_, <Self::From as Table>::Schema>,
-    );
+    fn prepare(
+        self: Box<Self>,
+        prev: Cached<'t, Self::From>,
+        cacher: Cacher<'_, 't, <Self::From as Table>::Schema>,
+    ) -> Box<
+        dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, <Self::From as Table>::Schema>) + 't,
+    >
+    where
+        'a: 't;
 }
 
-pub trait TableCreation: Table {
+pub trait TableCreation<'t, 'a> {
     type FromSchema;
-    type Update<'x>;
+    type To: Table;
 
-    fn into_new<'x>(new: Self::Update<'x>, reader: Reader<'_, Self::FromSchema>);
+    fn prepare(
+        self: Box<Self>,
+        cacher: Cacher<'_, 't, Self::FromSchema>,
+    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, Self::FromSchema>) + 't>
+    where
+        'a: 't;
 }
 
-pub struct SchemaBuilder<'x> {
+struct Wrapper<'t, 'a, From: Table, To>(
+    Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
+    DynValue<'t, From::Schema, From>,
+);
+
+impl<'t, 'a, From: Table, To: Table> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
+    type FromSchema = From::Schema;
+    type To = To;
+
+    fn prepare(
+        self: Box<Self>,
+        mut cacher: Cacher<'_, 't, Self::FromSchema>,
+    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, Self::FromSchema>) + 't>
+    where
+        'a: 't,
+    {
+        let db_id = cacher.cache(self.1);
+        let mut prepared = Box::new(self.0).prepare(db_id, cacher);
+        Box::new(move |row, reader| {
+            // keep the ID the same
+            reader.col(From::ID, row.get(db_id));
+            prepared(row, reader);
+        })
+    }
+}
+
+impl<'inner, S> Rows<'inner, S> {
+    fn cacher<'t>(&'_ self) -> Cacher<'_, 't, S> {
+        Cacher {
+            ast: &self.ast,
+            _p: PhantomData,
+        }
+    }
+}
+
+pub struct SchemaBuilder<'a> {
     // this is used to create temporary table names
     scope: Scope,
-    conn: &'x rusqlite::Transaction<'x>,
+    conn: &'a rusqlite::Transaction<'a>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
 }
 
-impl<'x> SchemaBuilder<'x> {
-    pub fn migrate_table<B: TableMigration>(&mut self, mut m: M<'x, B>) {
-        let new_table_name = self.scope.tmp_table();
-        new_table::<B>(self.conn, new_table_name);
-
-        self.rename.push(
-            sea_query::Table::rename()
-                .table(new_table_name, Alias::new(B::NAME))
-                .take(),
-        );
-
-        for db_id in self.conn.new_query(|rows| {
-            let id = B::From::join(rows);
-            rows.into_vec(id)
-        }) {
-            let ast = MySelect::default();
-
-            let reader = Reader {
-                ast: &ast,
-                _p: PhantomData,
-            };
-            // keep the ID the same
-            reader.col(B::From::ID, db_id);
-
-            let res = m(db_id);
-            B::into_new(res, db_id, reader);
-
-            let new_select = ast.simple();
-
-            let mut insert = InsertStatement::new();
-            let names = ast.select.iter().map(|(_field, name)| *name);
-            insert.into_table(new_table_name);
-            insert.columns(names);
-            insert.select_from(new_select).unwrap();
-
-            let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
-
-            self.conn.execute(&sql, &*values.as_params()).unwrap();
-        }
+impl<'a> SchemaBuilder<'a> {
+    pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
+        self.create_inner::<From::Schema, To>(|[], rows| {
+            let db_id = From::join(rows);
+            let migration = m(db_id.clone());
+            Box::new(Wrapper(migration, db_id))
+        });
 
         self.drop.push(
             sea_query::Table::drop()
-                .table(Alias::new(B::From::NAME))
+                .table(Alias::new(From::NAME))
                 .take(),
         );
     }
 
-    pub fn create_from<B: TableCreation>(&mut self, f: C<'x, B>) {
+    pub fn create_from<FromSchema: Table, To: Table>(&mut self, f: C<'a, FromSchema, To>) {
+        self.create_inner::<FromSchema, To>(|[], x| f(x));
+    }
+
+    fn create_inner<FromSchema, To: Table>(
+        &mut self,
+        f: impl for<'t> FnOnce(
+            [&'t &'a (); 0],
+            &mut Rows<'t, FromSchema>,
+        )
+            -> Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
+    ) {
         let new_table_name = self.scope.tmp_table();
-        new_table::<B>(self.conn, new_table_name);
+        new_table::<To>(self.conn, new_table_name);
 
         self.rename.push(
             sea_query::Table::rename()
-                .table(new_table_name, Alias::new(B::NAME))
+                .table(new_table_name, Alias::new(To::NAME))
                 .take(),
         );
 
-        for res in f {
-            let ast = MySelect::default();
+        let mut q = Rows::<FromSchema> {
+            phantom: PhantomData,
+            ast: MySelect::default(),
+        };
+        let create = f([], &mut q);
+        let mut prepared = create.prepare(q.cacher());
 
-            let reader = Reader {
-                ast: &ast,
+        let select = q.ast.simple();
+        let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
+
+        // no caching here, migration is only executed once
+        let mut statement = self.conn.prepare(&sql).unwrap();
+        let mut rows = statement.query(&*values.as_params()).unwrap();
+
+        while let Some(row) = rows.next().unwrap() {
+            let row = crate::private::Row {
                 _p: PhantomData,
+                _p2: PhantomData,
+                row,
             };
 
-            B::into_new(res, reader);
-
-            let new_select = ast.simple();
+            let new_ast = MySelect::default();
+            let reader = Reader {
+                ast: &new_ast,
+                _p: PhantomData,
+            };
+            prepared(row, reader);
 
             let mut insert = InsertStatement::new();
-            let names = ast.select.iter().map(|(_field, name)| *name);
+            let names = new_ast.select.iter().map(|(_field, name)| *name);
             insert.into_table(new_table_name);
             insert.columns(names);
-            insert.select_from(new_select).unwrap();
+            insert.select_from(new_ast.simple()).unwrap();
 
             let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
-
-            self.conn.execute(&sql, &*values.as_params()).unwrap();
+            let mut statement = self.conn.prepare_cached(&sql).unwrap();
+            statement.execute(&*values.as_params()).unwrap();
         }
     }
 
@@ -190,11 +235,11 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
     conn.execute(&sql, []).unwrap();
 }
 
-pub trait Migration<'t> {
+pub trait Migration<'a> {
     type From: Schema;
     type To: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder<'t>);
+    fn tables(self, b: &mut SchemaBuilder<'a>);
 }
 
 /// [Prepare] is used to open a database from a file or in memory.

@@ -21,8 +21,7 @@ use crate::{
 pub struct Rows<'inner, S> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner S) -> &'inner S>,
-    // TODO: inline this
-    pub(crate) ast: &'inner mut MySelect,
+    pub(crate) ast: MySelect,
 }
 
 impl<'inner, S> Rows<'inner, S> {

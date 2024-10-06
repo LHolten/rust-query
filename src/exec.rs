@@ -50,7 +50,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     {
         let mut f = dummy.prepare(Cacher {
             _p: PhantomData,
-            ast: self.ast,
+            ast: &self.ast,
         });
 
         let select = self.ast.simple();

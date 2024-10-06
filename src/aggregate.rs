@@ -181,10 +181,10 @@ pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
     F: for<'a> FnOnce(&'a mut Aggregate<'outer, 'a, S>) -> R,
 {
-    let mut ast = MySelect::default();
+    let ast = MySelect::default();
     let inner = Rows {
         phantom: PhantomData,
-        ast: &mut ast,
+        ast,
     };
     let mut group = Aggregate {
         conds: Vec::new(),
