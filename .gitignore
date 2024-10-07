@@ -1,4 +1,5 @@
 /target
+/docs
 Chinook_Sqlite.sql
 Chinook_Sqlite.sqlite
 test.db

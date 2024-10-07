@@ -22,7 +22,7 @@ proc-macro2 = "1.0.79"
 heck = "0.5.0"
 expect-test = "1"
 k12 = "0.3"
-rust-query-macros = { path = "rust-query-macros" }
+rust-query-macros = { path = "rust-query-macros", version = "0.2.0" }
 ouroboros = "0.18.4"
 ref-cast = "1.0.23"
 pretty_assertions = "1.4.0"
