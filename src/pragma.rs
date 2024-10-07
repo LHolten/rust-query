@@ -150,9 +150,9 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
 
     let tables = conn.new_query(|q| {
         let table = q.join_custom(TableList);
-        q.filter(table.schema().eq("main"));
-        q.filter(table.r#type().eq("table"));
-        q.filter(table.name().eq("sqlite_schema").not());
+        q.filter(table.schema().into_column().eq("main"));
+        q.filter(table.r#type().into_column().eq("table"));
+        q.filter(table.name().into_column().eq("sqlite_schema").not());
         q.into_vec(table.name())
     });
 
@@ -165,8 +165,8 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             q.into_vec(ColumnDummy {
                 name: table.name(),
                 typ: table.r#type(),
-                pk: table.pk().eq(0).not(),
-                notnull: table.notnull().eq(0).not(),
+                pk: table.pk().into_column().eq(0).not(),
+                notnull: table.notnull().into_column().eq(0).not(),
             })
         });
 
@@ -208,8 +208,8 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         let uniques = conn.new_query(|q| {
             let index = q.join_custom(IndexList(table_name.clone()));
             q.filter(index.unique());
-            q.filter(index.origin().eq("u"));
-            q.filter(index.partial().not());
+            q.filter(index.origin().into_column().eq("u"));
+            q.filter(index.partial().into_column().not());
             q.into_vec(index.name())
         });
 

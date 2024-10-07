@@ -117,49 +117,42 @@ pub trait IntoColumn<'t, S>: Typed + Clone {
     fn into_column(self) -> Column<'t, S, Self::Typ> {
         Column(Rc::new(self.into_owned()), PhantomData)
     }
+}
 
+impl<'t, S, T: NumTyp> Column<'t, S, T> {
     /// Add two columns together.
-    fn add(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, Self::Typ>
-    where
-        Self::Typ: NumTyp,
-    {
+    pub fn add(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, T> {
         Add(self, rhs).into_column()
     }
 
     /// Compute the less than operator of two columns.
-    fn lt(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, bool>
-    where
-        Self::Typ: NumTyp,
-    {
+    pub fn lt(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, bool> {
         Lt(self, rhs).into_column()
     }
+}
 
+impl<'t, S, T: EqTyp + 't> Column<'t, S, T> {
     /// Check whether two columns are equal.
-    fn eq(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, bool>
-    where
-        Self::Typ: EqTyp,
-    {
+    pub fn eq(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, bool> {
         Eq(self, rhs).into_column()
     }
+}
 
+impl<'t, S> Column<'t, S, bool> {
     /// Checks whether a column is false.
-    fn not(&self) -> Column<'t, S, bool>
-    where
-        Self: IntoColumn<'t, S, Typ = bool>,
-    {
+    pub fn not(&self) -> Column<'t, S, bool> {
         Not(self).into_column()
     }
 
     /// Check if two columns are both true.
-    fn and(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool>
-    where
-        Self: IntoColumn<'t, S, Typ = bool>,
-    {
+    pub fn and(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool> {
         And(self, rhs).into_column()
     }
+}
 
+impl<'t, S, Typ: 't> Column<'t, S, Option<Typ>> {
     /// Use the first column if it is [Some], otherwise use the second column.
-    fn unwrap_or<Typ>(&self, rhs: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ>
+    pub fn unwrap_or(&self, rhs: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ>
     where
         Self: IntoColumn<'t, S, Typ = Option<Typ>>,
     {
@@ -167,18 +160,14 @@ pub trait IntoColumn<'t, S>: Typed + Clone {
     }
 
     /// Check that the column is [Some].
-    fn is_some<Typ>(&self) -> Column<'t, S, bool>
-    where
-        Self: IntoColumn<'t, S, Typ = Option<Typ>>,
-    {
+    pub fn is_some(&self) -> Column<'t, S, bool> {
         IsNotNull(self).into_column()
     }
+}
 
+impl<'t, S> Column<'t, S, i64> {
     /// Convert the [i64] column to [f64] type.
-    fn as_float(&self) -> Column<'t, S, f64>
-    where
-        Self: IntoColumn<'t, S, Typ = i64>,
-    {
+    pub fn as_float(&self) -> Column<'t, S, f64> {
         AsFloat(self).into_column()
     }
 }
@@ -386,8 +375,7 @@ impl FromSql for NoTable {
 /// - The type parameter `S` specifies the expected schema of the query.
 /// - And finally the type paramter `T` specifies the type of the column.
 ///
-/// [Column] inherits some methods from [IntoColumn] for simple types and it implements
-/// [Deref] to have table extension methods in case the type is a table type.
+/// [Column] implements [Deref] to have table extension methods in case the type is a table type.
 pub struct Column<'t, S, T>(
     pub(crate) Rc<dyn Typed<Typ = T> + 't>,
     pub(crate) PhantomData<fn(&'t S) -> &'t S>,

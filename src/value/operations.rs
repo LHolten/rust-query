@@ -50,6 +50,17 @@ impl<A: Typed, B: Typed> Typed for And<A, B> {
 binop! {And}
 
 #[derive(Clone, Copy)]
+pub struct Or<A, B>(pub(crate) A, pub(crate) B);
+
+impl<A: Typed, B: Typed> Typed for Or<A, B> {
+    type Typ = bool;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).or(self.1.build_expr(b))
+    }
+}
+binop! {Or}
+
+#[derive(Clone, Copy)]
 pub struct Lt<A, B>(pub(crate) A, pub(crate) B);
 
 impl<A: Typed, B: Typed> Typed for Lt<A, B> {
