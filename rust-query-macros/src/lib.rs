@@ -90,6 +90,7 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
+/// # use rust_query::Dummy;
 /// #[rust_query::migration::schema]
 /// #[version(0..=1)]
 /// enum Schema {
@@ -108,9 +109,11 @@ mod table;
 ///     let m = rust_query::migration::Prepare::open_in_memory(); // we use an in memory database for this test
 ///     let m = m.create_db_empty().expect("database is version is before supported versions");
 ///     let m = m.migrate(t, |db| v1::update::Schema {
-///         user: Box::new(|user| v1::update::UserMigration {
-///             score: db.query_one(user.email()).len() as i64 // use the email length as the new score
-///         }),
+///         user: Box::new(|user|
+///             rust_query::migration::Alter::new(v1::update::UserMigration {
+///                 score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
+///             })
+///         ),
 ///     });
 ///     m.finish(t).expect("database version is after supported versions")
 /// }
@@ -155,6 +158,20 @@ pub fn schema(
 ///
 /// Example:
 /// ```
+/// #[rust_query::migration::schema]
+/// pub enum Schema {
+///     Thing {
+///         details: Details,
+///         beta: f64,
+///         seconds: i64,
+///     },
+///     Details {
+///         name: String
+///     },
+/// }
+/// use v0::*;
+/// use rust_query::{Table, FromDummy, Transaction};
+///
 /// #[derive(FromDummy)]
 /// struct MyData {
 ///     seconds: i64,
@@ -169,19 +186,21 @@ pub fn schema(
 ///     beta: f64,
 /// }
 ///
-/// db.query(|rows| {
-///     let thing = Thing::join(rows);
+/// pub fn do_query(db: &Transaction<Schema>) -> Vec<MyData> {
+///     db.query(|rows| {
+///         let thing = Thing::join(rows);
 ///
-///     rows.into_vec(MyDataDummy {
-///         seconds: thing.seconds(),
-///         is_it_real: true,
-///         name: thing.details().name(),
-///         other: OtherDataDummy {
-///             alpha: 0.5,
-///             beta: thing.beta(),
-///         },
+///         rows.into_vec(MyDataDummy {
+///             seconds: thing.seconds(),
+///             is_it_real: true,
+///             name: thing.details().name(),
+///             other: OtherDataDummy {
+///                 alpha: 0.5,
+///                 beta: thing.beta(),
+///             },
+///         })
 ///     })
-/// })
+/// }
 /// ```
 #[proc_macro_derive(FromDummy)]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
