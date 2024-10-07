@@ -12,6 +12,7 @@ use crate::{
 };
 
 /// The primary interface to the database.
+///
 /// It allows creating read and write transactions from multiple threads.
 /// It is also safe to create multiple [Database] instances for the same database (from one or multiple processes).
 ///

@@ -102,9 +102,10 @@ pub trait Typed {
 }
 
 /// Trait for all values that can be used in queries.
+///
 /// This includes [Column]s from queries and rust values.
-/// `'t` is the context in which this value is valid.
-/// `S` is the schema in which this value is valid.
+/// - `'t` is the context in which this value is valid.
+/// - `S` is the schema in which this value is valid.
 pub trait IntoColumn<'t, S>: Typed + Clone {
     #[doc(hidden)]
     type Owned: Typed<Typ = Self::Typ> + 't;
@@ -112,64 +113,73 @@ pub trait IntoColumn<'t, S>: Typed + Clone {
     #[doc(hidden)]
     fn into_owned(self) -> Self::Owned;
 
-    fn into_value(self) -> Column<'t, S, Self::Typ> {
+    /// Turn this value into a [Column].
+    fn into_column(self) -> Column<'t, S, Self::Typ> {
         Column(Rc::new(self.into_owned()), PhantomData)
     }
 
+    /// Add two columns together.
     fn add(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, Self::Typ>
     where
         Self::Typ: NumTyp,
     {
-        Add(self, rhs).into_value()
+        Add(self, rhs).into_column()
     }
 
+    /// Compute the less than operator of two columns.
     fn lt(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, bool>
     where
         Self::Typ: NumTyp,
     {
-        Lt(self, rhs).into_value()
+        Lt(self, rhs).into_column()
     }
 
+    /// Check whether two columns are equal.
     fn eq(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, bool>
     where
         Self::Typ: EqTyp,
     {
-        Eq(self, rhs).into_value()
+        Eq(self, rhs).into_column()
     }
 
+    /// Checks whether a column is false.
     fn not(&self) -> Column<'t, S, bool>
     where
         Self: IntoColumn<'t, S, Typ = bool>,
     {
-        Not(self).into_value()
+        Not(self).into_column()
     }
 
+    /// Check if two columns are both true.
     fn and(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool>
     where
         Self: IntoColumn<'t, S, Typ = bool>,
     {
-        And(self, rhs).into_value()
+        And(self, rhs).into_column()
     }
 
+    /// Use the first column if it is [Some], otherwise use the second column.
     fn unwrap_or<Typ>(&self, rhs: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ>
     where
         Self: IntoColumn<'t, S, Typ = Option<Typ>>,
     {
-        UnwrapOr(self, rhs).into_value()
+        UnwrapOr(self, rhs).into_column()
     }
 
-    fn is_not_null<Typ>(&self) -> Column<'t, S, bool>
+    /// Check that the column is [Some].
+    fn is_some<Typ>(&self) -> Column<'t, S, bool>
     where
         Self: IntoColumn<'t, S, Typ = Option<Typ>>,
     {
-        IsNotNull(self).into_value()
+        IsNotNull(self).into_column()
     }
 
+    /// Convert the [i64] column to [f64] type.
     fn as_float(&self) -> Column<'t, S, f64>
     where
         Self: IntoColumn<'t, S, Typ = i64>,
     {
-        AsFloat(self).into_value()
+        AsFloat(self).into_column()
     }
 }
 

@@ -15,7 +15,7 @@ use crate::{
         operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, IntoColumn, MyTyp, NumTyp, Typed, ValueBuilder,
     },
-    Table, Column,
+    Column, Table,
 };
 
 /// This is the argument type used for aggregates.
@@ -80,7 +80,7 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
         val: impl IntoColumn<'inner, S, Typ = f64>,
     ) -> Column<'outer, S, Option<f64>> {
         let expr = Func::avg(val.build_expr(self.ast.builder()));
-        self.select(expr).into_value()
+        self.select(expr).into_column()
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
@@ -92,7 +92,7 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let expr = Func::max(val.build_expr(self.ast.builder()));
-        self.select(expr).into_value()
+        self.select(expr).into_column()
     }
 
     /// Return the sum of a column.
@@ -101,7 +101,7 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let expr = Func::sum(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select::<T>(expr), Const(T::ZERO)).into_value()
+        UnwrapOr(self.select::<T>(expr), Const(T::ZERO)).into_column()
     }
 
     /// Return the number of distinct values in a column.
@@ -113,13 +113,13 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
         T: EqTyp,
     {
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select::<i64>(expr), Const(0)).into_value()
+        UnwrapOr(self.select::<i64>(expr), Const(0)).into_column()
     }
 
     /// Return whether there are any rows.
     pub fn exists(&'inner self) -> Column<'outer, S, bool> {
         let expr = SimpleExpr::Constant(1.into_sea_value());
-        IsNotNull(self.select::<i64>(expr)).into_value()
+        IsNotNull(self.select::<i64>(expr)).into_column()
     }
 }
 

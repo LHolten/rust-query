@@ -34,7 +34,7 @@ impl<'inner, S> Rows<'inner, S> {
     pub fn join<T: Table<Schema = S>>(&mut self) -> Column<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
-        IntoColumn::into_value(Join::new(alias))
+        IntoColumn::into_column(Join::new(alias))
     }
 
     pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<'inner, T> {
@@ -65,12 +65,12 @@ impl<'inner, S> Rows<'inner, S> {
         val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
     ) -> Column<'inner, S, Typ> {
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
-        Assume(val).into_value()
+        Assume(val).into_column()
     }
 
     pub fn empty<T: 'inner>(&mut self) -> Column<'inner, S, T> {
         self.filter(false);
-        Never(PhantomData).into_value()
+        Never(PhantomData).into_column()
     }
 }
 

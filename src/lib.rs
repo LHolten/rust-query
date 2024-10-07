@@ -101,13 +101,13 @@ pub trait Table: Sized + 'static {
     /// This adds convenient methods to access related tables that have a foreign key constraint.
     type Ext<T>: RefCast<From = T>;
 
+    /// The schema that this table is a part of.
+    type Schema;
+
     /// Please refer to [Rows::join].
     fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Column<'inner, Self::Schema, Self> {
         rows.join()
     }
-
-    #[doc(hidden)]
-    type Schema;
 
     // used for the first join (useful for pragmas)
     #[doc(hidden)]

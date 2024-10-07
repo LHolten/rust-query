@@ -51,7 +51,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
 
         unique_funcs.push(quote! {
             pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> ::rust_query::Column<'a, #schema, Option<#table_ident>> {
-                ::rust_query::IntoColumn::into_value(#table_mod::#unique_type {
+                ::rust_query::IntoColumn::into_column(#table_mod::#unique_type {
                     #(#inits),*
                 })
             }
@@ -77,7 +77,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             where
                 T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
             {
-                ::rust_query::IntoColumn::into_value(::rust_query::private::Col::new(#ident_str, self.0.clone()))
+                ::rust_query::IntoColumn::into_column(::rust_query::private::Col::new(#ident_str, self.0.clone()))
             }
         });
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
