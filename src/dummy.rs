@@ -56,11 +56,19 @@ impl<'t, 'a> Row<'_, 't, 'a> {
 }
 
 /// This trait is implemented by everything that can be retrieved from the database.
-/// Implement it using the derive proc macro on a struct.
+///
+/// Implement it on custom structs using [crate::FromDummy].
 pub trait Dummy<'t, 'a, S>: Sized {
+    /// The type that results from querying this dummy.
     type Out;
+
+    #[doc(hidden)]
     fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't;
 
+    /// Map a dummy to another dummy using native rust.
+    ///
+    /// This is useful when retrieving a struct from the database that contains types not supported by the database.
+    /// It is also useful in migrations to process rows using arbitrary rust.
     fn map_dummy<T>(self, f: impl FnMut(Self::Out) -> T + 't) -> impl Dummy<'t, 'a, S, Out = T> {
         DummyMap(self, f)
     }

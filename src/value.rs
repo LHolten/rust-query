@@ -102,7 +102,7 @@ pub trait Typed {
 }
 
 /// Trait for all values that can be used in queries.
-/// This includes dummies from queries and rust values.
+/// This includes [Column]s from queries and rust values.
 /// `'t` is the context in which this value is valid.
 /// `S` is the schema in which this value is valid.
 pub trait IntoColumn<'t, S>: Typed + Clone {
