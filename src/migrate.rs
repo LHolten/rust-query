@@ -24,19 +24,40 @@ use crate::{
 pub type M<'a, From, To> = Box<
     dyn 'a
         + for<'t> FnOnce(
-            [&'t &'a (); 0],
             ::rust_query::DynValue<'t, <From as Table>::Schema, From>,
-        ) -> Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
+        ) -> Alter<'t, 'a, From, To>,
 >;
 
-pub type C<'a, FromSchema, To> = Box<
-    dyn 'a
-        + for<'t> FnOnce(
-            [&'t &'a (); 0],
-            &mut Rows<'t, FromSchema>,
-        )
-            -> Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
->;
+pub struct Alter<'t, 'a, From, To> {
+    _p: PhantomData<&'t &'a ()>,
+    inner: Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
+}
+
+impl<'t, 'a, From, To> Alter<'t, 'a, From, To> {
+    pub fn new(val: impl TableMigration<'t, 'a, From = From, To = To> + 't) -> Self {
+        Self {
+            _p: PhantomData,
+            inner: Box::new(val),
+        }
+    }
+}
+
+pub type C<'a, FromSchema, To> =
+    Box<dyn 'a + for<'t> FnOnce(&mut Rows<'t, FromSchema>) -> Create<'t, 'a, FromSchema, To>>;
+
+pub struct Create<'t, 'a, FromSchema, To> {
+    _p: PhantomData<&'t &'a ()>,
+    inner: Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
+}
+
+impl<'t, 'a, FromSchema, To> Create<'t, 'a, FromSchema, To> {
+    pub fn new(val: impl TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't) -> Self {
+        Self {
+            _p: PhantomData,
+            inner: Box::new(val),
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct TableTypBuilder {
@@ -129,10 +150,10 @@ pub struct SchemaBuilder<'a> {
 
 impl<'a> SchemaBuilder<'a> {
     pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
-        self.create_inner::<From::Schema, To>(|[], rows| {
+        self.create_inner::<From::Schema, To>(|rows| {
             let db_id = From::join(rows);
-            let migration = m([], db_id.clone());
-            Box::new(Wrapper(migration, db_id))
+            let migration = m(db_id.clone());
+            Create::new(Wrapper(migration.inner, db_id))
         });
 
         self.drop.push(
@@ -143,16 +164,12 @@ impl<'a> SchemaBuilder<'a> {
     }
 
     pub fn create_from<FromSchema, To: Table>(&mut self, f: C<'a, FromSchema, To>) {
-        self.create_inner::<FromSchema, To>(|[], x| f([], x));
+        self.create_inner::<FromSchema, To>(f);
     }
 
     fn create_inner<FromSchema, To: Table>(
         &mut self,
-        f: impl for<'t> FnOnce(
-            [&'t &'a (); 0],
-            &mut Rows<'t, FromSchema>,
-        )
-            -> Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
+        f: impl for<'t> FnOnce(&mut Rows<'t, FromSchema>) -> Create<'t, 'a, FromSchema, To>,
     ) {
         let new_table_name = self.scope.tmp_table();
         new_table::<To>(self.conn, new_table_name);
@@ -167,8 +184,8 @@ impl<'a> SchemaBuilder<'a> {
             phantom: PhantomData,
             ast: MySelect::default(),
         };
-        let create = f([], &mut q);
-        let mut prepared = create.prepare(q.cacher());
+        let create = f(&mut q);
+        let mut prepared = create.inner.prepare(q.cacher());
 
         let select = q.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);

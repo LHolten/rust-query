@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
-    migration::{schema, NoTable, Prepare},
+    migration::{schema, Alter, Create, NoTable, Prepare},
     Database, Dummy, DynValue, Table, ThreadToken, Value,
 };
 
@@ -143,48 +143,50 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = m.migrate(t, |_| v1::update::Schema {
-        playlist_track: Box::new(|[], pt| {
-            Box::new(v1::update::PlaylistTrackMigration {
+        playlist_track: Box::new(|pt| {
+            Alter::new(v1::update::PlaylistTrackMigration {
                 playlist: pt.playlist(),
             })
         }),
-        listens_to: Box::new(|[], rows| {
-            Box::new(v1::update::ListensToMigration {
+        genre_new: Box::new(|rows| {
+            let genre = v0::Genre::join(rows);
+            Create::new(v1::update::GenreNewMigration { name: genre.name() })
+        }),
+        listens_to: Box::new(|rows| {
+            Create::new(v1::update::ListensToMigration {
                 employee: rows.empty::<v0::Employee>(),
                 artist: rows.empty::<v0::Artist>(),
             })
         }),
-        genre_new: Box::new(|[], rows| {
-            let genre = v0::Genre::join(rows);
-            Box::new(v1::update::GenreNewMigration { name: genre.name() })
-        }),
     });
 
     let m = m.migrate(t, |_| v2::update::Schema {
-        customer: Box::new(|[], customer| {
-            Box::new(v2::update::CustomerMigration {
+        customer: Box::new(|customer| {
+            Alter::new(v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
-                phone: customer.phone().map(|x| x.and_then(|x| x.parse().ok())),
+                phone: customer
+                    .phone()
+                    .map_dummy(|x| x.and_then(|x| x.parse().ok())),
             })
         }),
-        track: Box::new(|[], track| {
-            Box::new(v2::update::TrackMigration {
+        track: Box::new(|track| {
+            Alter::new(v2::update::TrackMigration {
                 media_type: track.media_type().name(),
                 composer_table: None::<NoTable>,
                 byte_price: (track.unit_price(), track.bytes())
-                    .map(|(price, bytes)| price as f64 / bytes as f64),
+                    .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
             })
         }),
-        composer: Box::new(|[], rows| {
-            Box::new(v2::update::ComposerMigration {
+        composer: Box::new(|rows| {
+            Create::new(v2::update::ComposerMigration {
                 name: rows.empty::<String>(),
             })
         }),
-        genre_new: Box::new(|[], genre| {
-            Box::new(v2::update::GenreNewMigration {
+        genre_new: Box::new(|genre| {
+            Alter::new(v2::update::GenreNewMigration {
                 extra: genre
                     .name()
-                    .map(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
+                    .map_dummy(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
             })
         }),
     });

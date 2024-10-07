@@ -39,7 +39,7 @@ pub mod args {
 
 /// Types to declare schemas and migrations.
 pub mod migration {
-    pub use crate::migrate::{Migrator, NoTable, Prepare};
+    pub use crate::migrate::{Alter, Create, Migrator, NoTable, Prepare};
     pub use expect_test::expect;
     pub use rust_query_macros::schema;
 }

@@ -171,8 +171,8 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         });
         rows.into_vec(GenreStatsDummy {
             genre_name: genre.name(),
-            byte_average: bytes.map(|x| x.unwrap()),
-            milis_average: milis.map(|x| x.unwrap()),
+            byte_average: bytes.map_dummy(|x| x.unwrap()),
+            milis_average: milis.map_dummy(|x| x.unwrap()),
         })
     })
 }

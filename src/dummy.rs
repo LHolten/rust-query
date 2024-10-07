@@ -61,7 +61,7 @@ pub trait Dummy<'t, 'a, S>: Sized {
     type Out;
     fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't;
 
-    fn map<T>(self, f: impl FnMut(Self::Out) -> T + 't) -> impl Dummy<'t, 'a, S, Out = T> {
+    fn map_dummy<T>(self, f: impl FnMut(Self::Out) -> T + 't) -> impl Dummy<'t, 'a, S, Out = T> {
         DummyMap(self, f)
     }
 }
