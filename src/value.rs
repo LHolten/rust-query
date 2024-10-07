@@ -2,7 +2,7 @@ pub mod operations;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, UnwrapOr};
+use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
@@ -147,6 +147,11 @@ impl<'t, S> Column<'t, S, bool> {
     /// Check if two columns are both true.
     pub fn and(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool> {
         And(self, rhs).into_column()
+    }
+
+    /// Check if one of two columns is true.
+    pub fn or(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool> {
+        Or(self, rhs).into_column()
     }
 }
 
