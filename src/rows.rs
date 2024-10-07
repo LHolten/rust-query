@@ -9,9 +9,7 @@ use crate::{
     Column, Table,
 };
 
-/// [Rows] keeps track of rows from which tables are in use.
-///
-/// Adding rows is done using the `::join()` method that exists on each table type.
+/// [Rows] keeps track of all rows in the current query.
 ///
 /// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Query].
 /// It contains most query functionality like joining tables and doing sub-queries.
@@ -27,7 +25,7 @@ pub struct Rows<'inner, S> {
 impl<'inner, S> Rows<'inner, S> {
     /// Join a table, this is like a super simple [Iterator::flat_map] but for queries.
     ///
-    /// The resulting [Rows] has rows for the combinations of each original row with each row of the table.
+    /// After this operation [Rows] has rows for the combinations of each original row with each row of the table.
     /// (Also called the "Carthesian product")
     ///
     /// For convenience there is also [Table::join].
@@ -59,7 +57,7 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter out rows where this column is [None].
     ///
-    /// Returns a new column reference with the unwrapped type.
+    /// Returns a new column with the unwrapped type.
     pub fn filter_some<Typ>(
         &mut self,
         val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
@@ -68,6 +66,7 @@ impl<'inner, S> Rows<'inner, S> {
         Assume(val).into_column()
     }
 
+    /// Remove all rows and give back a column of arbitrary type.
     pub fn empty<T: 'inner>(&mut self) -> Column<'inner, S, T> {
         self.filter(false);
         Never(PhantomData).into_column()
