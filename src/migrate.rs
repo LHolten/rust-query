@@ -18,16 +18,26 @@ use crate::{
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, DynValue, Rows, Table, Transaction, Value,
+    value, IntoColumn, Rows, Table, Transaction, Column,
 };
 
 pub type M<'a, From, To> = Box<
     dyn 'a
         + for<'t> FnOnce(
-            ::rust_query::DynValue<'t, <From as Table>::Schema, From>,
+            ::rust_query::Column<'t, <From as Table>::Schema, From>,
         ) -> Alter<'t, 'a, From, To>,
 >;
 
+/// This is the type used to return table alterations in migrations.
+///
+/// Note that migrations allow you to use anything that implements [crate::Dummy] to specify the new values.
+/// In particular this allows mapping values using native rust with [crate::Dummy::map_dummy].
+///
+/// Take a look at the documentation of [crate::migration::schema] for more general information.
+///
+/// The purpose of wrapping migration results in [Alter] (and [Create]) is to dyn box the type so that type inference works.
+/// (Type inference is problematic with higher ranked generic returns from closures)
+/// Futhermore [Alter] (and [Create]) also have an implied bound of `'a: 't` which makes it easier to implement migrations.
 pub struct Alter<'t, 'a, From, To> {
     _p: PhantomData<&'t &'a ()>,
     inner: Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
@@ -45,6 +55,9 @@ impl<'t, 'a, From, To> Alter<'t, 'a, From, To> {
 pub type C<'a, FromSchema, To> =
     Box<dyn 'a + for<'t> FnOnce(&mut Rows<'t, FromSchema>) -> Create<'t, 'a, FromSchema, To>>;
 
+/// This is the type used to return table creations in migrations.
+///
+/// For more information take a look at [Alter].
 pub struct Create<'t, 'a, FromSchema, To> {
     _p: PhantomData<&'t &'a ()>,
     inner: Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
@@ -107,7 +120,7 @@ pub trait TableCreation<'t, 'a> {
 
 struct Wrapper<'t, 'a, From: Table, To>(
     Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
-    DynValue<'t, From::Schema, From>,
+    Column<'t, From::Schema, From>,
 );
 
 impl<'t, 'a, From: Table, To: Table> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
@@ -501,7 +514,7 @@ impl value::Typed for NoTable {
         unreachable!("NoTable can not be constructed")
     }
 }
-impl<S> Value<'_, S> for NoTable {
+impl<S> IntoColumn<'_, S> for NoTable {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {

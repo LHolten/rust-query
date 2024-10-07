@@ -4,7 +4,9 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{aggregate, Dummy, FromDummy, Row, Table, ThreadToken, Transaction, Value};
+use rust_query::{
+    aggregate, Dummy, FromDummy, IntoColumn, Table, TableRow, ThreadToken, Transaction,
+};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -47,7 +49,7 @@ fn test_queries() {
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
-    ivl_id: Row<'a, InvoiceLine>,
+    ivl_id: TableRow<'a, InvoiceLine>,
 }
 
 fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
@@ -233,7 +235,7 @@ struct ArtistDetails {
     track_stats: TrackStats,
 }
 
-fn artist_details(db: &Transaction<Schema>, artist: Row<Artist>) -> ArtistDetails {
+fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistDetails {
     db.query_one(ArtistDetailsDummy {
         name: artist.name(),
         album_count: aggregate(|rows| {

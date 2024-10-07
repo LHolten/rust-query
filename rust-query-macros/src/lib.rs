@@ -90,8 +90,9 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
-/// # use rust_query::Dummy;
-/// #[rust_query::migration::schema]
+/// use rust_query::migration::{schema, Prepare, Alter};
+/// use rust_query::{Dummy, ThreadToken, Database};
+/// #[schema]
 /// #[version(0..=1)]
 /// enum Schema {
 ///     User {
@@ -105,12 +106,12 @@ mod table;
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
 /// // This is done with the `v1::update::UserMigration`:
-/// pub fn migrate(t: &mut rust_query::ThreadToken) -> rust_query::Database<v1::Schema> {
-///     let m = rust_query::migration::Prepare::open_in_memory(); // we use an in memory database for this test
-///     let m = m.create_db_empty().expect("database is version is before supported versions");
+/// pub fn migrate(t: &mut ThreadToken) -> Database<v1::Schema> {
+///     let m = Prepare::open_in_memory(); // we use an in memory database for this test
+///     let m = m.create_db_empty().expect("database version is before supported versions");
 ///     let m = m.migrate(t, |db| v1::update::Schema {
 ///         user: Box::new(|user|
-///             rust_query::migration::Alter::new(v1::update::UserMigration {
+///             Alter::new(v1::update::UserMigration {
 ///                 score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
 ///             })
 ///         ),

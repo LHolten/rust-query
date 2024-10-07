@@ -8,7 +8,7 @@ use crate::{
     insert::{private_try_insert, Writable},
     private::Dummy,
     token::ThreadToken,
-    Row, Table,
+    Table, TableRow,
 };
 
 /// The primary interface to the database.
@@ -25,7 +25,7 @@ use crate::{
 ///
 /// # Creating transactions
 /// Creating a transaction requires access to a [ThreadToken].
-/// This makes it impossible to create two transactions on the same thread, making it impossible to accidentally share a [Row] outside of the transaction that it was created in.
+/// This makes it impossible to create two transactions on the same thread, making it impossible to accidentally share a [TableRow] outside of the transaction that it was created in.
 ///
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
@@ -73,7 +73,7 @@ impl<S> Database<S> {
 /// Futhermore, the effects of [TransactionMut]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
 ///
-/// All [Row] references retrieved from the database live for at most `'a`.
+/// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
 #[derive(RefCast)]
 #[repr(transparent)]
@@ -141,7 +141,10 @@ impl<S> TransactionMut<'_, S> {
     /// Conflicts can occur due too unique constraints in the schema.
     ///
     /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<'s, T: Table>(&mut self, val: impl Writable<T = T>) -> Option<Row<'s, T>> {
+    pub fn try_insert<'s, T: Table>(
+        &mut self,
+        val: impl Writable<T = T>,
+    ) -> Option<TableRow<'s, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 

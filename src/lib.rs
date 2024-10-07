@@ -22,28 +22,34 @@ mod value;
 
 pub use crate::dummy::Dummy;
 pub use aggregate::aggregate;
-pub use db::Row;
+pub use db::TableRow;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::FromDummy;
 pub use token::ThreadToken;
 pub use transaction::{Database, Transaction, TransactionMut};
-pub use value::{DynValue, UnixEpoch, Value};
+pub use value::{IntoColumn, UnixEpoch, Column};
 
 /// Types that are used as closure arguments.
+///
+/// You generally don't need to import these types.
 pub mod args {
     pub use crate::aggregate::Aggregate;
     pub use crate::exec::Query;
 }
 
 /// Types to declare schemas and migrations.
+///
+/// A good starting point is too look at [crate::migration::schema].
 pub mod migration {
     pub use crate::migrate::{Alter, Create, Migrator, NoTable, Prepare};
     pub use expect_test::expect;
     pub use rust_query_macros::schema;
 }
 
+/// These items are only exposed for use by the proc macros.
+/// Direct use is unsupported.
 #[doc(hidden)]
 pub mod private {
     pub use crate::db::Col;
@@ -94,7 +100,7 @@ pub trait Table: Sized + 'static {
 
     type Schema;
 
-    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> DynValue<'inner, Self::Schema, Self> {
+    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Column<'inner, Self::Schema, Self> {
         rows.join()
     }
 

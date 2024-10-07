@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Typed, ValueBuilder},
-    Table, ThreadToken, Value,
+    IntoColumn, Table, ThreadToken,
 };
 
 pub struct Col<T, X> {
@@ -52,7 +52,7 @@ impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
         Expr::col((self.inner.build_table(b), self.field)).into()
     }
 }
-impl<'t, S, T: MyTyp, P: Value<'t, S, Typ: Table>> Value<'t, S> for Col<T, P> {
+impl<'t, S, T: MyTyp, P: IntoColumn<'t, S, Typ: Table>> IntoColumn<'t, S> for Col<T, P> {
     type Owned = Col<T, P::Owned>;
 
     fn into_owned(self) -> Self::Owned {
@@ -106,7 +106,7 @@ impl<T: Table> Typed for Join<'_, T> {
         self.table
     }
 }
-impl<'t, T: Table> Value<'t, T::Schema> for Join<'t, T> {
+impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<'t, T> {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {
@@ -116,33 +116,33 @@ impl<'t, T: Table> Value<'t, T::Schema> for Join<'t, T> {
 
 /// Row reference that can be used in any query in the same transaction.
 ///
-/// [Row] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
-pub struct Row<'t, T> {
+/// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
+pub struct TableRow<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
     pub(crate) _local: PhantomData<ThreadToken>,
     pub(crate) idx: i64,
 }
 
-impl<'t, T> PartialEq for Row<'t, T> {
+impl<'t, T> PartialEq for TableRow<'t, T> {
     fn eq(&self, other: &Self) -> bool {
         self.idx == other.idx
     }
 }
 
-impl<T> Debug for Row<'_, T> {
+impl<T> Debug for TableRow<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "db_{}", self.idx)
     }
 }
 
-impl<T> Clone for Row<'_, T> {
+impl<T> Clone for TableRow<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T> Copy for Row<'_, T> {}
+impl<T> Copy for TableRow<'_, T> {}
 
-impl<T: Table> Deref for Row<'_, T> {
+impl<T: Table> Deref for TableRow<'_, T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
@@ -150,7 +150,7 @@ impl<T: Table> Deref for Row<'_, T> {
     }
 }
 
-impl<T> FromSql for Row<'_, T> {
+impl<T> FromSql for TableRow<'_, T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(Self {
             _p: PhantomData,
@@ -160,13 +160,13 @@ impl<T> FromSql for Row<'_, T> {
     }
 }
 
-impl<'t, T> From<Row<'t, T>> for sea_query::Value {
-    fn from(value: Row<T>) -> Self {
+impl<'t, T> From<TableRow<'t, T>> for sea_query::Value {
+    fn from(value: TableRow<T>) -> Self {
         value.idx.into()
     }
 }
 
-impl<T: Table> Typed for Row<'_, T> {
+impl<T: Table> Typed for TableRow<'_, T> {
     type Typ = T;
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
@@ -183,7 +183,7 @@ impl<T> Typed for UnsafeRow<T> {
     }
 }
 
-impl<'t, T: Table> Value<'t, T::Schema> for Row<'_, T> {
+impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'_, T> {
     type Owned = UnsafeRow<T>;
 
     fn into_owned(self) -> Self::Owned {

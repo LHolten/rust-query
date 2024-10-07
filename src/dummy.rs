@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sea_query::Iden;
 
-use crate::{alias::Field, ast::MySelect, value::MyTyp, Value};
+use crate::{alias::Field, ast::MySelect, value::MyTyp, IntoColumn};
 
 pub struct Cacher<'x, 't, S> {
     pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
@@ -30,7 +30,7 @@ impl<'t, T> Clone for Cached<'t, T> {
 impl<'t, T> Copy for Cached<'t, T> {}
 
 impl<'t, S> Cacher<'_, 't, S> {
-    pub fn cache<T>(&mut self, val: impl Value<'t, S, Typ = T>) -> Cached<'t, T> {
+    pub fn cache<T>(&mut self, val: impl IntoColumn<'t, S, Typ = T>) -> Cached<'t, T> {
         let expr = val.build_expr(self.ast.builder());
         let new_field = || self.ast.scope.new_field();
         let field = *self.ast.select.get_or_init(expr, new_field);
@@ -84,7 +84,7 @@ where
     }
 }
 
-impl<'t, 'a, S, T: Value<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
+impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
     fn prepare(
@@ -123,8 +123,8 @@ mod tests {
 
     impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
     where
-        A: Value<'t, S, Typ = i64>,
-        B: Value<'t, S, Typ = String>,
+        A: IntoColumn<'t, S, Typ = i64>,
+        B: IntoColumn<'t, S, Typ = String>,
     {
         type Out = User;
 

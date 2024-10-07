@@ -1,13 +1,13 @@
 use sea_query::{Alias, Expr, SimpleExpr};
 
-use super::{NumTyp, Typed, Value, ValueBuilder};
+use super::{IntoColumn, NumTyp, Typed, ValueBuilder};
 
 #[derive(Clone, Copy)]
 pub struct Add<A, B>(pub(crate) A, pub(crate) B);
 
 macro_rules! binop {
     ($name:ident) => {
-        impl<'t, S, A: Value<'t, S>, B: Value<'t, S>> Value<'t, S> for $name<A, B> {
+        impl<'t, S, A: IntoColumn<'t, S>, B: IntoColumn<'t, S>> IntoColumn<'t, S> for $name<A, B> {
             type Owned = $name<A::Owned, B::Owned>;
 
             fn into_owned(self) -> Self::Owned {
@@ -19,7 +19,7 @@ macro_rules! binop {
 
 macro_rules! unop {
     ($name:ident) => {
-        impl<'t, S, T: Value<'t, S>> Value<'t, S> for $name<T> {
+        impl<'t, S, T: IntoColumn<'t, S>> IntoColumn<'t, S> for $name<T> {
             type Owned = $name<T::Owned>;
 
             fn into_owned(self) -> Self::Owned {
@@ -113,7 +113,7 @@ impl<T, A: Typed<Typ = Option<T>>> Typed for Assume<A> {
         self.0.build_expr(b)
     }
 }
-impl<'t, S, T: Value<'t, S, Typ = Option<X>>, X> Value<'t, S> for Assume<T> {
+impl<'t, S, T: IntoColumn<'t, S, Typ = Option<X>>, X> IntoColumn<'t, S> for Assume<T> {
     type Owned = Assume<T::Owned>;
     fn into_owned(self) -> Self::Owned {
         Assume(self.0.into_owned())
@@ -137,10 +137,10 @@ pub struct Const<A>(pub(crate) A);
 impl<A: NumTyp> Typed for Const<A> {
     type Typ = A;
     fn build_expr(&self, _b: ValueBuilder) -> SimpleExpr {
-        SimpleExpr::Constant(self.0.into_value())
+        SimpleExpr::Constant(self.0.into_sea_value())
     }
 }
-impl<'t, S, A: NumTyp> Value<'t, S> for Const<A> {
+impl<'t, S, A: NumTyp> IntoColumn<'t, S> for Const<A> {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {

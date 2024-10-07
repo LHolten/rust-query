@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 use sea_query_rusqlite::RusqliteBinder;
 
-use crate::{alias::Field, ast::MySelect, Row, Table, Value};
+use crate::{alias::Field, ast::MySelect, TableRow, Table, IntoColumn};
 
 /// this trait is not safe to implement
 pub trait Writable {
@@ -18,7 +18,7 @@ pub struct Reader<'x, S> {
 }
 
 impl<'a, S> Reader<'a, S> {
-    pub fn col(&self, name: &'static str, val: impl Value<'static, S>) {
+    pub fn col(&self, name: &'static str, val: impl IntoColumn<'static, S>) {
         let field = Field::Str(name);
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))
@@ -28,7 +28,7 @@ impl<'a, S> Reader<'a, S> {
 pub(crate) fn private_try_insert<'a, T: Table>(
     conn: &Connection,
     val: impl Writable<T = T>,
-) -> Option<Row<'a, T>> {
+) -> Option<TableRow<'a, T>> {
     let ast = MySelect::default();
 
     let reader = Reader {
@@ -55,7 +55,7 @@ pub(crate) fn private_try_insert<'a, T: Table>(
         .query_map(&*values.as_params(), |row| row.get(T::ID))
         .unwrap()
         .next();
-    id.map(|id| Row {
+    id.map(|id| TableRow {
         _p: PhantomData,
         _local: PhantomData,
         idx: id.unwrap(),

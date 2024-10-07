@@ -42,7 +42,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             let generic = make_generic(col);
 
             args.push(quote! {#col: #generic});
-            constraints.push(quote! {#generic: ::rust_query::Value<'a, #schema, Typ = #typ>});
+            constraints.push(quote! {#generic: ::rust_query::IntoColumn<'a, #schema, Typ = #typ>});
             generics.push(generic);
             inits.push(col.clone());
         }
@@ -50,8 +50,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
 
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> ::rust_query::DynValue<'a, #schema, Option<#table_ident>> {
-                ::rust_query::Value::into_dyn(#table_mod::#unique_type {
+            pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> ::rust_query::Column<'a, #schema, Option<#table_ident>> {
+                ::rust_query::IntoColumn::into_value(#table_mod::#unique_type {
                     #(#inits),*
                 })
             }
@@ -73,18 +73,18 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         let ident_str = ident.to_string();
         let generic = make_generic(ident);
         defs.push(quote! {
-            pub fn #ident<'t>(&self) -> ::rust_query::DynValue<'t, #schema, #typ>
+            pub fn #ident<'t>(&self) -> ::rust_query::Column<'t, #schema, #typ>
             where
-                T: ::rust_query::Value<'t, #schema, Typ = #table_ident>
+                T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
             {
-                ::rust_query::Value::into_dyn(::rust_query::private::Col::new(#ident_str, self.0.clone()))
+                ::rust_query::IntoColumn::into_value(::rust_query::private::Col::new(#ident_str, self.0.clone()))
             }
         });
         typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
         col_defs.push(quote! {pub #ident: #generic});
-        bounds.push(quote! {#generic: ::rust_query::Value<'static, #schema, Typ = #typ>});
+        bounds.push(quote! {#generic: ::rust_query::IntoColumn<'static, #schema, Typ = #typ>});
         generics.push(generic);
     }
 
@@ -160,7 +160,7 @@ fn define_unique(
         let generic = make_generic(col);
         fields.push(quote! {pub(super) #col: #generic});
         fields_owned.push(quote! {#col: self.#col.into_owned()});
-        constraints.push(quote! {#generic: ::rust_query::Value<'t, super::#schema>});
+        constraints.push(quote! {#generic: ::rust_query::IntoColumn<'t, super::#schema>});
         constraints_typed.push(quote! {#generic: ::rust_query::private::Typed});
         conds.push(quote! {(#col_str, self.#col.build_expr(b))});
         generics_owned.push(quote! {#generic::Owned});
@@ -179,7 +179,7 @@ fn define_unique(
                 b.get_unique(#table_str, vec![#(#conds),*])
             }
         }
-        impl<'t, #(#constraints),*> ::rust_query::Value<'t, super::#schema> for #typ_name<#(#generics),*> {
+        impl<'t, #(#constraints),*> ::rust_query::IntoColumn<'t, super::#schema> for #typ_name<#(#generics),*> {
             type Owned = #typ_name<#(#generics_owned),*>;
             fn into_owned(self) -> Self::Owned {
                 #typ_name{

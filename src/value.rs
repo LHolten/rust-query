@@ -10,7 +10,7 @@ use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
-    db::Row,
+    db::TableRow,
     hash,
     migrate::NoTable,
     Table,
@@ -62,18 +62,18 @@ impl<'x> ValueBuilder<'x> {
 
 pub trait NumTyp: MyTyp + Clone + Copy {
     const ZERO: Self;
-    fn into_value(self) -> sea_query::Value;
+    fn into_sea_value(self) -> sea_query::Value;
 }
 
 impl NumTyp for i64 {
     const ZERO: Self = 0;
-    fn into_value(self) -> sea_query::Value {
+    fn into_sea_value(self) -> sea_query::Value {
         sea_query::Value::BigInt(Some(self))
     }
 }
 impl NumTyp for f64 {
     const ZERO: Self = 0.;
-    fn into_value(self) -> sea_query::Value {
+    fn into_sea_value(self) -> sea_query::Value {
         sea_query::Value::Double(Some(self))
     }
 }
@@ -105,71 +105,71 @@ pub trait Typed {
 /// This includes dummies from queries and rust values.
 /// `'t` is the context in which this value is valid.
 /// `S` is the schema in which this value is valid.
-pub trait Value<'t, S>: Typed + Clone {
+pub trait IntoColumn<'t, S>: Typed + Clone {
     #[doc(hidden)]
     type Owned: Typed<Typ = Self::Typ> + 't;
 
     #[doc(hidden)]
     fn into_owned(self) -> Self::Owned;
 
-    fn into_dyn(self) -> DynValue<'t, S, Self::Typ> {
-        DynValue(Rc::new(self.into_owned()), PhantomData)
+    fn into_value(self) -> Column<'t, S, Self::Typ> {
+        Column(Rc::new(self.into_owned()), PhantomData)
     }
 
-    fn add(&self, rhs: impl Value<'t, S, Typ = Self::Typ>) -> DynValue<'t, S, Self::Typ>
+    fn add(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, Self::Typ>
     where
         Self::Typ: NumTyp,
     {
-        Add(self, rhs).into_dyn()
+        Add(self, rhs).into_value()
     }
 
-    fn lt(&self, rhs: impl Value<'t, S, Typ = Self::Typ>) -> DynValue<'t, S, bool>
+    fn lt(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, bool>
     where
         Self::Typ: NumTyp,
     {
-        Lt(self, rhs).into_dyn()
+        Lt(self, rhs).into_value()
     }
 
-    fn eq(&self, rhs: impl Value<'t, S, Typ = Self::Typ>) -> DynValue<'t, S, bool>
+    fn eq(&self, rhs: impl IntoColumn<'t, S, Typ = Self::Typ>) -> Column<'t, S, bool>
     where
         Self::Typ: EqTyp,
     {
-        Eq(self, rhs).into_dyn()
+        Eq(self, rhs).into_value()
     }
 
-    fn not(&self) -> DynValue<'t, S, bool>
+    fn not(&self) -> Column<'t, S, bool>
     where
-        Self: Value<'t, S, Typ = bool>,
+        Self: IntoColumn<'t, S, Typ = bool>,
     {
-        Not(self).into_dyn()
+        Not(self).into_value()
     }
 
-    fn and(&self, rhs: impl Value<'t, S, Typ = bool>) -> DynValue<'t, S, bool>
+    fn and(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool>
     where
-        Self: Value<'t, S, Typ = bool>,
+        Self: IntoColumn<'t, S, Typ = bool>,
     {
-        And(self, rhs).into_dyn()
+        And(self, rhs).into_value()
     }
 
-    fn unwrap_or<Typ>(&self, rhs: impl Value<'t, S, Typ = Typ>) -> DynValue<'t, S, Typ>
+    fn unwrap_or<Typ>(&self, rhs: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ>
     where
-        Self: Value<'t, S, Typ = Option<Typ>>,
+        Self: IntoColumn<'t, S, Typ = Option<Typ>>,
     {
-        UnwrapOr(self, rhs).into_dyn()
+        UnwrapOr(self, rhs).into_value()
     }
 
-    fn is_not_null<Typ>(&self) -> DynValue<'t, S, bool>
+    fn is_not_null<Typ>(&self) -> Column<'t, S, bool>
     where
-        Self: Value<'t, S, Typ = Option<Typ>>,
+        Self: IntoColumn<'t, S, Typ = Option<Typ>>,
     {
-        IsNotNull(self).into_dyn()
+        IsNotNull(self).into_value()
     }
 
-    fn as_float(&self) -> DynValue<'t, S, f64>
+    fn as_float(&self) -> Column<'t, S, f64>
     where
-        Self: Value<'t, S, Typ = i64>,
+        Self: IntoColumn<'t, S, Typ = i64>,
     {
-        AsFloat(self).into_dyn()
+        AsFloat(self).into_value()
     }
 }
 
@@ -183,10 +183,12 @@ impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
     }
 }
 
-impl<'t, S, T: Value<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> Value<'t, S> for Option<T> {
+impl<'t, S, T: IntoColumn<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoColumn<'t, S>
+    for Option<T>
+{
     type Owned = Option<T::Owned>;
     fn into_owned(self) -> Self::Owned {
-        self.map(Value::into_owned)
+        self.map(IntoColumn::into_owned)
     }
 }
 
@@ -197,7 +199,7 @@ impl Typed for &str {
     }
 }
 
-impl<'t, S> Value<'t, S> for &str {
+impl<'t, S> IntoColumn<'t, S> for &str {
     type Owned = String;
     fn into_owned(self) -> Self::Owned {
         self.to_owned()
@@ -211,7 +213,7 @@ impl Typed for String {
     }
 }
 
-impl<'t, S> Value<'t, S> for String {
+impl<'t, S> IntoColumn<'t, S> for String {
     type Owned = String;
     fn into_owned(self) -> Self::Owned {
         self
@@ -225,7 +227,7 @@ impl Typed for bool {
     }
 }
 
-impl<'t, S> Value<'t, S> for bool {
+impl<'t, S> IntoColumn<'t, S> for bool {
     type Owned = Self;
     fn into_owned(self) -> Self::Owned {
         self
@@ -239,7 +241,7 @@ impl Typed for i64 {
     }
 }
 
-impl<'t, S> Value<'t, S> for i64 {
+impl<'t, S> IntoColumn<'t, S> for i64 {
     type Owned = Self;
     fn into_owned(self) -> Self::Owned {
         self
@@ -253,7 +255,7 @@ impl Typed for f64 {
     }
 }
 
-impl<'t, S> Value<'t, S> for f64 {
+impl<'t, S> IntoColumn<'t, S> for f64 {
     type Owned = Self;
     fn into_owned(self) -> Self::Owned {
         self
@@ -276,9 +278,9 @@ where
     }
 }
 
-impl<'t, S, T> Value<'t, S> for &T
+impl<'t, S, T> IntoColumn<'t, S> for &T
 where
-    T: Value<'t, S>,
+    T: IntoColumn<'t, S>,
 {
     type Owned = T::Owned;
     fn into_owned(self) -> Self::Owned {
@@ -297,7 +299,7 @@ impl Typed for UnixEpoch {
     }
 }
 
-impl<'t, S> Value<'t, S> for UnixEpoch {
+impl<'t, S> IntoColumn<'t, S> for UnixEpoch {
     type Owned = Self;
     fn into_owned(self) -> Self::Owned {
         self
@@ -320,7 +322,7 @@ pub trait MyTyp: 'static {
 impl<T: Table> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out<'t> = Row<'t, Self>;
+    type Out<'t> = TableRow<'t, Self>;
     type Sql = i64;
 }
 
@@ -368,18 +370,26 @@ impl FromSql for NoTable {
     }
 }
 
-pub struct DynValue<'t, S, T>(
+/// Values of this type reference a collumn in a query.
+///
+/// - The lifetime parameter `'t` specifies in which query the collumn exists.
+/// - The type parameter `S` specifies the expected schema of the query.
+/// - And finally the type paramter `T` specifies the type of the column.
+///
+/// [Column] inherits some methods from [IntoColumn] for simple types and it implements
+/// [Deref] to have table extension methods in case the type is a table type.
+pub struct Column<'t, S, T>(
     pub(crate) Rc<dyn Typed<Typ = T> + 't>,
     pub(crate) PhantomData<fn(&'t S) -> &'t S>,
 );
 
-impl<'t, S, T> Clone for DynValue<'t, S, T> {
+impl<'t, S, T> Clone for Column<'t, S, T> {
     fn clone(&self) -> Self {
         Self(self.0.clone(), PhantomData)
     }
 }
 
-impl<'t, S, T> Typed for DynValue<'t, S, T> {
+impl<'t, S, T> Typed for Column<'t, S, T> {
     type Typ = T;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -394,14 +404,14 @@ impl<'t, S, T> Typed for DynValue<'t, S, T> {
     }
 }
 
-impl<'t, S: 't, T: 't> Value<'t, S> for DynValue<'t, S, T> {
+impl<'t, S: 't, T: 't> IntoColumn<'t, S> for Column<'t, S, T> {
     type Owned = Self;
     fn into_owned(self) -> Self::Owned {
         self
     }
 }
 
-impl<'t, S, T: Table> Deref for DynValue<'t, S, T> {
+impl<'t, S, T: Table> Deref for Column<'t, S, T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {

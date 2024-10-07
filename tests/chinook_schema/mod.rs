@@ -2,18 +2,18 @@ use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
     migration::{schema, Alter, Create, NoTable, Prepare},
-    Database, Dummy, DynValue, Table, ThreadToken, Value,
+    Column, Database, Dummy, IntoColumn, Table, ThreadToken,
 };
 
 pub use v2::*;
 
-pub trait MyValue<'t, T>: Value<'t, Schema, Typ = T> {}
-impl<'t, X> MyValue<'t, X::Typ> for X where X: Value<'t, Schema> {}
+pub trait MyValue<'t, T>: IntoColumn<'t, Schema, Typ = T> {}
+impl<'t, X> MyValue<'t, X::Typ> for X where X: IntoColumn<'t, Schema> {}
 
 pub trait MyTable<'t, T: Table>: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
 impl<'t, T: Table, X> MyTable<'t, T> for X where X: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
 
-pub type MyDyn<'t, T> = DynValue<'t, Schema, T>;
+pub type MyDyn<'t, T> = Column<'t, Schema, T>;
 
 #[schema]
 #[version(0..=2)]

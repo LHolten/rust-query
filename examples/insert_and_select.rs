@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Prepare},
-    Table, ThreadToken, TransactionMut, Value,
+    IntoColumn, Table, ThreadToken, TransactionMut,
 };
 
 // Start by defining your schema.

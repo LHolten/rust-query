@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ref_cast::RefCast;
 use rust_query_macros::FromDummy;
 
-use crate::{client::QueryBuilder, db::Col, hash, value::Value, Table};
+use crate::{client::QueryBuilder, db::Col, hash, value::IntoColumn, Table};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {

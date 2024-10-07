@@ -13,9 +13,9 @@ use crate::{
     rows::Rows,
     value::{
         operations::{Const, IsNotNull, UnwrapOr},
-        EqTyp, MyTyp, NumTyp, Typed, Value, ValueBuilder,
+        EqTyp, IntoColumn, MyTyp, NumTyp, Typed, ValueBuilder,
     },
-    DynValue, Table,
+    Table, Column,
 };
 
 /// This is the argument type used for aggregates.
@@ -62,8 +62,8 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
     /// Filter the rows of this sub-query based on a value from the outer query.
     pub fn filter_on<T>(
         &mut self,
-        val: impl Value<'inner, S, Typ = T>,
-        on: impl Value<'outer, S, Typ = T>,
+        val: impl IntoColumn<'inner, S, Typ = T>,
+        on: impl IntoColumn<'outer, S, Typ = T>,
     ) {
         let on = on.into_owned();
         let alias = self.ast.scope.new_alias();
@@ -77,49 +77,49 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
     /// Return the average value in a column, this is [None] if there are zero rows.
     pub fn avg(
         &'inner self,
-        val: impl Value<'inner, S, Typ = f64>,
-    ) -> DynValue<'outer, S, Option<f64>> {
+        val: impl IntoColumn<'inner, S, Typ = f64>,
+    ) -> Column<'outer, S, Option<f64>> {
         let expr = Func::avg(val.build_expr(self.ast.builder()));
-        self.select(expr).into_dyn()
+        self.select(expr).into_value()
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
     pub fn max<T>(
         &'inner self,
-        val: impl Value<'inner, S, Typ = T>,
-    ) -> DynValue<'outer, S, Option<T>>
+        val: impl IntoColumn<'inner, S, Typ = T>,
+    ) -> Column<'outer, S, Option<T>>
     where
         T: NumTyp,
     {
         let expr = Func::max(val.build_expr(self.ast.builder()));
-        self.select(expr).into_dyn()
+        self.select(expr).into_value()
     }
 
     /// Return the sum of a column.
-    pub fn sum<T>(&'inner self, val: impl Value<'inner, S, Typ = T>) -> DynValue<'outer, S, T>
+    pub fn sum<T>(&'inner self, val: impl IntoColumn<'inner, S, Typ = T>) -> Column<'outer, S, T>
     where
         T: NumTyp,
     {
         let expr = Func::sum(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select::<T>(expr), Const(T::ZERO)).into_dyn()
+        UnwrapOr(self.select::<T>(expr), Const(T::ZERO)).into_value()
     }
 
     /// Return the number of distinct values in a column.
     pub fn count_distinct<T>(
         &'inner self,
-        val: impl Value<'inner, S, Typ = T>,
-    ) -> DynValue<'outer, S, i64>
+        val: impl IntoColumn<'inner, S, Typ = T>,
+    ) -> Column<'outer, S, i64>
     where
         T: EqTyp,
     {
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select::<i64>(expr), Const(0)).into_dyn()
+        UnwrapOr(self.select::<i64>(expr), Const(0)).into_value()
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> DynValue<'outer, S, bool> {
-        let expr = SimpleExpr::Constant(1.into_value());
-        IsNotNull(self.select::<i64>(expr)).into_dyn()
+    pub fn exists(&'inner self) -> Column<'outer, S, bool> {
+        let expr = SimpleExpr::Constant(1.into_sea_value());
+        IsNotNull(self.select::<i64>(expr)).into_value()
     }
 }
 
@@ -157,7 +157,7 @@ impl<'t, S, T> Aggr<'t, S, T> {
     }
 }
 
-impl<'t, S, T: MyTyp> Value<'t, S> for Aggr<'t, S, T> {
+impl<'t, S, T: MyTyp> IntoColumn<'t, S> for Aggr<'t, S, T> {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {

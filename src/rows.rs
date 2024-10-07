@@ -5,8 +5,8 @@ use sea_query::{Expr, SimpleExpr};
 use crate::{
     ast::MySelect,
     db::Join,
-    value::{operations::Assume, Typed, Value},
-    DynValue, Table,
+    value::{operations::Assume, IntoColumn, Typed},
+    Column, Table,
 };
 
 /// [Rows] keeps track of rows from which tables are in use.
@@ -31,10 +31,10 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// For convenience there is also [Table::join].
-    pub fn join<T: Table<Schema = S>>(&mut self) -> DynValue<'inner, S, T> {
+    pub fn join<T: Table<Schema = S>>(&mut self) -> Column<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
-        Value::into_dyn(Join::new(alias))
+        IntoColumn::into_value(Join::new(alias))
     }
 
     pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<'inner, T> {
@@ -44,12 +44,12 @@ impl<'inner, S> Rows<'inner, S> {
     }
 
     // Join a vector of values.
-    // pub fn vec<V: Value<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
+    // pub fn vec<V: Column<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
     //     todo!()
     // }
 
     /// Filter rows based on a column.
-    pub fn filter(&mut self, prop: impl Value<'inner, S, Typ = bool>) {
+    pub fn filter(&mut self, prop: impl IntoColumn<'inner, S, Typ = bool>) {
         self.filter_private(prop.build_expr(self.ast.builder()));
     }
 
@@ -62,15 +62,15 @@ impl<'inner, S> Rows<'inner, S> {
     /// Returns a new column reference with the unwrapped type.
     pub fn filter_some<Typ>(
         &mut self,
-        val: impl Value<'inner, S, Typ = Option<Typ>>,
-    ) -> DynValue<'inner, S, Typ> {
+        val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
+    ) -> Column<'inner, S, Typ> {
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
-        Assume(val).into_dyn()
+        Assume(val).into_value()
     }
 
-    pub fn empty<T: 'inner>(&mut self) -> DynValue<'inner, S, T> {
+    pub fn empty<T: 'inner>(&mut self) -> Column<'inner, S, T> {
         self.filter(false);
-        Never(PhantomData).into_dyn()
+        Never(PhantomData).into_value()
     }
 }
 
@@ -89,7 +89,7 @@ impl<T> Typed for Never<'_, T> {
         SimpleExpr::Keyword(sea_query::Keyword::Null)
     }
 }
-impl<'t, S, T> Value<'t, S> for Never<'t, T> {
+impl<'t, S, T> IntoColumn<'t, S> for Never<'t, T> {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {
