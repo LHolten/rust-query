@@ -5,7 +5,7 @@ use sea_query::{Expr, SimpleExpr};
 use crate::{
     ast::MySelect,
     db::Join,
-    value::{operations::Assume, IntoColumn, Typed},
+    value::{operations::Assume, IntoColumn},
     Column, Table,
 };
 
@@ -64,34 +64,5 @@ impl<'inner, S> Rows<'inner, S> {
     ) -> Column<'inner, S, Typ> {
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
         Assume(val).into_column()
-    }
-
-    /// Remove all rows and give back a column of arbitrary type.
-    pub fn empty<T: 'inner>(&mut self) -> Column<'inner, S, T> {
-        self.filter(false);
-        Never(PhantomData).into_column()
-    }
-}
-
-struct Never<'t, T>(PhantomData<fn(&'t T) -> &'t T>);
-
-impl<'t, T> Copy for Never<'t, T> {}
-impl<'t, T> Clone for Never<'t, T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Typed for Never<'_, T> {
-    type Typ = T;
-    fn build_expr(&self, _: crate::value::ValueBuilder) -> SimpleExpr {
-        SimpleExpr::Keyword(sea_query::Keyword::Null)
-    }
-}
-impl<'t, S, T> IntoColumn<'t, S> for Never<'t, T> {
-    type Owned = Self;
-
-    fn into_owned(self) -> Self::Owned {
-        self
     }
 }

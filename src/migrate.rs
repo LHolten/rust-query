@@ -18,7 +18,7 @@ use crate::{
     pragma::read_schema,
     token::ThreadToken,
     transaction::Database,
-    value, IntoColumn, Rows, Table, Transaction, Column,
+    value, Column, IntoColumn, Rows, Table, Transaction,
 };
 
 pub type M<'a, From, To> = Box<
@@ -63,12 +63,35 @@ pub struct Create<'t, 'a, FromSchema, To> {
     inner: Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
 }
 
-impl<'t, 'a, FromSchema, To> Create<'t, 'a, FromSchema, To> {
+impl<'t, 'a, FromSchema, To: 'a> Create<'t, 'a, FromSchema, To> {
     pub fn new(val: impl TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't) -> Self {
         Self {
             _p: PhantomData,
             inner: Box::new(val),
         }
+    }
+
+    /// Use this if you want the new table to be empty.
+    pub fn empty(rows: &mut Rows<'t, FromSchema>) -> Self {
+        rows.filter(false);
+        Create::new(NeverCreate(PhantomData, PhantomData))
+    }
+}
+
+struct NeverCreate<FromSchema, To>(PhantomData<FromSchema>, PhantomData<To>);
+
+impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, To> {
+    type FromSchema = FromSchema;
+    type To = To;
+
+    fn prepare(
+        self: Box<Self>,
+        _: Cacher<'_, 't, Self::FromSchema>,
+    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, Self::FromSchema>) + 't>
+    where
+        'a: 't,
+    {
+        Box::new(|_, _| unreachable!())
     }
 }
 
@@ -93,7 +116,7 @@ pub trait Schema: Sized + 'static {
 
 pub trait TableMigration<'t, 'a> {
     type From: Table;
-    type To: Table;
+    type To;
 
     fn prepare(
         self: Box<Self>,
@@ -108,7 +131,7 @@ pub trait TableMigration<'t, 'a> {
 
 pub trait TableCreation<'t, 'a> {
     type FromSchema;
-    type To: Table;
+    type To;
 
     fn prepare(
         self: Box<Self>,
@@ -123,7 +146,7 @@ struct Wrapper<'t, 'a, From: Table, To>(
     Column<'t, From::Schema, From>,
 );
 
-impl<'t, 'a, From: Table, To: Table> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
+impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
     type FromSchema = From::Schema;
     type To = To;
 

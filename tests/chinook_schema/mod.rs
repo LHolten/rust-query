@@ -152,12 +152,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
             let genre = v0::Genre::join(rows);
             Create::new(v1::update::GenreNewMigration { name: genre.name() })
         }),
-        listens_to: Box::new(|rows| {
-            Create::new(v1::update::ListensToMigration {
-                employee: rows.empty::<v0::Employee>(),
-                artist: rows.empty::<v0::Artist>(),
-            })
-        }),
+        listens_to: Box::new(|rows| Create::empty(rows)),
     });
 
     let m = m.migrate(t, |_| v2::update::Schema {
@@ -177,11 +172,7 @@ pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
                     .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
             })
         }),
-        composer: Box::new(|rows| {
-            Create::new(v2::update::ComposerMigration {
-                name: rows.empty::<String>(),
-            })
-        }),
+        composer: Box::new(|rows| Create::empty(rows)),
         genre_new: Box::new(|genre| {
             Alter::new(v2::update::GenreNewMigration {
                 extra: genre
