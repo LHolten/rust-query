@@ -35,7 +35,7 @@ pub struct Database<S> {
 
 impl<S> Database<S> {
     /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
-    pub fn read<'a>(&'a self, token: &'a mut ThreadToken) -> Transaction<'a, S> {
+    pub fn read<'a>(&self, token: &'a mut ThreadToken) -> Transaction<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
         Transaction {
@@ -53,7 +53,7 @@ impl<S> Database<S> {
     ///
     /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
     /// This makes it work across processes.
-    pub fn write_lock<'a>(&'a self, token: &'a mut ThreadToken) -> TransactionMut<'a, S> {
+    pub fn write_lock<'a>(&self, token: &'a mut ThreadToken) -> TransactionMut<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
         TransactionMut {
