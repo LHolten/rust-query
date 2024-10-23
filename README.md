@@ -43,12 +43,15 @@ use rust_query::migration::schema;
 
 #[schema]
 enum MySchema {
+    // Enum variants are database tables
     User {
+        // This table has one column with String type.
         name: String,
     },
     Image {
         description: String,
-        uploaded_by: User,  // Corresponds to `User` table that was defined just now!
+        // This column has a foreign key constraint to the User table
+        uploaded_by: User,
     },
 }
 ```

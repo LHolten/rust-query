@@ -26,7 +26,7 @@ impl ThreadToken {
         }
     }
 
-    /// Create a [ThreadToken] if it was created not created yet on this thread.
+    /// Create a [ThreadToken] if it was not created yet on this thread.
     ///
     /// Async tasks often share their thread and can thus not use this method.
     /// Instead you should use your equivalent of `spawn_blocking` or `block_in_place`.
