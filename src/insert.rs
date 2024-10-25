@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use sea_query::{Alias, InsertStatement, OnConflict, SqliteQueryBuilder};
 use sea_query_rusqlite::RusqliteBinder;
 
-use crate::{alias::Field, ast::MySelect, TableRow, Table, IntoColumn};
+use crate::{alias::Field, ast::MySelect, IntoColumn, Table, TableRow};
 
 /// this trait is not safe to implement
 pub trait Writable {
@@ -55,9 +55,5 @@ pub(crate) fn private_try_insert<'a, T: Table>(
         .query_map(&*values.as_params(), |row| row.get(T::ID))
         .unwrap()
         .next();
-    id.map(|id| TableRow {
-        _p: PhantomData,
-        _local: PhantomData,
-        idx: id.unwrap(),
-    })
+    id.map(|id| id.unwrap())
 }

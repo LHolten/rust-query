@@ -4,6 +4,7 @@ use ref_cast::RefCast;
 
 use crate::{
     client::private_exec,
+    db::TableRowId,
     exec::Query,
     insert::{private_try_insert, Writable},
     private::Dummy,
@@ -102,11 +103,11 @@ impl<'a, S> Deref for TransactionMut<'a, S> {
     }
 }
 
-impl<'t, S> Transaction<'t, S> {
+impl<S> Transaction<'_, S> {
     /// Execute a query with multiple results.
     ///
     /// Please take a look at the documentation of [Query] for how to use it.
-    pub fn query<F, R>(&self, f: F) -> R
+    pub fn query<'t, F, R>(&'t self, f: F) -> R
     where
         F: for<'a> FnOnce(&'a mut Query<'t, 'a, S>) -> R,
     {
@@ -120,7 +121,7 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<O>(&self, val: impl Dummy<'static, 't, S, Out = O>) -> O
+    pub fn query_one<'t, O>(&'t self, val: impl Dummy<'static, 't, S, Out = O>) -> O
     where
         S: 'static,
     {
@@ -135,14 +136,17 @@ impl<'t, S> Transaction<'t, S> {
     }
 }
 
-impl<'t, S> TransactionMut<'t, S> {
+impl<S> TransactionMut<'_, S> {
     /// Try inserting a value into the database.
     ///
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     /// Conflicts can occur due too unique constraints in the schema.
     ///
     /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<T: Table>(&mut self, val: impl Writable<T = T>) -> Option<TableRow<'t, T>> {
+    pub fn try_insert<'t, T: Table>(
+        &'t self,
+        val: impl Writable<T = T>,
+    ) -> Option<TableRow<'t, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 
@@ -157,7 +161,7 @@ impl<'t, S> TransactionMut<'t, S> {
     //     todo!()
     // }
 
-    // pub fn delete(self) {
-    //     todo!()
-    // }
+    pub fn remove<T>(&mut self, val: TableRowId<T>) -> Option<bool> {
+        todo!()
+    }
 }

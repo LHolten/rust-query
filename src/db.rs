@@ -6,7 +6,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
-    value::{MyTyp, Typed, ValueBuilder},
+    value::{operations::Assume, MyTyp, Typed, ValueBuilder},
     IntoColumn, Table, ThreadToken,
 };
 
@@ -114,24 +114,75 @@ impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<'t, T> {
     }
 }
 
+pub struct TableRowId<T> {
+    val: i64,
+    _p: PhantomData<T>,
+}
+
+impl<T> Debug for TableRowId<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "db_{}", self.val)
+    }
+}
+
+impl<T> PartialEq for TableRowId<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.val == other.val
+    }
+}
+
+impl<T> Clone for TableRowId<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for TableRowId<T> {}
+
+// TODO: consider implementing build_table for this and uniques
+impl<T: Table> Typed for TableRowId<T> {
+    type Typ = Option<T>;
+
+    fn build_expr(&self, b: crate::value::ValueBuilder) -> sea_query::SimpleExpr {
+        let val = Expr::val(self.val).into();
+        b.get_unique(T::NAME, vec![(T::ID, val)])
+    }
+}
+
+impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRowId<T> {
+    type Owned = TableRowId<T>;
+
+    fn into_owned(self) -> Self::Owned {
+        self
+    }
+}
+
+impl<T> FromSql for TableRowId<T> {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(Self {
+            _p: PhantomData,
+            val: value.as_i64()?,
+        })
+    }
+}
+
 /// Row reference that can be used in any query in the same transaction.
 ///
 /// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
 pub struct TableRow<'t, T> {
-    pub(crate) _p: PhantomData<&'t T>,
-    pub(crate) _local: PhantomData<ThreadToken>,
-    pub(crate) idx: i64,
+    pub(crate) _local: PhantomData<&'t ThreadToken>,
+    pub id: TableRowId<T>,
 }
 
 impl<'t, T> PartialEq for TableRow<'t, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.idx == other.idx
+        self.id == other.id
     }
 }
 
 impl<T> Debug for TableRow<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "db_{}", self.idx)
+        self.id.fmt(f)
     }
 }
 
@@ -153,41 +204,24 @@ impl<T: Table> Deref for TableRow<'_, T> {
 impl<T> FromSql for TableRow<'_, T> {
     fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(Self {
-            _p: PhantomData,
             _local: PhantomData,
-            idx: value.as_i64()?,
+            id: FromSql::column_result(value)?,
         })
-    }
-}
-
-impl<'t, T> From<TableRow<'t, T>> for sea_query::Value {
-    fn from(value: TableRow<T>) -> Self {
-        value.idx.into()
     }
 }
 
 impl<T: Table> Typed for TableRow<'_, T> {
     type Typ = T;
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::val(self.idx).into()
-    }
-}
-
-pub struct UnsafeRow<T>(i64, PhantomData<T>);
-
-impl<T> Typed for UnsafeRow<T> {
-    type Typ = T;
-
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::val(self.0).into()
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.id.build_expr(b)
     }
 }
 
 impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'_, T> {
-    type Owned = UnsafeRow<T>;
+    type Owned = Assume<TableRowId<T>>;
 
     fn into_owned(self) -> Self::Owned {
-        UnsafeRow(self.idx, PhantomData)
+        Assume(self.id)
     }
 }
 
