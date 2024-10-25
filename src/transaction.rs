@@ -135,17 +135,14 @@ impl<'t, S> Transaction<'t, S> {
     }
 }
 
-impl<S> TransactionMut<'_, S> {
+impl<'t, S> TransactionMut<'t, S> {
     /// Try inserting a value into the database.
     ///
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
     /// Conflicts can occur due too unique constraints in the schema.
     ///
     /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<'s, T: Table>(
-        &mut self,
-        val: impl Writable<T = T>,
-    ) -> Option<TableRow<'s, T>> {
+    pub fn try_insert<T: Table>(&mut self, val: impl Writable<T = T>) -> Option<TableRow<'t, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 
