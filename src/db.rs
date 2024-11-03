@@ -115,7 +115,7 @@ impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<'t, T> {
 }
 
 pub struct TableRowId<T> {
-    val: i64,
+    pub(crate) val: i64,
     _p: PhantomData<T>,
 }
 

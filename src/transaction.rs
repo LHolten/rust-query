@@ -1,6 +1,9 @@
 use std::{marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
+use rusqlite::ErrorCode;
+use sea_query::{Alias, DeleteStatement, Expr, SqliteQueryBuilder};
+use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
     client::private_exec,
@@ -161,7 +164,28 @@ impl<S> TransactionMut<'_, S> {
     //     todo!()
     // }
 
-    pub fn remove<T>(&mut self, val: TableRowId<T>) -> Option<bool> {
-        todo!()
+    pub fn remove<T: Table>(&mut self, val: TableRowId<T>) -> Option<bool> {
+        let (sql, values) = DeleteStatement::new()
+            .from_table(Alias::new(T::NAME))
+            .and_where(Expr::col(Alias::new(T::ID)).eq(val.val))
+            .build_rusqlite(SqliteQueryBuilder);
+
+        let mut statement = self.transaction.prepare_cached(&sql).unwrap();
+        let mut res = statement
+            .query_map(&*values.as_params(), |_| Ok(()))
+            .unwrap();
+
+        let Some(res) = res.next() else {
+            return Some(false);
+        };
+        match res {
+            Ok(()) => Some(true),
+            Err(rusqlite::Error::SqliteFailure(kind, Some(val)))
+                if kind.code == ErrorCode::ConstraintViolation =>
+            {
+                panic!("{kind}, {val}")
+            }
+            Err(err) => Err(err).unwrap(),
+        }
     }
 }

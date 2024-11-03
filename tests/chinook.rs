@@ -4,7 +4,9 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{aggregate, Dummy, FromDummy, Table, TableRow, ThreadToken, Transaction};
+use rust_query::{
+    aggregate, Dummy, FromDummy, Table, TableRow, ThreadToken, Transaction, TransactionMut,
+};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -37,10 +39,29 @@ fn test_queries() {
 
     free_reference(&db);
 
-    let id = db.try_insert(ArtistDummy {
-        name: "my cool artist",
+    let my_artist = db
+        .try_insert(ArtistDummy {
+            name: "my cool artist",
+        })
+        .unwrap();
+    // db.remove(my_artist.id);
+
+    let some_playlist = db.query(|rows| {
+        let playlist = Playlist::join(rows);
+        rows.into_vec(playlist)[0]
     });
-    assert!(id.is_some());
+    let some_track = db.query(|rows| {
+        let track = Track::join(rows);
+        rows.into_vec(track)[0]
+    });
+    db.try_insert(PlaylistTrackDummy {
+        playlist: some_playlist,
+        track: some_track,
+    });
+    db.try_insert(PlaylistTrackDummy {
+        playlist: some_playlist,
+        track: some_track,
+    });
 }
 
 #[derive(Debug, FromDummy, PartialEq)]
@@ -48,6 +69,38 @@ struct InvoiceInfo<'a> {
     track: String,
     artist: String,
     ivl_id: TableRow<'a, InvoiceLine>,
+}
+
+fn asdfadsf(db: &mut TransactionMut<Schema>) {
+    let a = db.query_one(A::unique("alpha")).unwrap().id;
+    let b = db.query_one(B::unique("bravo")).unwrap().id;
+
+    if let Some(thing) = db.query_one(Thing::unique_by_a(a)) {
+        db.remove(thing.id);
+    }
+    if let Some(thing) = db.query_one(Thing::unique_by_b(b)) {
+        db.remove(thing.id);
+    }
+    db.try_insert(Thing {
+        a: db.query_one(a).unwrap(),
+        b: db.query_one(b).unwrap(),
+    });
+
+    //  ----
+
+    let a = db.query_one(A::unique("alpha")).unwrap().id;
+    let b = db.query_one(B::unique("bravo")).unwrap().id;
+
+    let id = loop {
+        match db.try_insert(Thing {
+            a: db.query_one(a).unwrap(),
+            b: db.query_one(b).unwrap(),
+        }) {
+            Ok(val) => break val,
+            Err(Unique::A(thing)) => db.remove(thing.id),
+            Err(Unique::B(thing)) => db.remove(thing.id),
+        };
+    };
 }
 
 fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
