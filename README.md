@@ -6,7 +6,7 @@ This already includes preventing use after free for row ids passed between queri
 Writing queries using this library involves:
 - Interact with row/column references as Rust values.
 - Lifetimes to check the scopes of row/column references.
-- Imperative mutation of row sets with methods like `filter` and `join`.
+- Procedural mutation of row sets with methods like `filter` and `join`.
 
 Notably it does not involve any new syntax or macro, while still being completely type safe.
 
@@ -56,11 +56,11 @@ enum MySchema {
 }
 ```
 Get proof that we are running on a unique thread:
-```rust
+```rust,ignore
 let mut token = ThreadToken::try_new().unwrap();
 ```
 Initialize a database:
-```rust
+```rust,ignore
 let database = Prepare::open("my_database.sqlite")
     .create_db_empty()
     .expect("database version is before supported versions")
@@ -69,14 +69,14 @@ let database = Prepare::open("my_database.sqlite")
     .expect("database version is after supported versions");
 ```
 Perform a transaction!
-```rust
+```rust,ignore
 let mut transaction = database.write_lock(&mut token);
 do_stuff_with_database(&mut transaction);
 // After we are done we commit the changes!
 transaction.commit();
 ```
 Insert in the database:
-```rust
+```rust,ignore
 // Lets make a new user 'mike',
 let mike = UserDummy { name: "mike" };
 let mike_id = db.try_insert(mike).unwrap();
@@ -88,7 +88,7 @@ let dog_picture = ImageDummy {
 db.try_insert(dog_picture).unwrap();
 ```
 Query from the database:
-```rust
+```rust,ignore
 // Now we want to get all pictures for 'mike'.
 let mike_pictures = db.query(|rows| {
     // Initially there is one empty row.
