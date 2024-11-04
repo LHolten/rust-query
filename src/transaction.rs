@@ -80,7 +80,7 @@ impl<S> Database<S> {
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
     pub(crate) transaction: rusqlite::Transaction<'a>,
-    pub(crate) _p: PhantomData<&'a S>,
+    pub(crate) _p: PhantomData<fn(&'a S) -> &'a S>,
     pub(crate) _local: PhantomData<ThreadToken>,
 }
 

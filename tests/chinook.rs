@@ -233,7 +233,7 @@ struct ArtistDetails {
     track_stats: TrackStats,
 }
 
-fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistDetails {
+fn artist_details<'a>(db: &Transaction<'a, Schema>, artist: TableRow<'a, Artist>) -> ArtistDetails {
     db.query_one(ArtistDetailsDummy {
         name: artist.name(),
         album_count: aggregate(|rows| {
