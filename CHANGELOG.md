@@ -1,3 +1,11 @@
+# 0.2.2
+
+- Bound the lifetime of `TableRow: IntoColumn` to the lifetime of the transaction. 
+Without the bound it was possible to sneak `TableRow`s into following transacions. <details>
+`query_one` now checks that its input lives for as long as the transaction.
+To make sure that `query_one` still checks that the dummy is "global", the transaction now has an invariant lifetime.
+</details>
+
 # 0.2.1
 
 - Relax `Transaction` creation to not borrow the `Database`.
