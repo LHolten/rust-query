@@ -173,21 +173,11 @@ impl<T: Table> Typed for TableRow<'_, T> {
     }
 }
 
-pub struct UnsafeRow<T>(i64, PhantomData<T>);
-
-impl<T> Typed for UnsafeRow<T> {
-    type Typ = T;
-
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::val(self.0).into()
-    }
-}
-
-impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'_, T> {
-    type Owned = UnsafeRow<T>;
+impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
+    type Owned = TableRow<'t, T>;
 
     fn into_owned(self) -> Self::Owned {
-        UnsafeRow(self.idx, PhantomData)
+        self
     }
 }
 

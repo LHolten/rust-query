@@ -87,7 +87,7 @@ impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, T
     fn prepare(
         self: Box<Self>,
         _: Cacher<'_, 't, Self::FromSchema>,
-    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, Self::FromSchema>) + 't>
+    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, Self::FromSchema>) + 't>
     where
         'a: 't,
     {
@@ -123,7 +123,8 @@ pub trait TableMigration<'t, 'a> {
         prev: Cached<'t, Self::From>,
         cacher: Cacher<'_, 't, <Self::From as Table>::Schema>,
     ) -> Box<
-        dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, <Self::From as Table>::Schema>) + 't,
+        dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, <Self::From as Table>::Schema>)
+            + 't,
     >
     where
         'a: 't;
@@ -136,7 +137,7 @@ pub trait TableCreation<'t, 'a> {
     fn prepare(
         self: Box<Self>,
         cacher: Cacher<'_, 't, Self::FromSchema>,
-    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, Self::FromSchema>) + 't>
+    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, Self::FromSchema>) + 't>
     where
         'a: 't;
 }
@@ -153,7 +154,7 @@ impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To
     fn prepare(
         self: Box<Self>,
         mut cacher: Cacher<'_, 't, Self::FromSchema>,
-    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, Self::FromSchema>) + 't>
+    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, Self::FromSchema>) + 't>
     where
         'a: 't,
     {
@@ -241,6 +242,7 @@ impl<'a> SchemaBuilder<'a> {
             let reader = Reader {
                 ast: &new_ast,
                 _p: PhantomData,
+                _p2: PhantomData,
             };
             prepared(row, reader);
 

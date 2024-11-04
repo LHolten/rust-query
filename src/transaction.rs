@@ -120,7 +120,7 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<O>(&self, val: impl Dummy<'static, 't, S, Out = O>) -> O
+    pub fn query_one<O>(&self, val: impl Dummy<'t, 't, S, Out = O>) -> O
     where
         S: 'static,
     {
@@ -142,7 +142,10 @@ impl<'t, S> TransactionMut<'t, S> {
     /// Conflicts can occur due too unique constraints in the schema.
     ///
     /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<T: Table>(&mut self, val: impl Writable<T = T>) -> Option<TableRow<'t, T>> {
+    pub fn try_insert<T: Table>(
+        &mut self,
+        val: impl Writable<'t, T = T>,
+    ) -> Option<TableRow<'t, T>> {
         private_try_insert(&self.inner.transaction, val)
     }
 

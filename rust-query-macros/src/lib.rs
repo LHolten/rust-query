@@ -379,7 +379,7 @@ fn define_table_migration(
                     prev: ::rust_query::private::Cached<'t, Self::From>,
                     cacher: ::rust_query::private::Cacher<'_, 't, <Self::From as ::rust_query::Table>::Schema>,
                 ) -> Box<
-                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, <Self::From as ::rust_query::Table>::Schema>) + 't,
+                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, 't, <Self::From as ::rust_query::Table>::Schema>) + 't,
                 >
                 where
                     'a: 't
@@ -402,7 +402,7 @@ fn define_table_migration(
                     self: Box<Self>,
                     cacher: ::rust_query::private::Cacher<'_, 't, Self::FromSchema>,
                 ) -> Box<
-                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, Self::FromSchema>) + 't,
+                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, 't, Self::FromSchema>) + 't,
                 >
                 where
                     'a: 't

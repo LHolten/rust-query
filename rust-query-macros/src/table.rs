@@ -84,7 +84,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         reads.push(quote!(f.col(#ident_str, self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
         col_defs.push(quote! {pub #ident: #generic});
-        bounds.push(quote! {#generic: ::rust_query::IntoColumn<'static, #schema, Typ = #typ>});
+        bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
         generics.push(generic);
     }
 
@@ -116,9 +116,9 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             #(#col_defs),*
         }
 
-        impl<#(#bounds),*> ::rust_query::private::Writable for #dummy_ident<#(#generics),*> {
+        impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
             type T = #table_ident;
-            fn read(self, f: ::rust_query::private::Reader<'_, #schema>) {
+            fn read(self, f: ::rust_query::private::Reader<'_, 't, #schema>) {
                 #(#reads;)*
             }
         }
