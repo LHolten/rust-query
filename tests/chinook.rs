@@ -37,10 +37,17 @@ fn test_queries() {
 
     free_reference(&db);
 
-    let id = db.try_insert(ArtistDummy {
-        name: "my cool artist",
-    });
-    assert!(id.is_some());
+    let Some(_) = db.try_insert(ArtistDummy { name: "first" }) else {
+        panic!()
+    };
+
+    let Some(id) = db.try_insert(ArtistDummy { name: "second" }) else {
+        panic!()
+    };
+
+    let None = db.try_update(id, ArtistDummy { name: "first" }) else {
+        panic!()
+    };
 }
 
 #[derive(Debug, FromDummy, PartialEq)]

@@ -1,14 +1,19 @@
 use std::{marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
+use rusqlite::ErrorCode;
+use sea_query::{Alias, Expr, SqliteQueryBuilder, UpdateStatement, Value};
+use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
+    alias::Field,
+    ast::MySelect,
     client::private_exec,
     exec::Query,
-    insert::{private_try_insert, Writable},
+    insert::{private_try_insert, Reader, Writable},
     private::Dummy,
     token::ThreadToken,
-    Table, TableRow,
+    IntoColumn, Table, TableRow,
 };
 
 /// The primary interface to the database.
@@ -135,7 +140,7 @@ impl<'t, S> Transaction<'t, S> {
     }
 }
 
-impl<'t, S> TransactionMut<'t, S> {
+impl<'t, S: 'static> TransactionMut<'t, S> {
     /// Try inserting a value into the database.
     ///
     /// Returns a reference to the new inserted value or `None` if there is a conflict.
@@ -156,11 +161,60 @@ impl<'t, S> TransactionMut<'t, S> {
         self.inner.transaction.commit().unwrap()
     }
 
-    // pub fn update(&mut self) {
-    //     todo!()
-    // }
+    pub fn try_update<T: Table>(
+        &mut self,
+        row: impl IntoColumn<'t, S, Typ = T>,
+        val: impl Writable<'t, T = T>,
+    ) -> Option<()> {
+        let ast = MySelect::default();
 
-    // pub fn delete(self) {
-    //     todo!()
-    // }
+        let reader = Reader {
+            ast: &ast,
+            _p: PhantomData,
+            _p2: PhantomData,
+        };
+        Writable::read(val, reader);
+
+        let select = ast.simple();
+        let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
+        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
+
+        let row_id = self.query_one(row).idx;
+        let mut update = UpdateStatement::new()
+            .table(Alias::new(T::NAME))
+            .cond_where(Expr::val(row_id).equals(Alias::new(T::ID)))
+            .to_owned();
+
+        stmt.query_row(&*args.as_params(), |row| {
+            for (_, field) in ast.select.iter() {
+                let Field::Str(name) = field else { panic!() };
+
+                let val = match row.get_unwrap::<&str, rusqlite::types::Value>(*name) {
+                    rusqlite::types::Value::Null => Value::BigInt(None),
+                    rusqlite::types::Value::Integer(x) => Value::BigInt(Some(x)),
+                    rusqlite::types::Value::Real(x) => Value::Double(Some(x)),
+                    rusqlite::types::Value::Text(x) => Value::String(Some(Box::new(x))),
+                    rusqlite::types::Value::Blob(_) => todo!(),
+                };
+                update.value(*field, Expr::val(val));
+            }
+            Ok(())
+        })
+        .unwrap();
+
+        let (query, args) = update.build_rusqlite(SqliteQueryBuilder);
+
+        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
+        match stmt.execute(&*args.as_params()) {
+            Ok(1) => Some(()),
+            Ok(n) => panic!("unexpected number of updates: {n}"),
+            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                if kind.code == ErrorCode::ConstraintViolation =>
+            {
+                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+                None
+            }
+            Err(err) => Err(err).unwrap(),
+        }
+    }
 }

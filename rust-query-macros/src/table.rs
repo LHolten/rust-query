@@ -66,6 +66,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let mut col_defs = vec![];
     let mut generics = vec![];
     let mut bounds = vec![];
+    let mut dummy_columns = vec![];
+    let mut dummy_inits = vec![];
 
     for col in columns.values() {
         let typ = &col.typ;
@@ -73,10 +75,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         let ident_str = ident.to_string();
         let generic = make_generic(ident);
         defs.push(quote! {
-            pub fn #ident<'t>(&self) -> ::rust_query::Column<'t, #schema, #typ>
-            where
-                T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
-            {
+            pub fn #ident(&self) -> ::rust_query::Column<'t, #schema, #typ> {
                 ::rust_query::IntoColumn::into_column(::rust_query::private::Col::new(#ident_str, self.0.clone()))
             }
         });
@@ -85,6 +84,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
         col_defs.push(quote! {pub #ident: #generic});
         bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
+        dummy_columns.push(quote! {::rust_query::Column<'t, #schema, #typ>});
+        dummy_inits.push(quote! {#ident: self.#ident()});
         generics.push(generic);
     }
 
@@ -95,8 +96,16 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         pub struct #table_ident<T = ()>(T);
         ::rust_query::unsafe_impl_ref_cast! {#table_ident}
 
-        impl<T> #table_ident<T> {
+        impl<'t, T> #table_ident<T>
+            where T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
+        {
             #(#defs)*
+
+            pub fn dummy(&self) -> #dummy_ident<#(#dummy_columns),*> {
+                #dummy_ident {
+                    #(#dummy_inits,)*
+                }
+            }
         }
 
         impl ::rust_query::Table for #table_ident {

@@ -23,6 +23,7 @@ enum Schema {
         artist: Artist,
     },
     Artist {
+        #[unique]
         name: String,
     },
     Customer {
@@ -192,7 +193,7 @@ mod tests {
 
     #[test]
     fn backwards_compat() {
-        v0::assert_hash(expect!["a5821c5b83d30d7c"]);
-        v1::assert_hash(expect!["6dec069b8b65eeeb"]);
+        v0::assert_hash(expect!["a57e97b8c243859a"]);
+        v1::assert_hash(expect!["15e9ff46816e4b45"]);
     }
 }
