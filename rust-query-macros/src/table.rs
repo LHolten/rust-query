@@ -65,6 +65,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let mut def_typs = vec![];
     let mut col_defs = vec![];
     let mut generics = vec![];
+    let mut generic_defaults = vec![];
     let mut bounds = vec![];
     let mut dummy_columns = vec![];
     let mut dummy_inits = vec![];
@@ -86,24 +87,29 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
         dummy_columns.push(quote! {::rust_query::Column<'t, #schema, #typ>});
         dummy_inits.push(quote! {#ident: val.#ident()});
+        generic_defaults.push(quote! {#generic = ()});
         generics.push(generic);
     }
 
-    let dummy_ident = format_ident!("{}Dummy", table_ident);
+    let ext_ident = format_ident!("{}Ext", table_ident);
 
     Ok(quote! {
         #[repr(transparent)]
-        pub struct #table_ident<T = ()>(T);
-        ::rust_query::unsafe_impl_ref_cast! {#table_ident}
+        pub struct #ext_ident<T>(T);
+        ::rust_query::unsafe_impl_ref_cast! {#ext_ident}
 
-        impl<'t, T> #table_ident<T>
+        impl<'t, T> #ext_ident<T>
             where T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
         {
             #(#defs)*
         }
 
+        pub struct #table_ident<#(#generic_defaults),*> {
+            #(#col_defs),*
+        }
+
         impl ::rust_query::Table for #table_ident {
-            type Ext<T> = #table_ident<T>;
+            type Ext<T> = #ext_ident<T>;
             type Schema = #schema;
 
             fn typs(f: &mut ::rust_query::private::TypBuilder) {
@@ -114,21 +120,17 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             const ID: &'static str = "id";
             const NAME: &'static str = #table_name;
 
-            type Dummy<'t> = #dummy_ident<#(#dummy_columns),*>;
+            type Dummy<'t> = #table_ident<#(#dummy_columns),*>;
 
             fn dummy<'t>(val: impl ::rust_query::IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {
                 let val = val.into_column();
-                #dummy_ident {
+                #table_ident {
                     #(#dummy_inits,)*
                 }
             }
         }
 
-        pub struct #dummy_ident<#(#generics),*> {
-            #(#col_defs),*
-        }
-
-        impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #dummy_ident<#(#generics),*> {
+        impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics),*> {
             type T = #table_ident;
             fn read(self, f: ::rust_query::private::Reader<'_, 't, #schema>) {
                 #(#reads;)*

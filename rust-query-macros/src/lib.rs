@@ -523,8 +523,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             new_tables.insert(i, table);
         }
 
-        let mut schema_table_defs = vec![];
-        let mut schema_table_inits = vec![];
         let mut schema_table_typs = vec![];
 
         let mut table_defs = vec![];
@@ -538,8 +536,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
             let table_lower = to_lower(table_name);
 
-            schema_table_defs.push(quote! {pub #table_lower: #table_name});
-            schema_table_inits.push(quote! {#table_lower: #table_name(())});
             schema_table_typs.push(quote! {b.table::<#table_name>()});
 
             if let Some(prev_table) = prev_tables.remove(i) {
@@ -579,17 +575,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let version_i64 = version as i64;
         mod_output.extend(quote! {
-            pub struct #schema {
-                #(#schema_table_defs,)*
-            }
-
+            pub struct #schema;
             impl ::rust_query::private::Schema for #schema {
                 const VERSION: i64 = #version_i64;
-                fn new() -> Self {
-                    #schema {
-                        #(#schema_table_inits,)*
-                    }
-                }
 
                 fn typs(b: &mut ::rust_query::private::TableTypBuilder) {
                     #(#schema_table_typs;)*

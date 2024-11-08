@@ -110,7 +110,6 @@ impl TableTypBuilder {
 
 pub trait Schema: Sized + 'static {
     const VERSION: i64;
-    fn new() -> Self;
     fn typs(b: &mut TableTypBuilder);
 }
 
