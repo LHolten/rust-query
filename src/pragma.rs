@@ -45,6 +45,9 @@ impl Table for TableList {
     }
 
     fn typs(_f: &mut hash::TypBuilder) {}
+
+    type Dummy<'t> = ();
+    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
 }
 
 pub struct TableInfo(pub String);
@@ -69,6 +72,9 @@ impl Table for TableInfo {
     }
 
     fn typs(_f: &mut hash::TypBuilder) {}
+
+    type Dummy<'t> = ();
+    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
 }
 pub struct ForeignKeyList(pub String);
 
@@ -92,6 +98,9 @@ impl Table for ForeignKeyList {
     }
 
     fn typs(_f: &mut hash::TypBuilder) {}
+
+    type Dummy<'t> = ();
+    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
 }
 
 pub struct IndexList(String);
@@ -116,6 +125,9 @@ impl Table for IndexList {
     }
 
     fn typs(_f: &mut hash::TypBuilder) {}
+
+    type Dummy<'t> = ();
+    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
 }
 
 pub struct IndexInfo(String);
@@ -137,6 +149,9 @@ impl Table for IndexInfo {
     }
 
     fn typs(_f: &mut hash::TypBuilder) {}
+
+    type Dummy<'t> = ();
+    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
 }
 
 pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {

@@ -1,7 +1,7 @@
 #![feature(type_changing_struct_update)]
 use std::time;
 
-use rust_query::{migration::schema, FromDummy, TableRow, TransactionMut};
+use rust_query::{migration::schema, FromDummy, Table, TableRow, TransactionMut};
 
 #[schema]
 enum Schema {
@@ -143,7 +143,7 @@ pub fn new_order<'a>(
         &district,
         DistrictDummy {
             next_order: district_info.next_order + 1,
-            ..district.dummy()
+            ..Table::dummy(district)
         },
     )
     .unwrap();
@@ -247,7 +247,7 @@ pub fn new_order<'a>(
                 quantity: new_quantity,
                 order_cnt: stock.order_cnt().add(1),
                 remote_cnt: stock.remote_cnt().add(is_remote as i64),
-                ..stock.dummy()
+                ..Table::dummy(stock)
             },
         )
         .unwrap();

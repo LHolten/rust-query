@@ -110,6 +110,10 @@ pub trait Table: Sized + 'static {
         rows.join()
     }
 
+    type Dummy<'t>;
+
+    fn dummy<'t>(val: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t>;
+
     // used for the first join (useful for pragmas)
     #[doc(hidden)]
     fn name(&self) -> String {

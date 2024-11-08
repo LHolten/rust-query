@@ -85,7 +85,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         col_defs.push(quote! {pub #ident: #generic});
         bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
         dummy_columns.push(quote! {::rust_query::Column<'t, #schema, #typ>});
-        dummy_inits.push(quote! {#ident: self.#ident()});
+        dummy_inits.push(quote! {#ident: val.#ident()});
         generics.push(generic);
     }
 
@@ -100,12 +100,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             where T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
         {
             #(#defs)*
-
-            pub fn dummy(&self) -> #dummy_ident<#(#dummy_columns),*> {
-                #dummy_ident {
-                    #(#dummy_inits,)*
-                }
-            }
         }
 
         impl ::rust_query::Table for #table_ident {
@@ -119,6 +113,15 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
 
             const ID: &'static str = "id";
             const NAME: &'static str = #table_name;
+
+            type Dummy<'t> = #dummy_ident<#(#dummy_columns),*>;
+
+            fn dummy<'t>(val: impl ::rust_query::IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {
+                let val = val.into_column();
+                #dummy_ident {
+                    #(#dummy_inits,)*
+                }
+            }
         }
 
         pub struct #dummy_ident<#(#generics),*> {
