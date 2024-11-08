@@ -141,7 +141,7 @@ pub fn new_order<'a>(
 
     txn.try_update(
         &district,
-        DistrictDummy {
+        District {
             next_order: district_info.next_order + 1,
             ..Table::dummy(district)
         },
@@ -169,7 +169,7 @@ pub fn new_order<'a>(
     let entry_d = time::SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
 
     let order = txn
-        .try_insert(OrderDummy {
+        .try_insert(Order {
             customer: input.customer,
             entry_d,
             carrier_id: None::<i64>,
@@ -177,7 +177,7 @@ pub fn new_order<'a>(
             all_local: local as i64,
         })
         .unwrap();
-    txn.try_insert(NewOrderDummy { order }).unwrap();
+    txn.try_insert(NewOrder { order }).unwrap();
 
     let mut output_order_lines = vec![];
 
@@ -242,7 +242,7 @@ pub fn new_order<'a>(
         let is_remote = supplying_warehouse != district_info.warehouse;
         txn.try_update(
             &stock,
-            StockDummy {
+            Stock {
                 ytd: stock.ytd().add(quantity),
                 quantity: new_quantity,
                 order_cnt: stock.order_cnt().add(1),
@@ -260,7 +260,7 @@ pub fn new_order<'a>(
                 "G"
             };
 
-        txn.try_insert(OrderLineDummy {
+        txn.try_insert(OrderLine {
             order,
             number: number as i64,
             stock,
