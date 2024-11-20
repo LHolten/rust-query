@@ -139,13 +139,10 @@ pub fn new_order<'a>(
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
-    txn.try_update(
-        &district,
-        District {
-            next_order: district_info.next_order + 1,
-            ..Table::dummy(district)
-        },
-    )
+    txn.find_and_update(District {
+        next_order: district_info.next_order + 1,
+        ..Table::dummy(district)
+    })
     .unwrap();
 
     #[derive(FromDummy)]
@@ -154,7 +151,6 @@ pub fn new_order<'a>(
         last_name: String,
         credit_status: String,
     }
-
     let customer_info = txn.query_one(CustomerInfoDummy {
         discount: input.customer.discount(),
         last_name: input.customer.last(),
@@ -168,15 +164,13 @@ pub fn new_order<'a>(
 
     let entry_d = time::SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
 
-    let order = txn
-        .try_insert(Order {
-            customer: input.customer,
-            entry_d,
-            carrier_id: None::<i64>,
-            order_line_cnt: input.items.len() as i64,
-            all_local: local as i64,
-        })
-        .unwrap();
+    let order = txn.insert(Order {
+        customer: input.customer,
+        entry_d,
+        carrier_id: None::<i64>,
+        order_line_cnt: input.items.len() as i64,
+        all_local: local as i64,
+    });
     txn.try_insert(NewOrder { order }).unwrap();
 
     let mut output_order_lines = vec![];
@@ -214,7 +208,6 @@ pub fn new_order<'a>(
             dist_xx: String,
             data: String,
         }
-
         let stock_info = txn.query_one(StockInfoDummy {
             quantity: stock.quantity(),
             dist_xx: &[
@@ -240,16 +233,13 @@ pub fn new_order<'a>(
         };
 
         let is_remote = supplying_warehouse != district_info.warehouse;
-        txn.try_update(
-            &stock,
-            Stock {
-                ytd: stock.ytd().add(quantity),
-                quantity: new_quantity,
-                order_cnt: stock.order_cnt().add(1),
-                remote_cnt: stock.remote_cnt().add(is_remote as i64),
-                ..Table::dummy(stock)
-            },
-        )
+        txn.find_and_update(Stock {
+            ytd: stock.ytd().add(quantity),
+            quantity: new_quantity,
+            order_cnt: stock.order_cnt().add(1),
+            remote_cnt: stock.remote_cnt().add(is_remote as i64),
+            ..Table::dummy(stock)
+        })
         .unwrap();
 
         let amount = quantity * item_info.price;

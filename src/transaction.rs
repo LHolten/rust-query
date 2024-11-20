@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Deref};
+use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
 use rusqlite::ErrorCode;
@@ -183,33 +183,23 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
                 let conflict = self.query_one(val.get_conflict_unchecked());
-                Err(conflict)
+                Err(conflict.unwrap())
             }
             Err(err) => Err(err).unwrap(),
         }
     }
 
-    /// Make the changes made in this [TransactionMut] permanent.
-    ///
-    /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
-    pub fn commit(self) {
-        self.inner.transaction.commit().unwrap()
-    }
-
-    pub fn insert_or_update<T: Table<Schema = S>>(
+    /// This function only works for tables without unique constraints.
+    pub fn insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+        val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
     ) -> TableRow<'t, T> {
-        match self.try_insert(&val) {
-            Ok(row) => row,
-            Err(row) => {
-                self.try_update(row, val).unwrap();
-                row
-            }
-        }
+        let Ok(row) = self.try_insert(val);
+        row
     }
 
-    pub fn get_or_insert<T: Table<Schema = S>>(
+    /// This function only works for tables with exactly one unique constraint.
+    pub fn find_or_insert<T: Table<Schema = S>>(
         &mut self,
         val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
     ) -> TableRow<'t, T> {
@@ -271,9 +261,38 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
                 let conflict = self.query_one(val.get_conflict_unchecked());
-                Err(conflict)
+                Err(conflict.unwrap())
             }
             Err(err) => Err(err).unwrap(),
         }
+    }
+
+    // This operation tries to find a matching row and then updates it.
+    pub fn find_and_update<T: Table<Schema = S>>(
+        &mut self,
+        val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+    ) -> Result<TableRow<'t, T>, ()> {
+        match self.query_one(val.get_conflict_unchecked()) {
+            Some(row) => {
+                self.try_update(row, val).unwrap();
+                Ok(row)
+            }
+            None => Err(()),
+        }
+    }
+
+    pub fn update<T: Table<Schema = S>>(
+        &mut self,
+        row: impl IntoColumn<'t, S, Typ = T>,
+        val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
+    ) {
+        let Ok(()) = self.try_update(row, val);
+    }
+
+    /// Make the changes made in this [TransactionMut] permanent.
+    ///
+    /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
+    pub fn commit(self) {
+        self.inner.transaction.commit().unwrap()
     }
 }

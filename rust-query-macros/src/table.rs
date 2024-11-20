@@ -76,8 +76,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             (
                 quote! {::rust_query::TableRow<'t, #table_ident>},
                 quote! {
-                    let x = #table_ident::#unique_name(#(#parts),*);
-                    ::rust_query::Dummy::map_dummy(x, |v| v.unwrap())
+                    #table_ident::#unique_name(#(#parts),*)
                 },
             )
         }
@@ -85,7 +84,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             quote! {()},
             quote! {
                 let x = ::rust_query::IntoColumn::into_column(&0i64);
-                ::rust_query::Dummy::map_dummy(x, |_| ())
+                ::rust_query::Dummy::map_dummy(x, |_| Some(()))
             },
         ),
     };
@@ -169,7 +168,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
 
             type Conflict = #conflict_type;
-            fn get_conflict_unchecked(&self) -> impl ::rust_query::Dummy<'t, 't, Self::Schema, Out = Self::Conflict> {
+            fn get_conflict_unchecked(&self) -> impl ::rust_query::Dummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
                 #conflict_dummy
             }
         }
