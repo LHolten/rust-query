@@ -39,13 +39,14 @@ fn main() {
 fn do_stuff_with_database(db: &mut TransactionMut<MySchema>) {
     // Lets make a new user 'mike',
     let mike = User { name: "mike" };
-    let mike_id = db.try_insert(mike).unwrap();
+    let Ok(mike_id) = db.try_insert(mike);
+
     // and also insert a dog picture for 'mike'.
     let dog_picture = Image {
         description: "dog",
         uploaded_by: mike_id,
     };
-    db.try_insert(dog_picture).unwrap();
+    let Ok(_picture_id) = db.try_insert(dog_picture);
 
     // Now we want to get all pictures for 'mike'.
     let mike_pictures = db.query(|rows| {

@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
 use rusqlite::ErrorCode;
-use sea_query::{Alias, Expr, SqliteQueryBuilder, UpdateStatement, Value};
+use sea_query::{Alias, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value};
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     ast::MySelect,
     client::private_exec,
     exec::Query,
-    insert::{private_try_insert, Reader, Writable},
+    insert::{Reader, Writable},
     private::Dummy,
     token::ThreadToken,
     IntoColumn, Table, TableRow,
@@ -147,11 +147,46 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// Conflicts can occur due too unique constraints in the schema.
     ///
     /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
-    pub fn try_insert<T: Table>(
+    pub fn try_insert<T: Table<Schema = S>, C>(
         &mut self,
-        val: impl Writable<'t, T = T>,
-    ) -> Option<TableRow<'t, T>> {
-        private_try_insert(&self.inner.transaction, val)
+        val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
+    ) -> Result<TableRow<'t, T>, C> {
+        let ast = MySelect::default();
+
+        let reader = Reader {
+            ast: &ast,
+            _p: PhantomData,
+            _p2: PhantomData,
+        };
+        val.read(reader);
+
+        let select = ast.simple();
+
+        let mut insert = InsertStatement::new();
+        let names = ast.select.iter().map(|(_field, name)| *name);
+        insert.into_table(Alias::new(T::NAME));
+        insert.columns(names);
+        insert.select_from(select).unwrap();
+        insert.returning_col(Alias::new(T::ID));
+
+        let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+
+        let mut statement = self.transaction.prepare_cached(&sql).unwrap();
+        let mut res = statement
+            .query_map(&*values.as_params(), |row| row.get(T::ID))
+            .unwrap();
+
+        match res.next().unwrap() {
+            Ok(id) => Ok(id),
+            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                if kind.code == ErrorCode::ConstraintViolation =>
+            {
+                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+                let conflict = self.query_one(val.get_conflict_unchecked());
+                Err(conflict)
+            }
+            Err(err) => Err(err).unwrap(),
+        }
     }
 
     /// Make the changes made in this [TransactionMut] permanent.
@@ -161,11 +196,34 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         self.inner.transaction.commit().unwrap()
     }
 
-    pub fn try_update<T: Table>(
+    pub fn insert_or_update<T: Table<Schema = S>>(
+        &mut self,
+        val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+    ) -> TableRow<'t, T> {
+        match self.try_insert(&val) {
+            Ok(row) => row,
+            Err(row) => {
+                self.try_update(row, val).unwrap();
+                row
+            }
+        }
+    }
+
+    pub fn get_or_insert<T: Table<Schema = S>>(
+        &mut self,
+        val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+    ) -> TableRow<'t, T> {
+        match self.try_insert(val) {
+            Ok(row) => row,
+            Err(row) => row,
+        }
+    }
+
+    pub fn try_update<T: Table<Schema = S>, C>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl Writable<'t, T = T>,
-    ) -> Option<()> {
+        val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
+    ) -> Result<(), C> {
         let ast = MySelect::default();
 
         let reader = Reader {
@@ -173,7 +231,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             _p: PhantomData,
             _p2: PhantomData,
         };
-        Writable::read(val, reader);
+        val.read(reader);
 
         let select = ast.simple();
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
@@ -206,13 +264,14 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let mut stmt = self.transaction.prepare_cached(&query).unwrap();
         match stmt.execute(&*args.as_params()) {
-            Ok(1) => Some(()),
+            Ok(1) => Ok(()),
             Ok(n) => panic!("unexpected number of updates: {n}"),
             Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                None
+                let conflict = self.query_one(val.get_conflict_unchecked());
+                Err(conflict)
             }
             Err(err) => Err(err).unwrap(),
         }
