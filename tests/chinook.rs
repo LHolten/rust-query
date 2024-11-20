@@ -37,8 +37,8 @@ fn test_queries() {
 
     free_reference(&db);
 
-    db.insert_or_update(Artist { name: "first" });
-    let id = db.insert_or_update(Artist { name: "second" });
+    db.try_insert(Artist { name: "first" }).unwrap();
+    let id = db.try_insert(Artist { name: "second" }).unwrap();
 
     let Err(_) = db.try_update(id, Artist { name: "first" }) else {
         panic!()
