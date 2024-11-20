@@ -37,15 +37,10 @@ fn test_queries() {
 
     free_reference(&db);
 
-    let Some(_) = db.try_insert(Artist { name: "first" }) else {
-        panic!()
-    };
+    db.insert_or_update(Artist { name: "first" });
+    let id = db.insert_or_update(Artist { name: "second" });
 
-    let Some(id) = db.try_insert(Artist { name: "second" }) else {
-        panic!()
-    };
-
-    let None = db.try_update(id, Artist { name: "first" }) else {
+    let Err(_) = db.try_update(id, Artist { name: "first" }) else {
         panic!()
     };
 }
