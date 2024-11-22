@@ -163,6 +163,9 @@ pub fn schema(
 /// This `*Dummy` struct can then be used with [Query::into_vec] or [Transaction::query_one].
 /// Usage can also be nested.
 ///
+/// Note that the result of [Query::into_vec] is sorted. When a `*Dummy` struct is used for
+/// the output, the sorting order depends on the order of the fields in the struct definition.
+///
 /// Example:
 /// ```
 /// #[rust_query::migration::schema]
