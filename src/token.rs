@@ -2,15 +2,58 @@ use std::{any::Any, cell::Cell, rc::Rc};
 
 use rusqlite::Connection;
 
-/// [LocalClient] is used to separate transactions in time for each thread.
+use crate::{Database, Transaction, TransactionMut};
+
+/// The primary interface to the database.
 ///
 /// Only one [LocalClient] can exist in each thread and transactions need to mutably borrow a [LocalClient].
-/// Furthermore, neither [LocalClient] nor any of the transaction types can be moved between threads.
 /// This makes it impossible to have access to two transactions from one thread.
+///
+/// The only way to have concurrent read transactions is to have them on different threads.
+/// Write transactions never run in parallell with each other, but they do run in parallel with read transactions.
 pub struct LocalClient {
     _p: std::marker::PhantomData<*const ()>,
     pub(crate) stuff: Rc<dyn Any>,
     pub(crate) conn: Option<Connection>,
+}
+
+impl LocalClient {
+    /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
+    ///
+    /// This function will panic if the schema was modified compared to when the [Database] value
+    /// was created. This can happen for example by running another instance of your program with
+    /// additional migrations.
+    pub fn transaction<S>(&mut self, db: &Database<S>) -> Transaction<S> {
+        use r2d2::ManageConnection;
+        // TODO: could check here if the existing connection is good to use.
+        let conn = self.conn.insert(db.manager.connect().unwrap());
+        let txn = conn.transaction().unwrap();
+        Transaction::new_checked(txn, db.schema_version)
+    }
+
+    /// Create a [TransactionMut].
+    /// This operation needs to wait for all other [TransactionMut]s for this database to be finished.
+    ///
+    /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
+    /// This makes it work across processes.
+    ///
+    /// Note: you can create a deadlock if you are holding on to another lock while trying to
+    /// get a mutable transaction!
+    ///
+    /// This function will panic if the schema was modified compared to when the [Database] value
+    /// was created. This can happen for example by running another instance of your program with
+    /// additional migrations.
+    pub fn transaction_mut<S>(&mut self, db: &Database<S>) -> TransactionMut<S> {
+        use r2d2::ManageConnection;
+        // TODO: could check here if the existing connection is good to use.
+        let conn = self.conn.insert(db.manager.connect().unwrap());
+        let txn = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        TransactionMut {
+            inner: Transaction::new_checked(txn, db.schema_version),
+        }
+    }
 }
 
 thread_local! {

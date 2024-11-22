@@ -11,15 +11,27 @@ use crate::{
     client::private_exec,
     exec::Query,
     insert::{Reader, Writable},
+    migrate::schema_version,
     private::Dummy,
     token::LocalClient,
     IntoColumn, Table, TableRow,
 };
 
-/// The primary interface to the database.
+/// [Database] is a proof that the database has been configured.
 ///
-/// It allows creating read and write transactions from multiple threads.
-/// It is also safe to create multiple [Database] instances for the same database (from one or multiple processes).
+/// For information on how to create transactions, please refer to [LocalClient].
+///
+/// Creating a [Database] requires going through the steps to migrate an existing database to
+/// the required schema, or creating a new database from scratch.
+/// Having done the setup to create a compatible database is sadly not a guarantee that the
+/// database will stay compatible for the lifetime of the [Database].
+///
+/// That is why [Database] also stores the `schema_version`. This allows detecting non-malicious
+/// modifications to the schema and gives us the ability to panic when this is detected.
+/// Such non-malicious modification of the schema can happen for example if another [Database]
+/// instance is created with additional migrations (e.g. by another newer instance of your program).
+///
+/// # Sqlite config
 ///
 /// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html).
 /// The effect of this mode is that there can be any number of readers with one concurrent writer.
@@ -28,52 +40,10 @@ use crate::{
 ///
 /// Sqlite is also configured with [`synchronous=NORMAL`](https://www.sqlite.org/pragma.html#pragma_synchronous). This gives better performance by fsyncing less.
 /// The database will not lose transactions due to application crashes, but it might due to system crashes or power loss.
-///
-/// # Creating transactions
-/// Creating a transaction requires access to a [LocalClient].
-/// This makes it impossible to create two transactions on the same thread, making it impossible to accidentally share a [TableRow] outside of the transaction that it was created in.
-///
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
+    pub(crate) schema_version: i64,
     pub(crate) schema: PhantomData<S>,
-}
-
-impl LocalClient {
-    /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
-    pub fn transaction<S>(&mut self, db: &Database<S>) -> Transaction<S> {
-        use r2d2::ManageConnection;
-        let conn = self.conn.insert(db.manager.connect().unwrap());
-        Transaction {
-            // this can not be a nested transaction, because we create it from the original connection.
-            // we also know that it is not concurrent with any write transactions on the same connection.
-            // (sqlite does not guarantee isolation for those)
-            transaction: conn.unchecked_transaction().unwrap(),
-            _p: PhantomData,
-            _local: PhantomData,
-        }
-    }
-
-    /// Create a [TransactionMut].
-    /// This operation needs to wait for all other [TransactionMut]s for this database to be finished.
-    ///
-    /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
-    /// This makes it work across processes.
-    ///
-    /// Note: you can create a deadlock if you are holding on to another lock while trying to
-    /// get a mutable transaction!
-    pub fn transaction_mut<S>(&mut self, db: &Database<S>) -> TransactionMut<S> {
-        use r2d2::ManageConnection;
-        let conn = self.conn.insert(db.manager.connect().unwrap());
-        TransactionMut {
-            inner: Transaction {
-                transaction: conn
-                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                    .unwrap(),
-                _p: PhantomData,
-                _local: PhantomData,
-            },
-        }
-    }
 }
 
 /// [Transaction] can be used to query the database.
@@ -99,7 +69,7 @@ pub struct Transaction<'a, S> {
 /// To make mutations to the database permanent you need to use [TransactionMut::commit].
 /// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
 pub struct TransactionMut<'a, S> {
-    inner: Transaction<'a, S>,
+    pub(crate) inner: Transaction<'a, S>,
 }
 
 impl<'a, S> Deref for TransactionMut<'a, S> {
@@ -111,6 +81,19 @@ impl<'a, S> Deref for TransactionMut<'a, S> {
 }
 
 impl<'t, S> Transaction<'t, S> {
+    /// This will check the schema version and panic if it is not as expected
+    pub(crate) fn new_checked(txn: rusqlite::Transaction<'t>, expected: i64) -> Self {
+        if schema_version(&txn) != expected {
+            panic!("The database schema was updated unexpectedly")
+        }
+
+        Transaction {
+            transaction: txn,
+            _p: PhantomData,
+            _local: PhantomData,
+        }
+    }
+
     /// Execute a query with multiple results.
     ///
     /// Please take a look at the documentation of [Query] for how to use it.
