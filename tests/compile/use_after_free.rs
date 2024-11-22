@@ -1,4 +1,4 @@
-use rust_query::{Database, IntoColumn, Table, ThreadToken};
+use rust_query::{Database, IntoColumn, LocalClient, Table};
 use rust_query_macros::schema;
 
 #[schema]
@@ -8,7 +8,7 @@ enum Schema {
 use v0::*;
 
 fn test(db: Database<Schema>) {
-    let mut token = ThreadToken::try_new().unwrap();
+    let mut token = LocalClient::try_new().unwrap();
 
     let txn = db.read(&mut token);
     let items = txn.query(|rows| {

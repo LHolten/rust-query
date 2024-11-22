@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Typed, ValueBuilder},
-    IntoColumn, Table, ThreadToken,
+    IntoColumn, Table, LocalClient,
 };
 
 pub struct Col<T, X> {
@@ -119,7 +119,7 @@ impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<'t, T> {
 /// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
 pub struct TableRow<'t, T> {
     pub(crate) _p: PhantomData<&'t T>,
-    pub(crate) _local: PhantomData<ThreadToken>,
+    pub(crate) _local: PhantomData<LocalClient>,
     pub(crate) idx: i64,
 }
 

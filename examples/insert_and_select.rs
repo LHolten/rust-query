@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Prepare},
-    Table, ThreadToken, TransactionMut,
+    LocalClient, Table, TransactionMut,
 };
 
 // Start by defining your schema.
@@ -19,9 +19,9 @@ use v0::*;
 
 // Use your schema to initalize a database.
 fn main() {
-    // Get a token to prove that we have our own thread.
+    // Get a LocalClient to prove that we have our own thread.
     // This is necessary to keep transactions separated.
-    let mut token = ThreadToken::try_new().unwrap();
+    let mut token = LocalClient::try_new().unwrap();
     let database = Prepare::open("my_database.sqlite")
         .create_db_empty()
         .expect("database version is before supported versions")

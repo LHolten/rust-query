@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
     migration::{schema, Alter, Create, NoTable, Prepare},
-    Column, Database, Dummy, IntoColumn, Table, ThreadToken,
+    Column, Database, Dummy, IntoColumn, Table, LocalClient,
 };
 
 pub use v2::*;
@@ -129,7 +129,7 @@ enum Schema {
     },
 }
 
-pub fn migrate(t: &mut ThreadToken) -> Database<v2::Schema> {
+pub fn migrate(t: &mut LocalClient) -> Database<v2::Schema> {
     let m = Prepare::open_in_memory();
 
     if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {

@@ -12,7 +12,7 @@ use crate::{
     exec::Query,
     insert::{Reader, Writable},
     private::Dummy,
-    token::ThreadToken,
+    token::LocalClient,
     IntoColumn, Table, TableRow,
 };
 
@@ -30,7 +30,7 @@ use crate::{
 /// The database will not lose transactions due to application crashes, but it might due to system crashes or power loss.
 ///
 /// # Creating transactions
-/// Creating a transaction requires access to a [ThreadToken].
+/// Creating a transaction requires access to a [LocalClient].
 /// This makes it impossible to create two transactions on the same thread, making it impossible to accidentally share a [TableRow] outside of the transaction that it was created in.
 ///
 pub struct Database<S> {
@@ -40,7 +40,7 @@ pub struct Database<S> {
 
 impl<S> Database<S> {
     /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
-    pub fn read<'a>(&self, token: &'a mut ThreadToken) -> Transaction<'a, S> {
+    pub fn read<'a>(&self, token: &'a mut LocalClient) -> Transaction<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
         Transaction {
@@ -58,7 +58,7 @@ impl<S> Database<S> {
     ///
     /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
     /// This makes it work across processes.
-    pub fn write_lock<'a>(&self, token: &'a mut ThreadToken) -> TransactionMut<'a, S> {
+    pub fn write_lock<'a>(&self, token: &'a mut LocalClient) -> TransactionMut<'a, S> {
         use r2d2::ManageConnection;
         let conn = token.conn.insert(self.manager.connect().unwrap());
         TransactionMut {
@@ -86,7 +86,7 @@ impl<S> Database<S> {
 pub struct Transaction<'a, S> {
     pub(crate) transaction: rusqlite::Transaction<'a>,
     pub(crate) _p: PhantomData<fn(&'a S) -> &'a S>,
-    pub(crate) _local: PhantomData<ThreadToken>,
+    pub(crate) _local: PhantomData<LocalClient>,
 }
 
 /// Same as [Transaction], but allows inserting new rows.

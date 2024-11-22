@@ -28,7 +28,7 @@ use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::FromDummy;
-pub use token::ThreadToken;
+pub use token::LocalClient;
 pub use transaction::{Database, Transaction, TransactionMut};
 pub use value::{Column, IntoColumn, UnixEpoch};
 
