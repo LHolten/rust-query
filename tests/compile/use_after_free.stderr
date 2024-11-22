@@ -1,10 +1,10 @@
-error[E0499]: cannot borrow `token` as mutable more than once at a time
-  --> tests/compile/use_after_free.rs:21:23
+error[E0499]: cannot borrow `client` as mutable more than once at a time
+  --> tests/compile/use_after_free.rs:21:15
    |
-13 |     let txn = db.read(&mut token);
-   |                       ---------- first mutable borrow occurs here
+13 |     let txn = client.transaction(&db);
+   |               ------ first mutable borrow occurs here
 ...
-21 |     let txn = db.read(&mut token);
-   |                       ^^^^^^^^^^ second mutable borrow occurs here
+21 |     let txn = client.transaction(&db);
+   |               ^^^^^^ second mutable borrow occurs here
 22 |     for item in items {
    |                 ----- first borrow later used here

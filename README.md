@@ -57,7 +57,7 @@ enum MySchema {
 ```
 Get proof that we are running on a unique thread:
 ```rust,ignore
-let mut token = ThreadToken::try_new().unwrap();
+let mut client = LocalClient::try_new().unwrap();
 ```
 Initialize a database:
 ```rust,ignore
@@ -65,12 +65,12 @@ let database = Prepare::open("my_database.sqlite")
     .create_db_empty()
     .expect("database version is before supported versions")
     // migrations go here
-    .finish(&mut token)
+    .finish(&mut client)
     .expect("database version is after supported versions");
 ```
 Perform a transaction!
 ```rust,ignore
-let mut transaction = database.write_lock(&mut token);
+let mut transaction = client.transaction_mut(&database);
 do_stuff_with_database(&mut transaction);
 // After we are done we commit the changes!
 transaction.commit();

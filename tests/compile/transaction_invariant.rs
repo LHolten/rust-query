@@ -8,9 +8,9 @@ enum Schema {
 use v0::*;
 
 fn test(db: Database<Schema>) {
-    let mut token = LocalClient::try_new().unwrap();
+    let mut client = LocalClient::try_new().unwrap();
 
-    let txn = db.read(&mut token);
+    let txn = client.transaction(&db);
     let name = txn.query(|rows| {
         let item = MyTable::join(rows);
 

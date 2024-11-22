@@ -21,18 +21,18 @@ use v0::*;
 fn main() {
     // Get a LocalClient to prove that we have our own thread.
     // This is necessary to keep transactions separated.
-    let mut token = LocalClient::try_new().unwrap();
+    let mut client = LocalClient::try_new().unwrap();
     let database = Prepare::open("my_database.sqlite")
         .create_db_empty()
         .expect("database version is before supported versions")
         // migrations go here
-        .finish(&mut token)
+        .finish(&mut client)
         .expect("database version is after supported versions");
 
-    let mut transaction = database.write_lock(&mut token);
-    do_stuff_with_database(&mut transaction);
+    let mut txn = client.transaction_mut(&database);
+    do_stuff_with_database(&mut txn);
     // After we are done we commit the changes!
-    transaction.commit();
+    txn.commit();
 }
 
 // Use the database to insert and query.

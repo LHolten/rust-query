@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{aggregate, Dummy, FromDummy, Table, TableRow, LocalClient, Transaction};
+use rust_query::{aggregate, Dummy, FromDummy, LocalClient, Table, TableRow, Transaction};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -14,9 +14,9 @@ fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
 
 #[test]
 fn test_queries() {
-    let mut token = LocalClient::try_new().unwrap();
-    let db = migrate(&mut token);
-    let mut db = db.write_lock(&mut token);
+    let mut client = LocalClient::try_new().unwrap();
+    let db = migrate(&mut client);
+    let mut db = client.transaction_mut(&db);
 
     let res = invoice_info(&db);
     assert_dbg(&res[..20], "invoice_info");
