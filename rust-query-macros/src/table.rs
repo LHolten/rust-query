@@ -14,7 +14,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_mod = format_ident!("{table_name}");
-    let columns = &table.columns;
 
     let mut unique_typs = vec![];
     let mut unique_funcs = vec![];
@@ -29,7 +28,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         let mut constraints = vec![];
         let mut inits = vec![];
         for col in &unique.columns {
-            let typ = &columns
+            let typ = &table
+                .columns
                 .values()
                 .find(|x| &x.name == col)
                 .ok_or_else(|| {
@@ -100,7 +100,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let mut dummy_columns = vec![];
     let mut dummy_inits = vec![];
 
-    for col in columns.values() {
+    for col in table.columns.values() {
         let typ = &col.typ;
         let ident = &col.name;
         let ident_str = ident.to_string();
@@ -110,7 +110,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 ::rust_query::IntoColumn::into_column(::rust_query::private::Col::new(#ident_str, self.0.clone()))
             }
         });
-        typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
+        let mut unique_columns = table.uniques.iter().flat_map(|x| &x.columns);
+        if unique_columns.any(|x| x == ident) {
+            typ_asserts.push(quote!(::rust_query::private::valid_in_unique::<#schema, #typ>();));
+        } else {
+            typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
+        }
         reads.push(quote!(f.col(#ident_str, &self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
         col_defs.push(quote! {pub #ident: #generic});
