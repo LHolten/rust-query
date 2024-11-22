@@ -8,9 +8,9 @@ enum Schema {
 use v0::*;
 
 fn test(db: Database<Schema>) {
-    let mut token = LocalClient::try_new().unwrap();
+    let mut client = LocalClient::try_new().unwrap();
 
-    let txn = db.read(&mut token);
+    let txn = client.transaction(&db);
     let items = txn.query(|rows| {
         let item = MyTable::join(rows);
         rows.into_vec(item)
@@ -18,7 +18,7 @@ fn test(db: Database<Schema>) {
     let items: Vec<_> = items.into_iter().map(|x| x.into_column()).collect();
     drop(txn);
 
-    let txn = db.read(&mut token);
+    let txn = client.transaction(&db);
     for item in items {
         let name = txn.query_one(item.name());
         println!("{name}")

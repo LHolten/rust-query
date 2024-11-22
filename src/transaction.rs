@@ -38,11 +38,11 @@ pub struct Database<S> {
     pub(crate) schema: PhantomData<S>,
 }
 
-impl<S> Database<S> {
+impl LocalClient {
     /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
-    pub fn read<'a>(&self, token: &'a mut LocalClient) -> Transaction<'a, S> {
+    pub fn transaction<S>(&mut self, db: &Database<S>) -> Transaction<S> {
         use r2d2::ManageConnection;
-        let conn = token.conn.insert(self.manager.connect().unwrap());
+        let conn = self.conn.insert(db.manager.connect().unwrap());
         Transaction {
             // this can not be a nested transaction, because we create it from the original connection.
             // we also know that it is not concurrent with any write transactions on the same connection.
@@ -58,9 +58,12 @@ impl<S> Database<S> {
     ///
     /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
     /// This makes it work across processes.
-    pub fn write_lock<'a>(&self, token: &'a mut LocalClient) -> TransactionMut<'a, S> {
+    ///
+    /// Note: you can create a deadlock if you are holding on to another lock while trying to
+    /// get a mutable transaction!
+    pub fn transaction_mut<S>(&mut self, db: &Database<S>) -> TransactionMut<S> {
         use r2d2::ManageConnection;
-        let conn = token.conn.insert(self.manager.connect().unwrap());
+        let conn = self.conn.insert(db.manager.connect().unwrap());
         TransactionMut {
             inner: Transaction {
                 transaction: conn

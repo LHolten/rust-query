@@ -419,7 +419,7 @@ pub struct Migrator<S> {
     _p: PhantomData<S>,
     // We want to make sure that Migrator is always used with the same LocalClient
     // so we make it local to the current thread.
-    // This is mostly important because the thread token can have a reference to our transaction.
+    // This is mostly important because the LocalClient can have a reference to our transaction.
     _local: PhantomData<LocalClient>,
 }
 
@@ -475,7 +475,7 @@ impl<S: Schema> Migrator<S> {
     pub fn finish(self, t: &mut LocalClient) -> Option<Database<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
-        // we just erased the reference on the thread token, so we should have the only reference now.
+        // we just erased the reference on the LocalClient, so we should have the only reference now.
         let mut transaction = Rc::into_inner(self.transaction).unwrap();
 
         let conn = transaction.borrow_transaction();
