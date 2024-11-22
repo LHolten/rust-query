@@ -41,6 +41,12 @@ mod table;
 /// This will create a single schema with a single table called `user` and two columns.
 /// The table will also have two unique contraints.
 ///
+/// To define a unique constraint on a column, you need to add an attribute to that field.
+/// The attribute needs to start with `unique` and can have any suffix.
+/// Within a table, the different unique constraints must have different suffixes.
+///
+/// Optional types are not allowed in unique constraints.
+///
 /// ## Multiple versions
 /// The macro uses enum syntax, but it generates multiple modules of types.
 ///
