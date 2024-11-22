@@ -143,10 +143,11 @@ impl<'t, S> Transaction<'t, S> {
 impl<'t, S: 'static> TransactionMut<'t, S> {
     /// Try inserting a value into the database.
     ///
-    /// Returns a reference to the new inserted value or `None` if there is a conflict.
-    /// Conflicts can occur due too unique constraints in the schema.
-    ///
-    /// The method takes a mutable reference so that it can not be interleaved with a multi row query.
+    /// Returns [Ok] with a reference to the new inserted value or an [Err] with conflict information.
+    /// The type of conflict information depends on the number of unique constraints on the table:
+    /// - 0 unique constraints => [Infallible]
+    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
+    /// - 2+ unique constraints => [()] no further information is provided.
     pub fn try_insert<T: Table<Schema = S>, C>(
         &mut self,
         val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
@@ -189,7 +190,10 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         }
     }
 
-    /// This function only works for tables without unique constraints.
+    /// This is a convenience function to make using [TransactionMut::try_insert]
+    /// easier for tables without unique constraints.
+    ///
+    /// The new row is added to the table and the row reference is returned.
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
         val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
@@ -198,7 +202,12 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         row
     }
 
-    /// This function only works for tables with exactly one unique constraint.
+    /// This is a convenience function to make using [TransactionMut::try_insert]
+    /// easier for tables with exactly one unique constraints.
+    ///
+    /// The new row is inserted and the reference to the row is returned OR
+    /// an existing row is found which conflicts with the new row and a reference
+    /// to the conflicting row is returned.
     pub fn find_or_insert<T: Table<Schema = S>>(
         &mut self,
         val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
@@ -209,6 +218,16 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         }
     }
 
+    /// Try updating a row in the database to have new column values.
+    ///
+    /// Updating can fail just like [TransactionMut::try_insert] because of unique constraint conflicts.
+    /// This happens when the new values are in conflict with an existing different row.
+    ///
+    /// When the update succeeds, this function returns [Ok<()>], when it fails it returns [Err] with one of
+    /// three conflict types:
+    /// - 0 unique constraints => [Infallible]
+    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
+    /// - 2+ unique constraints => [()] no further information is provided.
     pub fn try_update<T: Table<Schema = S>, C>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
@@ -267,7 +286,24 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         }
     }
 
-    // This operation tries to find a matching row and then updates it.
+    /// This is a convenience function to use [TransactionMut::try_update] on tables without
+    /// unique constraints.
+    pub fn update<T: Table<Schema = S>>(
+        &mut self,
+        row: impl IntoColumn<'t, S, Typ = T>,
+        val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
+    ) {
+        let Ok(()) = self.try_update(row, val);
+    }
+
+    /// This is a convenience function to use [TransactionMut::try_update] on tables with
+    /// exactly one unique constraint.
+    ///
+    /// This function works slightly different in that it does not receive a row reference.
+    /// Instead it tries to update the row that would conflict if the new row would be inserted.
+    /// When such a conflicting row is found, it is updated to the new column values and [Ok] is
+    /// returned with a reference to the found row.
+    /// If it can not find a conflicting row, then nothing happens and the function returns [Err]
     pub fn find_and_update<T: Table<Schema = S>>(
         &mut self,
         val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
@@ -279,14 +315,6 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             }
             None => Err(()),
         }
-    }
-
-    pub fn update<T: Table<Schema = S>>(
-        &mut self,
-        row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
-    ) {
-        let Ok(()) = self.try_update(row, val);
     }
 
     /// Make the changes made in this [TransactionMut] permanent.
