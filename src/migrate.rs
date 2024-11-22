@@ -16,7 +16,7 @@ use crate::{
     hash,
     insert::Reader,
     pragma::read_schema,
-    token::ThreadToken,
+    token::LocalClient,
     transaction::Database,
     value, Column, IntoColumn, Rows, Table, Transaction,
 };
@@ -417,17 +417,17 @@ pub struct Migrator<S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
     transaction: Rc<OwnedTransaction>,
     _p: PhantomData<S>,
-    // We want to make sure that Migrator is always used with the same ThreadToken
+    // We want to make sure that Migrator is always used with the same LocalClient
     // so we make it local to the current thread.
     // This is mostly important because the thread token can have a reference to our transaction.
-    _local: PhantomData<ThreadToken>,
+    _local: PhantomData<LocalClient>,
 }
 
 impl<S: Schema> Migrator<S> {
     /// Apply a database migration if the current schema is `S`.
     /// The result is a migrator for the next schema `N`.
     /// This function will panic if the resulting schema is different, but the version matches.
-    pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut ThreadToken, f: F) -> Migrator<N>
+    pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut LocalClient, f: F) -> Migrator<N>
     where
         F: FnOnce(&'a Transaction<'a, S>) -> M,
         M: Migration<'a, From = S, To = N>,
@@ -472,7 +472,7 @@ impl<S: Schema> Migrator<S> {
 
     /// Commit the migration transaction and return a [Database].
     /// Returns [None] if the database schema version is newer than `S`.
-    pub fn finish(self, t: &mut ThreadToken) -> Option<Database<S>> {
+    pub fn finish(self, t: &mut LocalClient) -> Option<Database<S>> {
         // make sure that t doesn't reference our transaction anymore
         t.stuff = Rc::new(());
         // we just erased the reference on the thread token, so we should have the only reference now.
