@@ -288,6 +288,9 @@ pub trait Migration<'a> {
 }
 
 /// [Prepare] is used to open a database from a file or in memory.
+///
+/// This is the first step in the [Prepare] -> [Migrator] -> [Database] chain to
+/// get a [Database] instance.
 pub struct Prepare {
     manager: r2d2_sqlite::SqliteConnectionManager,
     conn: Connection,
@@ -332,6 +335,7 @@ impl Prepare {
             inner.pragma_update(None, "foreign_keys", "ON")?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
+            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
             Ok(())
         });
         use r2d2::ManageConnection;
@@ -385,12 +389,9 @@ impl Prepare {
         });
 
         let conn = owned.borrow_transaction();
-        let schema_version: i64 = conn
-            .pragma_query_value(None, "schema_version", |r| r.get(0))
-            .unwrap();
 
         // check if this database is newly created
-        if schema_version == 0 {
+        if schema_version(conn) == 0 {
             f(conn);
             set_user_version(conn, S::VERSION).unwrap();
         }
@@ -413,6 +414,9 @@ impl Prepare {
 }
 
 /// [Migrator] is used to apply database migrations.
+///
+/// When all migrations are done, it can be turned into a [Database] instance with
+/// [Migrator::finish].
 pub struct Migrator<S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
     transaction: Rc<OwnedTransaction>,
@@ -483,6 +487,8 @@ impl<S: Schema> Migrator<S> {
             return None;
         }
 
+        let schema_version = schema_version(conn);
+
         // Set transaction to commit now that we are happy with the schema.
         transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
         let heads = transaction.into_heads();
@@ -493,18 +499,24 @@ impl<S: Schema> Migrator<S> {
 
         Some(Database {
             manager: self.manager,
+            schema_version,
             schema: PhantomData,
         })
     }
 }
 
+pub fn schema_version(conn: &rusqlite::Transaction) -> i64 {
+    conn.pragma_query_value(None, "schema_version", |r| r.get(0))
+        .unwrap()
+}
+
 // Read user version field from the SQLite db
-fn user_version(conn: &Connection) -> Result<i64, rusqlite::Error> {
+fn user_version(conn: &rusqlite::Transaction) -> Result<i64, rusqlite::Error> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0))
 }
 
 // Set user version field from the SQLite db
-fn set_user_version(conn: &Connection, v: i64) -> Result<(), rusqlite::Error> {
+fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite::Error> {
     conn.pragma_update(None, "user_version", v)
 }
 
