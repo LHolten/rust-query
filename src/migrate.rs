@@ -350,9 +350,9 @@ impl Config {
 impl LocalClient {
     /// Create a [Migrator] to migrate a database.
     ///
-    /// Returns [None] if the database `schema_version` on disk is older than `S`.
+    /// Returns [None] if the database `user_version` on disk is older than `S`.
     ///
-    /// This function will panic if the schema on disk does not match what is expected for its `schema_version`.
+    /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrator<'t, S: Schema>(&'t mut self, config: Config) -> Option<Migrator<'t, S>> {
         use r2d2::ManageConnection;
         let conn = self.conn.insert(config.manager.connect().unwrap());
@@ -408,7 +408,7 @@ pub struct Migrator<'t, S> {
 impl<'t, S: Schema> Migrator<'t, S> {
     /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
     ///
-    /// This function will panic if the schema on disk does not match what is expected for its `schema_version`.
+    /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<M, N: Schema>(self, m: M) -> Migrator<'t, N>
     where
         M: Migration<'t, From = S, To = N>,

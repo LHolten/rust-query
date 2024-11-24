@@ -106,6 +106,8 @@ pub trait Typed {
 /// This includes [Column]s from queries and rust values.
 /// - `'t` is the context in which this value is valid.
 /// - `S` is the schema in which this value is valid.
+///
+/// **You can not (yet) implement this trait yourself!**
 pub trait IntoColumn<'t, S>: Typed + Clone {
     #[doc(hidden)]
     type Owned: Typed<Typ = Self::Typ> + 't;
