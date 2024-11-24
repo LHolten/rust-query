@@ -1,7 +1,5 @@
-use std::{marker::PhantomData, path::Path, rc::Rc, sync::atomic::AtomicBool};
+use std::{marker::PhantomData, path::Path, sync::atomic::AtomicBool};
 
-use ouroboros::self_referencing;
-use ref_cast::RefCast;
 use rusqlite::{config::DbConfig, Connection};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
@@ -18,7 +16,7 @@ use crate::{
     pragma::read_schema,
     token::LocalClient,
     transaction::Database,
-    value, Column, IntoColumn, Rows, Table, Transaction,
+    value, Column, IntoColumn, Rows, Table,
 };
 
 pub type M<'a, From, To> = Box<
@@ -176,15 +174,16 @@ impl<'inner, S> Rows<'inner, S> {
     }
 }
 
-pub struct SchemaBuilder<'a> {
+pub struct SchemaBuilder<'x, 'a> {
     // this is used to create temporary table names
     scope: Scope,
-    conn: &'a rusqlite::Transaction<'a>,
+    conn: &'x rusqlite::Transaction<'x>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
+    _p: PhantomData<fn(&'a ()) -> &'a ()>,
 }
 
-impl<'a> SchemaBuilder<'a> {
+impl<'a> SchemaBuilder<'_, 'a> {
     pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
         self.create_inner::<From::Schema, To>(|rows| {
             let db_id = From::join(rows);
@@ -284,29 +283,21 @@ pub trait Migration<'a> {
     type From: Schema;
     type To: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder<'a>);
+    fn tables(self, b: &mut SchemaBuilder<'_, 'a>);
 }
 
 /// [Prepare] is used to open a database from a file or in memory.
 ///
 /// This is the first step in the [Prepare] -> [Migrator] -> [Database] chain to
 /// get a [Database] instance.
-pub struct Prepare {
+pub struct Config {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    conn: Connection,
+    init: Box<dyn FnOnce(&rusqlite::Transaction)>,
 }
 
 static ALLOWED: AtomicBool = AtomicBool::new(true);
 
-#[self_referencing]
-pub(crate) struct OwnedTransaction {
-    pub(crate) conn: Connection,
-    #[borrows(mut conn)]
-    #[covariant]
-    pub(crate) transaction: rusqlite::Transaction<'this>,
-}
-
-impl Prepare {
+impl Config {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
     ///
@@ -338,75 +329,63 @@ impl Prepare {
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
             Ok(())
         });
-        use r2d2::ManageConnection;
-        let conn = manager.connect().unwrap();
 
-        Self { conn, manager }
+        Self {
+            manager,
+            init: Box::new(|_| {}),
+        }
     }
 
     /// Execute a raw sql statement if the database was just created.
     /// The sql code is executed after creating the empty database.
     /// Returns [None] if the database schema is older than `S`.
     /// This function will panic if the resulting schema is different, but the version matches.
-    pub fn create_db_sql<S: Schema>(self, sql: &[&str]) -> Option<Migrator<S>> {
-        self.migrator::<S>(|conn| {
-            let mut b = TableTypBuilder::default();
-            S::typs(&mut b);
+    pub fn initial_exec(mut self, sql: &'static str) -> Self {
+        self.init = Box::new(move |txn| {
+            (self.init)(txn);
 
-            for (table_name, table) in &*b.ast.tables {
-                new_table_inner(conn, table, Alias::new(table_name));
-            }
-
-            for sql in sql {
-                conn.execute_batch(sql)
-                    .expect("raw sql statement to initilize db failed");
-            }
-        })
+            txn.execute_batch(sql)
+                .expect("raw sql statement to populate db failed");
+        });
+        self
     }
+}
 
-    /// Create empty tables based on the schema if the database was just created.
+impl LocalClient {
     /// Returns [None] if the database schema is older than `S`.
     /// This function will panic if the resulting schema is different, but the version matches.
-    pub fn create_db_empty<S: Schema>(self) -> Option<Migrator<S>> {
-        self.migrator::<S>(|conn| {
+    pub fn migrator<'t, S: Schema>(&'t mut self, config: Config) -> Option<Migrator<'t, S>> {
+        use r2d2::ManageConnection;
+        let conn = self.conn.insert(config.manager.connect().unwrap());
+        conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
+
+        let conn = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
+            .unwrap();
+
+        // check if this database is newly created
+        if schema_version(&conn) == 0 {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
 
             for (table_name, table) in &*b.ast.tables {
-                new_table_inner(conn, table, Alias::new(table_name));
+                new_table_inner(&conn, table, Alias::new(table_name));
             }
-        })
-    }
-
-    fn migrator<S: Schema>(self, f: impl FnOnce(&rusqlite::Transaction)) -> Option<Migrator<S>> {
-        self.conn
-            .pragma_update(None, "foreign_keys", "OFF")
-            .unwrap();
-
-        let owned = OwnedTransaction::new(self.conn, |x| {
-            x.transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
-                .unwrap()
-        });
-
-        let conn = owned.borrow_transaction();
-
-        // check if this database is newly created
-        if schema_version(conn) == 0 {
-            f(conn);
-            set_user_version(conn, S::VERSION).unwrap();
+            (config.init)(&conn);
+            set_user_version(&conn, S::VERSION).unwrap();
         }
 
-        let user_version = user_version(conn).unwrap();
+        let user_version = user_version(&conn).unwrap();
         // We can not migrate databases older than `S`
         if user_version < S::VERSION {
             return None;
         } else if user_version == S::VERSION {
-            foreign_key_check::<S>(conn);
+            foreign_key_check::<S>(&conn);
         }
 
         Some(Migrator {
-            manager: self.manager,
-            transaction: Rc::new(owned),
+            manager: config.manager,
+            transaction: conn,
             _p: PhantomData,
             _local: PhantomData,
         })
@@ -417,9 +396,9 @@ impl Prepare {
 ///
 /// When all migrations are done, it can be turned into a [Database] instance with
 /// [Migrator::finish].
-pub struct Migrator<S> {
+pub struct Migrator<'t, S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    transaction: Rc<OwnedTransaction>,
+    transaction: rusqlite::Transaction<'t>,
     _p: PhantomData<S>,
     // We want to make sure that Migrator is always used with the same LocalClient
     // so we make it local to the current thread.
@@ -427,33 +406,25 @@ pub struct Migrator<S> {
     _local: PhantomData<LocalClient>,
 }
 
-impl<S: Schema> Migrator<S> {
+impl<'t, S: Schema> Migrator<'t, S> {
     /// Apply a database migration if the current schema is `S`.
     /// The result is a migrator for the next schema `N`.
     /// This function will panic if the resulting schema is different, but the version matches.
-    pub fn migrate<'a, F, M, N: Schema>(self, t: &'a mut LocalClient, f: F) -> Migrator<N>
+    pub fn migrate<M, N: Schema>(self, m: M) -> Migrator<'t, N>
     where
-        F: FnOnce(&'a Transaction<'a, S>) -> M,
-        M: Migration<'a, From = S, To = N>,
+        M: Migration<'t, From = S, To = N>,
     {
-        t.stuff = self.transaction.clone();
-        let conn = t
-            .stuff
-            .downcast_ref::<OwnedTransaction>()
-            .unwrap()
-            .borrow_transaction();
+        let conn = &self.transaction;
 
         if user_version(conn).unwrap() == S::VERSION {
-            let client = Transaction::ref_cast(conn);
-
-            let res = f(client);
             let mut builder = SchemaBuilder {
                 scope: Default::default(),
                 conn,
                 drop: vec![],
                 rename: vec![],
+                _p: PhantomData,
             };
-            res.tables(&mut builder);
+            m.tables(&mut builder);
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
                 conn.execute(&sql, []).unwrap();
@@ -476,26 +447,14 @@ impl<S: Schema> Migrator<S> {
 
     /// Commit the migration transaction and return a [Database].
     /// Returns [None] if the database schema version is newer than `S`.
-    pub fn finish(self, t: &mut LocalClient) -> Option<Database<S>> {
-        // make sure that t doesn't reference our transaction anymore
-        t.stuff = Rc::new(());
-        // we just erased the reference on the LocalClient, so we should have the only reference now.
-        let mut transaction = Rc::into_inner(self.transaction).unwrap();
-
-        let conn = transaction.borrow_transaction();
+    pub fn finish(self) -> Option<Database<S>> {
+        let conn = &self.transaction;
         if user_version(conn).unwrap() != S::VERSION {
             return None;
         }
 
         let schema_version = schema_version(conn);
-
-        // Set transaction to commit now that we are happy with the schema.
-        transaction.with_transaction_mut(|x| x.set_drop_behavior(rusqlite::DropBehavior::Commit));
-        let heads = transaction.into_heads();
-        heads
-            .conn
-            .pragma_update(None, "foreign_keys", "ON")
-            .unwrap();
+        self.transaction.commit().unwrap();
 
         Some(Database {
             manager: self.manager,

@@ -44,7 +44,7 @@ pub mod args {
 ///
 /// A good starting point is too look at [crate::migration::schema].
 pub mod migration {
-    pub use crate::migrate::{Alter, Create, Migrator, NoTable, Prepare};
+    pub use crate::migrate::{Alter, Create, Migrator, NoTable, Config};
     pub use expect_test::expect;
     pub use rust_query_macros::schema;
 }

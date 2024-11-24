@@ -18,7 +18,7 @@ Query types:
 - [x] SELECT
 - [x] INSERT
 - [ ] DELETE
-- [ ] UPDATE
+- [x] UPDATE
 
 Basic operations:
 - [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat
