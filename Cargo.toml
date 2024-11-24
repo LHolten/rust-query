@@ -3,7 +3,7 @@ members = ["rust-query-macros"]
 
 [package]
 name = "rust-query"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 description = "A query builder using rust concepts."
 categories = ["database"]
@@ -22,7 +22,7 @@ proc-macro2 = "1.0.79"
 heck = "0.5.0"
 expect-test = "1"
 k12 = "0.3"
-rust-query-macros = { path = "rust-query-macros", version = "=0.2.2" }
+rust-query-macros = { path = "rust-query-macros", version = "=0.3.0" }
 ref-cast = "1.0.23"
 pretty_assertions = "1.4.0"
 r2d2_sqlite = "0.24.0"

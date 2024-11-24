@@ -17,8 +17,8 @@ This project is under development and there are many things missing.
 Query types:
 - [x] SELECT
 - [x] INSERT
-- [ ] DELETE
 - [x] UPDATE
+- [ ] DELETE
 
 Basic operations:
 - [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat
@@ -113,6 +113,6 @@ Some features not shown in this example are:
 ## Examples
 For more example queries you can look at [the chinook example](/tests/chinook.rs).
 
-First download the `Chinook_Sqlite.sqlite` from here https://github.com/lerocha/chinook-database/releases and put it in the root of this repository (the working dir).
+First download the `Chinook_Sqlite.sqlite` from [here](https://github.com/lerocha/chinook-database/releases) and put it in the root of this repository (the working dir).
 
 Then you can run with `cargo test`.
