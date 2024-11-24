@@ -96,7 +96,7 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
-/// use rust_query::migration::{schema, Prepare, Alter};
+/// use rust_query::migration::{schema, Config, Alter};
 /// use rust_query::{Dummy, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
@@ -112,17 +112,17 @@ mod table;
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
 /// // This is done with the `v1::update::UserMigration`:
-/// pub fn migrate(t: &mut LocalClient) -> Database<v1::Schema> {
-///     let m = Prepare::open_in_memory(); // we use an in memory database for this test
-///     let m = m.create_db_empty().expect("database version is before supported versions");
-///     let m = m.migrate(t, |db| v1::update::Schema {
+/// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
+///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
+///         .expect("database version is before supported versions");
+///     let m = m.migrate(v1::update::Schema {
 ///         user: Box::new(|user|
 ///             Alter::new(v1::update::UserMigration {
 ///                 score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
 ///             })
 ///         ),
 ///     });
-///     m.finish(t).expect("database version is after supported versions")
+///     m.finish().expect("database version is after supported versions")
 /// }
 /// # fn main() {}
 /// ```

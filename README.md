@@ -61,11 +61,11 @@ let mut client = LocalClient::try_new().unwrap();
 ```
 Initialize a database:
 ```rust,ignore
-let database = Prepare::open("my_database.sqlite")
-    .create_db_empty()
+let database = client
+    .migrator(Config::open("my_database.sqlite"))
     .expect("database version is before supported versions")
     // migrations go here
-    .finish(&mut client)
+    .finish()
     .expect("database version is after supported versions");
 ```
 Perform a transaction!
@@ -78,14 +78,14 @@ transaction.commit();
 Insert in the database:
 ```rust,ignore
 // Lets make a new user 'mike',
-let mike = UserDummy { name: "mike" };
-let mike_id = db.try_insert(mike).unwrap();
+let mike = User { name: "mike" };
+let mike_id = db.insert(mike);
 // and also insert a dog picture for 'mike'.
-let dog_picture = ImageDummy {
+let dog_picture = Image {
     description: "dog",
     uploaded_by: mike_id,
 };
-db.try_insert(dog_picture).unwrap();
+let _picture_id = db.insert(dog_picture);
 ```
 Query from the database:
 ```rust,ignore

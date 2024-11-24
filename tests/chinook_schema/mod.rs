@@ -134,8 +134,8 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         panic!("test data file 'Chinook_Sqlite.sqlite' does not exist");
     }
     let config = Config::open_in_memory()
-        .initial_exec("ATTACH 'Chinook_Sqlite.sqlite' AS old;")
-        .initial_exec(include_str!("migrate.sql"));
+        .init_stmt("ATTACH 'Chinook_Sqlite.sqlite' AS old;")
+        .init_stmt(include_str!("migrate.sql"));
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();

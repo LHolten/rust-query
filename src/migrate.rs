@@ -34,7 +34,7 @@ pub type M<'a, From, To> = Box<
 /// Take a look at the documentation of [crate::migration::schema] for more general information.
 ///
 /// The purpose of wrapping migration results in [Alter] (and [Create]) is to dyn box the type so that type inference works.
-/// (Type inference is problematic with higher ranked generic returns from closures)
+/// (Type inference is problematic with higher ranked generic returns from closures).
 /// Futhermore [Alter] (and [Create]) also have an implied bound of `'a: 't` which makes it easier to implement migrations.
 pub struct Alter<'t, 'a, From, To> {
     _p: PhantomData<&'t &'a ()>,
@@ -286,9 +286,9 @@ pub trait Migration<'a> {
     fn tables(self, b: &mut SchemaBuilder<'_, 'a>);
 }
 
-/// [Prepare] is used to open a database from a file or in memory.
+/// [Config] is used to open a database from a file or in memory.
 ///
-/// This is the first step in the [Prepare] -> [Migrator] -> [Database] chain to
+/// This is the first step in the [Config] -> [Migrator] -> [Database] chain to
 /// get a [Database] instance.
 pub struct Config {
     manager: r2d2_sqlite::SqliteConnectionManager,
@@ -304,9 +304,6 @@ impl Config {
     /// Opening the same database multiple times at the same time is fine,
     /// as long as they migrate to or use the same schema.
     /// All locking is done by sqlite, so connections can even be made using different client implementations.
-    ///
-    /// We currently don't check that the schema is not modified between transactions.
-    /// So if that happens then the subsequent queries might fail.
     pub fn open(p: impl AsRef<Path>) -> Self {
         let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
         Self::open_internal(manager)
@@ -337,10 +334,9 @@ impl Config {
     }
 
     /// Execute a raw sql statement if the database was just created.
-    /// The sql code is executed after creating the empty database.
-    /// Returns [None] if the database schema is older than `S`.
-    /// This function will panic if the resulting schema is different, but the version matches.
-    pub fn initial_exec(mut self, sql: &'static str) -> Self {
+    ///
+    /// The statement is executed after creating the empty database and executingall previous statements.
+    pub fn init_stmt(mut self, sql: &'static str) -> Self {
         self.init = Box::new(move |txn| {
             (self.init)(txn);
 
@@ -352,8 +348,11 @@ impl Config {
 }
 
 impl LocalClient {
-    /// Returns [None] if the database schema is older than `S`.
-    /// This function will panic if the resulting schema is different, but the version matches.
+    /// Create a [Migrator] to migrate a database.
+    ///
+    /// Returns [None] if the database `schema_version` on disk is older than `S`.
+    ///
+    /// This function will panic if the schema on disk does not match what is expected for its `schema_version`.
     pub fn migrator<'t, S: Schema>(&'t mut self, config: Config) -> Option<Migrator<'t, S>> {
         use r2d2::ManageConnection;
         let conn = self.conn.insert(config.manager.connect().unwrap());
@@ -407,9 +406,9 @@ pub struct Migrator<'t, S> {
 }
 
 impl<'t, S: Schema> Migrator<'t, S> {
-    /// Apply a database migration if the current schema is `S`.
-    /// The result is a migrator for the next schema `N`.
-    /// This function will panic if the resulting schema is different, but the version matches.
+    /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
+    ///
+    /// This function will panic if the schema on disk does not match what is expected for its `schema_version`.
     pub fn migrate<M, N: Schema>(self, m: M) -> Migrator<'t, N>
     where
         M: Migration<'t, From = S, To = N>,
@@ -446,6 +445,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
     }
 
     /// Commit the migration transaction and return a [Database].
+    ///
     /// Returns [None] if the database schema version is newer than `S`.
     pub fn finish(self) -> Option<Database<S>> {
         let conn = &self.transaction;
