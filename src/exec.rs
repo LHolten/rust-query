@@ -36,6 +36,10 @@ impl<'outer, 'inner, S> DerefMut for Query<'outer, 'inner, S> {
 
 impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Turn a database query into a rust [Vec] of results.
+    ///
+    /// Types that implement [crate::IntoColumn], will also implement [Dummy].
+    /// Tuples of two values also implement [Dummy]. If you want to return more
+    /// than two values, then you should use a struct that derives [crate::FromDummy].
     pub fn into_vec<D>(&'inner self, dummy: D) -> Vec<D::Out>
     where
         D: Dummy<'inner, 'outer, S>,
