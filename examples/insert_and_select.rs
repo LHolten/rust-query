@@ -1,5 +1,5 @@
 use rust_query::{
-    migration::{schema, Prepare},
+    migration::{schema, Config},
     LocalClient, Table, TransactionMut,
 };
 
@@ -22,11 +22,11 @@ fn main() {
     // Get a LocalClient to prove that we have our own thread.
     // This is necessary to keep transactions separated.
     let mut client = LocalClient::try_new().unwrap();
-    let database = Prepare::open("my_database.sqlite")
-        .create_db_empty()
+    let database = client
+        .migrator(Config::open("my_database.sqlite"))
         .expect("database version is before supported versions")
         // migrations go here
-        .finish(&mut client)
+        .finish()
         .expect("database version is after supported versions");
 
     let mut txn = client.transaction_mut(&database);

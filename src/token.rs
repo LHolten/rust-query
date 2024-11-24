@@ -1,4 +1,4 @@
-use std::{any::Any, cell::Cell, rc::Rc};
+use std::cell::Cell;
 
 use rusqlite::Connection;
 
@@ -13,7 +13,6 @@ use crate::{Database, Transaction, TransactionMut};
 /// Write transactions never run in parallell with each other, but they do run in parallel with read transactions.
 pub struct LocalClient {
     _p: std::marker::PhantomData<*const ()>,
-    pub(crate) stuff: Rc<dyn Any>,
     pub(crate) conn: Option<Connection>,
 }
 
@@ -46,6 +45,8 @@ impl LocalClient {
     pub fn transaction_mut<S>(&mut self, db: &Database<S>) -> TransactionMut<S> {
         use r2d2::ManageConnection;
         // TODO: could check here if the existing connection is good to use.
+        // TODO: make sure that when reusing a connection, the foreign keys are checked (migration doesn't)
+        // .pragma_update(None, "foreign_keys", "ON").unwrap();
         let conn = self.conn.insert(db.manager.connect().unwrap());
         let txn = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -64,7 +65,6 @@ impl LocalClient {
     fn new() -> Self {
         LocalClient {
             _p: std::marker::PhantomData,
-            stuff: Rc::new(()),
             conn: None,
         }
     }

@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fs, ops::Deref};
 
 use rust_query::{
-    migration::{schema, Alter, Create, NoTable, Prepare},
-    Column, Database, Dummy, IntoColumn, Table, LocalClient,
+    migration::{schema, Alter, Config, Create, NoTable},
+    Column, Database, Dummy, IntoColumn, LocalClient, Table,
 };
 
 pub use v2::*;
@@ -129,21 +129,17 @@ enum Schema {
     },
 }
 
-pub fn migrate(t: &mut LocalClient) -> Database<v2::Schema> {
-    let m = Prepare::open_in_memory();
-
+pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {
         panic!("test data file 'Chinook_Sqlite.sqlite' does not exist");
     }
-    let m = m
-        .create_db_sql::<v0::Schema>(&[
-            "ATTACH 'Chinook_Sqlite.sqlite' AS old;",
-            include_str!("migrate.sql"),
-        ])
-        .unwrap();
+    let config = Config::open_in_memory()
+        .initial_exec("ATTACH 'Chinook_Sqlite.sqlite' AS old;")
+        .initial_exec(include_str!("migrate.sql"));
 
     let genre_extra = HashMap::from([("rock", 10)]);
-    let m = m.migrate(t, |_| v1::update::Schema {
+    let m = client.migrator(config).unwrap();
+    let m = m.migrate(v1::update::Schema {
         playlist_track: Box::new(|pt| {
             Alter::new(v1::update::PlaylistTrackMigration {
                 playlist: pt.playlist(),
@@ -156,7 +152,7 @@ pub fn migrate(t: &mut LocalClient) -> Database<v2::Schema> {
         listens_to: Box::new(|rows| Create::empty(rows)),
     });
 
-    let m = m.migrate(t, |_| v2::update::Schema {
+    let m = m.migrate(v2::update::Schema {
         customer: Box::new(|customer| {
             Alter::new(v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
@@ -183,7 +179,7 @@ pub fn migrate(t: &mut LocalClient) -> Database<v2::Schema> {
         }),
     });
 
-    m.finish(t).unwrap()
+    m.finish().unwrap()
 }
 
 #[cfg(test)]
