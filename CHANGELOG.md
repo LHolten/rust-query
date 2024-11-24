@@ -1,3 +1,15 @@
+# 0.3.0
+
+- Added support for updating rows.
+- Added `Table::dummy` method, which makes it easier to do partial updates.
+- Reused table types in the generated API for both naming `TableRow<User>` and dummies `User {name: "steve"}`.
+- Forbid `Option` in unique constraints.
+- Renamed `ThreadToken` to `LocalClient`.
+- Renamed and moved `read` and `write_lock` to `transaction` and `transaction_mut`.
+- Check `schema_version` at the start of every transaction.
+- Simplify migration and borrow `LocalClient` only once.
+- Renamed `Prepare` to `Config` and simplified its API.
+
 # 0.2.2
 
 - Bound the lifetime of `TableRow: IntoColumn` to the lifetime of the transaction. 
