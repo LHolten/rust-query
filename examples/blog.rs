@@ -53,6 +53,7 @@ fn query_data(txn: &Transaction<Schema>) {
         let story = Story::join(rows);
         let avg_rating = aggregate(|rows| {
             let rating = Rating::join(rows);
+            rows.filter_on(rating.story(), &story);
             rows.avg(rating.stars().as_float())
         });
         rows.into_vec((story.title(), avg_rating))
