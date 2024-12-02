@@ -1,6 +1,5 @@
 use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 
-use ref_cast::RefCast;
 use rusqlite::ErrorCode;
 use sea_query::{Alias, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value};
 use sea_query_rusqlite::RusqliteBinder;
@@ -54,7 +53,6 @@ pub struct Database<S> {
 ///
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
-#[derive(RefCast)]
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
     pub(crate) transaction: rusqlite::Transaction<'a>,
@@ -123,6 +121,23 @@ impl<'t, S> Transaction<'t, S> {
             e.into_vec_private(val)
         });
         res.pop().unwrap()
+    }
+
+    /// This allows you to do anything you want with the internal [rusqlite::Transaction]
+    ///
+    /// **Warning:** [Transaction::unchecked_transaction] makes it trivial to break the
+    /// invariants that [rust_query] relies on to avoid panics at run-time. It should
+    /// therefore be avoided whenever possible.
+    ///
+    /// As an example; it is assumed that the row referenced by a [TableRow] exists for as
+    /// long as the [Transaction] and the [TableRow] both exist. You should therefore make
+    /// sure that no such [TableRow] exists when deleting a row etc.
+    ///
+    /// The specific version of rusqlite used is not stable. This means the [rusqlite]
+    /// version might change as part of a non breaking version update of [rust_query].
+    #[cfg(feature = "unchecked_transaction")]
+    pub fn unchecked_transaction(&self) -> &rusqlite::Transaction<'t> {
+        &self.transaction
     }
 }
 

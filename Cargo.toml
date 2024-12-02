@@ -33,3 +33,4 @@ trybuild = "1.0.97"
 
 [features]
 bundled = ["rusqlite/bundled"]
+unchecked_transaction = []

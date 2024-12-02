@@ -1,3 +1,8 @@
+# Unreleased
+
+- Added `Transaction::unchecked_transaction` behind feature flag.
+- Removed `impl RefCast for Transaction`, it was not intended to be public.
+
 # 0.3.0
 
 - Added support for updating rows.
