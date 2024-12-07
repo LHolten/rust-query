@@ -7,7 +7,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Typed, ValueBuilder},
-    IntoColumn, Table, LocalClient,
+    IntoColumn, LocalClient, Table,
 };
 
 pub struct Col<T, X> {

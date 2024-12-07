@@ -43,6 +43,9 @@ fn test_queries() {
     let Err(_) = db.try_update(id, Artist { name: "first" }) else {
         panic!()
     };
+
+    let mut db = db.deletor();
+    assert!(db.try_delete(id).unwrap());
 }
 
 #[derive(Debug, FromDummy, PartialEq)]

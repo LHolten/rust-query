@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use rusqlite::Connection;
 
-use crate::{Database, Transaction, TransactionMut};
+use crate::{transaction::TransactionYoke, Database, Transaction, TransactionMut};
 
 /// The primary interface to the database.
 ///
@@ -25,8 +25,10 @@ impl LocalClient {
     pub fn transaction<S>(&mut self, db: &Database<S>) -> Transaction<S> {
         use r2d2::ManageConnection;
         // TODO: could check here if the existing connection is good to use.
-        let conn = self.conn.insert(db.manager.connect().unwrap());
-        let txn = conn.transaction().unwrap();
+        let conn = Box::new(db.manager.connect().unwrap());
+        let txn = yoke::Yoke::attach_to_cart(conn, |conn| {
+            TransactionYoke(conn.unchecked_transaction().unwrap())
+        });
         Transaction::new_checked(txn, db.schema_version)
     }
 
@@ -47,10 +49,16 @@ impl LocalClient {
         // TODO: could check here if the existing connection is good to use.
         // TODO: make sure that when reusing a connection, the foreign keys are checked (migration doesn't)
         // .pragma_update(None, "foreign_keys", "ON").unwrap();
-        let conn = self.conn.insert(db.manager.connect().unwrap());
-        let txn = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .unwrap();
+        let conn = Box::new(db.manager.connect().unwrap());
+        let txn = yoke::Yoke::attach_to_cart(conn, |conn| {
+            TransactionYoke(
+                rusqlite::Transaction::new_unchecked(
+                    conn,
+                    rusqlite::TransactionBehavior::Immediate,
+                )
+                .unwrap(),
+            )
+        });
         TransactionMut {
             inner: Transaction::new_checked(txn, db.schema_version),
         }

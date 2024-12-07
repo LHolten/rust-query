@@ -1,8 +1,11 @@
 use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 
 use rusqlite::ErrorCode;
-use sea_query::{Alias, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value};
+use sea_query::{
+    Alias, DeleteStatement, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value,
+};
 use sea_query_rusqlite::RusqliteBinder;
+use yoke::{Yoke, Yokeable};
 
 use crate::{
     alias::Field,
@@ -55,7 +58,7 @@ pub struct Database<S> {
 /// This makes these references effectively local to this [Transaction].
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
-    pub(crate) transaction: rusqlite::Transaction<'a>,
+    pub(crate) transaction: YokedTransaction,
     pub(crate) _p: PhantomData<fn(&'a S) -> &'a S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
@@ -79,9 +82,13 @@ impl<'a, S> Deref for TransactionMut<'a, S> {
 }
 
 impl<'t, S> Transaction<'t, S> {
+    pub(crate) fn transaction(&self) -> &rusqlite::Transaction {
+        &self.transaction.get().0
+    }
+
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: rusqlite::Transaction<'t>, expected: i64) -> Self {
-        if schema_version(&txn) != expected {
+    pub(crate) fn new_checked(txn: YokedTransaction, expected: i64) -> Self {
+        if schema_version(&txn.get().0) != expected {
             panic!("The database schema was updated unexpectedly")
         }
 
@@ -102,7 +109,7 @@ impl<'t, S> Transaction<'t, S> {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from are borrowed immutably, so the rows can not change.
-        private_exec(&self.transaction, f)
+        private_exec(&self.transaction(), f)
     }
 
     /// Retrieve a single result from the database.
@@ -115,29 +122,12 @@ impl<'t, S> Transaction<'t, S> {
     {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
-        let mut res = private_exec(&self.transaction, |e| {
+        let mut res = private_exec(&self.transaction(), |e| {
             // Cast the static lifetime to any lifetime necessary, this is fine because we know the static lifetime
             // can not be guaranteed by a query scope.
             e.into_vec_private(val)
         });
         res.pop().unwrap()
-    }
-
-    /// This allows you to do anything you want with the internal [rusqlite::Transaction]
-    ///
-    /// **Warning:** [Transaction::unchecked_transaction] makes it trivial to break the
-    /// invariants that [rust_query] relies on to avoid panics at run-time. It should
-    /// therefore be avoided whenever possible.
-    ///
-    /// As an example; it is assumed that the row referenced by a [TableRow] exists for as
-    /// long as the [Transaction] and the [TableRow] both exist. You should therefore make
-    /// sure that no such [TableRow] exists when deleting a row etc.
-    ///
-    /// The specific version of rusqlite used is not stable. This means the [rusqlite]
-    /// version might change as part of a non breaking version update of [rust_query].
-    #[cfg(feature = "unchecked_transaction")]
-    pub fn unchecked_transaction(&self) -> &rusqlite::Transaction<'t> {
-        &self.transaction
     }
 }
 
@@ -173,7 +163,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-        let mut statement = self.transaction.prepare_cached(&sql).unwrap();
+        let mut statement = self.transaction().prepare_cached(&sql).unwrap();
         let mut res = statement
             .query_map(&*values.as_params(), |row| row.get(T::ID))
             .unwrap();
@@ -245,7 +235,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let select = ast.simple();
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
-        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
+        let mut stmt = self.transaction().prepare_cached(&query).unwrap();
 
         let row_id = self.query_one(row).idx;
         let mut update = UpdateStatement::new()
@@ -272,7 +262,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let (query, args) = update.build_rusqlite(SqliteQueryBuilder);
 
-        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
+        let mut stmt = self.transaction().prepare_cached(&query).unwrap();
         match stmt.execute(&*args.as_params()) {
             Ok(1) => Ok(()),
             Ok(n) => panic!("unexpected number of updates: {n}"),
@@ -322,6 +312,76 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
-        self.inner.transaction.commit().unwrap()
+        self.deletor().commit();
+    }
+
+    pub fn deletor(self) -> Deletor<S> {
+        Deletor {
+            transaction: self.inner.transaction,
+            _p: PhantomData,
+        }
+    }
+}
+
+#[derive(Yokeable)]
+pub struct TransactionYoke<'a>(pub rusqlite::Transaction<'a>);
+
+type YokedTransaction = yoke::Yoke<TransactionYoke<'static>, Box<rusqlite::Connection>>;
+
+pub struct Deletor<S> {
+    transaction: YokedTransaction,
+    _p: PhantomData<S>,
+}
+
+impl<S> Deletor<S> {
+    pub fn try_delete<T: Table>(&mut self, val: TableRow<'_, T>) -> Result<bool, ()> {
+        let stmt = DeleteStatement::new()
+            .from_table(Alias::new(T::NAME))
+            .cond_where(Expr::col(Alias::new(T::ID)).eq(val.idx))
+            .to_owned();
+
+        let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
+        let mut stmt = self.transaction.get().0.prepare_cached(&query).unwrap();
+
+        match stmt.execute(&*args.as_params()) {
+            Ok(0) => Ok(false),
+            Ok(1) => Ok(true),
+            Ok(n) => {
+                panic!("unexpected number of deletes {n}")
+            }
+            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                if kind.code == ErrorCode::ConstraintViolation =>
+            {
+                // Some foreign key constraint got violated
+                Err(())
+            }
+            Err(err) => Err(err).unwrap(),
+        }
+    }
+
+    /// This allows you to do anything you want with the internal [rusqlite::Transaction]
+    ///
+    /// **Warning:** [Transaction::unchecked_transaction] makes it trivial to break the
+    /// invariants that [rust_query] relies on to avoid panics at run-time. It should
+    /// therefore be avoided whenever possible.
+    ///
+    /// As an example; it is assumed that the row referenced by a [TableRow] exists for as
+    /// long as the [Transaction] and the [TableRow] both exist. You should therefore make
+    /// sure that no such [TableRow] exists when deleting a row etc.
+    ///
+    /// The specific version of rusqlite used is not stable. This means the [rusqlite]
+    /// version might change as part of a non breaking version update of [rust_query].
+    #[cfg(feature = "unchecked_transaction")]
+    pub fn unchecked_transaction(&mut self) -> &rusqlite::Transaction<'t> {
+        &self.inner
+    }
+
+    /// Make the changes made in this [TransactionMut] permanent.
+    ///
+    /// If the [Deletor] is dropped without calling this function, then the changes are rolled back.
+    pub fn commit(self) {
+        let _: Yoke<(), Box<rusqlite::Connection>> = self
+            .transaction
+            .map_project(|transaction, _| transaction.0.commit().unwrap());
     }
 }
