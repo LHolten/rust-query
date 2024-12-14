@@ -180,28 +180,28 @@ impl<'t, S> Column<'t, S, i64> {
 }
 
 impl<'t, S> Column<'t, S, String> {
-    /// Check if the column starts with a string pattern.
+    /// Check if the column starts with the string pattern.
     ///
     /// Matches case-sensitive.
     pub fn starts_with(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
         Glob(self, format!("{}*", pattern.into())).into_column()
     }
 
-    /// Check if the column ends with a string pattern.
+    /// Check if the column ends with the string pattern.
     ///
     /// Matches case-sensitive.
     pub fn ends_with(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
         Glob(self, format!("*{}", pattern.into())).into_column()
     }
 
-    /// Check if the column contains a string pattern.
+    /// Check if the column contains the string pattern.
     ///
     /// Matches case-sensitive.
     pub fn contains(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
         Glob(self, format!("*{}*", pattern.into())).into_column()
     }
 
-    /// Check if the column matches to a pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the column matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// As noted in the docs, it is **case-insensitive** for ASCII characters. Other characters are case-sensitive.
     /// For creating patterns it uses `%` as a wildcard for any sequence of characters and `_` for any single character.
@@ -210,7 +210,7 @@ impl<'t, S> Column<'t, S, String> {
         Like(self, pattern).into_column()
     }
 
-    /// Check if the column matches to a pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the column matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// This is a case-sensitive version of [like](Self::like). It uses Unix file globbing syntax for wild
     /// cards. `*` matches any sequence of characters and `?` matches any single character. `[0-9]` matches
