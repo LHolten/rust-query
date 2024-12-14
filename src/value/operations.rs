@@ -174,13 +174,7 @@ impl<A: Typed, B: Typed> Typed for Glob<A, B> {
     }
 }
 
-impl<'t, S, A: IntoColumn<'t, S>, B: IntoColumn<'t, S>> IntoColumn<'t, S> for Glob<A, B> {
-    type Owned = Glob<A::Owned, B::Owned>;
-
-    fn into_owned(self) -> Self::Owned {
-        Glob(self.0.into_owned(), self.1.into_owned())
-    }
-}
+binop!(Glob);
 
 #[derive(Clone, Copy)]
 pub struct Const<A>(pub(crate) A);
