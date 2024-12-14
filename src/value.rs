@@ -2,7 +2,7 @@ pub mod operations;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, IsNotNull, Like, Lt, Not, NotLike, Or, UnwrapOr};
+use operations::{Add, And, AsFloat, Eq, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
@@ -199,7 +199,11 @@ impl<'t, S, T: LikeTyp + 't> Column<'t, S, T> {
         Like(self, format!("%{}%", pattern.into())).into_column()
     }
 
-    /// Check if the column matches to a pattern [pattern ref](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the column matches to a pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    ///
+    /// As noted in the docs, it is **case-insensitive** for ASCII characters. Other characters are case-sensitive.
+    /// For creating patterns it uses `%` as a wildcard for any sequence of characters and `_` for any single character.
+    /// Special characters should be escaped with `\`.
     pub fn like(&self, pattern: impl Into<String> + Clone + 't) -> Column<'t, S, bool> {
         Like(self, pattern).into_column()
     }
