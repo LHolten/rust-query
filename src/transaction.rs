@@ -372,8 +372,8 @@ impl<S> Deletor<S> {
     /// The specific version of rusqlite used is not stable. This means the [rusqlite]
     /// version might change as part of a non breaking version update of [rust_query].
     #[cfg(feature = "unchecked_transaction")]
-    pub fn unchecked_transaction(&mut self) -> &rusqlite::Transaction<'t> {
-        &self.inner
+    pub fn unchecked_transaction(&mut self) -> &rusqlite::Transaction {
+        &self.transaction.get().0
     }
 
     /// Make the changes made in this [TransactionMut] permanent.
