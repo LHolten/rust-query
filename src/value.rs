@@ -4,7 +4,6 @@ use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
 use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
-use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
 
 use crate::{
@@ -320,9 +319,13 @@ pub trait MyTyp: 'static {
     #[doc(hidden)]
     const FK: Option<(&'static str, &'static str)> = None;
     #[doc(hidden)]
-    type Out<'t>: FromSql;
+    type Out<'t>;
     #[doc(hidden)]
     type Sql;
+    #[doc(hidden)]
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>>;
 }
 
 impl<T: Table> MyTyp for T {
@@ -330,30 +333,64 @@ impl<T: Table> MyTyp for T {
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = TableRow<'t, Self>;
     type Sql = i64;
+
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+        Ok(TableRow {
+            _p: PhantomData,
+            _local: PhantomData,
+            idx: value.as_i64()?,
+        })
+    }
 }
 
 impl MyTyp for i64 {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = i64;
+
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+        value.as_i64()
+    }
 }
 
 impl MyTyp for f64 {
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
     type Sql = f64;
+
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+        value.as_f64()
+    }
 }
 
 impl MyTyp for bool {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = bool;
+
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+        Ok(value.as_i64()? != 0)
+    }
 }
 
 impl MyTyp for String {
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
     type Sql = String;
+
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+        Ok(value.as_str()?.to_owned())
+    }
 }
 
 impl<T: MyTyp> MyTyp for Option<T> {
@@ -362,16 +399,26 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out<'t> = Option<T::Out<'t>>;
     type Sql = T::Sql;
+
+    fn from_sql<'a>(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+        if value.data_type() == rusqlite::types::Type::Null {
+            Ok(None)
+        } else {
+            Ok(Some(T::from_sql(value)?))
+        }
+    }
 }
 
 impl MyTyp for NoTable {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = NoTable;
     type Sql = i64;
-}
 
-impl FromSql for NoTable {
-    fn column_result(_: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+    fn from_sql<'a>(
+        _value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
         unreachable!()
     }
 }

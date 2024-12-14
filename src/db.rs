@@ -1,7 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
-use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
@@ -147,16 +146,6 @@ impl<T: Table> Deref for TableRow<'_, T> {
 
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
-    }
-}
-
-impl<T> FromSql for TableRow<'_, T> {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(Self {
-            _p: PhantomData,
-            _local: PhantomData,
-            idx: value.as_i64()?,
-        })
     }
 }
 

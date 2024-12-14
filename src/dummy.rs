@@ -51,7 +51,7 @@ pub struct Row<'x, 't, 'a> {
 impl<'t, 'a> Row<'_, 't, 'a> {
     pub fn get<T: MyTyp>(&self, val: Cached<'t, T>) -> T::Out<'a> {
         let idx = &*val.field.to_string();
-        self.row.get_unwrap(idx)
+        T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
     }
 }
 

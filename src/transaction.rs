@@ -16,6 +16,7 @@ use crate::{
     migrate::schema_version,
     private::Dummy,
     token::LocalClient,
+    value::MyTyp,
     IntoColumn, Table, TableRow,
 };
 
@@ -165,7 +166,9 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let mut statement = self.transaction().prepare_cached(&sql).unwrap();
         let mut res = statement
-            .query_map(&*values.as_params(), |row| row.get(T::ID))
+            .query_map(&*values.as_params(), |row| {
+                Ok(<T as MyTyp>::from_sql(row.get_ref(T::ID)?)?)
+            })
             .unwrap();
 
         match res.next().unwrap() {
@@ -361,13 +364,9 @@ impl<S> Deletor<S> {
 
     /// This allows you to do anything you want with the internal [rusqlite::Transaction]
     ///
-    /// **Warning:** [Transaction::unchecked_transaction] makes it trivial to break the
+    /// **Warning:** [Transaction::unchecked_transaction] makes it possible to break the
     /// invariants that [rust_query] relies on to avoid panics at run-time. It should
     /// therefore be avoided whenever possible.
-    ///
-    /// As an example; it is assumed that the row referenced by a [TableRow] exists for as
-    /// long as the [Transaction] and the [TableRow] both exist. You should therefore make
-    /// sure that no such [TableRow] exists when deleting a row etc.
     ///
     /// The specific version of rusqlite used is not stable. This means the [rusqlite]
     /// version might change as part of a non breaking version update of [rust_query].
