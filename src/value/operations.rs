@@ -1,4 +1,4 @@
-use sea_query::{Alias, Expr, SimpleExpr};
+use sea_query::{Alias, Expr, LikeExpr, SimpleExpr};
 
 use super::{IntoColumn, NumTyp, Typed, ValueBuilder};
 
@@ -141,6 +141,28 @@ impl<A: Typed> Typed for AsFloat<A> {
     }
 }
 unop! {AsFloat}
+
+#[derive(Clone)]
+pub struct Like<A, B>(pub(crate) A, pub(crate) B);
+
+impl<A: Typed, B: Into<String> + Clone> Typed for Like<A, B> {
+    type Typ = bool;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::expr(self.0.build_expr(b)).like(LikeExpr::new(self.1.clone()).escape('\\'))
+    }
+}
+
+impl<'t, S, A: IntoColumn<'t, S>, B: Into<String> + Clone + ToOwned> IntoColumn<'t, S>
+    for Like<A, B>
+where
+    <B as ToOwned>::Owned: Into<String> + Clone + 't,
+{
+    type Owned = Like<A::Owned, B::Owned>;
+
+    fn into_owned(self) -> Self::Owned {
+        Like(self.0.into_owned(), self.1.to_owned())
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct Const<A>(pub(crate) A);
