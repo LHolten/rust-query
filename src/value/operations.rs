@@ -1,4 +1,4 @@
-use sea_query::{Alias, Expr, LikeExpr, SimpleExpr};
+use sea_query::{extension::sqlite::SqliteExpr, Alias, Expr, LikeExpr, SimpleExpr};
 
 use super::{IntoColumn, NumTyp, Typed, ValueBuilder};
 
@@ -161,6 +161,24 @@ where
 
     fn into_owned(self) -> Self::Owned {
         Like(self.0.into_owned(), self.1.to_owned())
+    }
+}
+
+#[derive(Clone)]
+pub struct Glob<A, B>(pub(crate) A, pub(crate) B);
+
+impl<A: Typed, B: Typed> Typed for Glob<A, B> {
+    type Typ = bool;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b).glob(self.1.build_expr(b))
+    }
+}
+
+impl<'t, S, A: IntoColumn<'t, S>, B: IntoColumn<'t, S>> IntoColumn<'t, S> for Glob<A, B> {
+    type Owned = Glob<A::Owned, B::Owned>;
+
+    fn into_owned(self) -> Self::Owned {
+        Glob(self.0.into_owned(), self.1.into_owned())
     }
 }
 
