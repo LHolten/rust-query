@@ -199,14 +199,9 @@ impl<'t, S, T: LikeTyp + 't> Column<'t, S, T> {
         Like(self, format!("%{}%", pattern.into())).into_column()
     }
 
-    /// Check if the column matches to a pattern [pattern ref](https://www.w3schools.com/sql/sql_like.asp).
+    /// Check if the column matches to a pattern [pattern ref](https://www.sqlite.org/lang_expr.html#like).
     pub fn like(&self, pattern: impl Into<String> + Clone + 't) -> Column<'t, S, bool> {
         Like(self, pattern).into_column()
-    }
-
-    /// Check if the column not matches a pattern [pattern ref](https://www.w3schools.com/sql/sql_like.asp).
-    pub fn not_like(&self, pattern: impl Into<String> + Clone + 't) -> Column<'t, S, bool> {
-        NotLike(self, pattern).into_column()
     }
 }
 
