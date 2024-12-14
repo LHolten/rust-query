@@ -2,7 +2,7 @@ pub mod operations;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, IsNotNull, Lt, Not, Or, UnwrapOr};
+use operations::{Add, And, AsFloat, Eq, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
@@ -85,6 +85,10 @@ impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
 impl<T: Table> EqTyp for T {}
+
+pub trait LikeTyp {}
+
+impl LikeTyp for String {}
 
 /// Typ does not depend on scope, so it gets its own trait
 pub trait Typed {
@@ -176,6 +180,28 @@ impl<'t, S> Column<'t, S, i64> {
     /// Convert the [i64] column to [f64] type.
     pub fn as_float(&self) -> Column<'t, S, f64> {
         AsFloat(self).into_column()
+    }
+}
+
+impl<'t, S, T: LikeTyp + 't> Column<'t, S, T> {
+    /// Check if the column starts with a string pattern.
+    pub fn starts_with(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
+        Like(self, format!("{}%", pattern.into())).into_column()
+    }
+
+    /// Check if the column ends with a string pattern.
+    pub fn ends_with(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
+        Like(self, format!("%{}", pattern.into())).into_column()
+    }
+
+    /// Check if the column contains a string pattern.
+    pub fn contains(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
+        Like(self, format!("%{}%", pattern.into())).into_column()
+    }
+
+    /// Check if the column is equal to a pattern [pattern ref](https://www.w3schools.com/sql/sql_like.asp).
+    pub fn like(&self, pattern: impl Into<String> + Clone + 't) -> Column<'t, S, bool> {
+        Like(self, pattern).into_column()
     }
 }
 
