@@ -2,7 +2,7 @@ pub mod operations;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
+use operations::{Add, And, AsFloat, Eq, IsNotNull, Like, Lt, Not, NotLike, Or, UnwrapOr};
 use ref_cast::RefCast;
 use rusqlite::types::FromSql;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
@@ -206,7 +206,7 @@ impl<'t, S, T: LikeTyp + 't> Column<'t, S, T> {
 
     /// Check if the column not matches a pattern [pattern ref](https://www.w3schools.com/sql/sql_like.asp).
     pub fn not_like(&self, pattern: impl Into<String> + Clone + 't) -> Column<'t, S, bool> {
-        Like(self, pattern).into_column()
+        NotLike(self, pattern).into_column()
     }
 }
 
