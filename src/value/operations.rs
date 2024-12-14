@@ -164,6 +164,28 @@ where
     }
 }
 
+#[derive(Clone)]
+pub struct NotLike<A, B>(pub(crate) A, pub(crate) B);
+
+impl<A: Typed, B: Into<String> + Clone> Typed for NotLike<A, B> {
+    type Typ = bool;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::expr(self.0.build_expr(b)).not_like(LikeExpr::new(self.1.clone()).escape('\\'))
+    }
+}
+
+impl<'t, S, A: IntoColumn<'t, S>, B: Into<String> + Clone + ToOwned> IntoColumn<'t, S>
+    for NotLike<A, B>
+where
+    <B as ToOwned>::Owned: Into<String> + Clone + 't,
+{
+    type Owned = NotLike<A::Owned, B::Owned>;
+
+    fn into_owned(self) -> Self::Owned {
+        NotLike(self.0.into_owned(), self.1.to_owned())
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Const<A>(pub(crate) A);
 
