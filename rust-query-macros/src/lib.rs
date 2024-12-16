@@ -224,6 +224,7 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 #[derive(Clone)]
 struct Table {
+    referer: bool,
     uniques: Vec<Unique>,
     prev: Option<Ident>,
     name: Ident,
@@ -458,6 +459,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         for (i, table) in item.variants.iter().enumerate() {
             let mut other_attrs = vec![];
             let mut uniques = vec![];
+            let mut referer = true;
             for attr in &table.attrs {
                 if let Some(unique) = is_unique(attr.path()) {
                     let idents = attr.parse_args_with(
@@ -467,6 +469,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         name: unique,
                         columns: idents.into_iter().collect(),
                     })
+                } else if attr.path().is_ident("no_reference") {
+                    referer = false;
                 } else {
                     other_attrs.push(attr.clone());
                 }
@@ -529,6 +533,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             }
 
             let table = Table {
+                referer,
                 prev,
                 name: table.ident.clone(),
                 columns,

@@ -1,0 +1,15 @@
+error[E0271]: type mismatch resolving `<SomeTable as Table>::Referer == ()`
+  --> tests/compile/no_reference.rs:10:17
+   |
+3  | #[schema]
+   | --------- required by a bound introduced by this call
+...
+10 |         marker: SomeTable,
+   |                 ^^^^^^^^^ expected `()`, found `Infallible`
+   |
+   = note: required for `SomeTable` to implement `rust_query::hash::ValidInSchema<v0::Schema>`
+note: required by a bound in `TypBuilder::<S>::col`
+  --> src/hash.rs
+   |
+   |     pub fn col<T: ValidInSchema<S>>(&mut self, name: &'static str) {
+   |                   ^^^^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`

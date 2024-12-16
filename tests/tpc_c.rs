@@ -58,6 +58,7 @@ enum Schema {
         data: String,
     },
     #[unique(order)]
+    #[no_reference]
     NewOrder { order: Order },
     Order {
         customer: Customer,

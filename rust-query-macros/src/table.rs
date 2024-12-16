@@ -125,6 +125,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
 
     let ext_ident = format_ident!("{}Ext", table_ident);
 
+    let (referer, referer_expr) = if table.referer {
+        (quote! {()}, quote! {()})
+    } else {
+        (quote! {::std::convert::Infallible}, quote! {unreachable!()})
+    };
+
     Ok(quote! {
         #[repr(transparent)]
         pub struct #ext_ident<T>(T);
@@ -161,8 +167,10 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 }
             }
 
-            type Referer = ();
-            fn get_referer_unchecked() -> Self::Referer {}
+            type Referer = #referer;
+            fn get_referer_unchecked() -> Self::Referer {
+                #referer_expr
+            }
         }
 
         impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics),*> {

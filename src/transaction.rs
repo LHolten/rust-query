@@ -362,6 +362,10 @@ impl<S> Deletor<S> {
         }
     }
 
+    pub fn delete<T: Table<Referer = Infallible>>(&mut self, val: TableRow<'_, T>) -> bool {
+        self.try_delete(val).unwrap()
+    }
+
     /// This allows you to do anything you want with the internal [rusqlite::Transaction]
     ///
     /// **Warning:** [Transaction::unchecked_transaction] makes it possible to break the
