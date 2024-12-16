@@ -182,23 +182,23 @@ impl<'t, S> Column<'t, S, i64> {
 impl<'t, S> Column<'t, S, String> {
     /// Check if the column starts with the string pattern.
     ///
-    /// Matches case-sensitive.
-    pub fn starts_with(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
-        Glob(self, format!("{}*", pattern.into())).into_column()
+    /// Matches case-sensitive. The pattern gets automatically escaped.
+    pub fn starts_with(&self, pattern: impl AsRef<str>) -> Column<'t, S, bool> {
+        Glob(self, format!("{}*", escape_glob(pattern))).into_column()
     }
 
     /// Check if the column ends with the string pattern.
     ///
-    /// Matches case-sensitive.
-    pub fn ends_with(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
-        Glob(self, format!("*{}", pattern.into())).into_column()
+    /// Matches case-sensitive. The pattern gets automatically escaped.
+    pub fn ends_with(&self, pattern: impl AsRef<str>) -> Column<'t, S, bool> {
+        Glob(self, format!("*{}", escape_glob(pattern))).into_column()
     }
 
     /// Check if the column contains the string pattern.
     ///
-    /// Matches case-sensitive.
-    pub fn contains(&self, pattern: impl Into<String>) -> Column<'t, S, bool> {
-        Glob(self, format!("*{}*", pattern.into())).into_column()
+    /// Matches case-sensitive. The pattern gets automatically escaped.
+    pub fn contains(&self, pattern: impl AsRef<str>) -> Column<'t, S, bool> {
+        Glob(self, format!("*{}*", escape_glob(pattern))).into_column()
     }
 
     /// Check if the column matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
@@ -463,6 +463,26 @@ impl<'t, S, T: Table> Deref for Column<'t, S, T> {
     fn deref(&self) -> &Self::Target {
         RefCast::ref_cast(self)
     }
+}
+
+// This is a copy of the function from the glob crate https://github.com/rust-lang/glob/blob/49ee1e92bd6e8c5854c0b339634f9b4b733aba4f/src/lib.rs#L720-L737.
+fn escape_glob(s: impl AsRef<str>) -> String {
+    let mut escaped = String::new();
+    for c in s.as_ref().chars() {
+        match c {
+            // note that ! does not need escaping because it is only special
+            // inside brackets
+            '?' | '*' | '[' | ']' => {
+                escaped.push('[');
+                escaped.push(c);
+                escaped.push(']');
+            }
+            c => {
+                escaped.push(c);
+            }
+        }
+    }
+    escaped
 }
 
 #[test]
