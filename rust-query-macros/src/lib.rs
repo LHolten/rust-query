@@ -452,7 +452,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let mut output = TokenStream::new();
     let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
     let mut prev_mod = None;
-    for version in range.start..range.end.map(|x| x.end_exclusive()).unwrap_or(1) {
+    let range_end = range.end.map(|x| x.end_exclusive()).unwrap_or(1);
+    for version in range.start..range_end {
         let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
 
         let mut mod_output = TokenStream::new();
@@ -470,7 +471,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         columns: idents.into_iter().collect(),
                     })
                 } else if attr.path().is_ident("no_reference") {
-                    referer = false;
+                    // `no_reference` only applies to the last version of the schema.
+                    if version + 1 == range_end {
+                        referer = false;
+                    }
                 } else {
                     other_attrs.push(attr.clone());
                 }

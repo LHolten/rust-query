@@ -310,10 +310,10 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
-        self.deletor().commit();
+        self.into_deletor().commit();
     }
 
-    pub fn deletor(self) -> Deletor<'t, S> {
+    pub fn into_deletor(self) -> Deletor<'t, S> {
         Deletor { inner: self }
     }
 }
@@ -360,6 +360,8 @@ impl<'t, S: 'static> Deletor<'t, S> {
     /// Delete a row from the database.
     ///
     /// This is the infallible version of [Deletor::try_delete].
+    ///
+    /// To be able to use this method you have to mark the table as `#[no_reference]` in the schema.
     pub fn delete<T: Table<Referer = Infallible, Schema = S>>(
         &mut self,
         val: TableRow<'t, T>,
