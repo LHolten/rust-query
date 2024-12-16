@@ -27,7 +27,6 @@ ref-cast = "1.0.23"
 pretty_assertions = "1.4.0"
 r2d2_sqlite = "0.24.0"
 r2d2 = "0.8"
-yoke = { version = "0.7.5", features = ["derive"] }
 
 [dev-dependencies]
 trybuild = "1.0.97"

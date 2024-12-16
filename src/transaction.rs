@@ -5,7 +5,6 @@ use sea_query::{
     Alias, DeleteStatement, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value,
 };
 use sea_query_rusqlite::RusqliteBinder;
-use yoke::{Yoke, Yokeable};
 
 use crate::{
     alias::Field,
@@ -59,7 +58,7 @@ pub struct Database<S> {
 /// This makes these references effectively local to this [Transaction].
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
-    pub(crate) transaction: YokedTransaction,
+    pub(crate) transaction: rusqlite::Transaction<'a>,
     pub(crate) _p: PhantomData<fn(&'a S) -> &'a S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
@@ -83,13 +82,9 @@ impl<'a, S> Deref for TransactionMut<'a, S> {
 }
 
 impl<'t, S> Transaction<'t, S> {
-    pub(crate) fn transaction(&self) -> &rusqlite::Transaction {
-        &self.transaction.get().0
-    }
-
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: YokedTransaction, expected: i64) -> Self {
-        if schema_version(&txn.get().0) != expected {
+    pub(crate) fn new_checked(txn: rusqlite::Transaction<'t>, expected: i64) -> Self {
+        if schema_version(&txn) != expected {
             panic!("The database schema was updated unexpectedly")
         }
 
@@ -110,7 +105,7 @@ impl<'t, S> Transaction<'t, S> {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from are borrowed immutably, so the rows can not change.
-        private_exec(&self.transaction(), f)
+        private_exec(&self.transaction, f)
     }
 
     /// Retrieve a single result from the database.
@@ -123,7 +118,7 @@ impl<'t, S> Transaction<'t, S> {
     {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
-        let mut res = private_exec(&self.transaction(), |e| {
+        let mut res = private_exec(&self.transaction, |e| {
             // Cast the static lifetime to any lifetime necessary, this is fine because we know the static lifetime
             // can not be guaranteed by a query scope.
             e.into_vec_private(val)
@@ -164,7 +159,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-        let mut statement = self.transaction().prepare_cached(&sql).unwrap();
+        let mut statement = self.transaction.prepare_cached(&sql).unwrap();
         let mut res = statement
             .query_map(&*values.as_params(), |row| {
                 Ok(<T as MyTyp>::from_sql(row.get_ref(T::ID)?)?)
@@ -238,7 +233,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let select = ast.simple();
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
-        let mut stmt = self.transaction().prepare_cached(&query).unwrap();
+        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
 
         let row_id = self.query_one(row).idx;
         let mut update = UpdateStatement::new()
@@ -265,7 +260,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let (query, args) = update.build_rusqlite(SqliteQueryBuilder);
 
-        let mut stmt = self.transaction().prepare_cached(&query).unwrap();
+        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
         match stmt.execute(&*args.as_params()) {
             Ok(1) => Ok(()),
             Ok(n) => panic!("unexpected number of updates: {n}"),
@@ -318,39 +313,33 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         self.deletor().commit();
     }
 
-    pub fn deletor(self) -> Deletor<S> {
-        Deletor {
-            transaction: self.inner.transaction,
-            _p: PhantomData,
-        }
+    pub fn deletor(self) -> Deletor<'t, S> {
+        Deletor { inner: self }
     }
 }
 
-#[derive(Yokeable)]
-pub struct TransactionYoke<'a>(pub rusqlite::Transaction<'a>);
-
-type YokedTransaction = yoke::Yoke<TransactionYoke<'static>, Box<rusqlite::Connection>>;
-
-pub struct Deletor<S> {
-    transaction: YokedTransaction,
-    _p: PhantomData<S>,
+pub struct Deletor<'t, S> {
+    inner: TransactionMut<'t, S>,
 }
 
-impl<S> Deletor<S> {
+impl<'t, S: 'static> Deletor<'t, S> {
     /// Try to delete a row from the database.
     ///
     /// This will return an [Err] if there is a row that references the row that is being deleted.
     /// When this method returns [Ok] it will contain a [bool] that is either
     /// - `true` if the row was just deleted.
     /// - `false` if the row was deleted previously in this transaction.
-    pub fn try_delete<T: Table>(&mut self, val: TableRow<'_, T>) -> Result<bool, T::Referer> {
+    pub fn try_delete<T: Table<Schema = S>>(
+        &mut self,
+        val: TableRow<'t, T>,
+    ) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
             .from_table(Alias::new(T::NAME))
             .cond_where(Expr::col(Alias::new(T::ID)).eq(val.idx))
             .to_owned();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
-        let mut stmt = self.transaction.get().0.prepare_cached(&query).unwrap();
+        let mut stmt = self.inner.transaction.prepare_cached(&query).unwrap();
 
         match stmt.execute(&*args.as_params()) {
             Ok(0) => Ok(false),
@@ -371,7 +360,10 @@ impl<S> Deletor<S> {
     /// Delete a row from the database.
     ///
     /// This is the infallible version of [Deletor::try_delete].
-    pub fn delete<T: Table<Referer = Infallible>>(&mut self, val: TableRow<'_, T>) -> bool {
+    pub fn delete<T: Table<Referer = Infallible, Schema = S>>(
+        &mut self,
+        val: TableRow<'t, T>,
+    ) -> bool {
         self.try_delete(val).unwrap()
     }
 
@@ -385,15 +377,13 @@ impl<S> Deletor<S> {
     /// version might change as part of a non breaking version update of [rust_query].
     #[cfg(feature = "unchecked_transaction")]
     pub fn unchecked_transaction(&mut self) -> &rusqlite::Transaction {
-        &self.transaction.get().0
+        &self.inner.transaction
     }
 
     /// Make the changes made in this [TransactionMut] permanent.
     ///
     /// If the [Deletor] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
-        let _: Yoke<(), Box<rusqlite::Connection>> = self
-            .transaction
-            .map_project(|transaction, _| transaction.0.commit().unwrap());
+        self.inner.commit();
     }
 }
