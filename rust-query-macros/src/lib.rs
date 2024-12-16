@@ -312,7 +312,7 @@ fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
             if version.is_some() {
                 return Err(syn::Error::new_spanned(
                     attr,
-                    "there should be only one version",
+                    "There should be only one version attribute.",
                 ));
             }
             version = Some(attr.parse_args()?);
@@ -488,9 +488,16 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 let Some(name) = field.ident.clone() else {
                     return Err(syn::Error::new_spanned(
                         field,
-                        "expected table columns to be named",
+                        "Expected table columns to be named.",
                     ));
                 };
+                // not sure if case matters here
+                if name.to_string().to_lowercase() == "id" {
+                    return Err(syn::Error::new_spanned(
+                        name,
+                        "The `id` column is reserved to be used by rust-query internally.",
+                    ));
+                }
                 let mut other_attrs = vec![];
                 let mut unique = None;
                 for attr in &field.attrs {
@@ -498,7 +505,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         let Meta::Path(_) = &attr.meta else {
                             return Err(syn::Error::new_spanned(
                                 attr,
-                                "expected no arguments to field specific unique",
+                                "Expected no arguments for field specific unique attribute.",
                             ));
                         };
                         unique = Some(Unique {
@@ -564,7 +571,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 let Some(migration) = define_table_migration(None, table) else {
                     return Err(syn::Error::new_spanned(
                         &table.name,
-                        "can not create empty table",
+                        "Empty tables are not supported (yet).",
                     ));
                 };
                 table_migrations.extend(migration);

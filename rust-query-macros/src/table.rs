@@ -35,7 +35,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 .ok_or_else(|| {
                     syn::Error::new_spanned(
                         col,
-                        "a column exists for every name in the unique constraint",
+                        "Expected a column to exists for every name in the unique constraint.",
                     )
                 })?
                 .typ;

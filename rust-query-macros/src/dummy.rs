@@ -9,7 +9,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let dummy_name = format_ident!("{name}Dummy");
     let original_generics = item.generics.params.iter().map(|x| {
         let GenericParam::Lifetime(lt) = x else {
-            return Err(syn::Error::new_spanned(x, "only support lifetime generics"));
+            return Err(syn::Error::new_spanned(
+                x,
+                "Only lifetime generics are supported.",
+            ));
         };
         Ok(lt.lifetime.clone())
     });
@@ -24,7 +27,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let Some(name) = field.ident else {
             return Err(syn::Error::new_spanned(
                 field,
-                "tuple structs are not supported yet",
+                "Tuple structs are not supported (yet).",
             ));
         };
         let name_prepared = format_ident!("{name}_prepared");

@@ -1,0 +1,5 @@
+error: The `id` column is reserved to be used by rust-query internally.
+ --> tests/compile/id_column.rs:5:15
+  |
+5 |     MyTable { id: i64 },
+  |               ^^
