@@ -21,7 +21,7 @@ Query types:
 - [ ] DELETE
 
 Basic operations:
-- [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat
+- [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat, Like
 - [ ] Everything else
 
 Advanced operations:
