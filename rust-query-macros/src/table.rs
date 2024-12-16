@@ -90,7 +90,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     };
 
     let mut defs = vec![];
-    let mut typ_asserts = vec![];
     let mut reads = vec![];
     let mut def_typs = vec![];
     let mut col_defs = vec![];
@@ -110,14 +109,12 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 ::rust_query::IntoColumn::into_column(::rust_query::private::Col::new(#ident_str, self.0.clone()))
             }
         });
-        let mut unique_columns = table.uniques.iter().flat_map(|x| &x.columns);
-        if unique_columns.any(|x| x == ident) {
-            typ_asserts.push(quote!(::rust_query::private::valid_in_unique::<#schema, #typ>();));
-        } else {
-            typ_asserts.push(quote!(::rust_query::private::valid_in_schema::<#schema, #typ>();));
-        }
         reads.push(quote!(f.col(#ident_str, &self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
+        let mut unique_columns = table.uniques.iter().flat_map(|x| &x.columns);
+        if unique_columns.any(|x| x == ident) {
+            def_typs.push(quote!(f.check_unique_compatible::<#typ>()));
+        }
         col_defs.push(quote! {pub #ident: #generic});
         bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
         dummy_columns.push(quote! {::rust_query::Column<'t, #schema, #typ>});
@@ -147,7 +144,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             type Ext<T> = #ext_ident<T>;
             type Schema = #schema;
 
-            fn typs(f: &mut ::rust_query::private::TypBuilder) {
+            fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
                 #(#def_typs;)*
                 #(#unique_typs;)*
             }
@@ -163,6 +160,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                     #(#dummy_inits,)*
                 }
             }
+
+            type Referer = ();
         }
 
         impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics),*> {
@@ -186,10 +185,6 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         mod #table_mod {
             #(#unique_defs)*
         }
-
-        const _: fn() = || {
-            #(#typ_asserts)*
-        };
     })
 }
 

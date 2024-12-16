@@ -595,7 +595,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             impl ::rust_query::private::Schema for #schema {
                 const VERSION: i64 = #version_i64;
 
-                fn typs(b: &mut ::rust_query::private::TableTypBuilder) {
+                fn typs(b: &mut ::rust_query::private::TableTypBuilder<Self>) {
                     #(#schema_table_typs;)*
                 }
             }

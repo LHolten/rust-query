@@ -93,13 +93,22 @@ impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, T
     }
 }
 
-#[derive(Default)]
-pub struct TableTypBuilder {
+pub struct TableTypBuilder<S> {
     pub(crate) ast: hash::Schema,
+    _p: PhantomData<S>,
 }
 
-impl TableTypBuilder {
-    pub fn table<T: Table>(&mut self) {
+impl<S> Default for TableTypBuilder<S> {
+    fn default() -> Self {
+        Self {
+            ast: Default::default(),
+            _p: Default::default(),
+        }
+    }
+}
+
+impl<S> TableTypBuilder<S> {
+    pub fn table<T: Table<Schema = S>>(&mut self) {
         let mut b = hash::TypBuilder::default();
         T::typs(&mut b);
         self.ast.tables.insert((T::NAME.to_owned(), b.ast));
@@ -108,7 +117,7 @@ impl TableTypBuilder {
 
 pub trait Schema: Sized + 'static {
     const VERSION: i64;
-    fn typs(b: &mut TableTypBuilder);
+    fn typs(b: &mut TableTypBuilder<Self>);
 }
 
 pub trait TableMigration<'t, 'a> {

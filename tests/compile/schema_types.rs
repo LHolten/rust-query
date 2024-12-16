@@ -5,6 +5,8 @@ enum Schema {
     Table {
         my_bool: bool,
         nested: Option<Option<i64>>,
+        #[unique]
+        optional: Option<i64>,
     },
 }
 

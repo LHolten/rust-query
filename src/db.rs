@@ -180,8 +180,9 @@ mod tests {
         type Ext<T> = AdminDummy<T>;
 
         type Schema = ();
+        type Referer = ();
 
-        fn typs(_: &mut crate::hash::TypBuilder) {}
+        fn typs(_: &mut crate::hash::TypBuilder<Self::Schema>) {}
 
         type Dummy<'t> = ();
         fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}

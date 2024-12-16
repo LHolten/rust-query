@@ -5,6 +5,7 @@
 use std::{
     hash::{Hash, Hasher},
     io::{Read, Write},
+    marker::PhantomData,
     ops::Deref,
 };
 
@@ -14,7 +15,7 @@ use k12::{
 };
 use sea_query::TableCreateStatement;
 
-use crate::value::MyTyp;
+use crate::value::{EqTyp, MyTyp};
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
@@ -152,13 +153,22 @@ pub fn hash_schema<S: crate::migrate::Schema>() -> String {
     format!("{:x}", hasher.finish())
 }
 
-#[derive(Default)]
-pub struct TypBuilder {
+pub struct TypBuilder<S> {
     pub(crate) ast: Table,
+    _p: PhantomData<S>,
 }
 
-impl TypBuilder {
-    pub fn col<T: MyTyp>(&mut self, name: &'static str) {
+impl<S> Default for TypBuilder<S> {
+    fn default() -> Self {
+        Self {
+            ast: Default::default(),
+            _p: Default::default(),
+        }
+    }
+}
+
+impl<S> TypBuilder<S> {
+    pub fn col<T: ValidInSchema<S>>(&mut self, name: &'static str) {
         let mut item = Column {
             name: name.to_owned(),
             typ: T::TYP,
@@ -178,4 +188,32 @@ impl TypBuilder {
         }
         self.ast.uniques.insert(unique);
     }
+
+    pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
+}
+
+struct Null;
+struct NotNull;
+
+// TODO: maybe remove this trait?
+// currently this prevents storing booleans and nested `Option`.
+trait ValidInSchema<S>: MyTyp {
+    type N;
+}
+
+impl<S> ValidInSchema<S> for String {
+    type N = NotNull;
+}
+impl<S> ValidInSchema<S> for i64 {
+    type N = NotNull;
+}
+impl<S> ValidInSchema<S> for f64 {
+    type N = NotNull;
+}
+impl<S, T: ValidInSchema<S, N = NotNull>> ValidInSchema<S> for Option<T> {
+    type N = Null;
+}
+// only tables with `Referer = ()` are valid columns
+impl<T: crate::Table<Referer = ()>> ValidInSchema<T::Schema> for T {
+    type N = NotNull;
 }

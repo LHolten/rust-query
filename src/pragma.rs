@@ -39,12 +39,13 @@ impl<T: Clone> TableListDummy<T> {
 impl Table for TableList {
     type Ext<T> = TableListDummy<T>;
     type Schema = Pragma;
+    type Referer = ();
 
     fn name(&self) -> String {
         "pragma_table_list".to_owned()
     }
 
-    fn typs(_f: &mut hash::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
     type Dummy<'t> = ();
     fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
@@ -66,12 +67,13 @@ impl<T: Clone> TableInfoDummy<T> {
 impl Table for TableInfo {
     type Ext<T> = TableInfoDummy<T>;
     type Schema = Pragma;
+    type Referer = ();
 
     fn name(&self) -> String {
         format!("pragma_table_info('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut hash::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
     type Dummy<'t> = ();
     fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
@@ -92,12 +94,13 @@ impl<T: Clone> ForeignKeyListDummy<T> {
 impl Table for ForeignKeyList {
     type Ext<T> = ForeignKeyListDummy<T>;
     type Schema = Pragma;
+    type Referer = ();
 
     fn name(&self) -> String {
         format!("pragma_foreign_key_list('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut hash::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
     type Dummy<'t> = ();
     fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
@@ -119,12 +122,13 @@ impl<T: Clone> IndexListDummy<T> {
 impl Table for IndexList {
     type Ext<T> = IndexListDummy<T>;
     type Schema = Pragma;
+    type Referer = ();
 
     fn name(&self) -> String {
         format!("pragma_index_list('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut hash::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
     type Dummy<'t> = ();
     fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
@@ -143,12 +147,13 @@ impl<T: Clone> IndexInfoDummy<T> {
 impl Table for IndexInfo {
     type Ext<T> = IndexInfoDummy<T>;
     type Schema = Pragma;
+    type Referer = ();
 
     fn name(&self) -> String {
         format!("pragma_index_info('{}', 'main')", self.0)
     }
 
-    fn typs(_f: &mut hash::TypBuilder) {}
+    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
     type Dummy<'t> = ();
     fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
