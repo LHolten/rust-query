@@ -337,6 +337,12 @@ pub struct Deletor<S> {
 }
 
 impl<S> Deletor<S> {
+    /// Try to delete a row from the database.
+    ///
+    /// This will return an [Err] if there is a row that references the row that is being deleted.
+    /// When this method returns [Ok] it will contain a [bool] that is either
+    /// - `true` if the row was just deleted.
+    /// - `false` if the row was deleted previously in this transaction.
     pub fn try_delete<T: Table>(&mut self, val: TableRow<'_, T>) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
             .from_table(Alias::new(T::NAME))
@@ -362,6 +368,9 @@ impl<S> Deletor<S> {
         }
     }
 
+    /// Delete a row from the database.
+    ///
+    /// This is the infallible version of [Deletor::try_delete].
     pub fn delete<T: Table<Referer = Infallible>>(&mut self, val: TableRow<'_, T>) -> bool {
         self.try_delete(val).unwrap()
     }
