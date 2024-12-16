@@ -143,24 +143,20 @@ impl<A: Typed> Typed for AsFloat<A> {
 unop! {AsFloat}
 
 #[derive(Clone)]
-pub struct Like<A, B>(pub(crate) A, pub(crate) B);
+pub struct Like<A>(pub(crate) A, pub(crate) String);
 
-impl<A: Typed, B: Into<String> + Clone> Typed for Like<A, B> {
+impl<A: Typed> Typed for Like<A> {
     type Typ = bool;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::expr(self.0.build_expr(b)).like(LikeExpr::new(self.1.clone()).escape('\\'))
+        Expr::expr(self.0.build_expr(b)).like(LikeExpr::new(&self.1).escape('\\'))
     }
 }
 
-impl<'t, S, A: IntoColumn<'t, S>, B: Into<String> + Clone + ToOwned> IntoColumn<'t, S>
-    for Like<A, B>
-where
-    <B as ToOwned>::Owned: Into<String> + Clone + 't,
-{
-    type Owned = Like<A::Owned, B::Owned>;
+impl<'t, S, A: IntoColumn<'t, S>> IntoColumn<'t, S> for Like<A> {
+    type Owned = Like<A::Owned>;
 
     fn into_owned(self) -> Self::Owned {
-        Like(self.0.into_owned(), self.1.to_owned())
+        Like(self.0.into_owned(), self.1)
     }
 }
 
