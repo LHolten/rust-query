@@ -18,6 +18,27 @@ macro_rules! field {
     };
 }
 
+macro_rules! table {
+    ($typ:ident, $dummy:ident, $var:pat => $name:expr) => {
+        impl Table for $typ {
+            type Ext<T> = $dummy<T>;
+            type Schema = Pragma;
+            type Referer = ();
+            fn get_referer_unchecked() -> Self::Referer {}
+
+            fn name(&self) -> String {
+                let $var = self;
+                $name
+            }
+
+            fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
+
+            type Dummy<'t> = ();
+            fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
+        }
+    };
+}
+
 pub struct Pragma;
 
 pub struct TableList;
@@ -36,20 +57,7 @@ impl<T: Clone> TableListDummy<T> {
     field! {strict: i64}
 }
 
-impl Table for TableList {
-    type Ext<T> = TableListDummy<T>;
-    type Schema = Pragma;
-    type Referer = ();
-
-    fn name(&self) -> String {
-        "pragma_table_list".to_owned()
-    }
-
-    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
-
-    type Dummy<'t> = ();
-    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
-}
+table! {TableList, TableListDummy, _ => "pragma_table_list".to_owned()}
 
 pub struct TableInfo(pub String);
 
@@ -64,20 +72,8 @@ impl<T: Clone> TableInfoDummy<T> {
     field! {pk: i64}
 }
 
-impl Table for TableInfo {
-    type Ext<T> = TableInfoDummy<T>;
-    type Schema = Pragma;
-    type Referer = ();
+table! {TableInfo, TableInfoDummy, val => format!("pragma_table_info('{}', 'main')", val.0)}
 
-    fn name(&self) -> String {
-        format!("pragma_table_info('{}', 'main')", self.0)
-    }
-
-    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
-
-    type Dummy<'t> = ();
-    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
-}
 pub struct ForeignKeyList(pub String);
 
 #[repr(transparent)]
@@ -91,20 +87,7 @@ impl<T: Clone> ForeignKeyListDummy<T> {
     field! {to: String}
 }
 
-impl Table for ForeignKeyList {
-    type Ext<T> = ForeignKeyListDummy<T>;
-    type Schema = Pragma;
-    type Referer = ();
-
-    fn name(&self) -> String {
-        format!("pragma_foreign_key_list('{}', 'main')", self.0)
-    }
-
-    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
-
-    type Dummy<'t> = ();
-    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
-}
+table! {ForeignKeyList, ForeignKeyListDummy, val => format!("pragma_foreign_key_list('{}', 'main')", val.0)}
 
 pub struct IndexList(String);
 
@@ -119,20 +102,7 @@ impl<T: Clone> IndexListDummy<T> {
     field! {partial: bool}
 }
 
-impl Table for IndexList {
-    type Ext<T> = IndexListDummy<T>;
-    type Schema = Pragma;
-    type Referer = ();
-
-    fn name(&self) -> String {
-        format!("pragma_index_list('{}', 'main')", self.0)
-    }
-
-    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
-
-    type Dummy<'t> = ();
-    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
-}
+table! {IndexList, IndexListDummy, val => format!("pragma_index_list('{}', 'main')", val.0)}
 
 pub struct IndexInfo(String);
 
@@ -144,20 +114,7 @@ impl<T: Clone> IndexInfoDummy<T> {
     field! {name: Option<String>}
 }
 
-impl Table for IndexInfo {
-    type Ext<T> = IndexInfoDummy<T>;
-    type Schema = Pragma;
-    type Referer = ();
-
-    fn name(&self) -> String {
-        format!("pragma_index_info('{}', 'main')", self.0)
-    }
-
-    fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
-
-    type Dummy<'t> = ();
-    fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
-}
+table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main')", val.0)}
 
 pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     #[derive(Clone, FromDummy)]

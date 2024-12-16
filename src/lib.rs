@@ -104,6 +104,9 @@ pub trait Table: Sized + 'static {
 
     type Referer;
 
+    #[doc(hidden)]
+    fn get_referer_unchecked() -> Self::Referer;
+
     // used for the first join (useful for pragmas)
     #[doc(hidden)]
     fn name(&self) -> String {

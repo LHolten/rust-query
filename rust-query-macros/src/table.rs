@@ -162,6 +162,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
 
             type Referer = ();
+            fn get_referer_unchecked() -> Self::Referer {}
         }
 
         impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics),*> {

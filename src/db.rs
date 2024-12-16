@@ -181,6 +181,7 @@ mod tests {
 
         type Schema = ();
         type Referer = ();
+        fn get_referer_unchecked() -> Self::Referer {}
 
         fn typs(_: &mut crate::hash::TypBuilder<Self::Schema>) {}
 

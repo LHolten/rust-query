@@ -337,7 +337,7 @@ pub struct Deletor<S> {
 }
 
 impl<S> Deletor<S> {
-    pub fn try_delete<T: Table>(&mut self, val: TableRow<'_, T>) -> Result<bool, ()> {
+    pub fn try_delete<T: Table>(&mut self, val: TableRow<'_, T>) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
             .from_table(Alias::new(T::NAME))
             .cond_where(Expr::col(Alias::new(T::ID)).eq(val.idx))
@@ -356,7 +356,7 @@ impl<S> Deletor<S> {
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // Some foreign key constraint got violated
-                Err(())
+                Err(T::get_referer_unchecked())
             }
             Err(err) => Err(err).unwrap(),
         }
