@@ -75,6 +75,7 @@ pub mod private {
 pub trait Table: Sized + 'static {
     /// The associated type [Table::Ext] is used as the deref target by several types that implement [IntoColumn].
     /// This adds convenient methods to access related tables that have a foreign key constraint.
+    #[doc(hidden)]
     type Ext<T>: RefCast<From = T>;
 
     /// The schema that this table is a part of.
@@ -102,6 +103,7 @@ pub trait Table: Sized + 'static {
     /// - Use `#![feature(type_changing_struct_update)]`.
     fn dummy<'t>(val: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t>;
 
+    /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
 
     #[doc(hidden)]

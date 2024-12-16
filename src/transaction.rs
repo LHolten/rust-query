@@ -134,7 +134,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The type of conflict information depends on the number of unique constraints on the table:
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
-    /// - 2+ unique constraints => [()] no further information is provided.
+    /// - 2+ unique constraints => `()` no further information is provided.
     pub fn try_insert<T: Table<Schema = S>, C>(
         &mut self,
         val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
@@ -216,7 +216,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// three conflict types:
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
-    /// - 2+ unique constraints => [()] no further information is provided.
+    /// - 2+ unique constraints => `()` no further information is provided.
     pub fn try_update<T: Table<Schema = S>, C>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,

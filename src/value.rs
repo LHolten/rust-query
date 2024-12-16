@@ -87,6 +87,7 @@ impl<T: Table> EqTyp for T {}
 
 /// Typ does not depend on scope, so it gets its own trait
 pub trait Typed {
+    /// TODO: somehow make this documentation visible?
     type Typ;
 
     #[doc(hidden)]
