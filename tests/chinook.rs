@@ -34,6 +34,10 @@ fn test_queries() {
     assert_dbg(&res[..20], "genre_statistics");
     let res = all_customer_spending(&db);
     assert_dbg(&res[..20], "customer_spending");
+    let res = get_the_artists(&db);
+    assert_dbg(&res[..], "the_artists");
+    let res = ten_space_tracks(&db);
+    assert_dbg(&res[..], "ten_space_tracks");
 
     free_reference(&db);
 
@@ -255,5 +259,21 @@ fn artist_details<'a>(db: &Transaction<'a, Schema>, artist: TableRow<'a, Artist>
                 genre_count: rows.count_distinct(track.genre()),
             }
         }),
+    })
+}
+
+fn get_the_artists(db: &Transaction<Schema>) -> Vec<String> {
+    db.query(|rows| {
+        let artist = Artist::join(rows);
+        rows.filter(artist.name().starts_with("The "));
+        rows.into_vec(artist.name())
+    })
+}
+
+fn ten_space_tracks(db: &Transaction<Schema>) -> Vec<String> {
+    db.query(|rows| {
+        let track = Track::join(rows);
+        rows.filter(track.name().like("% % % % % % % % % % %"));
+        rows.into_vec(track.name())
     })
 }

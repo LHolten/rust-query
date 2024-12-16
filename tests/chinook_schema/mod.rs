@@ -131,7 +131,10 @@ enum Schema {
 
 pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {
-        panic!("test data file 'Chinook_Sqlite.sqlite' does not exist");
+        panic!(
+            "test data file 'Chinook_Sqlite.sqlite' does not exist. 
+            Please download it from https://github.com/lerocha/chinook-database/releases/tag/v1.4.5"
+        );
     }
     let config = Config::open_in_memory()
         .init_stmt("ATTACH 'Chinook_Sqlite.sqlite' AS old;")
