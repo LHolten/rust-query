@@ -532,9 +532,3 @@ fn escape_glob(s: impl AsRef<str>) -> String {
     }
     escaped
 }
-
-#[test]
-fn lifetimes() {
-    let t = trybuild::TestCases::new();
-    t.compile_fail("tests/compile/*.rs");
-}

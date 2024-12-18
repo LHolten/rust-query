@@ -122,3 +122,10 @@ pub trait Table: Sized + 'static {
     #[doc(hidden)]
     const NAME: &'static str = "";
 }
+
+#[test]
+fn compile_tests() {
+    let t = trybuild::TestCases::new();
+    t.compile_fail("tests/compile/*.rs");
+    t.pass("examples/*.rs");
+}
