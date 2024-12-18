@@ -1,11 +1,14 @@
 # Unreleased
 
-- Added `Transaction::unchecked_transaction` behind feature flag.
-- Removed `impl RefCast for Transaction`, it was not intended to be public.
-- Removed `impl FromSql for TableRow`, it was not intended to be public.
+# 0.3.1
+
 - Added error message when defining an `id` column.
 - Added support for sqlite `LIKE` and `GLOB` operators.
-- Added support for `DELETE` and `#[no_reference]`.
+- Added support for `DELETE` using `TransactionWeak` and `#[no_reference]`.
+- Added `Transaction::unchecked_transaction` behind feature flag.
+- Added `impl ToSql for TableRow` behind `unchecked_transaction` feature flag.
+- Removed `impl RefCast for Transaction`, it was not intended to be public.
+- Removed `impl FromSql for TableRow`, it was not intended to be public.
 
 # 0.3.0
 
