@@ -28,8 +28,11 @@ fn main() {
         .map(|name| txn.insert(Name { name }))
         .collect();
 
-    let mut deletor = txn.into_deletor();
+    let mut txn = txn.downgrade();
+    for id in ids.clone() {
+        assert!(txn.delete(id));
+    }
     for id in ids {
-        assert!(deletor.delete(id));
+        assert!(!txn.delete(id));
     }
 }

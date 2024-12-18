@@ -48,7 +48,7 @@ fn test_queries() {
         panic!()
     };
 
-    let mut db = db.into_deletor();
+    let mut db = db.downgrade();
     assert!(db.try_delete(id).unwrap());
 }
 

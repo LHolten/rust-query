@@ -310,19 +310,25 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
-        self.into_deletor().commit();
+        self.inner.transaction.commit().unwrap();
     }
 
-    pub fn into_deletor(self) -> Deletor<'t, S> {
-        Deletor { inner: self }
+    pub fn downgrade(self) -> TransactionWeak<'t, S> {
+        TransactionWeak { inner: self }
     }
 }
 
-pub struct Deletor<'t, S> {
+/// This is the weak version of [TransactionMut].
+///
+/// The reason that it is called `weak` is because [TransactionWeak] can not guarantee
+/// that [TableRow]s prove the existence of their particular row.
+///
+/// [TransactionWeak] is useful because it allowes deleting rows.
+pub struct TransactionWeak<'t, S> {
     inner: TransactionMut<'t, S>,
 }
 
-impl<'t, S: 'static> Deletor<'t, S> {
+impl<'t, S: 'static> TransactionWeak<'t, S> {
     /// Try to delete a row from the database.
     ///
     /// This will return an [Err] if there is a row that references the row that is being deleted.
@@ -359,7 +365,7 @@ impl<'t, S: 'static> Deletor<'t, S> {
 
     /// Delete a row from the database.
     ///
-    /// This is the infallible version of [Deletor::try_delete].
+    /// This is the infallible version of [TransactionWeak::try_delete].
     ///
     /// To be able to use this method you have to mark the table as `#[no_reference]` in the schema.
     pub fn delete<T: Table<Referer = Infallible, Schema = S>>(
@@ -371,7 +377,7 @@ impl<'t, S: 'static> Deletor<'t, S> {
 
     /// This allows you to do anything you want with the internal [rusqlite::Transaction]
     ///
-    /// **Warning:** [Transaction::unchecked_transaction] makes it possible to break the
+    /// **Warning:** [TransactionWeak::unchecked_transaction] makes it possible to break the
     /// invariants that [rust_query] relies on to avoid panics at run-time. It should
     /// therefore be avoided whenever possible.
     ///
@@ -382,9 +388,9 @@ impl<'t, S: 'static> Deletor<'t, S> {
         &self.inner.transaction
     }
 
-    /// Make the changes made in this [TransactionMut] permanent.
+    /// Make the changes made in this [TransactionWeak] permanent.
     ///
-    /// If the [Deletor] is dropped without calling this function, then the changes are rolled back.
+    /// If the [TransactionWeak] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
         self.inner.commit();
     }

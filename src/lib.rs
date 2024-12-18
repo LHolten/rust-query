@@ -29,7 +29,7 @@ use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::FromDummy;
 pub use token::LocalClient;
-pub use transaction::{Database, Transaction, TransactionMut};
+pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::{Column, IntoColumn, UnixEpoch};
 
 /// Types that are used as closure arguments.
