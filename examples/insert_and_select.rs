@@ -61,3 +61,9 @@ fn do_stuff_with_database(db: &mut TransactionMut<MySchema>) {
 
     println!("{mike_pictures:?}"); // This should print `["dog"]`.
 }
+
+#[test]
+fn schema_hash() {
+    use rust_query::migration::expect;
+    v0::assert_hash(expect!["e6dbf93daba3ccfa"]);
+}

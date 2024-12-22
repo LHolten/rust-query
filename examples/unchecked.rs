@@ -47,3 +47,9 @@ fn main() {
 
     txn.commit();
 }
+
+#[test]
+fn schema_hash() {
+    use rust_query::migration::expect;
+    v0::assert_hash(expect!["822e0ab9b42056f7"]);
+}

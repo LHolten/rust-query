@@ -82,3 +82,10 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 }
 
 fn main() {}
+
+#[test]
+fn schema_hash() {
+    use rust_query::migration::expect;
+    v0::assert_hash(expect!["dd7f5d2f553f5b7a"]);
+    v1::assert_hash(expect!["66e6a7d64535bcda"]);
+}
