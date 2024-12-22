@@ -6,28 +6,28 @@ extern crate self as rust_query;
 mod aggregate;
 mod alias;
 mod ast;
+mod client;
 mod db;
 mod dummy;
-mod exec;
 mod hash;
-mod insert;
 mod migrate;
 mod mymap;
-mod pragma;
+mod query;
 mod ref_cast_impl;
 mod rows;
-mod token;
+mod schema_pragma;
 mod transaction;
 mod value;
+mod writable;
 
 pub use crate::dummy::Dummy;
 pub use aggregate::aggregate;
+pub use client::LocalClient;
 pub use db::TableRow;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::FromDummy;
-pub use token::LocalClient;
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::{Column, IntoColumn, UnixEpoch};
 
@@ -36,7 +36,7 @@ pub use value::{Column, IntoColumn, UnixEpoch};
 /// You generally don't need to import these types.
 pub mod args {
     pub use crate::aggregate::Aggregate;
-    pub use crate::exec::Query;
+    pub use crate::query::Query;
 }
 
 /// Types to declare schemas and migrations.
@@ -54,14 +54,14 @@ pub mod migration {
 pub mod private {
     pub use crate::db::Col;
     pub use crate::dummy::{Cached, Cacher, Dummy, Row};
-    pub use crate::exec::show_sql;
     pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
-    pub use crate::insert::{Reader, Writable};
     pub use crate::migrate::{
         Migration, Schema, SchemaBuilder, TableCreation, TableMigration, TableTypBuilder, C, M,
     };
+    pub use crate::query::show_sql;
     pub use crate::value::{MyTyp, Typed, ValueBuilder};
+    pub use crate::writable::{Reader, Writable};
 
     pub use expect_test::Expect;
     pub use ref_cast::RefCast;

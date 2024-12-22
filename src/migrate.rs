@@ -10,13 +10,14 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
+    client::LocalClient,
     dummy::{Cached, Cacher},
     hash,
-    insert::Reader,
-    pragma::read_schema,
-    token::LocalClient,
+    schema_pragma::read_schema,
     transaction::Database,
-    value, Column, IntoColumn, Rows, Table,
+    value,
+    writable::Reader,
+    Column, IntoColumn, Rows, Table,
 };
 
 pub type M<'a, From, To> = Box<

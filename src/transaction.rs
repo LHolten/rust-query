@@ -10,12 +10,12 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::Field,
     ast::MySelect,
-    exec::Query,
-    insert::{Reader, Writable},
+    client::LocalClient,
     migrate::schema_version,
     private::Dummy,
-    token::LocalClient,
+    query::Query,
     value::MyTyp,
+    writable::{Reader, Writable},
     IntoColumn, Rows, Table, TableRow,
 };
 
