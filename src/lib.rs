@@ -6,7 +6,6 @@ extern crate self as rust_query;
 mod aggregate;
 mod alias;
 mod ast;
-mod client;
 mod db;
 mod dummy;
 mod exec;

@@ -10,14 +10,13 @@ use sea_query_rusqlite::RusqliteBinder;
 use crate::{
     alias::Field,
     ast::MySelect,
-    client::private_exec,
     exec::Query,
     insert::{Reader, Writable},
     migrate::schema_version,
     private::Dummy,
     token::LocalClient,
     value::MyTyp,
-    IntoColumn, Table, TableRow,
+    IntoColumn, Rows, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -111,8 +110,18 @@ impl<'t, S> Transaction<'t, S> {
     {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
-        // from are borrowed immutably, so the rows can not change.
-        private_exec(&self.transaction, f)
+        // from is borrowed immutably, which means the rows can not change.
+        let conn: &rusqlite::Connection = &self.transaction;
+        let ast = MySelect::default();
+        let q = Rows {
+            phantom: PhantomData,
+            ast,
+        };
+        f(&mut Query {
+            q,
+            phantom: PhantomData,
+            conn,
+        })
     }
 
     /// Retrieve a single result from the database.
@@ -125,7 +134,7 @@ impl<'t, S> Transaction<'t, S> {
     {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
-        let mut res = private_exec(&self.transaction, |e| {
+        let mut res = self.query(|e| {
             // Cast the static lifetime to any lifetime necessary, this is fine because we know the static lifetime
             // can not be guaranteed by a query scope.
             e.into_vec_private(val)
