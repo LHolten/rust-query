@@ -1,5 +1,6 @@
 use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 
+use ref_cast::{ref_cast_custom, RefCastCustom};
 use rusqlite::ErrorCode;
 use sea_query::{
     Alias, DeleteStatement, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value,
@@ -56,11 +57,17 @@ pub struct Database<S> {
 ///
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
+#[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
     pub(crate) transaction: rusqlite::Transaction<'a>,
     pub(crate) _p: PhantomData<fn(&'a S) -> &'a S>,
     pub(crate) _local: PhantomData<LocalClient>,
+}
+
+impl<'a, S> Transaction<'a, S> {
+    #[ref_cast_custom]
+    pub(crate) fn ref_cast<'x>(raw: &'x rusqlite::Transaction<'a>) -> &'x Self;
 }
 
 /// Same as [Transaction], but allows inserting new rows.

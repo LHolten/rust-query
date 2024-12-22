@@ -503,7 +503,7 @@ fn foreign_key_check<S: Schema>(conn: &rusqlite::Transaction) {
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
         b.ast,
-        read_schema(conn),
+        read_schema(crate::Transaction::ref_cast(conn)),
         "schema is different (expected left, but got right)",
     );
 }

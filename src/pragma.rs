@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use ref_cast::RefCast;
 use rust_query_macros::FromDummy;
 
-use crate::{client::QueryBuilder, db::Col, hash, value::IntoColumn, Table};
+use crate::{db::Col, hash, value::IntoColumn, Table, Transaction};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -116,7 +116,7 @@ impl<T: Clone> IndexInfoDummy<T> {
 
 table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main')", val.0)}
 
-pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
+pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     #[derive(Clone, FromDummy)]
     struct Column {
         name: String,
@@ -125,7 +125,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         notnull: bool,
     }
 
-    let tables = conn.new_query(|q| {
+    let tables = conn.query(|q| {
         let table = q.join_custom(TableList);
         q.filter(table.schema().into_column().eq("main"));
         q.filter(table.r#type().into_column().eq("table"));
@@ -136,7 +136,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
     let mut output = hash::Schema::default();
 
     for table_name in tables {
-        let mut columns = conn.new_query(|q| {
+        let mut columns = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
 
             q.into_vec(ColumnDummy {
@@ -148,7 +148,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         });
 
         let fks: HashMap<_, _> = conn
-            .new_query(|q| {
+            .query(|q| {
                 let fk = q.join_custom(ForeignKeyList(table_name.to_owned()));
                 q.into_vec((fk.from(), fk.table()))
             })
@@ -182,7 +182,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
             table_def.columns.insert(def)
         }
 
-        let uniques = conn.new_query(|q| {
+        let uniques = conn.query(|q| {
             let index = q.join_custom(IndexList(table_name.clone()));
             q.filter(index.unique());
             q.filter(index.origin().into_column().eq("u"));
@@ -191,7 +191,7 @@ pub fn read_schema(conn: &rusqlite::Transaction) -> hash::Schema {
         });
 
         for unique_name in uniques {
-            let columns = conn.new_query(|q| {
+            let columns = conn.query(|q| {
                 let col = q.join_custom(IndexInfo(unique_name));
                 let name = q.filter_some(col.name());
                 q.into_vec(name)
