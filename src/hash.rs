@@ -168,7 +168,7 @@ impl<S> Default for TypBuilder<S> {
 }
 
 impl<S> TypBuilder<S> {
-    pub fn col<T: ValidInSchema<S>>(&mut self, name: &'static str) {
+    pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
         let mut item = Column {
             name: name.to_owned(),
             typ: T::TYP,
@@ -198,27 +198,27 @@ struct NotNull;
 // TODO: maybe remove this trait?
 // currently this prevents storing booleans and nested `Option`.
 #[diagnostic::on_unimplemented(
-    message = "Can not use `{Self}` as a schema column type in schema `{S}`",
+    message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "Table names can be used as schema column types as long as they are not #[no_reference]"
 )]
-trait ValidInSchema<S>: MyTyp {
+trait SchemaType<S>: MyTyp {
     type N;
 }
 
-impl<S> ValidInSchema<S> for String {
+impl<S> SchemaType<S> for String {
     type N = NotNull;
 }
-impl<S> ValidInSchema<S> for i64 {
+impl<S> SchemaType<S> for i64 {
     type N = NotNull;
 }
-impl<S> ValidInSchema<S> for f64 {
+impl<S> SchemaType<S> for f64 {
     type N = NotNull;
 }
-impl<S, T: ValidInSchema<S, N = NotNull>> ValidInSchema<S> for Option<T> {
+impl<S, T: SchemaType<S, N = NotNull>> SchemaType<S> for Option<T> {
     type N = Null;
 }
 // only tables with `Referer = ()` are valid columns
 #[diagnostic::do_not_recommend]
-impl<T: crate::Table<Referer = ()>> ValidInSchema<T::Schema> for T {
+impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for T {
     type N = NotNull;
 }

@@ -1,11 +1,11 @@
-error[E0277]: Can not use `SomeTable` as a schema column type in schema `v0::Schema`
+error[E0277]: Can not use `SomeTable` as a column type in schema `v0::Schema`
   --> tests/compile/no_reference.rs:10:17
    |
 10 |         marker: SomeTable,
-   |                 ^^^^^^^^^ the trait `rust_query::hash::ValidInSchema<v0::Schema>` is not implemented for `SomeTable`
+   |                 ^^^^^^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `SomeTable`
    |
    = note: Table names can be used as schema column types as long as they are not #[no_reference]
-   = help: the following other types implement trait `rust_query::hash::ValidInSchema<S>`:
+   = help: the following other types implement trait `rust_query::hash::SchemaType<S>`:
              Option<T>
              String
              f64
@@ -13,5 +13,5 @@ error[E0277]: Can not use `SomeTable` as a schema column type in schema `v0::Sch
 note: required by a bound in `TypBuilder::<S>::col`
   --> src/hash.rs
    |
-   |     pub fn col<T: ValidInSchema<S>>(&mut self, name: &'static str) {
-   |                   ^^^^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
+   |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
+   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
