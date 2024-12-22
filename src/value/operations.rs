@@ -1,4 +1,4 @@
-use sea_query::{extension::sqlite::SqliteExpr, Alias, Expr, LikeExpr, SimpleExpr};
+use sea_query::{extension::sqlite::SqliteExpr, Alias, Expr, Keyword, LikeExpr, SimpleExpr};
 
 use super::{IntoColumn, NumTyp, Typed, ValueBuilder};
 
@@ -114,6 +114,23 @@ impl<A: Typed> Typed for IsNotNull<A> {
     }
 }
 unop! {IsNotNull}
+
+#[derive(Clone, Copy)]
+pub struct AndThen<A, B>(pub(crate) A, pub(crate) B);
+
+// TODO: make this impl stricter? A and B should be Typ=Option
+impl<A: Typed, B: Typed> Typed for AndThen<A, B> {
+    type Typ = B::Typ;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        Expr::case(
+            Expr::expr(self.0.build_expr(b)).is_null(),
+            SimpleExpr::Keyword(Keyword::Null),
+        )
+        .finally(self.1.build_expr(b))
+        .into()
+    }
+}
+binop! {AndThen}
 
 #[derive(Clone, Copy)]
 pub struct Assume<A>(pub(crate) A);

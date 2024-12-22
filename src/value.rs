@@ -2,7 +2,9 @@ pub mod operations;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
+use operations::{
+    Add, And, AndThen, AsFloat, Assume, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr,
+};
 use ref_cast::RefCast;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
 
@@ -174,6 +176,20 @@ impl<'t, S, Typ: 't> Column<'t, S, Option<Typ>> {
     /// Check that the column is [Some].
     pub fn is_some(&self) -> Column<'t, S, bool> {
         IsNotNull(self).into_column()
+    }
+
+    pub fn map<O: MyTyp<Sql: Nullable>>(
+        &self,
+        f: impl for<'x> FnOnce(Column<'x, S, Typ>) -> Column<'t, S, O>,
+    ) -> Column<'t, S, Option<O>> {
+        self.and_then(|x| Some(f(x)).into_column())
+    }
+
+    pub fn and_then<O: 'static>(
+        &self,
+        f: impl for<'x> FnOnce(Column<'x, S, Typ>) -> Column<'t, S, Option<O>>,
+    ) -> Column<'t, S, Option<O>> {
+        AndThen(self, f(Column(Assume(self).into_column().0, PhantomData))).into_column()
     }
 }
 
