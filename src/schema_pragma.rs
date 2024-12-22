@@ -41,11 +41,11 @@ macro_rules! table {
 
 pub struct Pragma;
 
-pub struct TableList;
+struct TableList;
 
 #[repr(transparent)]
 #[derive(RefCast)]
-pub struct TableListDummy<T>(T);
+struct TableListDummy<T>(T);
 
 #[allow(unused)]
 impl<T: Clone> TableListDummy<T> {
@@ -59,11 +59,11 @@ impl<T: Clone> TableListDummy<T> {
 
 table! {TableList, TableListDummy, _ => "pragma_table_list".to_owned()}
 
-pub struct TableInfo(pub String);
+struct TableInfo(pub String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-pub struct TableInfoDummy<T>(T);
+struct TableInfoDummy<T>(T);
 
 impl<T: Clone> TableInfoDummy<T> {
     field! {name: String}
@@ -74,11 +74,11 @@ impl<T: Clone> TableInfoDummy<T> {
 
 table! {TableInfo, TableInfoDummy, val => format!("pragma_table_info('{}', 'main')", val.0)}
 
-pub struct ForeignKeyList(pub String);
+struct ForeignKeyList(pub String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-pub struct ForeignKeyListDummy<T>(T);
+struct ForeignKeyListDummy<T>(T);
 
 #[allow(unused)]
 impl<T: Clone> ForeignKeyListDummy<T> {
@@ -89,11 +89,11 @@ impl<T: Clone> ForeignKeyListDummy<T> {
 
 table! {ForeignKeyList, ForeignKeyListDummy, val => format!("pragma_foreign_key_list('{}', 'main')", val.0)}
 
-pub struct IndexList(String);
+struct IndexList(String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-pub struct IndexListDummy<T>(T);
+struct IndexListDummy<T>(T);
 
 impl<T: Clone> IndexListDummy<T> {
     field! {name: String}
@@ -104,11 +104,11 @@ impl<T: Clone> IndexListDummy<T> {
 
 table! {IndexList, IndexListDummy, val => format!("pragma_index_list('{}', 'main')", val.0)}
 
-pub struct IndexInfo(String);
+struct IndexInfo(String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-pub struct IndexInfoDummy<T>(T);
+struct IndexInfoDummy<T>(T);
 
 impl<T: Clone> IndexInfoDummy<T> {
     field! {name: Option<String>}
