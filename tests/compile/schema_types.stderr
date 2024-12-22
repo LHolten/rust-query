@@ -1,20 +1,14 @@
 error[E0277]: the trait bound `bool: rust_query::hash::ValidInSchema<v0::Schema>` is not satisfied
  --> tests/compile/schema_types.rs:6:18
   |
-3 | #[schema]
-  | --------- required by a bound introduced by this call
-...
 6 |         my_bool: bool,
-  |                  ^^^^ the trait `rust_query::Table` is not implemented for `bool`
+  |                  ^^^^ the trait `rust_query::hash::ValidInSchema<v0::Schema>` is not implemented for `bool`
   |
-  = help: the following other types implement trait `rust_query::Table`:
-            rust_query::pragma::ForeignKeyList
-            rust_query::pragma::IndexInfo
-            rust_query::pragma::IndexList
-            rust_query::pragma::TableInfo
-            rust_query::pragma::TableList
-            v0::Table
-  = note: required for `bool` to implement `rust_query::hash::ValidInSchema<v0::Schema>`
+  = help: the following other types implement trait `rust_query::hash::ValidInSchema<S>`:
+            Option<T>
+            String
+            f64
+            i64
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/hash.rs
   |
@@ -40,20 +34,14 @@ note: required by a bound in `TypBuilder::<S>::col`
 error[E0277]: the trait bound `Option<i64>: rust_query::value::EqTyp` is not satisfied
  --> tests/compile/schema_types.rs:9:19
   |
-3 | #[schema]
-  | --------- required by a bound introduced by this call
-...
 9 |         optional: Option<i64>,
-  |                   ^^^^^^^^^^^ the trait `rust_query::Table` is not implemented for `Option<i64>`
+  |                   ^^^^^^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
   |
-  = help: the following other types implement trait `rust_query::Table`:
-            rust_query::pragma::ForeignKeyList
-            rust_query::pragma::IndexInfo
-            rust_query::pragma::IndexList
-            rust_query::pragma::TableInfo
-            rust_query::pragma::TableList
-            v0::Table
-  = note: required for `Option<i64>` to implement `rust_query::value::EqTyp`
+  = help: the following other types implement trait `rust_query::value::EqTyp`:
+            String
+            bool
+            f64
+            i64
 note: required by a bound in `TypBuilder::<S>::check_unique_compatible`
  --> src/hash.rs
   |

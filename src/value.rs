@@ -83,6 +83,7 @@ impl EqTyp for String {}
 impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
+#[diagnostic::do_not_recommend]
 impl<T: Table> EqTyp for T {}
 
 /// Typ does not depend on scope, so it gets its own trait

@@ -214,6 +214,7 @@ impl<S, T: ValidInSchema<S, N = NotNull>> ValidInSchema<S> for Option<T> {
     type N = Null;
 }
 // only tables with `Referer = ()` are valid columns
+#[diagnostic::do_not_recommend]
 impl<T: crate::Table<Referer = ()>> ValidInSchema<T::Schema> for T {
     type N = NotNull;
 }
