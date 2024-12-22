@@ -77,6 +77,10 @@ impl NumTyp for f64 {
     }
 }
 
+#[diagnostic::on_unimplemented(
+    message = "Columns with type `{Self}` can not be checked for equality",
+    note = "`EqTyp` is also implemented for all table types"
+)]
 pub trait EqTyp {}
 
 impl EqTyp for String {}

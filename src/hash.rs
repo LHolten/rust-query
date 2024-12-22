@@ -197,6 +197,10 @@ struct NotNull;
 
 // TODO: maybe remove this trait?
 // currently this prevents storing booleans and nested `Option`.
+#[diagnostic::on_unimplemented(
+    message = "Can not use `{Self}` as a schema column type in schema `{S}`",
+    note = "Table names can be used as schema column types as long as they are not #[no_reference]"
+)]
 trait ValidInSchema<S>: MyTyp {
     type N;
 }
