@@ -180,16 +180,36 @@ impl<'t, S, Typ: 't> Column<'t, S, Option<Typ>> {
 
     pub fn map<O: MyTyp<Sql: Nullable>>(
         &self,
-        f: impl for<'x> FnOnce(Column<'x, S, Typ>) -> Column<'t, S, O>,
+        f: impl for<'x> FnOnce(Mappable<'t, 'x, S, Typ>) -> Column<'x, S, O>,
     ) -> Column<'t, S, Option<O>> {
         self.and_then(|x| Some(f(x)).into_column())
     }
 
     pub fn and_then<O: 'static>(
         &self,
-        f: impl for<'x> FnOnce(Column<'x, S, Typ>) -> Column<'t, S, Option<O>>,
+        f: impl for<'x> FnOnce(Mappable<'t, 'x, S, Typ>) -> Column<'x, S, Option<O>>,
     ) -> Column<'t, S, Option<O>> {
-        AndThen(self, f(Column(Assume(self).into_column().0, PhantomData))).into_column()
+        let mappable = Mappable {
+            _p: PhantomData,
+            actual: Column(Assume(self).into_column().0, PhantomData),
+        };
+        AndThen(self, f(mappable)).into_column()
+    }
+}
+
+/// This struct adds the implied bound 't: 'x.
+/// Sadly this only adds the ability to use [TableRow] inside of the mapping
+/// and it does not allow using multiple [Column].
+pub struct Mappable<'t, 'x, S, Typ> {
+    _p: PhantomData<&'x &'t ()>,
+    actual: Column<'x, S, Typ>,
+}
+
+impl<'x, S, Typ> Deref for Mappable<'_, 'x, S, Typ> {
+    type Target = Column<'x, S, Typ>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.actual
     }
 }
 
