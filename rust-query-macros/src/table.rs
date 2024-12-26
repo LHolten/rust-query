@@ -44,14 +44,16 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             args.push(quote! {#col: #generic});
             constraints.push(quote! {#generic: ::rust_query::IntoColumn<'a, #schema, Typ = #typ>});
             generics.push(generic);
-            inits.push(col.clone());
+            inits.push(quote! {
+                #col: ::rust_query::IntoColumn::into_column(#col).inner()
+            });
         }
 
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
 
         unique_funcs.push(quote! {
             pub fn #unique_name<'a #(,#constraints)*>(#(#args),*) -> ::rust_query::Column<'a, #schema, Option<#table_ident>> {
-                ::rust_query::IntoColumn::into_column(#table_mod::#unique_type {
+                ::rust_query::Column::new(#table_mod::#unique_type {
                     #(#inits),*
                 })
             }
@@ -106,7 +108,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         let generic = make_generic(ident);
         defs.push(quote! {
             pub fn #ident(&self) -> ::rust_query::Column<'t, #schema, #typ> {
-                ::rust_query::IntoColumn::into_column(::rust_query::private::Col::new(#ident_str, self.0.clone()))
+                ::rust_query::Column::new((::rust_query::private::Col::new(#ident_str, ::rust_query::IntoColumn::into_column(&self.0).inner())))
             }
         });
         reads.push(quote!(f.col(#ident_str, &self.#ident)));
@@ -236,14 +238,6 @@ fn define_unique(
             type Typ = Option<super::#table_typ>;
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
                 b.get_unique(#table_str, vec![#(#conds),*])
-            }
-        }
-        impl<'t, #(#constraints),*> ::rust_query::IntoColumn<'t, super::#schema> for #typ_name<#(#generics),*> {
-            type Owned = #typ_name<#(#generics_owned),*>;
-            fn into_owned(self) -> Self::Owned {
-                #typ_name{
-                    #(#fields_owned,)*
-                }
             }
         }
     }

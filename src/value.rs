@@ -485,8 +485,14 @@ pub struct Column<'t, S, T>(
 );
 
 impl<S, T> Column<'_, S, T> {
-    pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
+    #[doc(hidden)]
+    pub fn new(val: impl Typed<Typ = T> + 'static) -> Self {
         Self(DynTyped(Rc::new(val)), PhantomData)
+    }
+
+    #[doc(hidden)]
+    pub fn inner(self) -> DynTyped<T> {
+        self.0
     }
 }
 
