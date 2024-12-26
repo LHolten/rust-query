@@ -5,7 +5,7 @@ use sea_query::{Expr, SimpleExpr};
 use crate::{
     ast::MySelect,
     db::Join,
-    value::{operations::Assume, IntoColumn},
+    value::{operations::Assume, IntoColumn, Typed},
     Column, Table,
 };
 
@@ -48,6 +48,7 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl IntoColumn<'inner, S, Typ = bool>) {
+        let prop = prop.into_column().inner;
         self.filter_private(prop.build_expr(self.ast.builder()));
     }
 
@@ -62,7 +63,8 @@ impl<'inner, S> Rows<'inner, S> {
         &mut self,
         val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
     ) -> Column<'inner, S, Typ> {
+        let val = val.into_column().inner;
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
-        Column::new(Assume(val.into_column().0))
+        Column::new(Assume(val))
     }
 }

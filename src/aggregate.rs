@@ -64,7 +64,8 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         val: impl IntoColumn<'inner, S, Typ = T>,
         on: impl IntoColumn<'outer, S, Typ = T>,
     ) {
-        let on = on.into_column().0;
+        let on = on.into_column().inner;
+        let val = val.into_column().inner;
         let alias = self.ast.scope.new_alias();
         self.conds
             .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
@@ -78,8 +79,9 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         &'inner self,
         val: impl IntoColumn<'inner, S, Typ = f64>,
     ) -> Column<'outer, S, Option<f64>> {
+        let val = val.into_column().inner;
         let expr = Func::avg(val.build_expr(self.ast.builder()));
-        self.select(expr).into_column()
+        Column::new(self.select(expr))
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
@@ -90,8 +92,9 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     where
         T: NumTyp,
     {
+        let val = val.into_column().inner;
         let expr = Func::max(val.build_expr(self.ast.builder()));
-        self.select(expr).into_column()
+        Column::new(self.select(expr))
     }
 
     /// Return the sum of a column.
@@ -99,18 +102,20 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     where
         T: NumTyp,
     {
+        let val = val.into_column().inner;
         let expr = Func::sum(val.build_expr(self.ast.builder()));
         Column::new(UnwrapOr(self.select::<T>(expr), Const(T::ZERO)))
     }
 
     /// Return the number of distinct values in a column.
-    pub fn count_distinct<T>(
+    pub fn count_distinct<T: 'static>(
         &'inner self,
         val: impl IntoColumn<'inner, S, Typ = T>,
     ) -> Column<'outer, S, i64>
     where
         T: EqTyp,
     {
+        let val = val.into_column().inner;
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
         Column::new(UnwrapOr(self.select::<i64>(expr), Const(0)))
     }
@@ -151,12 +156,6 @@ impl<S, T> Aggr<S, T> {
     fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias {
         let conds = self.conds.iter().map(|(field, expr)| (*field, expr(b)));
         b.get_aggr(self.select.clone(), conds.collect())
-    }
-}
-
-impl<'t, S: 'static, T: MyTyp> IntoColumn<'t, S> for Aggr<S, T> {
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
-        Column::new(self)
     }
 }
 

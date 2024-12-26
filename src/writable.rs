@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{alias::Field, ast::MySelect, Dummy, IntoColumn, Table};
+use crate::{alias::Field, ast::MySelect, value::Typed, Dummy, IntoColumn, Table};
 
 /// this trait is not safe to implement
 pub trait Writable<'t> {
@@ -40,6 +40,7 @@ pub struct Reader<'x, 't, S> {
 impl<'t, S> Reader<'_, 't, S> {
     pub fn col(&self, name: &'static str, val: impl IntoColumn<'t, S>) {
         let field = Field::Str(name);
+        let val = val.into_column().inner;
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))
     }

@@ -8,12 +8,12 @@ use crate::{db::Col, hash, value::IntoColumn, Column, Table, Transaction};
 macro_rules! field {
     ($name:ident: $typ:ty) => {
         pub fn $name<'x>(&self) -> Column<'x, Pragma, $typ> {
-            Column::new(Col::new(stringify!($name), self.0 .0.clone()))
+            Column::new(Col::new(stringify!($name), self.0.inner.clone()))
         }
     };
     ($name:ident($name_str:literal): $typ:ty) => {
         pub fn $name<'x>(&self) -> Column<'x, Pragma, $typ> {
-            Column::new(Col::new($name_str, self.0 .0.clone()))
+            Column::new(Col::new($name_str, self.0.inner.clone()))
         }
     };
 }
@@ -142,8 +142,8 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
             q.into_vec(ColumnDummy {
                 name: table.name(),
                 typ: table.r#type(),
-                pk: table.pk().into_column().eq(0).not(),
-                notnull: table.notnull().into_column().eq(0).not(),
+                pk: table.pk().eq(0).not(),
+                notnull: table.notnull().eq(0).not(),
             })
         });
 
@@ -185,8 +185,8 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
         let uniques = conn.query(|q| {
             let index = q.join_custom(IndexList(table_name.clone()));
             q.filter(index.unique());
-            q.filter(index.origin().into_column().eq("u"));
-            q.filter(index.partial().into_column().not());
+            q.filter(index.origin().eq("u"));
+            q.filter(index.partial().not());
             q.into_vec(index.name())
         });
 

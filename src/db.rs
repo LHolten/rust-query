@@ -5,7 +5,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
-    value::{MyTyp, Typed, ValueBuilder},
+    value::{MyTyp, Private, Typed, ValueBuilder},
     Column, IntoColumn, LocalClient, Table,
 };
 
@@ -94,11 +94,6 @@ impl<T: Table> Typed for Join<T> {
         self.table
     }
 }
-impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<T> {
-    fn into_column(self) -> Column<'t, T::Schema, Self::Typ> {
-        Column::new(self)
-    }
-}
 
 /// Row reference that can be used in any query in the same transaction.
 ///
@@ -161,21 +156,9 @@ impl<T: Table> Typed for TableRowInner<T> {
     }
 }
 
-impl<T: Table> Typed for TableRow<'_, T> {
-    type Typ = T;
-
-    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        self.inner.build_expr(b)
-    }
-    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        self.inner.build_table(b)
-    }
-}
-
+impl<'t, T> Private for TableRow<'t, T> {}
 impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
+    type Typ = T;
     fn into_column(self) -> Column<'t, T::Schema, Self::Typ> {
         Column::new(self.inner)
     }

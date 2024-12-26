@@ -15,7 +15,7 @@ use crate::{
     hash,
     schema_pragma::read_schema,
     transaction::Database,
-    value,
+    value::{self, Private},
     writable::Reader,
     Column, IntoColumn, Rows, Table,
 };
@@ -519,7 +519,9 @@ impl value::Typed for NoTable {
         unreachable!("NoTable can not be constructed")
     }
 }
+impl Private for NoTable {}
 impl<'t, S> IntoColumn<'t, S> for NoTable {
+    type Typ = NoTable;
     fn into_column(self) -> Column<'t, S, Self::Typ> {
         Column::new(self)
     }
