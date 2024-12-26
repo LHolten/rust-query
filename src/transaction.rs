@@ -60,7 +60,8 @@ pub struct Database<S> {
 #[repr(transparent)]
 pub struct Transaction<'a, S> {
     pub(crate) transaction: rusqlite::Transaction<'a>,
-    pub(crate) _p: PhantomData<fn(&'a S) -> &'a S>,
+    pub(crate) _p: PhantomData<fn(&'a ()) -> &'a ()>,
+    pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
 
@@ -97,6 +98,7 @@ impl<'t, S> Transaction<'t, S> {
         Transaction {
             transaction: txn,
             _p: PhantomData,
+            _p2: PhantomData,
             _local: PhantomData,
         }
     }
@@ -116,6 +118,7 @@ impl<'t, S> Transaction<'t, S> {
         let q = Rows {
             phantom: PhantomData,
             ast,
+            _p: PhantomData,
         };
         f(&mut Query {
             q,

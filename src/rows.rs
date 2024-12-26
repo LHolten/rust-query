@@ -18,7 +18,8 @@ use crate::{
 /// Adding new columns does not require mutating [Rows].
 pub struct Rows<'inner, S> {
     // we might store 'inner
-    pub(crate) phantom: PhantomData<fn(&'inner S) -> &'inner S>,
+    pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
+    pub(crate) _p: PhantomData<S>,
     pub(crate) ast: MySelect,
 }
 

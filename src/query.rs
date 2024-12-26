@@ -54,6 +54,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     {
         let mut f = dummy.prepare(Cacher {
             _p: PhantomData,
+            _p2: PhantomData,
             ast: &self.ast,
         });
 

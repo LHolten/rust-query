@@ -179,6 +179,7 @@ where
     let inner = Rows {
         phantom: PhantomData,
         ast,
+        _p: PhantomData,
     };
     let mut group = Aggregate {
         conds: Vec::new(),

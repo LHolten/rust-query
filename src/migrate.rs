@@ -62,7 +62,7 @@ pub struct Create<'t, 'a, FromSchema, To> {
     inner: Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
 }
 
-impl<'t, 'a, FromSchema, To: 'a> Create<'t, 'a, FromSchema, To> {
+impl<'t, 'a, FromSchema: 't, To: 't> Create<'t, 'a, FromSchema, To> {
     pub fn new(val: impl TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't) -> Self {
         Self {
             _p: PhantomData,
@@ -180,6 +180,7 @@ impl<'inner, S> Rows<'inner, S> {
         Cacher {
             ast: &self.ast,
             _p: PhantomData,
+            _p2: PhantomData,
         }
     }
 }
@@ -228,6 +229,7 @@ impl<'a> SchemaBuilder<'_, 'a> {
         let mut q = Rows::<FromSchema> {
             phantom: PhantomData,
             ast: MySelect::default(),
+            _p: PhantomData,
         };
         let create = f(&mut q);
         let mut prepared = create.inner.prepare(q.cacher());

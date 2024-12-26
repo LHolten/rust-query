@@ -10,7 +10,8 @@ use crate::{
 };
 
 pub struct Cacher<'x, 't, S> {
-    pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
+    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
+    pub(crate) _p2: PhantomData<S>,
     pub(crate) ast: &'x MySelect,
 }
 
