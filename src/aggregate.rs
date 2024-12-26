@@ -24,7 +24,7 @@ use crate::{
 /// (The result can be a tuple or struct with multiple values though).
 pub struct Aggregate<'outer, 'inner, S> {
     // pub(crate) outer_ast: &'inner MySelect,
-    pub(crate) conds: Vec<(Field, Rc<dyn 'outer + Fn(ValueBuilder) -> SimpleExpr>)>,
+    pub(crate) conds: Vec<(Field, Rc<dyn Fn(ValueBuilder) -> SimpleExpr>)>,
     pub(crate) query: Rows<'inner, S>,
     // pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
@@ -44,14 +44,13 @@ impl<'outer, 'inner, S> DerefMut for Aggregate<'outer, 'inner, S> {
     }
 }
 
-impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
-    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> Aggr<'outer, S, Option<T>> {
+impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
+    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> Aggr<S, Option<T>> {
         let alias = self
             .ast
             .select
             .get_or_init(expr.into(), || self.ast.scope.new_field());
         Aggr {
-            _p: PhantomData,
             _p2: PhantomData,
             select: self.query.ast.build_select(true),
             field: *alias,
@@ -123,18 +122,16 @@ impl<'outer: 'inner, 'inner, S: 'outer> Aggregate<'outer, 'inner, S> {
     }
 }
 
-pub struct Aggr<'t, S, T> {
-    pub(crate) _p: PhantomData<fn(&'t S) -> &'t S>,
-    pub(crate) _p2: PhantomData<T>,
+pub struct Aggr<S, T> {
+    pub(crate) _p2: PhantomData<(S, T)>,
     pub(crate) select: SelectStatement,
-    pub(crate) conds: Vec<(Field, Rc<dyn 't + Fn(ValueBuilder) -> SimpleExpr>)>,
+    pub(crate) conds: Vec<(Field, Rc<dyn Fn(ValueBuilder) -> SimpleExpr>)>,
     pub(crate) field: Field,
 }
 
-impl<S, T> Clone for Aggr<'_, S, T> {
+impl<S, T> Clone for Aggr<S, T> {
     fn clone(&self) -> Self {
         Self {
-            _p: PhantomData,
             _p2: PhantomData,
             select: self.select.clone(),
             conds: self.conds.clone(),
@@ -143,21 +140,21 @@ impl<S, T> Clone for Aggr<'_, S, T> {
     }
 }
 
-impl<'t, S, T: MyTyp> Typed for Aggr<'t, S, T> {
+impl<S, T: MyTyp> Typed for Aggr<S, T> {
     type Typ = T;
     fn build_expr(&self, b: crate::value::ValueBuilder) -> SimpleExpr {
         Expr::col((self.build_table(b), self.field)).into()
     }
 }
 
-impl<'t, S, T> Aggr<'t, S, T> {
+impl<S, T> Aggr<S, T> {
     fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias {
         let conds = self.conds.iter().map(|(field, expr)| (*field, expr(b)));
         b.get_aggr(self.select.clone(), conds.collect())
     }
 }
 
-impl<'t, S, T: MyTyp> IntoColumn<'t, S> for Aggr<'t, S, T> {
+impl<'t, S: 'static, T: MyTyp> IntoColumn<'t, S> for Aggr<S, T> {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {
@@ -165,7 +162,7 @@ impl<'t, S, T: MyTyp> IntoColumn<'t, S> for Aggr<'t, S, T> {
     }
 }
 
-impl<S, T: Table> Deref for Aggr<'_, S, T> {
+impl<S, T: Table> Deref for Aggr<S, T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {

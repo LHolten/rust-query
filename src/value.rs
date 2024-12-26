@@ -11,7 +11,7 @@ use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
-    db::TableRow,
+    db::{TableRow, TableRowInner},
     hash,
     migrate::NoTable,
     Table,
@@ -117,7 +117,7 @@ pub trait Typed {
 /// **You can not (yet) implement this trait yourself!**
 pub trait IntoColumn<'t, S>: Typed + Clone {
     #[doc(hidden)]
-    type Owned: Typed<Typ = Self::Typ> + 't;
+    type Owned: Typed<Typ = Self::Typ> + 'static;
 
     #[doc(hidden)]
     fn into_owned(self) -> Self::Owned;
@@ -140,7 +140,7 @@ impl<'t, S, T: NumTyp> Column<'t, S, T> {
     }
 }
 
-impl<'t, S, T: EqTyp + 't> Column<'t, S, T> {
+impl<'t, S, T: EqTyp + 'static> Column<'t, S, T> {
     /// Check whether two columns are equal.
     pub fn eq(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, bool> {
         Eq(self, rhs).into_column()
@@ -164,7 +164,7 @@ impl<'t, S> Column<'t, S, bool> {
     }
 }
 
-impl<'t, S, Typ: 't> Column<'t, S, Option<Typ>> {
+impl<'t, S, Typ: 'static> Column<'t, S, Option<Typ>> {
     /// Use the first column if it is [Some], otherwise use the second column.
     pub fn unwrap_or(&self, rhs: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ>
     where
@@ -423,7 +423,10 @@ impl<T: Table> MyTyp for T {
         Ok(TableRow {
             _p: PhantomData,
             _local: PhantomData,
-            idx: value.as_i64()?,
+            inner: TableRowInner {
+                _p: PhantomData,
+                idx: value.as_i64()?,
+            },
         })
     }
 }
@@ -514,7 +517,7 @@ impl MyTyp for NoTable {
 ///
 /// [Column] implements [Deref] to have table extension methods in case the type is a table type.
 pub struct Column<'t, S, T>(
-    pub(crate) Rc<dyn Typed<Typ = T> + 't>,
+    pub(crate) Rc<dyn Typed<Typ = T>>,
     pub(crate) PhantomData<fn(&'t S) -> &'t S>,
 );
 
@@ -539,10 +542,27 @@ impl<'t, S, T> Typed for Column<'t, S, T> {
     }
 }
 
-impl<'t, S: 't, T: 't> IntoColumn<'t, S> for Column<'t, S, T> {
-    type Owned = Self;
+pub struct DynTyped<Typ>(Rc<dyn Typed<Typ = Typ>>);
+
+impl<Typ> Typed for DynTyped<Typ> {
+    type Typ = Typ;
+
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.0.build_expr(b)
+    }
+
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    where
+        Self::Typ: Table,
+    {
+        self.0.build_table(b)
+    }
+}
+
+impl<'t, S: 't, T: 'static> IntoColumn<'t, S> for Column<'t, S, T> {
+    type Owned = DynTyped<T>;
     fn into_owned(self) -> Self::Owned {
-        self
+        DynTyped(self.0)
     }
 }
 

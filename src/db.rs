@@ -66,12 +66,12 @@ impl<'t, S, T: MyTyp, P: IntoColumn<'t, S, Typ: Table>> IntoColumn<'t, S> for Co
 /// Table reference that is the result of a join.
 /// It can only be used in the query where it was created.
 /// Invariant in `'t`.
-pub(crate) struct Join<'t, T> {
+pub(crate) struct Join<T> {
     pub(crate) table: MyAlias,
-    pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
+    pub(crate) _p: PhantomData<T>,
 }
 
-impl<'t, T> Join<'t, T> {
+impl<T> Join<T> {
     pub(crate) fn new(table: MyAlias) -> Self {
         Self {
             table,
@@ -80,15 +80,15 @@ impl<'t, T> Join<'t, T> {
     }
 }
 
-impl<'t, T> Clone for Join<'t, T> {
+impl<T> Clone for Join<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'t, T> Copy for Join<'t, T> {}
+impl<T> Copy for Join<T> {}
 
-impl<'t, T: Table> Deref for Join<'t, T> {
+impl<T: Table> Deref for Join<T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
@@ -96,7 +96,7 @@ impl<'t, T: Table> Deref for Join<'t, T> {
     }
 }
 
-impl<T: Table> Typed for Join<'_, T> {
+impl<T: Table> Typed for Join<T> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.build_table(b), Alias::new(T::ID))).into()
@@ -105,7 +105,7 @@ impl<T: Table> Typed for Join<'_, T> {
         self.table
     }
 }
-impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<'t, T> {
+impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<T> {
     type Owned = Self;
 
     fn into_owned(self) -> Self::Owned {
@@ -117,20 +117,25 @@ impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<'t, T> {
 ///
 /// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
 pub struct TableRow<'t, T> {
-    pub(crate) _p: PhantomData<&'t T>,
+    pub(crate) _p: PhantomData<&'t ()>,
     pub(crate) _local: PhantomData<LocalClient>,
+    pub(crate) inner: TableRowInner<T>,
+}
+
+pub struct TableRowInner<T> {
+    pub(crate) _p: PhantomData<T>,
     pub(crate) idx: i64,
 }
 
 impl<'t, T> PartialEq for TableRow<'t, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.idx == other.idx
+        self.inner.idx == other.inner.idx
     }
 }
 
 impl<T> Debug for TableRow<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "db_{}", self.idx)
+        write!(f, "db_{}", self.inner.idx)
     }
 }
 
@@ -140,6 +145,13 @@ impl<T> Clone for TableRow<'_, T> {
     }
 }
 impl<T> Copy for TableRow<'_, T> {}
+
+impl<T> Clone for TableRowInner<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T> Copy for TableRowInner<T> {}
 
 impl<T: Table> Deref for TableRow<'_, T> {
     type Target = T::Ext<Self>;
@@ -151,22 +163,36 @@ impl<T: Table> Deref for TableRow<'_, T> {
 
 impl<'t, T> From<TableRow<'t, T>> for sea_query::Value {
     fn from(value: TableRow<T>) -> Self {
-        value.idx.into()
+        value.inner.idx.into()
     }
 }
 
-impl<T: Table> Typed for TableRow<'_, T> {
+impl<T: Table> Typed for TableRowInner<T> {
     type Typ = T;
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
         Expr::val(self.idx).into()
     }
 }
 
+impl<T: Table> Typed for TableRow<'_, T> {
+    type Typ = T;
+
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.inner.build_expr(b)
+    }
+    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    where
+        Self::Typ: Table,
+    {
+        self.inner.build_table(b)
+    }
+}
+
 impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
-    type Owned = TableRow<'t, T>;
+    type Owned = TableRowInner<T>;
 
     fn into_owned(self) -> Self::Owned {
-        self
+        self.inner
     }
 }
 
@@ -175,7 +201,7 @@ impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
 #[cfg(feature = "unchecked_transaction")]
 impl<T> rusqlite::ToSql for TableRow<'_, T> {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
-        self.idx.to_sql()
+        self.inner.idx.to_sql()
     }
 }
 

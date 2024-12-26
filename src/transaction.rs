@@ -251,7 +251,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
         let mut stmt = self.transaction.prepare_cached(&query).unwrap();
 
-        let row_id = self.query_one(row).idx;
+        let row_id = self.query_one(row).inner.idx;
         let mut update = UpdateStatement::new()
             .table(Alias::new(T::NAME))
             .cond_where(Expr::val(row_id).equals(Alias::new(T::ID)))
@@ -357,7 +357,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     ) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
             .from_table(Alias::new(T::NAME))
-            .cond_where(Expr::col(Alias::new(T::ID)).eq(val.idx))
+            .cond_where(Expr::col(Alias::new(T::ID)).eq(val.inner.idx))
             .to_owned();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);

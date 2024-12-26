@@ -35,7 +35,7 @@ impl<'inner, S> Rows<'inner, S> {
         IntoColumn::into_column(Join::new(alias))
     }
 
-    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<'inner, T> {
+    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
         Join::new(alias)
