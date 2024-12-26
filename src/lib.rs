@@ -60,7 +60,7 @@ pub mod private {
         Migration, Schema, SchemaBuilder, TableCreation, TableMigration, TableTypBuilder, C, M,
     };
     pub use crate::query::show_sql;
-    pub use crate::value::{MyTyp, Typed, ValueBuilder};
+    pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
     pub use crate::writable::{Reader, Writable};
 
     pub use expect_test::Expect;

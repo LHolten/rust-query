@@ -500,19 +500,21 @@ pub struct Column<'t, S, T> {
     pub(crate) _p2: PhantomData<S>,
 }
 
+pub fn new_column<'x, S, T>(val: impl Typed<Typ = T> + 'static) -> Column<'x, S, T> {
+    Column::new(val)
+}
+
+pub fn into_owned<'x, S, T>(val: impl IntoColumn<'x, S, Typ = T>) -> DynTyped<T> {
+    val.into_column().inner
+}
+
 impl<S, T> Column<'_, S, T> {
-    #[doc(hidden)]
-    pub fn new(val: impl Typed<Typ = T> + 'static) -> Self {
+    pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
         Self {
             inner: DynTyped(Rc::new(val)),
             _p: PhantomData,
             _p2: PhantomData,
         }
-    }
-
-    #[doc(hidden)]
-    pub fn inner(self) -> DynTyped<T> {
-        self.inner
     }
 }
 
