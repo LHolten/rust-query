@@ -6,7 +6,7 @@ use sea_query::{Alias, Expr, SimpleExpr};
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Typed, ValueBuilder},
-    IntoColumn, LocalClient, Table,
+    Column, IntoColumn, LocalClient, Table,
 };
 
 pub struct Col<T, X> {
@@ -49,17 +49,6 @@ impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
         Expr::col((self.inner.build_table(b), self.field)).into()
-    }
-}
-impl<'t, S, T: MyTyp, P: IntoColumn<'t, S, Typ: Table>> IntoColumn<'t, S> for Col<T, P> {
-    type Owned = Col<T, P::Owned>;
-
-    fn into_owned(self) -> Self::Owned {
-        Col {
-            _p: PhantomData,
-            field: self.field,
-            inner: self.inner.into_owned(),
-        }
     }
 }
 
@@ -106,10 +95,8 @@ impl<T: Table> Typed for Join<T> {
     }
 }
 impl<'t, T: Table> IntoColumn<'t, T::Schema> for Join<T> {
-    type Owned = Self;
-
-    fn into_owned(self) -> Self::Owned {
-        self
+    fn into_column(self) -> Column<'t, T::Schema, Self::Typ> {
+        Column::new(self)
     }
 }
 
@@ -189,10 +176,8 @@ impl<T: Table> Typed for TableRow<'_, T> {
 }
 
 impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
-    type Owned = TableRowInner<T>;
-
-    fn into_owned(self) -> Self::Owned {
-        self.inner
+    fn into_column(self) -> Column<'t, T::Schema, Self::Typ> {
+        Column::new(self.inner)
     }
 }
 

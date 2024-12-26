@@ -59,12 +59,12 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Filter the rows of this sub-query based on a value from the outer query.
-    pub fn filter_on<T>(
+    pub fn filter_on<T: 'static>(
         &mut self,
         val: impl IntoColumn<'inner, S, Typ = T>,
         on: impl IntoColumn<'outer, S, Typ = T>,
     ) {
-        let on = on.into_owned();
+        let on = on.into_column().0;
         let alias = self.ast.scope.new_alias();
         self.conds
             .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
@@ -100,7 +100,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let expr = Func::sum(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select::<T>(expr), Const(T::ZERO)).into_column()
+        Column::new(UnwrapOr(self.select::<T>(expr), Const(T::ZERO)))
     }
 
     /// Return the number of distinct values in a column.
@@ -112,13 +112,13 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: EqTyp,
     {
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        UnwrapOr(self.select::<i64>(expr), Const(0)).into_column()
+        Column::new(UnwrapOr(self.select::<i64>(expr), Const(0)))
     }
 
     /// Return whether there are any rows.
     pub fn exists(&'inner self) -> Column<'outer, S, bool> {
         let expr = SimpleExpr::Constant(1.into_sea_value());
-        IsNotNull(self.select::<i64>(expr)).into_column()
+        Column::new(IsNotNull(self.select::<i64>(expr)))
     }
 }
 
@@ -155,10 +155,8 @@ impl<S, T> Aggr<S, T> {
 }
 
 impl<'t, S: 'static, T: MyTyp> IntoColumn<'t, S> for Aggr<S, T> {
-    type Owned = Self;
-
-    fn into_owned(self) -> Self::Owned {
-        self
+    fn into_column(self) -> Column<'t, S, Self::Typ> {
+        Column::new(self)
     }
 }
 

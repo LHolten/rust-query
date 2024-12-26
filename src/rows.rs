@@ -32,13 +32,13 @@ impl<'inner, S> Rows<'inner, S> {
     pub fn join<T: Table<Schema = S>>(&mut self) -> Column<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
-        IntoColumn::into_column(Join::new(alias))
+        Column::new(Join::new(alias))
     }
 
-    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Join<T> {
+    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Column<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
-        Join::new(alias)
+        Column::new(Join::new(alias))
     }
 
     // Join a vector of values.
@@ -58,11 +58,11 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter out rows where this column is [None].
     ///
     /// Returns a new column with the unwrapped type.
-    pub fn filter_some<Typ>(
+    pub fn filter_some<Typ: 'static>(
         &mut self,
         val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
     ) -> Column<'inner, S, Typ> {
         self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
-        Assume(val).into_column()
+        Column::new(Assume(val.into_column().0))
     }
 }

@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use ref_cast::RefCast;
 use rust_query_macros::FromDummy;
 
-use crate::{db::Col, hash, value::IntoColumn, Table, Transaction};
+use crate::{db::Col, hash, value::IntoColumn, Column, Table, Transaction};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
-        pub fn $name(&self) -> Col<$typ, T> {
-            Col::new(stringify!($name), self.0.clone())
+        pub fn $name<'x>(&self) -> Column<'x, Pragma, $typ> {
+            Column::new(Col::new(stringify!($name), self.0 .0.clone()))
         }
     };
     ($name:ident($name_str:literal): $typ:ty) => {
-        pub fn $name(&self) -> Col<$typ, T> {
-            Col::new($name_str, self.0.clone())
+        pub fn $name<'x>(&self) -> Column<'x, Pragma, $typ> {
+            Column::new(Col::new($name_str, self.0 .0.clone()))
         }
     };
 }
@@ -48,7 +48,7 @@ struct TableList;
 struct TableListDummy<T>(T);
 
 #[allow(unused)]
-impl<T: Clone> TableListDummy<T> {
+impl TableListDummy<Column<'_, Pragma, TableList>> {
     field! {schema: String}
     field! {name: String}
     field! {r#type("type"): String}
@@ -65,7 +65,7 @@ struct TableInfo(pub String);
 #[derive(RefCast)]
 struct TableInfoDummy<T>(T);
 
-impl<T: Clone> TableInfoDummy<T> {
+impl TableInfoDummy<Column<'_, Pragma, TableInfo>> {
     field! {name: String}
     field! {r#type("type"): String}
     field! {notnull: i64}
@@ -81,7 +81,7 @@ struct ForeignKeyList(pub String);
 struct ForeignKeyListDummy<T>(T);
 
 #[allow(unused)]
-impl<T: Clone> ForeignKeyListDummy<T> {
+impl ForeignKeyListDummy<Column<'_, Pragma, ForeignKeyList>> {
     field! {table: String}
     field! {from: String}
     field! {to: String}
@@ -95,7 +95,7 @@ struct IndexList(String);
 #[derive(RefCast)]
 struct IndexListDummy<T>(T);
 
-impl<T: Clone> IndexListDummy<T> {
+impl IndexListDummy<Column<'_, Pragma, IndexList>> {
     field! {name: String}
     field! {unique: bool}
     field! {origin: String}
@@ -110,7 +110,7 @@ struct IndexInfo(String);
 #[derive(RefCast)]
 struct IndexInfoDummy<T>(T);
 
-impl<T: Clone> IndexInfoDummy<T> {
+impl IndexInfoDummy<Column<'_, Pragma, IndexInfo>> {
     field! {name: Option<String>}
 }
 
@@ -127,9 +127,9 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
 
     let tables = conn.query(|q| {
         let table = q.join_custom(TableList);
-        q.filter(table.schema().into_column().eq("main"));
-        q.filter(table.r#type().into_column().eq("table"));
-        q.filter(table.name().into_column().eq("sqlite_schema").not());
+        q.filter(table.schema().eq("main"));
+        q.filter(table.r#type().eq("table"));
+        q.filter(table.name().eq("sqlite_schema").not());
         q.into_vec(table.name())
     });
 

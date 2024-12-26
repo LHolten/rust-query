@@ -519,10 +519,8 @@ impl value::Typed for NoTable {
         unreachable!("NoTable can not be constructed")
     }
 }
-impl<S> IntoColumn<'_, S> for NoTable {
-    type Owned = Self;
-
-    fn into_owned(self) -> Self::Owned {
-        self
+impl<'t, S> IntoColumn<'t, S> for NoTable {
+    fn into_column(self) -> Column<'t, S, Self::Typ> {
+        Column::new(self)
     }
 }
