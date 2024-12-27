@@ -176,13 +176,21 @@ impl<'t, S, Typ: 'static> Column<'t, S, Option<Typ>> {
     }
 }
 
-pub fn optional<'outer, S, R>(f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>)) -> R {
-    todo!()
+pub fn optional<'outer, S, R>(
+    f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>) -> R,
+) -> R {
+    let mut optional = Optional {
+        exprs: Vec::new(),
+        _p: PhantomData,
+        _p2: PhantomData,
+    };
+    f(&mut optional)
 }
 
 pub struct Optional<'outer, 'inner, S> {
     exprs: Vec<DynTyped<bool>>,
-    _p: PhantomData<&'inner &'outer S>,
+    _p: PhantomData<&'inner &'outer ()>,
+    _p2: PhantomData<S>,
 }
 
 impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
@@ -225,13 +233,13 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         res.map_or(Column::new(true), |x| Column::new(x))
     }
 
-    pub fn then_dummy<'x, O>(
-        &self,
-        d: impl Dummy<'inner, 'x, S, Out = O>,
-    ) -> impl Dummy<'outer, 'x, S, Out = Option<O>> {
-        // OptionDummy(self.is_some().inner, d, PhantomData)
-        todo!()
-    }
+    // pub fn then_dummy<'x, O>(
+    //     &self,
+    //     d: impl Dummy<'inner, 'x, S, Out = O>,
+    // ) -> impl Dummy<'outer, 'x, S, Out = Option<O>> {
+    //     // OptionDummy(self.is_some().inner, d, PhantomData)
+    //     todo!()
+    // }
 }
 
 // struct OptionDummy<'inner, X>(DynTyped<bool>, X, PhantomData<&'inner ()>);
