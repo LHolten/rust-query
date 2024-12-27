@@ -83,18 +83,15 @@ impl<A: Typed> Typed for IsNotNull<A> {
 }
 
 #[derive(Clone, Copy)]
-pub struct AndThen<A, B>(pub(crate) A, pub(crate) B);
+/// Return null if `A` is `true` else `B`
+pub struct NullIf<A, B>(pub(crate) A, pub(crate) B);
 
-// TODO: make this impl stricter? A and B should be Typ=Option
-impl<A: Typed, B: Typed> Typed for AndThen<A, B> {
+impl<A: Typed<Typ = bool>, B: Typed<Typ = Option<T>>, T> Typed for NullIf<A, B> {
     type Typ = B::Typ;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::case(
-            Expr::expr(self.0.build_expr(b)).is_null(),
-            SimpleExpr::Keyword(Keyword::Null),
-        )
-        .finally(self.1.build_expr(b))
-        .into()
+        Expr::case(self.0.build_expr(b), SimpleExpr::Keyword(Keyword::Null))
+            .finally(self.1.build_expr(b))
+            .into()
     }
 }
 

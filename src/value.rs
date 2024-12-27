@@ -2,7 +2,9 @@ pub mod operations;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
+use operations::{
+    Add, And, AsFloat, Assume, Eq, Glob, IsNotNull, Like, Lt, Not, NullIf, Or, UnwrapOr,
+};
 use ref_cast::RefCast;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
 
@@ -12,7 +14,7 @@ use crate::{
     db::{TableRow, TableRowInner},
     hash,
     migrate::NoTable,
-    Table,
+    Dummy, Table,
 };
 
 #[derive(Clone, Copy)]
@@ -173,6 +175,79 @@ impl<'t, S, Typ: 'static> Column<'t, S, Option<Typ>> {
         Column::new(IsNotNull(self.inner.clone()))
     }
 }
+
+pub fn optional<'outer, S, R>(f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>)) -> R {
+    todo!()
+}
+
+pub struct Optional<'outer, 'inner, S> {
+    exprs: Vec<DynTyped<bool>>,
+    _p: PhantomData<&'inner &'outer S>,
+}
+
+impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
+    /// This method exists for now because `Column` is currently invariant in its lifetime
+    pub fn lower<T: 'static>(
+        &self,
+        col: impl IntoColumn<'outer, S, Typ = T>,
+    ) -> Column<'inner, S, T> {
+        Column::new(col.into_column().inner)
+    }
+
+    /// Could be renamed to `join`
+    pub fn and<T: 'static>(
+        &mut self,
+        col: impl IntoColumn<'inner, S, Typ = Option<T>>,
+    ) -> Column<'inner, S, T> {
+        let column = col.into_column();
+        self.exprs.push(column.is_some().not().into_column().inner);
+        Column::new(Assume(column.inner))
+    }
+
+    /// Could be renamed `map`
+    pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
+        &self,
+        col: impl IntoColumn<'inner, S, Typ = T>,
+    ) -> Column<'outer, S, Option<T>> {
+        let res = Column::new(Some(col.into_column().inner));
+        self.exprs
+            .iter()
+            .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
+    }
+
+    pub fn is_some(&self) -> Column<'outer, S, bool> {
+        let res = self
+            .exprs
+            .iter()
+            .cloned()
+            .reduce(|a, b| DynTyped(Rc::new(And(a, b))));
+        // TODO: make this not double wrap the `DynTyped`
+        res.map_or(Column::new(true), |x| Column::new(x))
+    }
+
+    pub fn then_dummy<'x, O>(
+        &self,
+        d: impl Dummy<'inner, 'x, S, Out = O>,
+    ) -> impl Dummy<'outer, 'x, S, Out = Option<O>> {
+        // OptionDummy(self.is_some().inner, d, PhantomData)
+        todo!()
+    }
+}
+
+// struct OptionDummy<'inner, X>(DynTyped<bool>, X, PhantomData<&'inner ()>);
+// impl<'t, 'a, 'inner, S, X> Dummy<'t, 'a, S> for OptionDummy<'inner, X>
+// where
+//     X: Dummy<'inner, 'a, S>,
+// {
+//     type Out = Option<X::Out>;
+
+//     fn prepare(
+//         self,
+//         cacher: crate::dummy::Cacher<'_, 't, S>,
+//     ) -> impl FnMut(crate::dummy::Row<'_, 't, 'a>) -> Self::Out + 't {
+//         todo!()
+//     }
+// }
 
 impl<'t, S> Column<'t, S, i64> {
     /// Convert the [i64] column to [f64] type.
