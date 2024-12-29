@@ -52,11 +52,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
         D: Dummy<'x, 'outer, S>,
         S: 'x,
     {
-        let mut f = dummy.prepare(Cacher {
-            _p: PhantomData,
-            _p2: PhantomData,
-            ast: &self.ast,
-        });
+        let mut f = dummy.prepare(Cacher::new(&self.ast));
 
         let select = self.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
