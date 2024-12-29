@@ -85,7 +85,7 @@ impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, T
 
     fn prepare<'i>(
         self: Box<Self>,
-        _: &Cacher<'t, 'i, Self::FromSchema>,
+        _: &mut Cacher<'t, 'i, Self::FromSchema>,
     ) -> Box<dyn 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, Self::FromSchema>)>
     {
         Box::new(|_, _| unreachable!())
@@ -126,7 +126,7 @@ pub trait TableMigration<'t, 'a> {
     fn prepare<'i>(
         self: Box<Self>,
         prev: Cached<'i, Self::From>,
-        cacher: &Cacher<'t, 'i, <Self::From as Table>::Schema>,
+        cacher: &mut Cacher<'t, 'i, <Self::From as Table>::Schema>,
     ) -> Box<
         dyn 'i
             + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, <Self::From as Table>::Schema>),
@@ -139,7 +139,7 @@ pub trait TableCreation<'t, 'a> {
 
     fn prepare<'i>(
         self: Box<Self>,
-        cacher: &Cacher<'t, 'i, Self::FromSchema>,
+        cacher: &mut Cacher<'t, 'i, Self::FromSchema>,
     ) -> Box<dyn 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, Self::FromSchema>)>;
 }
 
@@ -154,7 +154,7 @@ impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To
 
     fn prepare<'i>(
         self: Box<Self>,
-        cacher: &Cacher<'t, 'i, Self::FromSchema>,
+        cacher: &mut Cacher<'t, 'i, Self::FromSchema>,
     ) -> Box<dyn 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, Self::FromSchema>)>
     {
         let db_id = cacher.cache(self.1);
@@ -164,12 +164,6 @@ impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To
             reader.col(From::ID, row.get(db_id));
             prepared(row, reader);
         })
-    }
-}
-
-impl<'inner, S> Rows<'inner, S> {
-    fn cacher<'t, 'i>(&self) -> &Cacher<'t, 'i, S> {
-        Cacher::new(&self.ast)
     }
 }
 
@@ -220,7 +214,13 @@ impl<'a> SchemaBuilder<'_, 'a> {
             _p: PhantomData,
         };
         let create = f(&mut q);
-        let mut prepared = create.inner.prepare(q.cacher());
+        let mut cacher = Cacher {
+            _p: PhantomData,
+            _p2: PhantomData,
+            columns: Vec::new(),
+        };
+        let mut prepared = create.inner.prepare(&mut cacher);
+        let cached = q.ast.cache(cacher.columns);
 
         let select = q.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
@@ -234,6 +234,7 @@ impl<'a> SchemaBuilder<'_, 'a> {
                 _p: PhantomData,
                 _p2: PhantomData,
                 row,
+                mapping: &cached,
             };
 
             let new_ast = MySelect::default();

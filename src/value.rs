@@ -12,9 +12,10 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
+    dummy::{Cacher, DynDummy, PubDummy, Wrapped},
     hash,
     migrate::NoTable,
-    Table,
+    Dummy, Table,
 };
 
 #[derive(Clone, Copy)]
@@ -233,13 +234,33 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         res.map_or(Column::new(true), |x| Column::new(x))
     }
 
-    // pub fn then_dummy<'x, O>(
-    //     &self,
-    //     d: impl Dummy<'inner, 'x, S, Out = O>,
-    // ) -> impl Dummy<'outer, 'x, S, Out = Option<O>> {
-    //     // OptionDummy(self.is_some().inner, d, PhantomData)
-    //     todo!()
-    // }
+    pub fn then_dummy<'x, O: 'x>(
+        &self,
+        d: impl Dummy<'inner, 'x, S, Out = O>,
+    ) -> PubDummy<'outer, 'x, S, Option<O>> {
+        let mut d = DynDummy::new(d);
+        let mut cacher = Cacher {
+            _p: PhantomData,
+            _p2: PhantomData,
+            columns: d.columns,
+        };
+        let is_some = cacher.cache(self.is_some());
+        let res = DynDummy {
+            columns: cacher.columns,
+            func: Box::new(move |row| {
+                Wrapped::new(if row.get(is_some) {
+                    Some((d.func)(row).0)
+                } else {
+                    None
+                })
+            }),
+        };
+        PubDummy {
+            inner: res,
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
+    }
 }
 
 impl<'t, S> Column<'t, S, i64> {
@@ -609,6 +630,14 @@ impl<'t, S, T: 'static> Typed for Column<'t, S, T> {
         Self::Typ: Table,
     {
         self.inner.0.as_ref().build_table(b)
+    }
+}
+
+pub struct DynTypedExpr(pub(crate) Box<dyn Fn(ValueBuilder) -> SimpleExpr>);
+
+impl<Typ: 'static> DynTyped<Typ> {
+    pub fn erase(self) -> DynTypedExpr {
+        DynTypedExpr(Box::new(move |b| self.build_expr(b)))
     }
 }
 

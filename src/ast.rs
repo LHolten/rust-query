@@ -4,7 +4,7 @@ use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, Si
 use crate::{
     alias::{Field, MyAlias, RawAlias, Scope},
     mymap::MyMap,
-    value::ValueBuilder,
+    value::{DynTypedExpr, ValueBuilder},
 };
 
 #[derive(Default)]
@@ -47,6 +47,17 @@ impl PartialEq for SourceKind {
 impl MySelect {
     pub fn builder(&self) -> ValueBuilder<'_> {
         ValueBuilder { inner: self }
+    }
+
+    pub fn cache(&self, exprs: Vec<DynTypedExpr>) -> Vec<Field> {
+        exprs
+            .into_iter()
+            .map(|val| {
+                let expr = (val.0)(self.builder());
+                let new_field = || self.scope.new_field();
+                *self.select.get_or_init(expr, new_field)
+            })
+            .collect()
     }
 
     pub fn simple(&self) -> SelectStatement {
