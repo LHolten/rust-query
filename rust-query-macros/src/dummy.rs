@@ -38,7 +38,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         constraints.push(quote! {#generic: ::rust_query::private::Dummy<'_t, '_a, S, Out = #typ>});
         generics.push(generic);
         prepared.push(quote! {let mut #name_prepared = ::rust_query::private::Dummy::prepare(self.#name, cacher)});
-        inits.push(quote! {#name: (#name_prepared)(row)});
+        inits.push(quote! {#name: (#name_prepared)(row).0});
     }
 
     Ok(quote! {
@@ -50,11 +50,11 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             type Out = #name<#(#original_generics),*>;
 
             fn prepare<'_i>(self, mut cacher: &::rust_query::private::Cacher<'_t, '_i, S>) ->
-                    Box<dyn '_i + FnMut(::rust_query::private::Row<'_, '_i, '_a>) -> Self::Out> {
+                    Box<dyn '_i + FnMut(::rust_query::private::Row<'_, '_i, '_a>) -> ::rust_query::private::Wrapped<'_i, Self::Out>> {
                 #(#prepared;)*
-                Box::new(move |row| #name {
+                Box::new(move |row| ::rust_query::private::Wrapped::new(#name {
                     #(#inits,)*
-                })
+                }))
             }
         }
     })
