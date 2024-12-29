@@ -1,31 +1,22 @@
 use std::marker::PhantomData;
 
-use ref_cast::{ref_cast_custom, RefCastCustom};
 use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    ast::MySelect,
-    value::{MyTyp, Typed},
+    value::{DynTypedExpr, MyTyp},
     IntoColumn,
 };
 
-#[derive(RefCastCustom)]
-#[repr(transparent)]
 pub struct Cacher<'t, 'i, S> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'i ()>,
     pub(crate) _p2: PhantomData<S>,
-    pub(crate) ast: MySelect,
-}
-
-impl<S> Cacher<'_, '_, S> {
-    #[ref_cast_custom]
-    pub(crate) fn new<'x>(val: &'x MySelect) -> &'x Self;
+    pub(crate) columns: Vec<DynTypedExpr>,
 }
 
 pub struct Cached<'t, T> {
     _p: PhantomData<fn(&'t T) -> &'t T>,
-    field: Field,
+    idx: usize,
 }
 
 impl<'t, T> Clone for Cached<'t, T> {
@@ -36,14 +27,18 @@ impl<'t, T> Clone for Cached<'t, T> {
 impl<'t, T> Copy for Cached<'t, T> {}
 
 impl<'t, 'i, S> Cacher<'t, 'i, S> {
-    pub fn cache<T: 'static>(&self, val: impl IntoColumn<'t, S, Typ = T>) -> Cached<'i, T> {
+    pub(crate) fn cache_erased(&mut self, val: DynTypedExpr) -> usize {
+        let idx = self.columns.len();
+        self.columns.push(val);
+        idx
+    }
+
+    pub fn cache<T: 'static>(&mut self, val: impl IntoColumn<'t, S, Typ = T>) -> Cached<'i, T> {
         let val = val.into_column().inner;
-        let expr = val.build_expr(self.ast.builder());
-        let new_field = || self.ast.scope.new_field();
-        let field = *self.ast.select.get_or_init(expr, new_field);
+
         Cached {
             _p: PhantomData,
-            field,
+            idx: self.cache_erased(val.erase()),
         }
     }
 }
@@ -53,11 +48,13 @@ pub struct Row<'x, 'i, 'a> {
     pub(crate) _p: PhantomData<fn(&'i ()) -> &'a ()>,
     pub(crate) _p2: PhantomData<&'i &'a ()>,
     pub(crate) row: &'x rusqlite::Row<'x>,
+    pub(crate) mapping: &'x [Field],
 }
 
-impl<'t, 'a> Row<'_, 't, 'a> {
-    pub fn get<T: MyTyp>(&self, val: Cached<'t, T>) -> T::Out<'a> {
-        let idx = &*val.field.to_string();
+impl<'i, 'a> Row<'_, 'i, 'a> {
+    pub fn get<T: MyTyp>(&self, val: Cached<'i, T>) -> T::Out<'a> {
+        let field = self.mapping[val.idx];
+        let idx = &*field.to_string();
         T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
     }
 }
@@ -80,7 +77,7 @@ pub trait Dummy<'t, 'a, S>: Sized {
     #[doc(hidden)]
     fn prepare<'i>(
         self,
-        cacher: &Cacher<'t, 'i, S>,
+        cacher: &mut Cacher<'t, 'i, S>,
     ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>>;
 
     /// Map a dummy to another dummy using native rust.
@@ -92,6 +89,64 @@ pub trait Dummy<'t, 'a, S>: Sized {
         Self::Out: 'a, // this bound is not too bad, because the mapped dummy is probably one of the database ones
     {
         DummyMap(self, f)
+    }
+}
+
+pub struct DynDummy<'a, Out> {
+    pub(crate) columns: Vec<DynTypedExpr>,
+    pub(crate) func: Box<dyn 'a + FnMut(Row<'_, 'a, 'a>) -> Wrapped<'a, Out>>,
+}
+
+impl<'a, Out> DynDummy<'a, Out> {
+    pub fn new<'t, S>(val: impl Dummy<'t, 'a, S, Out = Out>) -> Self {
+        let mut cacher = Cacher {
+            _p: PhantomData,
+            _p2: PhantomData,
+            columns: vec![],
+        };
+        let prepared = val.prepare(&mut cacher);
+        DynDummy {
+            columns: cacher.columns,
+            func: prepared,
+        }
+    }
+}
+pub struct PubDummy<'outer, 'transaction, S, Out> {
+    pub(crate) inner: DynDummy<'transaction, Out>,
+    pub(crate) _p: PhantomData<fn(&'outer ()) -> &'outer ()>,
+    pub(crate) _p2: PhantomData<S>,
+}
+
+impl<'outer, 'transaction, S, Out> Dummy<'outer, 'transaction, S>
+    for PubDummy<'outer, 'transaction, S, Out>
+{
+    type Out = Out;
+
+    fn prepare<'i>(
+        mut self,
+        cacher: &mut Cacher<'_, 'i, S>,
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'transaction>) -> Wrapped<'i, Self::Out>> {
+        let mut diff = None;
+        self.inner
+            .columns
+            .into_iter()
+            .enumerate()
+            .for_each(|(old, x)| {
+                let new = cacher.cache_erased(x);
+                let _diff = new - old;
+                debug_assert!(diff.is_none_or(|it| it == _diff));
+                diff = Some(_diff);
+            });
+        let diff = diff.unwrap_or_default();
+        Box::new(move |row| {
+            let row = Row {
+                _p: PhantomData,
+                _p2: PhantomData,
+                row: row.row,
+                mapping: &row.mapping[diff..],
+            };
+            (self.inner.func)(row)
+        })
     }
 }
 
@@ -107,7 +162,7 @@ where
 
     fn prepare<'i>(
         mut self,
-        cacher: &Cacher<'t, 'i, S>,
+        cacher: &mut Cacher<'t, 'i, S>,
     ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, T>> {
         let mut cached = self.0.prepare(cacher);
         Box::new(move |row| Wrapped::new(self.1(cached(row).0)))
@@ -119,7 +174,7 @@ impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
 
     fn prepare<'i>(
         self,
-        cacher: &Cacher<'t, 'i, S>,
+        cacher: &mut Cacher<'t, 'i, S>,
     ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
         let cached = cacher.cache(self);
         Box::new(move |row| Wrapped::new(row.get(cached)))
@@ -131,7 +186,7 @@ impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (
 
     fn prepare<'i>(
         self,
-        cacher: &Cacher<'t, 'i, S>,
+        cacher: &mut Cacher<'t, 'i, S>,
     ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
@@ -163,7 +218,7 @@ mod tests {
 
         fn prepare<'i>(
             self,
-            cacher: &Cacher<'t, 'i, S>,
+            cacher: &mut Cacher<'t, 'i, S>,
         ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);

@@ -49,7 +49,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         impl<'_t, '_a #(,#original_generics)*, S #(,#constraints)*> ::rust_query::private::Dummy<'_t, '_a, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
 
-            fn prepare<'_i>(self, mut cacher: &::rust_query::private::Cacher<'_t, '_i, S>) ->
+            fn prepare<'_i>(self, mut cacher: &mut ::rust_query::private::Cacher<'_t, '_i, S>) ->
                     Box<dyn '_i + FnMut(::rust_query::private::Row<'_, '_i, '_a>) -> ::rust_query::private::Wrapped<'_i, Self::Out>> {
                 #(#prepared;)*
                 Box::new(move |row| ::rust_query::private::Wrapped::new(#name {

@@ -48,6 +48,6 @@ fn main() {
     let txn = client.transaction(&database);
     let score = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
-        row.then(player.score())
+        row.then_dummy(PlayerInfo::dummy(player))
     }));
 }
