@@ -384,15 +384,14 @@ fn define_table_migration(
                 type From = #prev_typ;
                 type To = super::#table_name;
 
-                fn prepare(
+                fn prepare<'i>(
                     self: Box<Self>,
-                    prev: ::rust_query::private::Cached<'t, Self::From>,
-                    cacher: ::rust_query::private::Cacher<'_, 't, <Self::From as ::rust_query::Table>::Schema>,
+                    prev: ::rust_query::private::Cached<'i, Self::From>,
+                    cacher: &::rust_query::private::Cacher<'t, 'i, <Self::From as ::rust_query::Table>::Schema>,
                 ) -> Box<
-                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, 't, <Self::From as ::rust_query::Table>::Schema>) + 't,
+                    dyn 'i
+                        + FnMut(::rust_query::private::Row<'_, 'i, 'a>, ::rust_query::private::Reader<'_, 'i, <Self::From as ::rust_query::Table>::Schema>),
                 >
-                where
-                    'a: 't
                 {
                     #(#prepare;)*
                     Box::new(move |row, reader| {
@@ -408,14 +407,13 @@ fn define_table_migration(
                 type FromSchema = _PrevSchema;
                 type To = super::#table_name;
 
-                fn prepare(
+                fn prepare<'i>(
                     self: Box<Self>,
-                    cacher: ::rust_query::private::Cacher<'_, 't, Self::FromSchema>,
+                    cacher: &::rust_query::private::Cacher<'t, 'i, Self::FromSchema>,
                 ) -> Box<
-                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, 't, Self::FromSchema>) + 't,
+                    dyn 'i
+                        + FnMut(::rust_query::private::Row<'_, 'i, 'a>, ::rust_query::private::Reader<'_, 'i, Self::FromSchema>),
                 >
-                where
-                    'a: 't
                 {
                     #(#prepare;)*
                     Box::new(move |row, reader| {
