@@ -62,27 +62,35 @@ impl<'t, 'a> Row<'_, 't, 'a> {
     }
 }
 
+/// Add the implied bound `T: 'i` which can not be added as `Self::Out: 'i` for some reason
+struct Wrapped<'i, T>(pub(crate) T, pub(crate) PhantomData<&'i T>);
+impl<'i, T> Wrapped<'i, T> {
+    fn new(val: T) -> Self {
+        Self(val, PhantomData)
+    }
+}
+
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
 /// Implement it on custom structs using [crate::FromDummy].
 pub trait Dummy<'t, 'a, S>: Sized {
     /// The type that results from querying this dummy.
-    type Out: 'a;
+    type Out;
 
     #[doc(hidden)]
     fn prepare<'i>(
         self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out>;
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>>;
 
     /// Map a dummy to another dummy using native rust.
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T: 'a>(
-        self,
-        f: impl 'a + FnMut(Self::Out) -> T,
-    ) -> impl Dummy<'t, 'a, S, Out = T> {
+    fn map_dummy<T>(self, f: impl 'a + FnMut(Self::Out) -> T) -> impl Dummy<'t, 'a, S, Out = T>
+    where
+        Self::Out: 'a, // this bound is not too bad, because the mapped dummy is probably one of the database ones
+    {
         DummyMap(self, f)
     }
 }
@@ -93,16 +101,16 @@ impl<'t, 'a, S, A, F, T> Dummy<'t, 'a, S> for DummyMap<A, F>
 where
     A: Dummy<'t, 'a, S>,
     F: 'a + FnMut(A::Out) -> T,
-    T: 'a,
+    A::Out: 'a,
 {
     type Out = T;
 
     fn prepare<'i>(
         mut self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, T>> {
         let mut cached = self.0.prepare(cacher);
-        Box::new(move |row| self.1(cached(row)))
+        Box::new(move |row| Wrapped::new(self.1(cached(row).0)))
     }
 }
 
@@ -112,9 +120,9 @@ impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     fn prepare<'i>(
         self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
         let cached = cacher.cache(self);
-        Box::new(move |row| row.get(cached))
+        Box::new(move |row| Wrapped::new(row.get(cached)))
     }
 }
 
@@ -124,10 +132,10 @@ impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (
     fn prepare<'i>(
         self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
-        Box::new(move |row| (prepared_a(row), prepared_b(row)))
+        Box::new(move |row| Wrapped::new((prepared_a(row).0, prepared_b(row).0)))
     }
 }
 
@@ -156,12 +164,14 @@ mod tests {
         fn prepare<'i>(
             self,
             cacher: &Cacher<'t, 'i, S>,
-        ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
+        ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
-            Box::new(move |row| User {
-                a: row.get(a),
-                b: row.get(b),
+            Box::new(move |row| {
+                Wrapped::new(User {
+                    a: row.get(a),
+                    b: row.get(b),
+                })
             })
         }
     }
