@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use ref_cast::{ref_cast_custom, RefCastCustom};
 use sea_query::Iden;
 
 use crate::{
@@ -9,18 +10,19 @@ use crate::{
     IntoColumn,
 };
 
-pub struct Cacher<'x, 't, S> {
+#[derive(RefCastCustom)]
+#[repr(transparent)]
+pub struct Cacher<'t, 'i, S> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
-    pub(crate) ast: &'x MySelect,
+    pub(crate) _p3: PhantomData<fn(&'i ()) -> &'i ()>,
+    pub(crate) _p4: PhantomData<&'t &'i ()>,
+    pub(crate) ast: MySelect,
 }
 
-impl<S> Copy for Cacher<'_, '_, S> {}
-
-impl<S> Clone for Cacher<'_, '_, S> {
-    fn clone(&self) -> Self {
-        *self
-    }
+impl<S> Cacher<'_, '_, S> {
+    #[ref_cast_custom]
+    pub(crate) fn new<'x>(val: &'x MySelect) -> &'x Self;
 }
 
 pub struct Cached<'t, T> {
@@ -35,8 +37,8 @@ impl<'t, T> Clone for Cached<'t, T> {
 }
 impl<'t, T> Copy for Cached<'t, T> {}
 
-impl<'t, S> Cacher<'_, 't, S> {
-    pub fn cache<T: 'static>(&mut self, val: impl IntoColumn<'t, S, Typ = T>) -> Cached<'t, T> {
+impl<'t, 'i, S> Cacher<'t, 'i, S> {
+    pub fn cache<T: 'static>(&self, val: impl IntoColumn<'t, S, Typ = T>) -> Cached<'i, T> {
         let val = val.into_column().inner;
         let expr = val.build_expr(self.ast.builder());
         let new_field = || self.ast.scope.new_field();
@@ -70,7 +72,10 @@ pub trait Dummy<'t, 'a, S>: Sized {
     type Out;
 
     #[doc(hidden)]
-    fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't;
+    fn prepare<'i>(
+        self,
+        cacher: &Cacher<'t, 'i, S>,
+    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -90,10 +95,10 @@ where
 {
     type Out = T;
 
-    fn prepare(
+    fn prepare<'i>(
         mut self,
-        cacher: Cacher<'_, 't, S>,
-    ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
+        cacher: &Cacher<'t, 'i, S>,
+    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
         let mut cached = self.0.prepare(cacher);
         move |row| self.1(cached(row))
     }
@@ -102,10 +107,10 @@ where
 impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
-    fn prepare(
+    fn prepare<'i>(
         self,
-        mut cacher: Cacher<'_, 't, S>,
-    ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
+        cacher: &Cacher<'t, 'i, S>,
+    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
         let cached = cacher.cache(self);
         move |row| row.get(cached)
     }
@@ -114,7 +119,10 @@ impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
 impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (A, B) {
     type Out = (A::Out, B::Out);
 
-    fn prepare(self, cacher: Cacher<'_, 't, S>) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
+    fn prepare<'i>(
+        self,
+        cacher: &Cacher<'t, 'i, S>,
+    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
         move |row| (prepared_a(row), prepared_b(row))
@@ -143,10 +151,10 @@ mod tests {
     {
         type Out = User;
 
-        fn prepare(
+        fn prepare<'i>(
             self,
-            mut cacher: Cacher<'_, 't, S>,
-        ) -> impl FnMut(Row<'_, 't, 'a>) -> Self::Out + 't {
+            cacher: &Cacher<'t, 'i, S>,
+        ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
             move |row| User {

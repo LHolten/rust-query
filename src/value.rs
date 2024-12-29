@@ -14,7 +14,7 @@ use crate::{
     db::{TableRow, TableRowInner},
     hash,
     migrate::NoTable,
-    Dummy, Table,
+    Table,
 };
 
 #[derive(Clone, Copy)]
@@ -241,21 +241,6 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     //     todo!()
     // }
 }
-
-// struct OptionDummy<'inner, X>(DynTyped<bool>, X, PhantomData<&'inner ()>);
-// impl<'t, 'a, 'inner, S, X> Dummy<'t, 'a, S> for OptionDummy<'inner, X>
-// where
-//     X: Dummy<'inner, 'a, S>,
-// {
-//     type Out = Option<X::Out>;
-
-//     fn prepare(
-//         self,
-//         cacher: crate::dummy::Cacher<'_, 't, S>,
-//     ) -> impl FnMut(crate::dummy::Row<'_, 't, 'a>) -> Self::Out + 't {
-//         todo!()
-//     }
-// }
 
 impl<'t, S> Column<'t, S, i64> {
     /// Convert the [i64] column to [f64] type.
