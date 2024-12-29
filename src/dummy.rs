@@ -13,10 +13,8 @@ use crate::{
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Cacher<'t, 'i, S> {
-    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
+    pub(crate) _p: PhantomData<fn(&'t ()) -> &'i ()>,
     pub(crate) _p2: PhantomData<S>,
-    pub(crate) _p3: PhantomData<fn(&'i ()) -> &'i ()>,
-    pub(crate) _p4: PhantomData<&'t &'i ()>,
     pub(crate) ast: MySelect,
 }
 
@@ -51,9 +49,9 @@ impl<'t, 'i, S> Cacher<'t, 'i, S> {
 }
 
 #[derive(Clone, Copy)]
-pub struct Row<'x, 't, 'a> {
-    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
-    pub(crate) _p2: PhantomData<fn(&'a ()) -> &'a ()>,
+pub struct Row<'x, 'i, 'a> {
+    pub(crate) _p: PhantomData<fn(&'i ()) -> &'a ()>,
+    pub(crate) _p2: PhantomData<&'i &'a ()>,
     pub(crate) row: &'x rusqlite::Row<'x>,
 }
 
@@ -69,19 +67,22 @@ impl<'t, 'a> Row<'_, 't, 'a> {
 /// Implement it on custom structs using [crate::FromDummy].
 pub trait Dummy<'t, 'a, S>: Sized {
     /// The type that results from querying this dummy.
-    type Out;
+    type Out: 'a;
 
     #[doc(hidden)]
     fn prepare<'i>(
         self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't;
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out>;
 
     /// Map a dummy to another dummy using native rust.
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T>(self, f: impl FnMut(Self::Out) -> T + 't) -> impl Dummy<'t, 'a, S, Out = T> {
+    fn map_dummy<T: 'a>(
+        self,
+        f: impl 'a + FnMut(Self::Out) -> T,
+    ) -> impl Dummy<'t, 'a, S, Out = T> {
         DummyMap(self, f)
     }
 }
@@ -91,16 +92,17 @@ struct DummyMap<A, F>(A, F);
 impl<'t, 'a, S, A, F, T> Dummy<'t, 'a, S> for DummyMap<A, F>
 where
     A: Dummy<'t, 'a, S>,
-    F: FnMut(A::Out) -> T + 't,
+    F: 'a + FnMut(A::Out) -> T,
+    T: 'a,
 {
     type Out = T;
 
     fn prepare<'i>(
         mut self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
         let mut cached = self.0.prepare(cacher);
-        move |row| self.1(cached(row))
+        Box::new(move |row| self.1(cached(row)))
     }
 }
 
@@ -110,9 +112,9 @@ impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     fn prepare<'i>(
         self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
         let cached = cacher.cache(self);
-        move |row| row.get(cached)
+        Box::new(move |row| row.get(cached))
     }
 }
 
@@ -122,10 +124,10 @@ impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (
     fn prepare<'i>(
         self,
         cacher: &Cacher<'t, 'i, S>,
-    ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
+    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
-        move |row| (prepared_a(row), prepared_b(row))
+        Box::new(move |row| (prepared_a(row), prepared_b(row)))
     }
 }
 
@@ -154,13 +156,13 @@ mod tests {
         fn prepare<'i>(
             self,
             cacher: &Cacher<'t, 'i, S>,
-        ) -> impl FnMut(Row<'_, 'i, 'a>) -> Self::Out + 't {
+        ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Self::Out> {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
-            move |row| User {
+            Box::new(move |row| User {
                 a: row.get(a),
                 b: row.get(b),
-            }
+            })
         }
     }
 }
