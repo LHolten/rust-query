@@ -71,7 +71,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
                 _p2: PhantomData,
                 row,
             };
-            out.push(f(row));
+            out.push(f(row).0);
         }
         out
     }
