@@ -63,9 +63,9 @@ impl<'t, 'a> Row<'_, 't, 'a> {
 }
 
 /// Add the implied bound `T: 'i` which can not be added as `Self::Out: 'i` for some reason
-struct Wrapped<'i, T>(pub(crate) T, pub(crate) PhantomData<&'i T>);
+pub struct Wrapped<'i, T>(pub T, pub(crate) PhantomData<&'i T>);
 impl<'i, T> Wrapped<'i, T> {
-    fn new(val: T) -> Self {
+    pub fn new(val: T) -> Self {
         Self(val, PhantomData)
     }
 }

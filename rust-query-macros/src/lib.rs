@@ -364,7 +364,7 @@ fn define_table_migration(
             prepare.push(
                 quote! {let mut #prepared_name = ::rust_query::Dummy::prepare(self.#name, cacher)},
             );
-            into_new.push(quote! {reader.col(#name_str, #prepared_name(row))});
+            into_new.push(quote! {reader.col(#name_str, #prepared_name(row).0)});
         }
     }
 
