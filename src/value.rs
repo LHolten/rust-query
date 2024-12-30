@@ -590,9 +590,9 @@ impl MyTyp for NoTable {
     }
 }
 
-/// Values of this type reference a collumn in a query.
+/// Values of this type reference a column in a query.
 ///
-/// - The lifetime parameter `'t` specifies in which query the collumn exists.
+/// - The lifetime parameter `'t` specifies in which query the column exists.
 /// - The type parameter `S` specifies the expected schema of the query.
 /// - And finally the type paramter `T` specifies the type of the column.
 ///
