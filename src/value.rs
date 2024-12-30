@@ -12,7 +12,7 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::{Cacher, DynDummy, Prepared, PubDummy},
+    dummy::{Cacher, DynDummy, Prepared, PubDummy, Row},
     hash,
     migrate::NoTable,
     Dummy, Table,
@@ -234,10 +234,10 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         res.map_or(Column::new(true), |x| Column::new(x))
     }
 
-    pub fn then_dummy<'x, O: 'x>(
+    pub fn then_dummy<'x, 'l, O: 'x>(
         &self,
-        d: impl Dummy<'inner, 'x, S, Out = O>,
-    ) -> PubDummy<'outer, 'x, S, Option<O>> {
+        d: impl Dummy<'inner, 'l, 'x, S, Out = O>,
+    ) -> PubDummy<'outer, 'l, 'x, S, Option<O>> {
         let mut d = DynDummy::new(d);
         let mut cacher = Cacher {
             _p: PhantomData,
@@ -247,13 +247,21 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         let is_some = cacher.cache(self.is_some());
         let res = DynDummy {
             columns: cacher.columns,
-            func: Prepared::new(move |row| {
-                if row.get(is_some) {
-                    Some(d.func.call(row))
+            func: Box::new(move |row, fields| {
+                let row2 = Row {
+                    _p: PhantomData,
+                    _p2: PhantomData,
+                    row,
+                    mapping: fields,
+                };
+                if row2.get(is_some) {
+                    Some((d.func)(row, fields))
                 } else {
                     None
                 }
             }),
+            _p: PhantomData,
+            _p2: PhantomData,
         };
         PubDummy {
             inner: res,

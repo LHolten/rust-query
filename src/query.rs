@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    dummy::{Cacher, Dummy, Row},
+    dummy::{Dummy, DynDummy},
     rows::Rows,
 };
 
@@ -40,25 +40,22 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Types that implement [crate::IntoColumn], will also implement [Dummy].
     /// Tuples of two values also implement [Dummy]. If you want to return more
     /// than two values, then you should use a struct that derives [crate::FromDummy].
-    pub fn into_vec<D>(&'inner self, dummy: D) -> Vec<D::Out>
+    pub fn into_vec<'e, D>(&'inner self, dummy: D) -> Vec<D::Out>
     where
-        D: Dummy<'inner, 'outer, S>,
+        D: Dummy<'inner, 'e, 'outer, S>,
+        'outer: 'e,
     {
         self.into_vec_private(dummy)
     }
 
-    pub(crate) fn into_vec_private<'x, D>(&'inner self, dummy: D) -> Vec<D::Out>
+    pub(crate) fn into_vec_private<'x, 'l, D>(&'inner self, dummy: D) -> Vec<D::Out>
     where
-        D: Dummy<'x, 'outer, S>,
+        D: Dummy<'x, 'l, 'outer, S>,
         S: 'x,
+        'outer: 'l,
     {
-        let mut cacher = Cacher {
-            _p: PhantomData,
-            _p2: PhantomData,
-            columns: Vec::new(),
-        };
-        let mut f = dummy.prepare(&mut cacher);
-        let cached = self.ast.cache(cacher.columns);
+        let mut d = DynDummy::new(dummy);
+        let cached = self.ast.cache(d.columns);
 
         let select = self.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
@@ -72,13 +69,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
 
         let mut out = vec![];
         while let Some(row) = rows.next().unwrap() {
-            let row = Row {
-                _p: PhantomData,
-                _p2: PhantomData,
-                row,
-                mapping: &cached,
-            };
-            out.push(f.call(row));
+            out.push((d.func)(row, &cached));
         }
         out
     }
