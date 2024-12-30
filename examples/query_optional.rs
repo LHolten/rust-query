@@ -39,7 +39,7 @@ fn main() {
 
     let mut client = LocalClient::try_new().unwrap();
     let database: Database<Schema> = client
-        .migrator(Config::open("my_database.sqlite"))
+        .migrator(Config::open_in_memory())
         .expect("database version is before supported versions")
         // migrations go here
         .finish()

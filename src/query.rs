@@ -78,7 +78,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
                 row,
                 mapping: &cached,
             };
-            out.push(f(row).0);
+            out.push(f.call(row).0);
         }
         out
     }
