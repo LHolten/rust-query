@@ -15,8 +15,8 @@ pub struct Cacher<'t, 'i, S> {
 }
 
 pub struct Cached<'t, T> {
-    _p: PhantomData<fn(&'t T) -> &'t T>,
-    idx: usize,
+    pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
+    pub(crate) idx: usize,
 }
 
 impl<'t, T> Clone for Cached<'t, T> {
@@ -46,7 +46,6 @@ impl<'t, 'i, S> Cacher<'t, 'i, S> {
 #[derive(Clone, Copy)]
 pub struct Row<'x, 'i, 'a> {
     pub(crate) _p: PhantomData<fn(&'i ()) -> &'a ()>,
-    pub(crate) _p2: PhantomData<&'i &'a ()>,
     pub(crate) row: &'x rusqlite::Row<'x>,
     pub(crate) mapping: &'x [Field],
 }
@@ -61,15 +60,15 @@ impl<'i, 'a> Row<'_, 'i, 'a> {
 
 pub struct Prepared<'l, 'i, 'a, Out> {
     inner: Box<dyn 'l + FnMut(Row<'_, 'i, 'a>) -> Out>,
-    // _p: PhantomData<&'l Out>,
-    _p2: PhantomData<&'l &'i ()>,
+    _p1: PhantomData<&'l &'i ()>,
+    _p2: PhantomData<&'l &'a ()>,
 }
 
 impl<'l, 'i, 'a, Out> Prepared<'l, 'i, 'a, Out> {
     pub fn new(func: impl 'l + FnMut(Row<'_, 'i, 'a>) -> Out) -> Self {
         Prepared {
             inner: Box::new(func),
-            // _p: PhantomData,
+            _p1: PhantomData,
             _p2: PhantomData,
         }
     }
@@ -131,7 +130,6 @@ impl<'a, 'l, Out> DynDummy<'l, 'a, Out> {
                     row: row,
                     mapping: fields,
                     _p: PhantomData,
-                    _p2: PhantomData,
                 })
             }),
             _p: PhantomData,

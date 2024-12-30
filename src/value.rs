@@ -250,7 +250,6 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
             func: Box::new(move |row, fields| {
                 let row2 = Row {
                     _p: PhantomData,
-                    _p2: PhantomData,
                     row,
                     mapping: fields,
                 };
