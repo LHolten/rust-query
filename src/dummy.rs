@@ -67,6 +67,22 @@ impl<'i, T> Wrapped<'i, T> {
     }
 }
 
+pub struct Prepared<'i, 'a, Out> {
+    inner: Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Out>>,
+}
+
+impl<'i, 'a, Out> Prepared<'i, 'a, Out> {
+    pub fn new(func: impl 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Out>) -> Self {
+        Prepared {
+            inner: Box::new(func),
+        }
+    }
+
+    pub fn call(&mut self, row: Row<'_, 'i, 'a>) -> Wrapped<'i, Out> {
+        (self.inner)(row)
+    }
+}
+
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
 /// Implement it on custom structs using [crate::FromDummy].
@@ -75,10 +91,7 @@ pub trait Dummy<'t, 'a, S>: Sized {
     type Out;
 
     #[doc(hidden)]
-    fn prepare<'i>(
-        self,
-        cacher: &mut Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>>;
+    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out>;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -94,7 +107,7 @@ pub trait Dummy<'t, 'a, S>: Sized {
 
 pub struct DynDummy<'a, Out> {
     pub(crate) columns: Vec<DynTypedExpr>,
-    pub(crate) func: Box<dyn 'a + FnMut(Row<'_, 'a, 'a>) -> Wrapped<'a, Out>>,
+    pub(crate) func: Prepared<'a, 'a, Out>,
 }
 
 impl<'a, Out> DynDummy<'a, Out> {
@@ -125,7 +138,7 @@ impl<'outer, 'transaction, S, Out> Dummy<'outer, 'transaction, S>
     fn prepare<'i>(
         mut self,
         cacher: &mut Cacher<'_, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'transaction>) -> Wrapped<'i, Self::Out>> {
+    ) -> Prepared<'i, 'transaction, Self::Out> {
         let mut diff = None;
         self.inner
             .columns
@@ -138,14 +151,14 @@ impl<'outer, 'transaction, S, Out> Dummy<'outer, 'transaction, S>
                 diff = Some(_diff);
             });
         let diff = diff.unwrap_or_default();
-        Box::new(move |row| {
+        Prepared::new(move |row| {
             let row = Row {
                 _p: PhantomData,
                 _p2: PhantomData,
                 row: row.row,
                 mapping: &row.mapping[diff..],
             };
-            (self.inner.func)(row)
+            self.inner.func.call(row)
         })
     }
 }
@@ -160,37 +173,28 @@ where
 {
     type Out = T;
 
-    fn prepare<'i>(
-        mut self,
-        cacher: &mut Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, T>> {
+    fn prepare<'i>(mut self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
         let mut cached = self.0.prepare(cacher);
-        Box::new(move |row| Wrapped::new(self.1(cached(row).0)))
+        Prepared::new(move |row| Wrapped::new(self.1(cached.call(row).0)))
     }
 }
 
 impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
 
-    fn prepare<'i>(
-        self,
-        cacher: &mut Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
+    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
         let cached = cacher.cache(self);
-        Box::new(move |row| Wrapped::new(row.get(cached)))
+        Prepared::new(move |row| Wrapped::new(row.get(cached)))
     }
 }
 
 impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (A, B) {
     type Out = (A::Out, B::Out);
 
-    fn prepare<'i>(
-        self,
-        cacher: &mut Cacher<'t, 'i, S>,
-    ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
+    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
-        Box::new(move |row| Wrapped::new((prepared_a(row).0, prepared_b(row).0)))
+        Prepared::new(move |row| Wrapped::new((prepared_a.call(row).0, prepared_b.call(row).0)))
     }
 }
 
@@ -216,13 +220,10 @@ mod tests {
     {
         type Out = User;
 
-        fn prepare<'i>(
-            self,
-            cacher: &mut Cacher<'t, 'i, S>,
-        ) -> Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Self::Out>> {
+        fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
-            Box::new(move |row| {
+            Prepared::new(move |row| {
                 Wrapped::new(User {
                     a: row.get(a),
                     b: row.get(b),
