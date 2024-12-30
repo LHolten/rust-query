@@ -12,7 +12,7 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::{Cacher, DynDummy, Prepared, PubDummy, Wrapped},
+    dummy::{Cacher, DynDummy, Prepared, PubDummy},
     hash,
     migrate::NoTable,
     Dummy, Table,
@@ -248,11 +248,11 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         let res = DynDummy {
             columns: cacher.columns,
             func: Prepared::new(move |row| {
-                Wrapped::new(if row.get(is_some) {
-                    Some(d.func.call(row).0)
+                if row.get(is_some) {
+                    Some(d.func.call(row))
                 } else {
                     None
-                })
+                }
             }),
         };
         PubDummy {
