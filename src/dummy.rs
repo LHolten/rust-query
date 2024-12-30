@@ -14,8 +14,8 @@ pub struct Cacher<'t, 'i, S> {
     pub(crate) columns: Vec<DynTypedExpr>,
 }
 
-pub struct Cached<'t, T> {
-    pub(crate) _p: PhantomData<fn(&'t T) -> &'t T>,
+pub struct Cached<'i, T> {
+    pub(crate) _p: PhantomData<fn(&'i T) -> &'i T>,
     pub(crate) idx: usize,
 }
 
@@ -50,7 +50,15 @@ pub struct Row<'x, 'i, 'a> {
     pub(crate) fields: &'x [Field],
 }
 
-impl<'i, 'a> Row<'_, 'i, 'a> {
+impl<'x, 'i, 'a> Row<'x, 'i, 'a> {
+    pub(crate) fn new(row: &'x rusqlite::Row<'x>, fields: &'x [Field]) -> Self {
+        Self {
+            row,
+            fields,
+            _p: PhantomData,
+        }
+    }
+
     pub fn get<T: MyTyp>(&self, val: Cached<'i, T>) -> T::Out<'a> {
         let field = self.fields[val.idx];
         let idx = &*field.to_string();
@@ -58,152 +66,155 @@ impl<'i, 'a> Row<'_, 'i, 'a> {
     }
 }
 
-pub struct Prepared<'l, 'i, 'a, Out> {
-    pub(crate) inner: Box<dyn 'l + FnMut(&rusqlite::Row, &[Field]) -> Out>,
-    _p1: PhantomData<&'l &'i ()>,
-    _p2: PhantomData<&'l &'a ()>,
-    _p3: PhantomData<&'l Out>,
-}
+pub trait Prepared<'i, 'a> {
+    type Out;
 
-impl<'l, 'i, 'a, Out> Prepared<'l, 'i, 'a, Out> {
-    pub fn new(mut func: impl 'l + FnMut(Row<'_, 'i, 'a>) -> Out) -> Self {
-        Prepared {
-            inner: Box::new(move |row, fields| {
-                let wrapped = Row {
-                    row,
-                    fields,
-                    _p: PhantomData,
-                };
-                func(wrapped)
-            }),
-            _p1: PhantomData,
-            _p2: PhantomData,
-            _p3: PhantomData,
-        }
-    }
-
-    pub fn call(&mut self, row: Row<'_, 'i, 'a>) -> Out {
-        (self.inner)(row.row, row.fields)
-    }
+    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out;
 }
 
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
 /// Implement it on custom structs using [crate::FromDummy].
-pub trait Dummy<'columns, 'captures, 'transaction, S>: Sized {
+pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
-    type Out: 'captures;
+    type Out;
+
+    type Prepared<'i>: Prepared<'i, 'transaction, Out = Self::Out>;
 
     #[doc(hidden)]
-    fn prepare<'i>(
-        self,
-        cacher: &mut Cacher<'columns, 'i, S>,
-    ) -> Prepared<'captures, 'i, 'transaction, Self::Out>;
+    fn prepare<'i>(self, cacher: &mut Cacher<'columns, 'i, S>) -> Self::Prepared<'i>;
 
     /// Map a dummy to another dummy using native rust.
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T>(
+    fn map_dummy<T, F: FnMut(Self::Out) -> T>(
         self,
-        mut f: impl 'captures + FnMut(Self::Out) -> T,
-    ) -> PubDummy<'columns, 'captures, 'transaction, S, T> {
-        let mut d = DynDummy::new(self);
-        let d = DynDummy {
+        f: F,
+    ) -> PubDummy<'columns, S, MapPrepared<Self::Prepared<'static>, F>> {
+        let d = PubDummy::new(self);
+        PubDummy {
             columns: d.columns,
-            func: Box::new(move |row, fields| f((d.func)(row, fields))),
-            // _p2: PhantomData,
-        };
-        PubDummy::new(d)
+            inner: MapPrepared {
+                inner: d.inner,
+                map: f,
+            },
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
     }
 }
 
-/// The internal presentation of [PubDummy], the lifetimes here are the ones necessary for memory safety.
-pub(crate) struct DynDummy<'l, Out> {
-    pub columns: Vec<DynTypedExpr>,
-    pub func: Box<dyn 'l + FnMut(&rusqlite::Row, &[Field]) -> Out>,
+pub struct MapPrepared<X, M> {
+    inner: X,
+    map: M,
 }
 
-impl<'l, Out> DynDummy<'l, Out> {
-    pub fn new<'t, 'a: 'l, S>(val: impl Dummy<'t, 'l, 'a, S, Out = Out>) -> Self
-    where
-        Out: 'l,
-    {
+impl<'transaction, X, M, Out> Prepared<'static, 'transaction> for MapPrepared<X, M>
+where
+    X: Prepared<'static, 'transaction>,
+    M: FnMut(X::Out) -> Out,
+{
+    type Out = Out;
+
+    fn call(&mut self, row: Row<'_, 'static, 'transaction>) -> Self::Out {
+        (self.map)(self.inner.call(row))
+    }
+}
+
+pub struct DynDummy<X> {
+    offset: usize,
+    func: X,
+}
+
+impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<X> {
+    type Out = X::Out;
+
+    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+        self.func
+            .call(Row::new(row.row, &row.fields[self.offset..]))
+    }
+}
+
+/// Erases the `'i` lifetime
+pub struct PubDummy<'columns, S, X> {
+    pub(crate) columns: Vec<DynTypedExpr>,
+    pub(crate) inner: X,
+    pub(crate) _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
+    pub(crate) _p2: PhantomData<S>,
+}
+
+impl<'collumns, S, X> PubDummy<'collumns, S, X> {
+    pub fn new<'a>(val: impl Dummy<'collumns, 'a, S, Prepared<'static> = X>) -> Self {
         let mut cacher = Cacher {
             _p: PhantomData,
             _p2: PhantomData,
             columns: vec![],
         };
-        let prepared = val.prepare(&mut cacher);
-        DynDummy {
+        PubDummy {
+            inner: val.prepare(&mut cacher),
             columns: cacher.columns,
-            func: prepared.inner,
-        }
-    }
-}
-pub struct PubDummy<'columns, 'captures, 'transaction, S, Out> {
-    pub(crate) inner: DynDummy<'captures, Out>,
-    _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
-    _p2: PhantomData<S>,
-    _p3: PhantomData<&'captures Out>,
-    _p4: PhantomData<&'captures &'transaction ()>,
-}
-
-impl<'captures, S, Out> PubDummy<'_, 'captures, '_, S, Out> {
-    pub(crate) fn new(val: DynDummy<'captures, Out>) -> Self {
-        Self {
-            inner: val,
             _p: PhantomData,
             _p2: PhantomData,
-            _p3: PhantomData,
-            _p4: PhantomData,
         }
     }
 }
 
-impl<'outer, 'captures, 'transaction, S, Out> Dummy<'outer, 'captures, 'transaction, S>
-    for PubDummy<'outer, 'captures, 'transaction, S, Out>
+impl<'collumns, 'transaction, S, X: Prepared<'static, 'transaction>>
+    Dummy<'collumns, 'transaction, S> for PubDummy<'collumns, S, X>
 {
-    type Out = Out;
+    type Out = X::Out;
+    type Prepared<'i> = DynDummy<X>;
 
-    fn prepare<'i>(
-        mut self,
-        cacher: &mut Cacher<'_, 'i, S>,
-    ) -> Prepared<'captures, 'i, 'transaction, Self::Out> {
+    fn prepare<'i>(self, cacher: &mut Cacher<'_, 'i, S>) -> Self::Prepared<'i> {
         let mut diff = None;
-        self.inner
-            .columns
-            .into_iter()
-            .enumerate()
-            .for_each(|(old, x)| {
-                let new = cacher.cache_erased(x);
-                let _diff = new - old;
-                debug_assert!(diff.is_none_or(|it| it == _diff));
-                diff = Some(_diff);
-            });
+        self.columns.into_iter().enumerate().for_each(|(old, x)| {
+            let new = cacher.cache_erased(x);
+            let _diff = new - old;
+            debug_assert!(diff.is_none_or(|it| it == _diff));
+            diff = Some(_diff);
+        });
         let diff = diff.unwrap_or_default();
-        Prepared::new(move |row| (self.inner.func)(row.row, &row.fields[diff..]))
+        DynDummy {
+            offset: diff,
+            func: self.inner,
+        }
     }
 }
 
-impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, 'a, S> for T {
+impl<'i, 'a, T: MyTyp> Prepared<'i, 'a> for Cached<'i, T> {
+    type Out = T::Out<'a>;
+
+    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+        row.get(*self)
+    }
+}
+
+impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
     type Out = <T::Typ as MyTyp>::Out<'a>;
+    type Prepared<'i> = Cached<'i, T::Typ>;
 
-    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'a, 'i, 'a, Self::Out> {
-        let cached = cacher.cache(self);
-        Prepared::new(move |row| row.get(cached))
+    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {
+        cacher.cache(self)
     }
 }
 
-impl<'t, 'l, 'a, S, A: Dummy<'t, 'l, 'a, S>, B: Dummy<'t, 'l, 'a, S>> Dummy<'t, 'l, 'a, S>
-    for (A, B)
-{
+impl<'i, 'a, A: Prepared<'i, 'a>, B: Prepared<'i, 'a>> Prepared<'i, 'a> for (A, B) {
     type Out = (A::Out, B::Out);
 
-    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'l, 'i, 'a, Self::Out> {
-        let mut prepared_a = self.0.prepare(cacher);
-        let mut prepared_b = self.1.prepare(cacher);
-        Prepared::new(move |row| (prepared_a.call(row), prepared_b.call(row)))
+    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+        (self.0.call(row), self.1.call(row))
+    }
+}
+
+impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (A, B) {
+    type Out = (A::Out, B::Out);
+    type Prepared<'i> = (A::Prepared<'i>, B::Prepared<'i>);
+
+    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {
+        let prepared_a = self.0.prepare(cacher);
+        let prepared_b = self.1.prepare(cacher);
+        (prepared_a, prepared_b)
     }
 }
 
@@ -222,20 +233,33 @@ mod tests {
         b: B,
     }
 
-    impl<'t, 'l, 'a, S, A, B> Dummy<'t, 'l, 'a, S> for UserDummy<A, B>
+    impl<'i, 'a, A, B> Prepared<'i, 'a> for UserDummy<A, B>
+    where
+        A: Prepared<'i, 'a, Out = i64>,
+        B: Prepared<'i, 'a, Out = String>,
+    {
+        type Out = User;
+
+        fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+            User {
+                a: self.a.call(row),
+                b: self.b.call(row),
+            }
+        }
+    }
+
+    impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
     where
         A: IntoColumn<'t, S, Typ = i64>,
         B: IntoColumn<'t, S, Typ = String>,
     {
         type Out = User;
+        type Prepared<'i> = UserDummy<Cached<'i, i64>, Cached<'i, String>>;
 
-        fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'l, 'i, 'a, Self::Out> {
+        fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
-            Prepared::new(move |row| User {
-                a: row.get(a),
-                b: row.get(b),
-            })
+            UserDummy { a, b }
         }
     }
 }
