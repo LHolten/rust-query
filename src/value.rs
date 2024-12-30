@@ -12,7 +12,7 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::{Cacher, DynDummy, PubDummy, Row},
+    dummy::{Cached, Cacher, Prepared, PubDummy, Row},
     hash,
     migrate::NoTable,
     Dummy, Table,
@@ -234,33 +234,46 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         res.map_or(Column::new(true), |x| Column::new(x))
     }
 
-    pub fn then_dummy<'x, 'l, O: 'x>(
+    pub fn then_dummy<'transaction, P>(
         &self,
-        d: impl Dummy<'inner, 'l, 'x, S, Out = O>,
-    ) -> PubDummy<'outer, 'l, 'x, S, Option<O>> {
-        let mut d = DynDummy::new(d);
+        d: impl Dummy<'inner, 'transaction, S, Prepared<'static> = P>,
+    ) -> PubDummy<'outer, S, OptionalPrepared<P>> {
+        let d = PubDummy::new(d);
         let mut cacher = Cacher {
             _p: PhantomData,
             _p2: PhantomData,
             columns: d.columns,
         };
         let is_some = cacher.cache(self.is_some());
-        let res = DynDummy {
+        PubDummy {
             columns: cacher.columns,
-            func: Box::new(move |row, fields| {
-                let row2 = Row {
-                    _p: PhantomData,
-                    row,
-                    fields,
-                };
-                if row2.get(is_some) {
-                    Some((d.func)(row, fields))
-                } else {
-                    None
-                }
-            }),
-        };
-        PubDummy::new(res)
+            inner: OptionalPrepared {
+                inner: d.inner,
+                is_some,
+            },
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
+    }
+}
+
+pub struct OptionalPrepared<X> {
+    inner: X,
+    is_some: Cached<'static, bool>,
+}
+
+impl<'transaction, X> Prepared<'static, 'transaction> for OptionalPrepared<X>
+where
+    X: Prepared<'static, 'transaction>,
+{
+    type Out = Option<X::Out>;
+
+    fn call(&mut self, row: Row<'_, 'static, 'transaction>) -> Self::Out {
+        if row.get(self.is_some) {
+            Some(self.inner.call(row))
+        } else {
+            None
+        }
     }
 }
 

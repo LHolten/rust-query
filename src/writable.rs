@@ -11,7 +11,7 @@ pub trait Writable<'t> {
     type Conflict;
     fn get_conflict_unchecked(
         &self,
-    ) -> impl Dummy<'t, 't, 't, Self::Schema, Out = Option<Self::Conflict>>;
+    ) -> impl Dummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
 }
 
 impl<'t, X: Writable<'t>> Writable<'t> for &X {
@@ -26,7 +26,7 @@ impl<'t, X: Writable<'t>> Writable<'t> for &X {
 
     fn get_conflict_unchecked(
         &self,
-    ) -> impl Dummy<'t, 't, 't, Self::Schema, Out = Option<Self::Conflict>> {
+    ) -> impl Dummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
         X::get_conflict_unchecked(self)
     }
 }
