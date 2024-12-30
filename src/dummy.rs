@@ -79,6 +79,7 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out;
 
+    #[doc(hidden)]
     type Prepared<'i>: Prepared<'i, 'transaction, Out = Self::Out>;
 
     #[doc(hidden)]
@@ -144,8 +145,8 @@ pub struct PubDummy<'columns, S, X> {
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'collumns, S, X> PubDummy<'collumns, S, X> {
-    pub fn new<'a>(val: impl Dummy<'collumns, 'a, S, Prepared<'static> = X>) -> Self {
+impl<'columns, S, X> PubDummy<'columns, S, X> {
+    pub fn new<'a>(val: impl Dummy<'columns, 'a, S, Prepared<'static> = X>) -> Self {
         let mut cacher = Cacher {
             _p: PhantomData,
             _p2: PhantomData,
@@ -160,8 +161,8 @@ impl<'collumns, S, X> PubDummy<'collumns, S, X> {
     }
 }
 
-impl<'collumns, 'transaction, S, X: Prepared<'static, 'transaction>>
-    Dummy<'collumns, 'transaction, S> for PubDummy<'collumns, S, X>
+impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'columns, 'transaction, S>
+    for PubDummy<'columns, S, X>
 {
     type Out = X::Out;
     type Prepared<'i> = DynDummy<X>;
