@@ -59,26 +59,20 @@ impl<'i, 'a> Row<'_, 'i, 'a> {
     }
 }
 
-/// Add the implied bound `T: 'i` which can not be added as `Self::Out: 'i` for some reason
-pub struct Wrapped<'i, T>(pub T, pub(crate) PhantomData<&'i T>);
-impl<'i, T> Wrapped<'i, T> {
-    pub fn new(val: T) -> Self {
-        Self(val, PhantomData)
-    }
-}
-
 pub struct Prepared<'i, 'a, Out> {
-    inner: Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Out>>,
+    inner: Box<dyn 'i + FnMut(Row<'_, 'i, 'a>) -> Out>,
+    _p: PhantomData<&'i Out>,
 }
 
 impl<'i, 'a, Out> Prepared<'i, 'a, Out> {
-    pub fn new(func: impl 'i + FnMut(Row<'_, 'i, 'a>) -> Wrapped<'i, Out>) -> Self {
+    pub fn new(func: impl 'i + FnMut(Row<'_, 'i, 'a>) -> Out) -> Self {
         Prepared {
             inner: Box::new(func),
+            _p: PhantomData,
         }
     }
 
-    pub fn call(&mut self, row: Row<'_, 'i, 'a>) -> Wrapped<'i, Out> {
+    pub fn call(&mut self, row: Row<'_, 'i, 'a>) -> Out {
         (self.inner)(row)
     }
 }
@@ -175,7 +169,7 @@ where
 
     fn prepare<'i>(mut self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
         let mut cached = self.0.prepare(cacher);
-        Prepared::new(move |row| Wrapped::new(self.1(cached.call(row).0)))
+        Prepared::new(move |row| self.1(cached.call(row)))
     }
 }
 
@@ -184,7 +178,7 @@ impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
 
     fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
         let cached = cacher.cache(self);
-        Prepared::new(move |row| Wrapped::new(row.get(cached)))
+        Prepared::new(move |row| row.get(cached))
     }
 }
 
@@ -194,7 +188,7 @@ impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (
     fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
         let mut prepared_a = self.0.prepare(cacher);
         let mut prepared_b = self.1.prepare(cacher);
-        Prepared::new(move |row| Wrapped::new((prepared_a.call(row).0, prepared_b.call(row).0)))
+        Prepared::new(move |row| (prepared_a.call(row), prepared_b.call(row)))
     }
 }
 
@@ -223,11 +217,9 @@ mod tests {
         fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'i, 'a, Self::Out> {
             let a = cacher.cache(self.a);
             let b = cacher.cache(self.b);
-            Prepared::new(move |row| {
-                Wrapped::new(User {
-                    a: row.get(a),
-                    b: row.get(b),
-                })
+            Prepared::new(move |row| User {
+                a: row.get(a),
+                b: row.get(b),
             })
         }
     }
