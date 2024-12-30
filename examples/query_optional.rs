@@ -48,6 +48,9 @@ fn main() {
     let txn = client.transaction(&database);
     let score = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
-        row.then_dummy(PlayerInfo::dummy(player))
+        row.then_dummy(PlayerInfoDummy {
+            name: player.name(),
+            score: player.score(),
+        })
     }));
 }
