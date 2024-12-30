@@ -12,17 +12,6 @@ enum Schema {
         #[version(1..)]
         email: String,
     },
-    Story {
-        author: User,
-        title: String,
-        content: String,
-    },
-    #[unique(user, story)]
-    Rating {
-        user: User,
-        story: Story,
-        stars: i64,
-    },
 }
 use v0::*;
 

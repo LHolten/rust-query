@@ -83,7 +83,7 @@ impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, T
     type FromSchema = FromSchema;
     type To = To;
 
-    fn prepare<'i>(
+    fn prepare<'i: 'a>(
         self: Box<Self>,
         _: &mut Cacher<'t, 'i, Self::FromSchema>,
     ) -> TableCreationBox<'i, 'a, Self::FromSchema> {
@@ -122,7 +122,7 @@ pub trait TableMigration<'t, 'a> {
     type From: Table;
     type To;
 
-    fn prepare<'i>(
+    fn prepare<'i: 'a>(
         self: Box<Self>,
         prev: Cached<'i, Self::From>,
         cacher: &mut Cacher<'t, 'i, <Self::From as Table>::Schema>,
@@ -130,12 +130,12 @@ pub trait TableMigration<'t, 'a> {
 }
 
 pub struct TableMigrationBox<'i, 'a, From: Table> {
-    inner: Box<dyn 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, From::Schema>)>,
+    inner: Box<dyn 'a + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'a, From::Schema>)>,
 }
 
 impl<'i, 'a, From: Table> TableMigrationBox<'i, 'a, From> {
     pub fn new(
-        func: impl 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, From::Schema>),
+        func: impl 'a + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'a, From::Schema>),
     ) -> Self {
         Self {
             inner: Box::new(func),
@@ -147,24 +147,22 @@ pub trait TableCreation<'t, 'a> {
     type FromSchema;
     type To;
 
-    fn prepare<'i>(
+    fn prepare<'i: 'a>(
         self: Box<Self>,
         cacher: &mut Cacher<'t, 'i, Self::FromSchema>,
     ) -> TableCreationBox<'i, 'a, Self::FromSchema>;
 }
 
 pub struct TableCreationBox<'i, 'a, FromSchema> {
-    inner: Box<dyn 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, FromSchema>)>,
-    _p: PhantomData<&'i &'a ()>,
+    inner: Box<dyn 'a + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'a, FromSchema>)>,
 }
 
 impl<'i, 'a, FromSchema> TableCreationBox<'i, 'a, FromSchema> {
     pub fn new(
-        func: impl 'i + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'i, FromSchema>),
+        func: impl 'a + FnMut(crate::private::Row<'_, 'i, 'a>, Reader<'_, 'a, FromSchema>),
     ) -> Self {
         Self {
             inner: Box::new(func),
-            _p: PhantomData,
         }
     }
 }
@@ -178,15 +176,16 @@ impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To
     type FromSchema = From::Schema;
     type To = To;
 
-    fn prepare<'i>(
+    fn prepare<'i: 'a>(
         self: Box<Self>,
         cacher: &mut Cacher<'t, 'i, Self::FromSchema>,
     ) -> TableCreationBox<'i, 'a, Self::FromSchema> {
         let db_id = cacher.cache(self.1);
         let mut prepared = Box::new(self.0).prepare(db_id, cacher);
-        TableCreationBox::new(move |row, reader| {
+        TableCreationBox::<'i, 'a>::new(move |row, reader| {
             // keep the ID the same
-            reader.col(From::ID, row.get(db_id));
+            let val = row.get(db_id);
+            reader.col(From::ID, val);
             (prepared.inner)(row, reader);
         })
     }
