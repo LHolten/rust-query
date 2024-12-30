@@ -364,7 +364,9 @@ fn define_table_migration(
             prepare.push(
                 quote! {let mut #prepared_name = ::rust_query::Dummy::prepare(self.#name, cacher)},
             );
-            into_new.push(quote! {reader.col(#name_str, #prepared_name(row).0)});
+            into_new.push(
+                quote! {reader.col(#name_str, ::rust_query::private::Prepared::call(&mut #prepared_name, row))},
+            );
         }
     }
 
@@ -384,17 +386,14 @@ fn define_table_migration(
                 type From = #prev_typ;
                 type To = super::#table_name;
 
-                fn prepare<'i>(
+                fn prepare<'i: 'a>(
                     self: Box<Self>,
                     prev: ::rust_query::private::Cached<'i, Self::From>,
                     cacher: &mut ::rust_query::private::Cacher<'t, 'i, <Self::From as ::rust_query::Table>::Schema>,
-                ) -> Box<
-                    dyn 'i
-                        + FnMut(::rust_query::private::Row<'_, 'i, 'a>, ::rust_query::private::Reader<'_, 'i, <Self::From as ::rust_query::Table>::Schema>),
-                >
+                ) -> ::rust_query::private::TableMigrationBox<'i, 'a, Self::From>
                 {
                     #(#prepare;)*
-                    Box::new(move |row, reader| {
+                    ::rust_query::private::TableMigrationBox::new(move |row, reader| {
                         let prev = row.get(prev);
                         #(#into_new;)*
                     })
@@ -407,16 +406,13 @@ fn define_table_migration(
                 type FromSchema = _PrevSchema;
                 type To = super::#table_name;
 
-                fn prepare<'i>(
+                fn prepare<'i: 'a>(
                     self: Box<Self>,
                     cacher: &mut ::rust_query::private::Cacher<'t, 'i, Self::FromSchema>,
-                ) -> Box<
-                    dyn 'i
-                        + FnMut(::rust_query::private::Row<'_, 'i, 'a>, ::rust_query::private::Reader<'_, 'i, Self::FromSchema>),
-                >
+                ) -> ::rust_query::private::TableCreationBox<'i, 'a, Self::FromSchema>
                 {
                     #(#prepare;)*
-                    Box::new(move |row, reader| {
+                    ::rust_query::private::TableCreationBox::new(move |row, reader| {
                         #(#into_new;)*
                     })
                 }
