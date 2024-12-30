@@ -131,9 +131,10 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<O>(&self, val: impl Dummy<'t, 't, S, Out = O>) -> O
+    pub fn query_one<'e, O>(&self, val: impl Dummy<'t, 'e, 't, S, Out = O>) -> O
     where
         S: 'static,
+        't: 'e,
     {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.

@@ -117,94 +117,95 @@ impl IndexInfoDummy<Column<'_, Pragma, IndexInfo>> {
 table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main')", val.0)}
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
-    #[derive(Clone, FromDummy)]
-    struct Column {
-        name: String,
-        typ: String,
-        pk: bool,
-        notnull: bool,
-    }
+    // #[derive(Clone, FromDummy)]
+    // struct Column {
+    //     name: String,
+    //     typ: String,
+    //     pk: bool,
+    //     notnull: bool,
+    // }
 
-    let tables = conn.query(|q| {
-        let table = q.join_custom(TableList);
-        q.filter(table.schema().eq("main"));
-        q.filter(table.r#type().eq("table"));
-        q.filter(table.name().eq("sqlite_schema").not());
-        q.into_vec(table.name())
-    });
+    // let tables = conn.query(|q| {
+    //     let table = q.join_custom(TableList);
+    //     q.filter(table.schema().eq("main"));
+    //     q.filter(table.r#type().eq("table"));
+    //     q.filter(table.name().eq("sqlite_schema").not());
+    //     q.into_vec(table.name())
+    // });
 
-    let mut output = hash::Schema::default();
+    // let mut output = hash::Schema::default();
 
-    for table_name in tables {
-        let mut columns = conn.query(|q| {
-            let table = q.join_custom(TableInfo(table_name.clone()));
+    // for table_name in tables {
+    //     let mut columns = conn.query(|q| {
+    //         let table = q.join_custom(TableInfo(table_name.clone()));
 
-            q.into_vec(ColumnDummy {
-                name: table.name(),
-                typ: table.r#type(),
-                pk: table.pk().eq(0).not(),
-                notnull: table.notnull().eq(0).not(),
-            })
-        });
+    //         q.into_vec(ColumnDummy {
+    //             name: table.name(),
+    //             typ: table.r#type(),
+    //             pk: table.pk().eq(0).not(),
+    //             notnull: table.notnull().eq(0).not(),
+    //         })
+    //     });
 
-        let fks: HashMap<_, _> = conn
-            .query(|q| {
-                let fk = q.join_custom(ForeignKeyList(table_name.to_owned()));
-                q.into_vec((fk.from(), fk.table()))
-            })
-            .into_iter()
-            .collect();
+    //     let fks: HashMap<_, _> = conn
+    //         .query(|q| {
+    //             let fk = q.join_custom(ForeignKeyList(table_name.to_owned()));
+    //             q.into_vec((fk.from(), fk.table()))
+    //         })
+    //         .into_iter()
+    //         .collect();
 
-        let make_type = |col: &Column| match col.typ.as_str() {
-            "INTEGER" => hash::ColumnType::Integer,
-            "TEXT" => hash::ColumnType::String,
-            "REAL" => hash::ColumnType::Float,
-            t => panic!("unknown type {t}"),
-        };
+    //     let make_type = |col: &Column| match col.typ.as_str() {
+    //         "INTEGER" => hash::ColumnType::Integer,
+    //         "TEXT" => hash::ColumnType::String,
+    //         "REAL" => hash::ColumnType::Float,
+    //         t => panic!("unknown type {t}"),
+    //     };
 
-        // we only care about columns that are not a unique id and for which we know the type
-        columns.retain(|col| {
-            if col.pk {
-                assert_eq!(col.name, "id");
-                return false;
-            }
-            true
-        });
+    //     // we only care about columns that are not a unique id and for which we know the type
+    //     columns.retain(|col| {
+    //         if col.pk {
+    //             assert_eq!(col.name, "id");
+    //             return false;
+    //         }
+    //         true
+    //     });
 
-        let mut table_def = hash::Table::default();
-        for col in columns {
-            let def = hash::Column {
-                fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
-                typ: make_type(&col),
-                name: col.name,
-                nullable: !col.notnull,
-            };
-            table_def.columns.insert(def)
-        }
+    //     let mut table_def = hash::Table::default();
+    //     for col in columns {
+    //         let def = hash::Column {
+    //             fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
+    //             typ: make_type(&col),
+    //             name: col.name,
+    //             nullable: !col.notnull,
+    //         };
+    //         table_def.columns.insert(def)
+    //     }
 
-        let uniques = conn.query(|q| {
-            let index = q.join_custom(IndexList(table_name.clone()));
-            q.filter(index.unique());
-            q.filter(index.origin().eq("u"));
-            q.filter(index.partial().not());
-            q.into_vec(index.name())
-        });
+    //     let uniques = conn.query(|q| {
+    //         let index = q.join_custom(IndexList(table_name.clone()));
+    //         q.filter(index.unique());
+    //         q.filter(index.origin().eq("u"));
+    //         q.filter(index.partial().not());
+    //         q.into_vec(index.name())
+    //     });
 
-        for unique_name in uniques {
-            let columns = conn.query(|q| {
-                let col = q.join_custom(IndexInfo(unique_name));
-                let name = q.filter_some(col.name());
-                q.into_vec(name)
-            });
+    //     for unique_name in uniques {
+    //         let columns = conn.query(|q| {
+    //             let col = q.join_custom(IndexInfo(unique_name));
+    //             let name = q.filter_some(col.name());
+    //             q.into_vec(name)
+    //         });
 
-            let mut unique_def = hash::Unique::default();
-            for column in columns {
-                unique_def.columns.insert(column);
-            }
-            table_def.uniques.insert(unique_def);
-        }
+    //         let mut unique_def = hash::Unique::default();
+    //         for column in columns {
+    //             unique_def.columns.insert(column);
+    //         }
+    //         table_def.uniques.insert(unique_def);
+    //     }
 
-        output.tables.insert((table_name, table_def))
-    }
-    output
+    //     output.tables.insert((table_name, table_def))
+    // }
+    // output
+    todo!()
 }
