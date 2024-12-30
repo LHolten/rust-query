@@ -47,111 +47,129 @@ impl<'t, 'i, S> Cacher<'t, 'i, S> {
 pub struct Row<'x, 'i, 'a> {
     pub(crate) _p: PhantomData<fn(&'i ()) -> &'a ()>,
     pub(crate) row: &'x rusqlite::Row<'x>,
-    pub(crate) mapping: &'x [Field],
+    pub(crate) fields: &'x [Field],
 }
 
 impl<'i, 'a> Row<'_, 'i, 'a> {
     pub fn get<T: MyTyp>(&self, val: Cached<'i, T>) -> T::Out<'a> {
-        let field = self.mapping[val.idx];
+        let field = self.fields[val.idx];
         let idx = &*field.to_string();
         T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
     }
 }
 
 pub struct Prepared<'l, 'i, 'a, Out> {
-    inner: Box<dyn 'l + FnMut(Row<'_, 'i, 'a>) -> Out>,
+    pub(crate) inner: Box<dyn 'l + FnMut(&rusqlite::Row, &[Field]) -> Out>,
     _p1: PhantomData<&'l &'i ()>,
     _p2: PhantomData<&'l &'a ()>,
+    _p3: PhantomData<&'l Out>,
 }
 
 impl<'l, 'i, 'a, Out> Prepared<'l, 'i, 'a, Out> {
-    pub fn new(func: impl 'l + FnMut(Row<'_, 'i, 'a>) -> Out) -> Self {
+    pub fn new(mut func: impl 'l + FnMut(Row<'_, 'i, 'a>) -> Out) -> Self {
         Prepared {
-            inner: Box::new(func),
+            inner: Box::new(move |row, fields| {
+                let wrapped = Row {
+                    row,
+                    fields,
+                    _p: PhantomData,
+                };
+                func(wrapped)
+            }),
             _p1: PhantomData,
             _p2: PhantomData,
+            _p3: PhantomData,
         }
     }
 
     pub fn call(&mut self, row: Row<'_, 'i, 'a>) -> Out {
-        (self.inner)(row)
+        (self.inner)(row.row, row.fields)
     }
 }
 
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
 /// Implement it on custom structs using [crate::FromDummy].
-pub trait Dummy<'t, 'l, 'a, S>: Sized {
+pub trait Dummy<'columns, 'captures, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
-    type Out: 'l;
+    type Out: 'captures;
 
     #[doc(hidden)]
-    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Prepared<'l, 'i, 'a, Self::Out>;
+    fn prepare<'i>(
+        self,
+        cacher: &mut Cacher<'columns, 'i, S>,
+    ) -> Prepared<'captures, 'i, 'transaction, Self::Out>;
 
     /// Map a dummy to another dummy using native rust.
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T>(self, mut f: impl 'l + FnMut(Self::Out) -> T) -> PubDummy<'t, 'l, 'a, S, T> {
+    fn map_dummy<T>(
+        self,
+        mut f: impl 'captures + FnMut(Self::Out) -> T,
+    ) -> PubDummy<'columns, 'captures, 'transaction, S, T> {
         let mut d = DynDummy::new(self);
         let d = DynDummy {
             columns: d.columns,
             func: Box::new(move |row, fields| f((d.func)(row, fields))),
-            _p: PhantomData,
-            _p2: PhantomData,
+            // _p2: PhantomData,
         };
-        PubDummy {
-            inner: d,
-            _p: PhantomData,
-            _p2: PhantomData,
-        }
+        PubDummy::new(d)
     }
 }
 
-pub struct DynDummy<'l, 'a, Out> {
-    pub(crate) columns: Vec<DynTypedExpr>,
-    pub(crate) func: Box<dyn 'l + FnMut(&rusqlite::Row, &[Field]) -> Out>,
-    pub(crate) _p: PhantomData<&'l &'a ()>,
-    pub(crate) _p2: PhantomData<&'l Out>,
+/// The internal presentation of [PubDummy], the lifetimes here are the ones necessary for memory safety.
+pub(crate) struct DynDummy<'l, Out> {
+    pub columns: Vec<DynTypedExpr>,
+    pub func: Box<dyn 'l + FnMut(&rusqlite::Row, &[Field]) -> Out>,
 }
 
-impl<'a, 'l, Out> DynDummy<'l, 'a, Out> {
-    pub fn new<'t, S>(val: impl Dummy<'t, 'l, 'a, S, Out = Out>) -> Self {
+impl<'l, Out> DynDummy<'l, Out> {
+    pub fn new<'t, 'a: 'l, S>(val: impl Dummy<'t, 'l, 'a, S, Out = Out>) -> Self
+    where
+        Out: 'l,
+    {
         let mut cacher = Cacher {
             _p: PhantomData,
             _p2: PhantomData,
             columns: vec![],
         };
-        let mut prepared = val.prepare(&mut cacher);
+        let prepared = val.prepare(&mut cacher);
         DynDummy {
             columns: cacher.columns,
-            func: Box::new(move |row, fields| {
-                prepared.call(Row {
-                    row: row,
-                    mapping: fields,
-                    _p: PhantomData,
-                })
-            }),
-            _p: PhantomData,
-            _p2: PhantomData,
+            func: prepared.inner,
         }
     }
 }
-pub struct PubDummy<'outer, 'l, 'transaction, S, Out> {
-    pub(crate) inner: DynDummy<'l, 'transaction, Out>,
-    pub(crate) _p: PhantomData<fn(&'outer ()) -> &'outer ()>,
-    pub(crate) _p2: PhantomData<S>,
+pub struct PubDummy<'columns, 'captures, 'transaction, S, Out> {
+    pub(crate) inner: DynDummy<'captures, Out>,
+    _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
+    _p2: PhantomData<S>,
+    _p3: PhantomData<&'captures Out>,
+    _p4: PhantomData<&'captures &'transaction ()>,
 }
 
-impl<'outer, 'l, 'transaction, S, Out> Dummy<'outer, 'l, 'transaction, S>
-    for PubDummy<'outer, 'l, 'transaction, S, Out>
+impl<'captures, S, Out> PubDummy<'_, 'captures, '_, S, Out> {
+    pub(crate) fn new(val: DynDummy<'captures, Out>) -> Self {
+        Self {
+            inner: val,
+            _p: PhantomData,
+            _p2: PhantomData,
+            _p3: PhantomData,
+            _p4: PhantomData,
+        }
+    }
+}
+
+impl<'outer, 'captures, 'transaction, S, Out> Dummy<'outer, 'captures, 'transaction, S>
+    for PubDummy<'outer, 'captures, 'transaction, S, Out>
 {
     type Out = Out;
 
     fn prepare<'i>(
         mut self,
         cacher: &mut Cacher<'_, 'i, S>,
-    ) -> Prepared<'l, 'i, 'transaction, Self::Out> {
+    ) -> Prepared<'captures, 'i, 'transaction, Self::Out> {
         let mut diff = None;
         self.inner
             .columns
@@ -164,7 +182,7 @@ impl<'outer, 'l, 'transaction, S, Out> Dummy<'outer, 'l, 'transaction, S>
                 diff = Some(_diff);
             });
         let diff = diff.unwrap_or_default();
-        Prepared::new(move |row| (self.inner.func)(row.row, &row.mapping[diff..]))
+        Prepared::new(move |row| (self.inner.func)(row.row, &row.fields[diff..]))
     }
 }
 

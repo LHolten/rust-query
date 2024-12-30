@@ -258,7 +258,7 @@ impl<'a> SchemaBuilder<'_, 'a> {
             let row = crate::private::Row {
                 _p: PhantomData,
                 row,
-                mapping: &cached,
+                fields: &cached,
             };
 
             let new_ast = MySelect::default();

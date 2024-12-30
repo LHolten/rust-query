@@ -12,7 +12,7 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::{Cacher, DynDummy, Prepared, PubDummy, Row},
+    dummy::{Cacher, DynDummy, PubDummy, Row},
     hash,
     migrate::NoTable,
     Dummy, Table,
@@ -251,7 +251,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
                 let row2 = Row {
                     _p: PhantomData,
                     row,
-                    mapping: fields,
+                    fields,
                 };
                 if row2.get(is_some) {
                     Some((d.func)(row, fields))
@@ -259,14 +259,8 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
                     None
                 }
             }),
-            _p: PhantomData,
-            _p2: PhantomData,
         };
-        PubDummy {
-            inner: res,
-            _p: PhantomData,
-            _p2: PhantomData,
-        }
+        PubDummy::new(res)
     }
 }
 
