@@ -138,6 +138,7 @@ impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<X> {
 }
 
 /// Erases the `'i` lifetime
+/// TODO: Remove this type?
 pub struct PubDummy<'columns, S, X> {
     pub(crate) columns: Vec<DynTypedExpr>,
     pub(crate) inner: X,
