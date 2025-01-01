@@ -49,7 +49,7 @@ impl MySelect {
         ValueBuilder { inner: self }
     }
 
-    pub fn cache(&self, exprs: Vec<DynTypedExpr>) -> Vec<Field> {
+    pub fn cache(&self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
         exprs
             .into_iter()
             .map(|val| {
