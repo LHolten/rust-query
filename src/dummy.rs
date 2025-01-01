@@ -92,7 +92,7 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     fn map_dummy<T, F: FnMut(Self::Out) -> T>(
         self,
         f: F,
-    ) -> impl Dummy<'columns, 'transaction, S, Out = T> {
+    ) -> PubDummy<'columns, S, MapPrepared<Self::Prepared<'static>, F>> {
         let d = PubDummy::new(self);
         PubDummy {
             columns: d.columns,
