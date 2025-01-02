@@ -181,7 +181,7 @@ pub fn optional<'outer, S, R>(
     f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>) -> R,
 ) -> R {
     let mut optional = Optional {
-        exprs: Vec::new(),
+        nulls: Vec::new(),
         _p: PhantomData,
         _p2: PhantomData,
     };
@@ -189,7 +189,7 @@ pub fn optional<'outer, S, R>(
 }
 
 pub struct Optional<'outer, 'inner, S> {
-    exprs: Vec<DynTyped<bool>>,
+    nulls: Vec<DynTyped<bool>>,
     _p: PhantomData<&'inner &'outer ()>,
     _p2: PhantomData<S>,
 }
@@ -209,7 +209,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoColumn<'inner, S, Typ = Option<T>>,
     ) -> Column<'inner, S, T> {
         let column = col.into_column();
-        self.exprs.push(column.is_some().not().into_column().inner);
+        self.nulls.push(column.is_some().not().into_column().inner);
         Column::new(Assume(column.inner))
     }
 
@@ -219,19 +219,19 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoColumn<'inner, S, Typ = T>,
     ) -> Column<'outer, S, Option<T>> {
         let res = Column::new(Some(col.into_column().inner));
-        self.exprs
+        self.nulls
             .iter()
             .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
     }
 
     pub fn is_some(&self) -> Column<'outer, S, bool> {
-        let res = self
-            .exprs
+        let any_null = self
+            .nulls
             .iter()
             .cloned()
-            .reduce(|a, b| DynTyped(Rc::new(And(a, b))));
+            .reduce(|a, b| DynTyped(Rc::new(Or(a, b))));
         // TODO: make this not double wrap the `DynTyped`
-        res.map_or(Column::new(true), |x| Column::new(x))
+        any_null.map_or(Column::new(true), |x| Column::new(x).not())
     }
 
     pub fn then_dummy<'transaction, P>(
