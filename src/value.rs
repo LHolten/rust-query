@@ -12,6 +12,7 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
+    dummy::{Cached, Cacher, Prepared, PubDummy, Row},
     hash,
     migrate::NoTable,
     Dummy, Table,
@@ -180,7 +181,7 @@ pub fn optional<'outer, S, R>(
     f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>) -> R,
 ) -> R {
     let mut optional = Optional {
-        exprs: Vec::new(),
+        nulls: Vec::new(),
         _p: PhantomData,
         _p2: PhantomData,
     };
@@ -188,7 +189,7 @@ pub fn optional<'outer, S, R>(
 }
 
 pub struct Optional<'outer, 'inner, S> {
-    exprs: Vec<DynTyped<bool>>,
+    nulls: Vec<DynTyped<bool>>,
     _p: PhantomData<&'inner &'outer ()>,
     _p2: PhantomData<S>,
 }
@@ -208,7 +209,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoColumn<'inner, S, Typ = Option<T>>,
     ) -> Column<'inner, S, T> {
         let column = col.into_column();
-        self.exprs.push(column.is_some().not().into_column().inner);
+        self.nulls.push(column.is_some().not().into_column().inner);
         Column::new(Assume(column.inner))
     }
 
@@ -218,44 +219,63 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoColumn<'inner, S, Typ = T>,
     ) -> Column<'outer, S, Option<T>> {
         let res = Column::new(Some(col.into_column().inner));
-        self.exprs
+        self.nulls
             .iter()
             .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
     }
 
     pub fn is_some(&self) -> Column<'outer, S, bool> {
-        let res = self
-            .exprs
+        let any_null = self
+            .nulls
             .iter()
             .cloned()
-            .reduce(|a, b| DynTyped(Rc::new(And(a, b))));
+            .reduce(|a, b| DynTyped(Rc::new(Or(a, b))));
         // TODO: make this not double wrap the `DynTyped`
-        res.map_or(Column::new(true), |x| Column::new(x))
+        any_null.map_or(Column::new(true), |x| Column::new(x).not())
     }
 
-    // pub fn then_dummy<'x, O>(
-    //     &self,
-    //     d: impl Dummy<'inner, 'x, S, Out = O>,
-    // ) -> impl Dummy<'outer, 'x, S, Out = Option<O>> {
-    //     // OptionDummy(self.is_some().inner, d, PhantomData)
-    //     todo!()
-    // }
+    pub fn then_dummy<'transaction, P>(
+        &self,
+        d: impl Dummy<'inner, 'transaction, S, Prepared<'static> = P>,
+    ) -> PubDummy<'outer, S, OptionalPrepared<P>> {
+        let d = PubDummy::new(d);
+        let mut cacher = Cacher {
+            _p: PhantomData,
+            _p2: PhantomData,
+            columns: d.columns,
+        };
+        let is_some = cacher.cache(self.is_some());
+        PubDummy {
+            columns: cacher.columns,
+            inner: OptionalPrepared {
+                inner: d.inner,
+                is_some,
+            },
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
+    }
 }
 
-// struct OptionDummy<'inner, X>(DynTyped<bool>, X, PhantomData<&'inner ()>);
-// impl<'t, 'a, 'inner, S, X> Dummy<'t, 'a, S> for OptionDummy<'inner, X>
-// where
-//     X: Dummy<'inner, 'a, S>,
-// {
-//     type Out = Option<X::Out>;
+pub struct OptionalPrepared<X> {
+    inner: X,
+    is_some: Cached<'static, bool>,
+}
 
-//     fn prepare(
-//         self,
-//         cacher: crate::dummy::Cacher<'_, 't, S>,
-//     ) -> impl FnMut(crate::dummy::Row<'_, 't, 'a>) -> Self::Out + 't {
-//         todo!()
-//     }
-// }
+impl<'transaction, X> Prepared<'static, 'transaction> for OptionalPrepared<X>
+where
+    X: Prepared<'static, 'transaction>,
+{
+    type Out = Option<X::Out>;
+
+    fn call(&mut self, row: Row<'_, 'static, 'transaction>) -> Self::Out {
+        if row.get(self.is_some) {
+            Some(self.inner.call(row))
+        } else {
+            None
+        }
+    }
+}
 
 impl<'t, S> Column<'t, S, i64> {
     /// Convert the [i64] column to [f64] type.
@@ -570,9 +590,9 @@ impl MyTyp for NoTable {
     }
 }
 
-/// Values of this type reference a collumn in a query.
+/// Values of this type reference a column in a query.
 ///
-/// - The lifetime parameter `'t` specifies in which query the collumn exists.
+/// - The lifetime parameter `'t` specifies in which query the column exists.
 /// - The type parameter `S` specifies the expected schema of the query.
 /// - And finally the type paramter `T` specifies the type of the column.
 ///
@@ -624,6 +644,14 @@ impl<'t, S, T: 'static> Typed for Column<'t, S, T> {
         Self::Typ: Table,
     {
         self.inner.0.as_ref().build_table(b)
+    }
+}
+
+pub struct DynTypedExpr(pub(crate) Box<dyn Fn(ValueBuilder) -> SimpleExpr>);
+
+impl<Typ: 'static> DynTyped<Typ> {
+    pub fn erase(self) -> DynTypedExpr {
+        DynTypedExpr(Box::new(move |b| self.build_expr(b)))
     }
 }
 

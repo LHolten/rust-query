@@ -346,25 +346,23 @@ fn define_table_migration(
     let mut into_new = vec![];
     let mut generics = vec![];
     let mut bounds = vec![];
-    let mut prepare = vec![];
     let prev_columns_uwrapped = prev_columns.unwrap_or(const { &BTreeMap::new() });
 
     for (i, col) in &table.columns {
         let name = &col.name;
-        let prepared_name = format_ident!("prepared_{name}");
         let name_str = col.name.to_string();
         let typ = &col.typ;
         let generic = make_generic(name);
         if prev_columns_uwrapped.contains_key(i) {
-            into_new.push(quote! {reader.col(#name_str, prev.#name())});
+            into_new.push(quote! {cacher.col(#name_str, prev.#name())});
         } else {
             defs.push(quote! {pub #name: #generic});
-            bounds.push(quote! {#generic: 't + ::rust_query::Dummy<'t, 'a, _PrevSchema, Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>>});
+            bounds.push(quote! {#generic: ::rust_query::Dummy<'t, 'a, _PrevSchema,
+                Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>,
+                Prepared<'static>: 'a,
+            >});
             generics.push(generic);
-            prepare.push(
-                quote! {let mut #prepared_name = ::rust_query::Dummy::prepare(self.#name, cacher)},
-            );
-            into_new.push(quote! {reader.col(#name_str, #prepared_name(row))});
+            into_new.push(quote! {cacher.col(#name_str, self.#name)});
         }
     }
 
@@ -386,19 +384,10 @@ fn define_table_migration(
 
                 fn prepare(
                     self: Box<Self>,
-                    prev: ::rust_query::private::Cached<'t, Self::From>,
-                    cacher: ::rust_query::private::Cacher<'_, 't, <Self::From as ::rust_query::Table>::Schema>,
-                ) -> Box<
-                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, 't, <Self::From as ::rust_query::Table>::Schema>) + 't,
-                >
-                where
-                    'a: 't
-                {
-                    #(#prepare;)*
-                    Box::new(move |row, reader| {
-                        let prev = row.get(prev);
-                        #(#into_new;)*
-                    })
+                    prev: ::rust_query::Column<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
+                    cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, <Self::From as ::rust_query::Table>::Schema>,
+                ) {
+                    #(#into_new;)*
                 }
             }
         }
@@ -410,17 +399,9 @@ fn define_table_migration(
 
                 fn prepare(
                     self: Box<Self>,
-                    cacher: ::rust_query::private::Cacher<'_, 't, Self::FromSchema>,
-                ) -> Box<
-                    dyn FnMut(::rust_query::private::Row<'_, 't, 'a>, ::rust_query::private::Reader<'_, 't, Self::FromSchema>) + 't,
-                >
-                where
-                    'a: 't
-                {
-                    #(#prepare;)*
-                    Box::new(move |row, reader| {
-                        #(#into_new;)*
-                    })
+                    cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, Self::FromSchema>,
+                ) {
+                    #(#into_new;)*
                 }
             }
         }

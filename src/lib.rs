@@ -20,10 +20,10 @@ mod transaction;
 mod value;
 mod writable;
 
-pub use crate::dummy::Dummy;
 pub use aggregate::aggregate;
 pub use client::LocalClient;
 pub use db::TableRow;
+pub use dummy::Dummy;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
@@ -53,11 +53,12 @@ pub mod migration {
 #[doc(hidden)]
 pub mod private {
     pub use crate::db::Col;
-    pub use crate::dummy::{Cached, Cacher, Dummy, Row};
+    pub use crate::dummy::{Cached, Cacher, Dummy, Prepared, Row};
     pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::migrate::{
-        Migration, Schema, SchemaBuilder, TableCreation, TableMigration, TableTypBuilder, C, M,
+        CacheAndRead, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,
+        TableTypBuilder, C, M,
     };
     pub use crate::query::show_sql;
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};

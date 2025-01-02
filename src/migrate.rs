@@ -11,13 +11,13 @@ use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
-    dummy::{Cached, Cacher},
+    dummy::{Cacher, Prepared, Row},
     hash,
     schema_pragma::read_schema,
     transaction::Database,
-    value::{self, Private},
+    value::{self, DynTypedExpr, Private},
     writable::Reader,
-    Column, IntoColumn, Rows, Table,
+    Column, Dummy, IntoColumn, Rows, Table,
 };
 
 pub type M<'a, From, To> = Box<
@@ -38,15 +38,15 @@ pub type M<'a, From, To> = Box<
 /// (Type inference is problematic with higher ranked generic returns from closures).
 /// Futhermore [Alter] (and [Create]) also have an implied bound of `'a: 't` which makes it easier to implement migrations.
 pub struct Alter<'t, 'a, From, To> {
+    inner: Box<dyn 't + TableMigration<'t, 'a, From = From, To = To>>,
     _p: PhantomData<&'t &'a ()>,
-    inner: Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
 }
 
 impl<'t, 'a, From, To> Alter<'t, 'a, From, To> {
-    pub fn new(val: impl TableMigration<'t, 'a, From = From, To = To> + 't) -> Self {
+    pub fn new(val: impl 't + TableMigration<'t, 'a, From = From, To = To>) -> Self {
         Self {
-            _p: PhantomData,
             inner: Box::new(val),
+            _p: PhantomData,
         }
     }
 }
@@ -58,15 +58,15 @@ pub type C<'a, FromSchema, To> =
 ///
 /// For more information take a look at [Alter].
 pub struct Create<'t, 'a, FromSchema, To> {
+    inner: Box<dyn 't + TableCreation<'t, 'a, FromSchema = FromSchema, To = To>>,
     _p: PhantomData<&'t &'a ()>,
-    inner: Box<dyn TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't>,
 }
 
 impl<'t, 'a, FromSchema: 't, To: 't> Create<'t, 'a, FromSchema, To> {
-    pub fn new(val: impl TableCreation<'t, 'a, FromSchema = FromSchema, To = To> + 't) -> Self {
+    pub fn new(val: impl 't + TableCreation<'t, 'a, FromSchema = FromSchema, To = To>) -> Self {
         Self {
-            _p: PhantomData,
             inner: Box::new(val),
+            _p: PhantomData,
         }
     }
 
@@ -83,15 +83,7 @@ impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, T
     type FromSchema = FromSchema;
     type To = To;
 
-    fn prepare(
-        self: Box<Self>,
-        _: Cacher<'_, 't, Self::FromSchema>,
-    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, Self::FromSchema>) + 't>
-    where
-        'a: 't,
-    {
-        Box::new(|_, _| unreachable!())
-    }
+    fn prepare(self: Box<Self>, _: &mut CacheAndRead<'t, 'a, Self::FromSchema>) {}
 }
 
 pub struct TableTypBuilder<S> {
@@ -121,67 +113,68 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
+pub struct CacheAndRead<'t, 'a, S> {
+    cacher: Cacher<'t, 'static, S>,
+    columns: Vec<(&'static str, DynPrepared<'a>)>,
+}
+
+struct DynPrepared<'a> {
+    inner: Box<dyn 'a + FnMut(Row<'_, 'static, 'a>) -> DynTypedExpr>,
+}
+
+impl<'a> DynPrepared<'a> {
+    pub fn new(val: impl 'a + FnMut(Row<'_, 'static, 'a>) -> DynTypedExpr) -> Self {
+        Self {
+            inner: Box::new(val),
+        }
+    }
+}
+
+impl<'t, 'a, S> CacheAndRead<'t, 'a, S> {
+    pub fn col<O: IntoColumn<'a, S>, P>(
+        &mut self,
+        name: &'static str,
+        val: impl Dummy<'t, 'a, S, Out = O, Prepared<'static> = P>,
+    ) where
+        P: 'a + Prepared<'static, 'a, Out = O>,
+    {
+        let mut p = val.prepare(&mut self.cacher);
+        let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
+        self.columns.push((name, p));
+    }
+}
+
 pub trait TableMigration<'t, 'a> {
     type From: Table;
     type To;
 
     fn prepare(
         self: Box<Self>,
-        prev: Cached<'t, Self::From>,
-        cacher: Cacher<'_, 't, <Self::From as Table>::Schema>,
-    ) -> Box<
-        dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, <Self::From as Table>::Schema>)
-            + 't,
-    >
-    where
-        'a: 't;
+        prev: Column<'t, <Self::From as Table>::Schema, Self::From>,
+        cacher: &mut CacheAndRead<'t, 'a, <Self::From as Table>::Schema>,
+    );
 }
 
 pub trait TableCreation<'t, 'a> {
     type FromSchema;
     type To;
 
-    fn prepare(
-        self: Box<Self>,
-        cacher: Cacher<'_, 't, Self::FromSchema>,
-    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, Self::FromSchema>) + 't>
-    where
-        'a: 't;
+    fn prepare(self: Box<Self>, cacher: &mut CacheAndRead<'t, 'a, Self::FromSchema>);
 }
 
-struct Wrapper<'t, 'a, From: Table, To>(
-    Box<dyn TableMigration<'t, 'a, From = From, To = To> + 't>,
-    Column<'t, From::Schema, From>,
-);
+struct Wrapper<'t, 'a, From: Table, To> {
+    inner: Box<dyn 't + TableMigration<'t, 'a, From = From, To = To>>,
+    db_id: Column<'t, From::Schema, From>,
+}
 
 impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
     type FromSchema = From::Schema;
     type To = To;
 
-    fn prepare(
-        self: Box<Self>,
-        mut cacher: Cacher<'_, 't, Self::FromSchema>,
-    ) -> Box<dyn FnMut(crate::private::Row<'_, 't, 'a>, Reader<'_, 't, Self::FromSchema>) + 't>
-    where
-        'a: 't,
-    {
-        let db_id = cacher.cache(self.1);
-        let mut prepared = Box::new(self.0).prepare(db_id, cacher);
-        Box::new(move |row, reader| {
-            // keep the ID the same
-            reader.col(From::ID, row.get(db_id));
-            prepared(row, reader);
-        })
-    }
-}
-
-impl<'inner, S> Rows<'inner, S> {
-    fn cacher<'t>(&'_ self) -> Cacher<'_, 't, S> {
-        Cacher {
-            ast: &self.ast,
-            _p: PhantomData,
-            _p2: PhantomData,
-        }
+    fn prepare(self: Box<Self>, cacher: &mut CacheAndRead<'t, 'a, Self::FromSchema>) {
+        // keep the ID the same
+        cacher.col(From::ID, &self.db_id);
+        Box::new(self.inner).prepare(self.db_id, cacher);
     }
 }
 
@@ -199,7 +192,10 @@ impl<'a> SchemaBuilder<'_, 'a> {
         self.create_inner::<From::Schema, To>(|rows| {
             let db_id = From::join(rows);
             let migration = m(db_id.clone());
-            Create::new(Wrapper(migration.inner, db_id))
+            Create::new(Wrapper {
+                inner: migration.inner,
+                db_id,
+            })
         });
 
         self.drop.push(
@@ -232,7 +228,16 @@ impl<'a> SchemaBuilder<'_, 'a> {
             _p: PhantomData,
         };
         let create = f(&mut q);
-        let mut prepared = create.inner.prepare(q.cacher());
+        let mut cache_and_read = CacheAndRead {
+            columns: Vec::new(),
+            cacher: Cacher {
+                _p: PhantomData,
+                _p2: PhantomData,
+                columns: Vec::new(),
+            },
+        };
+        create.inner.prepare(&mut cache_and_read);
+        let cached = q.ast.cache(cache_and_read.cacher.columns);
 
         let select = q.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
@@ -244,17 +249,19 @@ impl<'a> SchemaBuilder<'_, 'a> {
         while let Some(row) = rows.next().unwrap() {
             let row = crate::private::Row {
                 _p: PhantomData,
-                _p2: PhantomData,
                 row,
+                fields: &cached,
             };
 
             let new_ast = MySelect::default();
-            let reader = Reader {
+            let reader = Reader::<FromSchema> {
                 ast: &new_ast,
                 _p: PhantomData,
                 _p2: PhantomData,
             };
-            prepared(row, reader);
+            for (name, prepared) in &mut cache_and_read.columns {
+                reader.col_erased(name, (prepared.inner)(row));
+            }
 
             let mut insert = InsertStatement::new();
             let names = new_ast.select.iter().map(|(_field, name)| *name);

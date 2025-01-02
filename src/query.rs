@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    dummy::{Cacher, Dummy, Row},
+    dummy::{Dummy, Prepared, PubDummy, Row},
     rows::Rows,
 };
 
@@ -47,16 +47,12 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
         self.into_vec_private(dummy)
     }
 
-    pub(crate) fn into_vec_private<'x, D>(&'inner self, dummy: D) -> Vec<D::Out>
+    pub(crate) fn into_vec_private<'x, 'l, D>(&'inner self, dummy: D) -> Vec<D::Out>
     where
         D: Dummy<'x, 'outer, S>,
-        S: 'x,
     {
-        let mut f = dummy.prepare(Cacher {
-            _p: PhantomData,
-            _p2: PhantomData,
-            ast: &self.ast,
-        });
+        let mut d = PubDummy::new(dummy);
+        let cached = self.ast.cache(d.columns);
 
         let select = self.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
@@ -70,12 +66,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
 
         let mut out = vec![];
         while let Some(row) = rows.next().unwrap() {
-            let row = Row {
-                _p: PhantomData,
-                _p2: PhantomData,
-                row,
-            };
-            out.push(f(row));
+            out.push(d.inner.call(Row::new(row, &cached)));
         }
         out
     }
