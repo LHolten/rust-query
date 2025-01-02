@@ -20,10 +20,10 @@ mod transaction;
 mod value;
 mod writable;
 
-pub use crate::dummy::Dummy;
 pub use aggregate::aggregate;
 pub use client::LocalClient;
 pub use db::TableRow;
+pub use dummy::Dummy;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;

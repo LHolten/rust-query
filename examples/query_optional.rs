@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Config},
-    optional, Database, Dummy, FromDummy, IntoColumn, LocalClient,
+    optional, Column, Database, FromDummy, LocalClient,
 };
 
 // Start by defining your schema.
@@ -23,13 +23,12 @@ struct PlayerInfo {
 }
 
 impl PlayerInfo {
-    fn dummy<'a, 'x>(
-        col: impl IntoColumn<'a, Schema, Typ = Player>,
-    ) -> impl Dummy<'a, 'x, Schema, Out = PlayerInfo> {
-        let col = col.into_column();
+    fn dummy(
+        player: Column<'_, Schema, Player>,
+    ) -> PlayerInfoDummy<Column<'_, Schema, String>, Column<'_, Schema, i64>> {
         PlayerInfoDummy {
-            name: col.name(),
-            score: col.score(),
+            name: player.name(),
+            score: player.score(),
         }
     }
 }
@@ -46,11 +45,10 @@ fn main() {
         .expect("database version is after supported versions");
 
     let txn = client.transaction(&database);
-    let score = txn.query_one(optional(|row| {
+    if let Some(info) = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
-        row.then_dummy(PlayerInfoDummy {
-            name: player.name(),
-            score: player.score(),
-        })
-    }));
+        row.then_dummy(PlayerInfo::dummy(player))
+    })) {
+        println!("player {} has score {}", info.name, info.score);
+    }
 }
