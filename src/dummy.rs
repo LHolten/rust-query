@@ -111,11 +111,11 @@ pub struct MapPrepared<X, M> {
     map: M,
 }
 
-pub trait FromDummy<'transaction> {
-    type From;
+pub trait FromDummy<'transaction, S> {
+    type From: 'static;
     type Prepared<'i>: Prepared<'i, 'transaction, Out = Self>;
 
-    fn prepare<'i, 'columns, S>(
+    fn prepare<'i, 'columns>(
         col: Column<'columns, S, Self::From>,
         cacher: &mut Cacher<'columns, 'i, S>,
     ) -> Self::Prepared<'i>;
@@ -133,12 +133,13 @@ where
     }
 }
 
-pub struct DynDummy<X> {
+pub struct DynDummy<'i, X> {
     offset: usize,
     func: X,
+    _p: PhantomData<&'i ()>,
 }
 
-impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<X> {
+impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<'i, X> {
     type Out = X::Out;
 
     fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
@@ -176,7 +177,7 @@ impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'colum
     for PubDummy<'columns, S, X>
 {
     type Out = X::Out;
-    type Prepared<'i> = DynDummy<X>;
+    type Prepared<'i> = DynDummy<'i, X>;
 
     fn prepare<'i>(self, cacher: &mut Cacher<'_, 'i, S>) -> Self::Prepared<'i> {
         let mut diff = None;
@@ -190,6 +191,7 @@ impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'colum
         DynDummy {
             offset: diff,
             func: self.inner,
+            _p: PhantomData,
         }
     }
 }

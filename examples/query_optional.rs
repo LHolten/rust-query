@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Config},
-    optional, Column, Database, FromDummy, LocalClient,
+    optional, Database, FromDummy, LocalClient,
 };
 
 // Start by defining your schema.
@@ -16,23 +16,6 @@ enum Schema {
 // Bring the latest schema version into scope.
 use v0::*;
 
-#[derive(FromDummy)]
-struct PlayerInfo {
-    name: String,
-    score: i64,
-}
-
-impl PlayerInfo {
-    fn dummy(
-        player: Column<'_, Schema, Player>,
-    ) -> PlayerInfoDummy<Column<'_, Schema, String>, Column<'_, Schema, i64>> {
-        PlayerInfoDummy {
-            name: player.name(),
-            score: player.score(),
-        }
-    }
-}
-
 fn main() {
     let pub_id = 100;
 
@@ -45,10 +28,13 @@ fn main() {
         .expect("database version is after supported versions");
 
     let txn = client.transaction(&database);
-    if let Some(info) = txn.query_one(optional(|row| {
-        let player = row.and(Player::unique(pub_id));
-        row.then_dummy(PlayerInfo::dummy(player))
-    })) {
-        println!("player {} has score {}", info.name, info.score);
+
+    #[derive(FromDummy)]
+    #[trivial(Player)]
+    struct PlayerInfo {
+        name: String,
+        score: i64,
     }
+
+    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
 }

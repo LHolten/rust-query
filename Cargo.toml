@@ -9,6 +9,7 @@ description = "A query builder using rust concepts."
 categories = ["database"]
 repository = "https://github.com/LHolten/rust-query/"
 license = "MIT OR Apache-2.0"
+rust-version = "1.84"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
