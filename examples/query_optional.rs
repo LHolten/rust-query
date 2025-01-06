@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Config},
-    optional, Database, FromDummy, LocalClient,
+    optional, Database, FromDummy, IntoColumn, LocalClient,
 };
 
 // Start by defining your schema.
@@ -36,8 +36,16 @@ fn main() {
         score: i64,
     }
 
-    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
+    // old pattern, requires two queries
+    let player = txn.query_one(Player::unique(pub_id));
+    let info = player.map(|player| {
+        txn.query_one(PlayerInfoDummy {
+            name: player.name(),
+            score: player.score(),
+        })
+    });
 
+    // most powerful pattern, can retrieve optional data in one query
     let info = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
         row.then_dummy(PlayerInfoDummy {
@@ -45,4 +53,7 @@ fn main() {
             score: player.score(),
         })
     }));
+
+    // for simple queries, use the trivial mapping, this requries type annotation
+    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
 }
