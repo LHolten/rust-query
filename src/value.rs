@@ -1,4 +1,5 @@
 pub mod operations;
+mod trivial;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 

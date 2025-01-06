@@ -5,7 +5,7 @@ use sea_query::Iden;
 use crate::{
     alias::Field,
     value::{DynTypedExpr, MyTyp},
-    IntoColumn,
+    Column, IntoColumn,
 };
 
 pub struct Cacher<'t, 'i, S> {
@@ -109,6 +109,16 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
 pub struct MapPrepared<X, M> {
     inner: X,
     map: M,
+}
+
+pub trait FromDummy<'transaction> {
+    type From;
+    type Prepared<'i>: Prepared<'i, 'transaction, Out = Self>;
+
+    fn prepare<'i, 'columns, S>(
+        col: Column<'columns, S, Self::From>,
+        cacher: &mut Cacher<'columns, 'i, S>,
+    ) -> Self::Prepared<'i>;
 }
 
 impl<'transaction, X, M, Out> Prepared<'static, 'transaction> for MapPrepared<X, M>
