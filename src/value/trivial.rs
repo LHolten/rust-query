@@ -4,9 +4,9 @@ use crate::{dummy::FromDummy, Dummy};
 
 use super::Column;
 
-pub struct Trivial<'t, S, T, X> {
-    col: Column<'t, S, T>,
-    _p: PhantomData<X>,
+pub struct Trivial<'columns, S, T, X> {
+    pub(crate) col: Column<'columns, S, T>,
+    pub(crate) _p: PhantomData<X>,
 }
 
 impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
