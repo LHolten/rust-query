@@ -118,11 +118,12 @@ table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     #[derive(Clone, FromDummy)]
+    #[trivial(TableInfo)]
     struct Column {
         name: String,
-        typ: String,
-        pk: bool,
-        notnull: bool,
+        r#type: String,
+        pk: i64,
+        notnull: i64,
     }
 
     let tables = conn.query(|q| {
@@ -136,15 +137,9 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     let mut output = hash::Schema::default();
 
     for table_name in tables {
-        let mut columns = conn.query(|q| {
+        let mut columns: Vec<Column> = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
-
-            q.into_vec(ColumnDummy {
-                name: table.name(),
-                typ: table.r#type(),
-                pk: table.pk().eq(0).not(),
-                notnull: table.notnull().eq(0).not(),
-            })
+            q.into_vec(table.trivial())
         });
 
         let fks: HashMap<_, _> = conn
@@ -155,7 +150,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
             .into_iter()
             .collect();
 
-        let make_type = |col: &Column| match col.typ.as_str() {
+        let make_type = |col: &Column| match col.r#type.as_str() {
             "INTEGER" => hash::ColumnType::Integer,
             "TEXT" => hash::ColumnType::String,
             "REAL" => hash::ColumnType::Float,
@@ -164,7 +159,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
 
         // we only care about columns that are not a unique id and for which we know the type
         columns.retain(|col| {
-            if col.pk {
+            if col.pk != 0 {
                 assert_eq!(col.name, "id");
                 return false;
             }
@@ -177,7 +172,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
                 fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
                 typ: make_type(&col),
                 name: col.name,
-                nullable: !col.notnull,
+                nullable: col.notnull == 0,
             };
             table_def.columns.insert(def)
         }
