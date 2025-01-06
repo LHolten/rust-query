@@ -37,4 +37,12 @@ fn main() {
     }
 
     let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
+
+    let info = txn.query_one(optional(|row| {
+        let player = row.and(Player::unique(pub_id));
+        row.then_dummy(PlayerInfoDummy {
+            name: player.name(),
+            score: player.score(),
+        })
+    }));
 }

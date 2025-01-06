@@ -58,10 +58,6 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         }
     }
 
-    if let Some(trivial) = trivial {
-        return impl_trivial(item, trivial);
-    }
-
     let CommonInfo {
         name,
         dummy_name,
@@ -76,8 +72,8 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut prepared_typ = vec![];
     let mut prepared = vec![];
     let mut inits = vec![];
-    for (name, typ) in fields {
-        let generic = make_generic(&name);
+    for (name, typ) in &fields {
+        let generic = make_generic(name);
 
         defs.push(quote! {#name: #generic});
         constraints.push(quote! {#generic: ::rust_query::private::Dummy<'_t, '_a, S, Out = #typ>});
@@ -88,6 +84,35 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         prepared.push(quote! {#name: ::rust_query::private::Dummy::prepare(self.#name, cacher)});
         inits.push(quote! {#name: self.#name.call(row)});
     }
+
+    let trivial = trivial.map(|trivial| {
+        let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
+
+        let mut trivial_types = vec![];
+        let mut trivial_prepared = vec![];
+        for (name, typ) in fields {
+            trivial_types.push(
+                quote! {<#typ as ::rust_query::private::FromDummy<'_a, #schema>>::Prepared<'_i>},
+            );
+            trivial_prepared
+            .push(quote! {#name: <#typ as ::rust_query::private::FromDummy<#schema>>::prepare(col.#name(), cacher)}); 
+        }
+        quote! {
+            impl<'_a #(,#original_generics)*> ::rust_query::private::FromDummy<'_a, #schema> for #name<#(#original_generics),*> {
+                type From = #trivial;
+                type Prepared<'_i> = #dummy_name<#(#trivial_types),*>;
+    
+                fn prepare<'_i, '_t>(
+                    col: ::rust_query::Column<'_t, #schema, Self::From>,
+                    cacher: &mut ::rust_query::private::Cacher<'_t, '_i, #schema>,
+                ) -> Self::Prepared<'_i> {
+                    #dummy_name {
+                        #(#trivial_prepared,)*
+                    }
+                }
+            }
+        }
+    });
 
     Ok(quote! {
         struct #dummy_name<#(#generics),*> {
@@ -115,58 +140,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
                 }
             }
         }
-    })
-}
 
-fn impl_trivial(item: ItemStruct, trivial: syn::Path) -> syn::Result<TokenStream> {
-    let CommonInfo {
-        name,
-        dummy_name,
-        original_generics,
-        fields,
-    } = CommonInfo::from_item(item)?;
-    let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
-
-    let mut defs = vec![];
-    let mut prepared = vec![];
-    let mut inits = vec![];
-    for (name, typ) in fields {
-        defs.push(
-            quote! {#name: <#typ as ::rust_query::private::FromDummy<'_a, #schema>>::Prepared<'_i>},
-        );
-        prepared
-            .push(quote! {#name: <#typ as ::rust_query::private::FromDummy<#schema>>::prepare(col.#name(), cacher)});
-        inits.push(quote! {#name: self.#name.call(row)});
-    }
-
-    Ok(quote! {
-        struct #dummy_name<'_i, '_a #(,#original_generics)*> {
-            #(#defs),*
-        }
-
-        impl<'_i, '_a #(,#original_generics)*> ::rust_query::private::Prepared<'_i, '_a> for #dummy_name<'_i, '_a #(,#original_generics)*> {
-            type Out = #name<#(#original_generics),*>;
-
-            fn call(&mut self, row: ::rust_query::private::Row<'_, '_i, '_a>) -> Self::Out {
-                #name {
-                    #(#inits,)*
-                }
-            }
-        }
-
-
-        impl<'_a #(,#original_generics)*> ::rust_query::private::FromDummy<'_a, #schema> for #name<#(#original_generics),*> {
-            type From = #trivial;
-            type Prepared<'_i> = #dummy_name<'_i, '_a #(,#original_generics)*>;
-
-            fn prepare<'_i, '_t>(
-                col: ::rust_query::Column<'_t, #schema, Self::From>,
-                cacher: &mut ::rust_query::private::Cacher<'_t, '_i, #schema>,
-            ) -> Self::Prepared<'_i> {
-                #dummy_name {
-                    #(#prepared,)*
-                }
-            }
-        }
+        #trivial
     })
 }
