@@ -66,10 +66,10 @@ impl<'x, 'i, 'a> Row<'x, 'i, 'a> {
     }
 }
 
-pub trait Prepared<'i, 'a> {
+pub trait Prepared<'i, 'transaction> {
     type Out;
 
-    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out;
+    fn call(&mut self, row: Row<'_, 'i, 'transaction>) -> Self::Out;
 }
 
 /// This trait is implemented by everything that can be retrieved from the database.
