@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy::{Cached, DynDummy, FromDummy},
+    dummy::{Cached, DynDummy, FromColumn},
     optional, Dummy,
 };
 
@@ -15,7 +15,7 @@ pub struct Trivial<'columns, S, T, X> {
 impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
     for Trivial<'columns, S, T, X>
 where
-    X: FromDummy<'transaction, S, From = T>,
+    X: FromColumn<'transaction, S, From = T>,
 {
     type Out = X;
 
@@ -26,7 +26,7 @@ where
     }
 }
 
-impl<S> FromDummy<'_, S> for String {
+impl<S> FromColumn<'_, S> for String {
     type From = String;
     type Prepared<'i> = Cached<'i, String>;
 
@@ -38,7 +38,7 @@ impl<S> FromDummy<'_, S> for String {
     }
 }
 
-impl<S> FromDummy<'_, S> for i64 {
+impl<S> FromColumn<'_, S> for i64 {
     type From = i64;
     type Prepared<'i> = Cached<'i, i64>;
 
@@ -50,9 +50,9 @@ impl<S> FromDummy<'_, S> for i64 {
     }
 }
 
-impl<'transaction, S, T> FromDummy<'transaction, S> for Option<T>
+impl<'transaction, S, T> FromColumn<'transaction, S> for Option<T>
 where
-    T: FromDummy<'transaction, S>,
+    T: FromColumn<'transaction, S>,
 {
     type From = Option<T::From>;
     type Prepared<'i> = DynDummy<'i, OptionalPrepared<T::Prepared<'static>>>;

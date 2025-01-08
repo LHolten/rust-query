@@ -13,7 +13,7 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::FromDummy,
+    dummy::FromColumn,
     hash,
     migrate::NoTable,
     Table,
@@ -128,7 +128,7 @@ pub trait IntoColumn<'t, S>: Private + Clone {
 }
 
 impl<'t, S, T> Column<'t, S, T> {
-    pub fn trivial<'x, X: FromDummy<'x, S, From = T>>(&self) -> Trivial<'t, S, T, X> {
+    pub fn trivial<'x, X: FromColumn<'x, S, From = T>>(&self) -> Trivial<'t, S, T, X> {
         Trivial {
             col: self.clone(),
             _p: PhantomData,

@@ -111,7 +111,7 @@ pub struct MapPrepared<X, M> {
     map: M,
 }
 
-pub trait FromDummy<'transaction, S> {
+pub trait FromColumn<'transaction, S> {
     type From: 'static;
     type Prepared<'i>: Prepared<'i, 'transaction, Out = Self>;
 
