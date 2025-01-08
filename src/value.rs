@@ -127,15 +127,6 @@ pub trait IntoColumn<'t, S>: Private + Clone {
     fn into_column(self) -> Column<'t, S, Self::Typ>;
 }
 
-impl<'t, S, T> Column<'t, S, T> {
-    pub fn trivial<'x, X: FromColumn<'x, S, From = T>>(&self) -> Trivial<'t, S, T, X> {
-        Trivial {
-            col: self.clone(),
-            _p: PhantomData,
-        }
-    }
-}
-
 impl<'t, S, T: NumTyp> Column<'t, S, T> {
     /// Add two columns together.
     pub fn add(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, T> {

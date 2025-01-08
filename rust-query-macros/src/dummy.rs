@@ -90,12 +90,17 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         let mut trivial_types = vec![];
         let mut trivial_prepared = vec![];
+        let mut trivial_conds = vec![];
         for (name, typ) in fields {
             trivial_types.push(
                 quote! {<#typ as ::rust_query::private::FromColumn<'_a, #schema>>::Prepared<'_i>},
             );
             trivial_prepared
             .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::prepare(col.#name(), cacher)}); 
+        trivial_conds.push(quote! {
+            #typ: ::rust_query::private::FromColumn<'_a, #schema>
+        });
+            
         }
         quote! {
             impl<'_a #(,#original_generics)*> ::rust_query::private::FromColumn<'_a, #schema> for #name<#(#original_generics),*> {
