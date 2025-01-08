@@ -125,12 +125,15 @@ pub fn new_order<'a>(
     let district = txn.query_one(input.customer.district());
 
     #[derive(FromDummy)]
+    // TODO: make this work
+    // #[trivial(District)]
     struct DistrictInfo<'t> {
         warehouse: TableRow<'t, Warehouse>,
         number: i64,
         tax: f64,
         next_order: i64,
     }
+
     let district_info = txn.query_one(DistrictInfoDummy {
         warehouse: district.warehouse(),
         number: district.number(),
@@ -147,16 +150,13 @@ pub fn new_order<'a>(
     .unwrap();
 
     #[derive(FromDummy)]
+    #[trivial(Customer)]
     struct CustomerInfo {
         discount: f64,
-        last_name: String,
-        credit_status: String,
+        last: String,
+        credit: String,
     }
-    let customer_info = txn.query_one(CustomerInfoDummy {
-        discount: input.customer.discount(),
-        last_name: input.customer.last(),
-        credit_status: input.customer.credit(),
-    });
+    let customer_info: CustomerInfo = txn.query_one(input.customer.trivial());
 
     let local = input
         .items
@@ -188,17 +188,14 @@ pub fn new_order<'a>(
         // TODO: make this a lookup by external item id
 
         #[derive(FromDummy)]
+        #[trivial(Item)]
         struct ItemInfo {
             price: i64,
             name: String,
             data: String,
         }
 
-        let item_info = txn.query_one(ItemInfoDummy {
-            price: item.price(),
-            name: item.name(),
-            data: item.data(),
-        });
+        let item_info: ItemInfo = txn.query_one(item.trivial());
 
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();
@@ -282,8 +279,8 @@ pub fn new_order<'a>(
         district,
         customer: input.customer,
         order,
-        customer_last_name: customer_info.last_name,
-        customer_credit: customer_info.credit_status,
+        customer_last_name: customer_info.last,
+        customer_credit: customer_info.credit,
         customer_discount: customer_info.discount,
         warehouse_tax,
         district_tax: district_info.tax,
