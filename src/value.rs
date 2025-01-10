@@ -7,13 +7,11 @@ use std::{marker::PhantomData, ops::Deref, rc::Rc};
 use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
-use trivial::Trivial;
 
 use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::FromColumn,
     hash,
     migrate::NoTable,
     Table,
