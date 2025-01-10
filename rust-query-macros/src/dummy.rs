@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{parse::Parse, GenericParam, ItemStruct, Lifetime};
 
@@ -44,6 +44,7 @@ impl CommonInfo {
 
 pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut trivial = None;
+    let mut transaction_lt = None;
     for attr in &item.attrs {
         if attr.path().is_ident("trivial") {
             if trivial
@@ -55,6 +56,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
                     "Can not have multiple `trivial` attributes.",
                 ));
             }
+        } else if attr.path().is_ident("transaction") {
+            if transaction_lt.replace(attr.parse_args_with(syn::Lifetime::parse)?).is_some() {
+                return Err(syn::Error::new_spanned(attr, "Can not have multiple transaction lifetimes"))
+            }
         }
     }
 
@@ -64,6 +69,13 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         original_generics,
         fields,
     } = CommonInfo::from_item(item)?;
+
+    let mut original_plus_transaction = original_generics.clone();
+    let builtin_lt = syn::Lifetime::new("'_a", Span::mixed_site());
+    if transaction_lt.is_none() {
+        original_plus_transaction.push(builtin_lt.clone());
+    }
+    let transaction_lt = transaction_lt.unwrap_or(builtin_lt);
 
     let mut defs = vec![];
     let mut generics = vec![];
@@ -76,9 +88,9 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let generic = make_generic(name);
 
         defs.push(quote! {#name: #generic});
-        constraints.push(quote! {#generic: ::rust_query::private::Dummy<'_t, '_a, S, Out = #typ>});
+        constraints.push(quote! {#generic: ::rust_query::private::Dummy<'_t, #transaction_lt, S, Out = #typ>});
         constraints_prepared
-            .push(quote! {#generic: ::rust_query::private::Prepared<'_i, '_a, Out = #typ>});
+            .push(quote! {#generic: ::rust_query::private::Prepared<'_i, #transaction_lt, Out = #typ>});
         prepared_typ.push(quote! {#generic::Prepared<'_i>});
         generics.push(generic);
         prepared.push(quote! {#name: ::rust_query::private::Dummy::prepare(self.#name, cacher)});
@@ -90,20 +102,15 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         let mut trivial_types = vec![];
         let mut trivial_prepared = vec![];
-        let mut trivial_conds = vec![];
         for (name, typ) in fields {
             trivial_types.push(
-                quote! {<#typ as ::rust_query::private::FromColumn<'_a, #schema>>::Prepared<'_i>},
+                quote! {<#typ as ::rust_query::private::FromColumn<#transaction_lt, #schema>>::Prepared<'_i>},
             );
             trivial_prepared
-            .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::prepare(col.#name(), cacher)}); 
-        trivial_conds.push(quote! {
-            #typ: ::rust_query::private::FromColumn<'_a, #schema>
-        });
-            
+                .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::prepare(col.#name(), cacher)}); 
         }
         quote! {
-            impl<'_a #(,#original_generics)*> ::rust_query::private::FromColumn<'_a, #schema> for #name<#(#original_generics),*> {
+            impl<#(#original_plus_transaction),*> ::rust_query::private::FromColumn<#transaction_lt, #schema> for #name<#(#original_generics),*> {
                 type From = #trivial;
                 type Prepared<'_i> = #dummy_name<#(#trivial_types),*>;
     
@@ -124,10 +131,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             #(#defs),*
         }
 
-        impl<'_i, '_a #(,#original_generics)* #(,#constraints_prepared)*> ::rust_query::private::Prepared<'_i, '_a> for #dummy_name<#(#generics),*> {
+        impl<'_i #(,#original_plus_transaction)* #(,#constraints_prepared)*> ::rust_query::private::Prepared<'_i, #transaction_lt> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
 
-            fn call(&mut self, row: ::rust_query::private::Row<'_, '_i, '_a>) -> Self::Out {
+            fn call(&mut self, row: ::rust_query::private::Row<'_, '_i, #transaction_lt>) -> Self::Out {
                 #name {
                     #(#inits,)*
                 }
@@ -135,7 +142,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         }
 
 
-        impl<'_t, '_a #(,#original_generics)*, S #(,#constraints)*> ::rust_query::private::Dummy<'_t, '_a, S> for #dummy_name<#(#generics),*> {
+        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::private::Dummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
             type Prepared<'_i> = #dummy_name<#(#prepared_typ),*>;
 

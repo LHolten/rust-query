@@ -125,8 +125,8 @@ pub fn new_order<'a>(
     let district = txn.query_one(input.customer.district());
 
     #[derive(FromDummy)]
-    // TODO: make this work
-    // #[trivial(District)]
+    #[trivial(District)]
+    #[transaction('t)]
     struct DistrictInfo<'t> {
         warehouse: TableRow<'t, Warehouse>,
         number: i64,
@@ -134,12 +134,7 @@ pub fn new_order<'a>(
         next_order: i64,
     }
 
-    let district_info = txn.query_one(DistrictInfoDummy {
-        warehouse: district.warehouse(),
-        number: district.number(),
-        tax: district.tax(),
-        next_order: district.next_order(),
-    });
+    let district_info: DistrictInfo = txn.query_one(district.trivial());
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
