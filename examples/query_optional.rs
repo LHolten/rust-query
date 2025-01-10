@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Config},
-    optional, Database, FromDummy, IntoColumn, LocalClient,
+    optional, Database, FromDummy, LocalClient,
 };
 
 // Start by defining your schema.
@@ -11,6 +11,10 @@ enum Schema {
         pub_id: i64,
         name: String,
         score: i64,
+        home: World,
+    },
+    World {
+        name: String,
     },
 }
 // Bring the latest schema version into scope.
@@ -30,10 +34,17 @@ fn main() {
     let txn = client.transaction(&database);
 
     #[derive(FromDummy)]
+    #[trivial(World)]
+    struct WorldInfo {
+        name: String,
+    }
+
+    #[derive(FromDummy)]
     #[trivial(Player)]
     struct PlayerInfo {
         name: String,
         score: i64,
+        home: WorldInfo,
     }
 
     // old pattern, requires two queries
@@ -42,6 +53,9 @@ fn main() {
         txn.query_one(PlayerInfoDummy {
             name: player.name(),
             score: player.score(),
+            home: WorldInfoDummy {
+                name: player.home().name(),
+            },
         })
     });
 
@@ -51,6 +65,7 @@ fn main() {
         row.then_dummy(PlayerInfoDummy {
             name: player.name(),
             score: player.score(),
+            home: player.home().trivial(),
         })
     }));
 

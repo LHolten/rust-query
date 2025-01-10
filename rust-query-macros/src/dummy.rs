@@ -104,20 +104,19 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let mut trivial_prepared = vec![];
         for (name, typ) in fields {
             trivial_types.push(
-                quote! {<#typ as ::rust_query::private::FromColumn<#transaction_lt, #schema>>::Prepared<'_i>},
+                quote! {<#typ as ::rust_query::private::FromColumn<#transaction_lt, #schema>>::Dummy<'_t>},
             );
             trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::prepare(col.#name(), cacher)}); 
+                .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::from_column(col.#name())}); 
         }
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::private::FromColumn<#transaction_lt, #schema> for #name<#(#original_generics),*> {
                 type From = #trivial;
-                type Prepared<'_i> = #dummy_name<#(#trivial_types),*>;
+                type Dummy<'_t> = #dummy_name<#(#trivial_types),*>;
     
-                fn prepare<'_i, '_t>(
+                fn from_column<'_t>(
                     col: ::rust_query::Column<'_t, #schema, Self::From>,
-                    cacher: &mut ::rust_query::private::Cacher<'_t, '_i, #schema>,
-                ) -> Self::Prepared<'_i> {
+                ) -> Self::Dummy<'_t> {
                     #dummy_name {
                         #(#trivial_prepared,)*
                     }

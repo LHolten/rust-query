@@ -113,12 +113,9 @@ pub struct MapPrepared<X, M> {
 
 pub trait FromColumn<'transaction, S> {
     type From: 'static;
-    type Prepared<'i>: Prepared<'i, 'transaction, Out = Self>;
+    type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
 
-    fn prepare<'i, 'columns>(
-        col: Column<'columns, S, Self::From>,
-        cacher: &mut Cacher<'columns, 'i, S>,
-    ) -> Self::Prepared<'i>;
+    fn from_column<'columns>(col: Column<'columns, S, Self::From>) -> Self::Dummy<'columns>;
 }
 
 impl<'transaction, X, M, Out> Prepared<'static, 'transaction> for MapPrepared<X, M>
@@ -149,7 +146,7 @@ impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<'i, X> {
 }
 
 /// Erases the `'i` lifetime
-/// TODO: Remove this type?
+/// TODO: Make this type private
 pub struct PubDummy<'columns, S, X> {
     pub(crate) columns: Vec<DynTypedExpr>,
     pub(crate) inner: X,

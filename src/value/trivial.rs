@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy::{Cached, DynDummy, FromColumn},
+    dummy::{FromColumn, Prepared, PubDummy},
     optional, Dummy, Table, TableRow,
 };
 
@@ -19,88 +19,58 @@ where
 {
     type Out = X;
 
-    type Prepared<'i> = X::Prepared<'i>;
+    type Prepared<'i> = <X::Dummy<'columns> as Dummy<'columns, 'transaction, S>>::Prepared<'i>;
 
     fn prepare<'i>(self, cacher: &mut crate::dummy::Cacher<'columns, 'i, S>) -> Self::Prepared<'i> {
-        X::prepare(self.col, cacher)
+        X::from_column(self.col).prepare(cacher)
     }
 }
 
-impl<S> FromColumn<'_, S> for String {
-    type From = String;
-    type Prepared<'i> = Cached<'i, String>;
+macro_rules! from_column {
+    ($typ:ty) => {
+        impl<S> FromColumn<'_, S> for $typ {
+            type From = $typ;
+            type Dummy<'columns> = Column<'columns, S, Self::From>;
 
-    fn prepare<'i, 'columns>(
-        col: Column<'columns, S, Self::From>,
-        cacher: &mut crate::dummy::Cacher<'columns, 'i, S>,
-    ) -> Self::Prepared<'i> {
-        cacher.cache(col)
-    }
+            fn from_column<'columns>(
+                col: Column<'columns, S, Self::From>,
+            ) -> Self::Dummy<'columns> {
+                col
+            }
+        }
+    };
 }
 
-impl<S> FromColumn<'_, S> for i64 {
-    type From = i64;
-    type Prepared<'i> = Cached<'i, i64>;
-
-    fn prepare<'i, 'columns>(
-        col: Column<'columns, S, Self::From>,
-        cacher: &mut crate::dummy::Cacher<'columns, 'i, S>,
-    ) -> Self::Prepared<'i> {
-        cacher.cache(col)
-    }
-}
-
-impl<S> FromColumn<'_, S> for f64 {
-    type From = f64;
-    type Prepared<'i> = Cached<'i, f64>;
-
-    fn prepare<'i, 'columns>(
-        col: Column<'columns, S, Self::From>,
-        cacher: &mut crate::dummy::Cacher<'columns, 'i, S>,
-    ) -> Self::Prepared<'i> {
-        cacher.cache(col)
-    }
-}
-
-impl<S> FromColumn<'_, S> for bool {
-    type From = bool;
-    type Prepared<'i> = Cached<'i, bool>;
-
-    fn prepare<'i, 'columns>(
-        col: Column<'columns, S, Self::From>,
-        cacher: &mut crate::dummy::Cacher<'columns, 'i, S>,
-    ) -> Self::Prepared<'i> {
-        cacher.cache(col)
-    }
-}
+from_column! {String}
+from_column! {i64}
+from_column! {f64}
+from_column! {bool}
 
 impl<'t, T: Table> FromColumn<'t, T::Schema> for TableRow<'t, T> {
     type From = T;
-    type Prepared<'i> = Cached<'i, T>;
+    type Dummy<'columns> = Column<'columns, T::Schema, Self::From>;
 
-    fn prepare<'i, 'columns>(
+    fn from_column<'columns>(
         col: Column<'columns, T::Schema, Self::From>,
-        cacher: &mut crate::dummy::Cacher<'columns, 'i, T::Schema>,
-    ) -> Self::Prepared<'i> {
-        cacher.cache(col)
+    ) -> Self::Dummy<'columns> {
+        col
     }
 }
 
-impl<'transaction, S, T> FromColumn<'transaction, S> for Option<T>
+impl<'transaction, S, T, P> FromColumn<'transaction, S> for Option<T>
 where
     T: FromColumn<'transaction, S>,
+    for<'columns> T::Dummy<'columns>: Dummy<'columns, 'transaction, S, Prepared<'static> = P>,
+    P: Prepared<'static, 'transaction, Out = T>,
 {
     type From = Option<T::From>;
-    type Prepared<'i> = DynDummy<'i, OptionalPrepared<T::Prepared<'static>>>;
+    type Dummy<'columns> = PubDummy<'columns, S, OptionalPrepared<P>>;
 
-    fn prepare<'i, 'columns>(
-        col: Column<'columns, S, Self::From>,
-        cacher: &mut crate::dummy::Cacher<'columns, 'i, S>,
-    ) -> Self::Prepared<'i> {
+    fn from_column<'columns>(col: Column<'columns, S, Self::From>) -> Self::Dummy<'columns> {
         optional(|row| {
             let col = row.lower(col);
             let col = row.and(col);
-            row.then_dummy(col.trivial::<T>()).prepare(cacher)
+            row.then_dummy(col.trivial::<T>())
         })
     }
 }
