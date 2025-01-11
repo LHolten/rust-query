@@ -78,23 +78,3 @@ where
         })
     }
 }
-
-impl<'t, S, T> Column<'t, S, T> {
-    pub fn trivial<'x, X: FromColumn<'x, S, From = T>>(&self) -> Trivial<'t, S, T, X> {
-        Trivial {
-            col: self.clone(),
-            _p: PhantomData,
-        }
-    }
-}
-
-impl<'t, T: Table> TableRow<'t, T> {
-    pub fn trivial<'x, X: FromColumn<'x, T::Schema, From = T>>(
-        &self,
-    ) -> Trivial<'t, T::Schema, T, X> {
-        Trivial {
-            col: self.into_column(),
-            _p: PhantomData,
-        }
-    }
-}

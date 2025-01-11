@@ -7,6 +7,7 @@ use std::{marker::PhantomData, ops::Deref, rc::Rc};
 use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
+use trivial::{FromColumn, Trivial};
 
 use crate::{
     alias::{Field, MyAlias, RawAlias},
@@ -123,6 +124,14 @@ pub trait IntoColumn<'t, S>: Private + Clone {
 
     /// Turn this value into a [Column].
     fn into_column(self) -> Column<'t, S, Self::Typ>;
+
+    /// Convert the column to a dummy using the [FromColumn] implementation.
+    fn trivial<'x, X: FromColumn<'x, S, From = Self::Typ>>(&self) -> Trivial<'t, S, Self::Typ, X> {
+        Trivial {
+            col: self.into_column(),
+            _p: PhantomData,
+        }
+    }
 }
 
 impl<'t, S, T: NumTyp> Column<'t, S, T> {

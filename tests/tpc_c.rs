@@ -1,7 +1,7 @@
 #![feature(type_changing_struct_update)]
 use std::time;
 
-use rust_query::{migration::schema, FromDummy, Table, TableRow, TransactionMut};
+use rust_query::{migration::schema, FromDummy, IntoColumn, Table, TableRow, TransactionMut};
 
 #[schema]
 enum Schema {
