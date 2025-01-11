@@ -1,11 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::{
-    dummy::{OptionalDummy, Prepared},
-    optional, Dummy, Table, TableRow,
-};
+use crate::{dummy::Prepared, optional, Dummy, Table, TableRow};
 
-use super::{Column, IntoColumn};
+use super::{optional::OptionalDummy, Column, IntoColumn};
 
 pub trait FromColumn<'transaction, S> {
     type From: 'static;

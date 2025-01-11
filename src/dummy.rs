@@ -4,7 +4,7 @@ use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    value::{optional::OptionalPrepared, DynTypedExpr, MyTyp},
+    value::{DynTypedExpr, MyTyp},
     IntoColumn,
 };
 
@@ -143,53 +143,6 @@ where
 
     fn call(&mut self, row: Row<'_, 'i, 'transaction>) -> Self::Out {
         (self.map)(self.inner.call(row))
-    }
-}
-
-pub struct DynDummy<'i, X> {
-    offset: usize,
-    func: X,
-    _p: PhantomData<&'i ()>,
-}
-
-impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<'i, X> {
-    type Out = X::Out;
-
-    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
-        self.func
-            .call(Row::new(row.row, &row.fields[self.offset..]))
-    }
-}
-
-/// Erases the `'i` lifetime
-/// TODO: Make this type private
-pub struct OptionalDummy<'columns, S, X> {
-    pub(crate) columns: Vec<DynTypedExpr>,
-    pub(crate) inner: OptionalPrepared<X>,
-    pub(crate) _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
-    pub(crate) _p2: PhantomData<S>,
-}
-
-impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'columns, 'transaction, S>
-    for OptionalDummy<'columns, S, X>
-{
-    type Out = Option<X::Out>;
-    type Prepared<'i> = DynDummy<'i, OptionalPrepared<X>>;
-
-    fn prepare<'i>(self, cacher: &mut Cacher<'_, 'i, S>) -> Self::Prepared<'i> {
-        let mut diff = None;
-        self.columns.into_iter().enumerate().for_each(|(old, x)| {
-            let new = cacher.cache_erased(x);
-            let _diff = new - old;
-            debug_assert!(diff.is_none_or(|it| it == _diff));
-            diff = Some(_diff);
-        });
-        let diff = diff.unwrap_or_default();
-        DynDummy {
-            offset: diff,
-            func: self.inner,
-            _p: PhantomData,
-        }
     }
 }
 
