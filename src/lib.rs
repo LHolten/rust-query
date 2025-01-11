@@ -53,7 +53,7 @@ pub mod migration {
 #[doc(hidden)]
 pub mod private {
     pub use crate::db::Col;
-    pub use crate::dummy::{Cached, Cacher, Dummy, FromColumn, Prepared, Row};
+    pub use crate::dummy::{Cached, Cacher, Dummy, Prepared, Row};
     pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::migrate::{
@@ -61,6 +61,7 @@ pub mod private {
         TableTypBuilder, C, M,
     };
     pub use crate::query::show_sql;
+    pub use crate::value::trivial::FromColumn;
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
     pub use crate::writable::{Reader, Writable};
 

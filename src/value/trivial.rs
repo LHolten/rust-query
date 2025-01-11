@@ -1,11 +1,18 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy::{FromColumn, Prepared, PubDummy},
+    dummy::{Prepared, PubDummy},
     optional, Dummy, Table, TableRow,
 };
 
 use super::{optional::OptionalPrepared, Column, IntoColumn};
+
+pub trait FromColumn<'transaction, S> {
+    type From: 'static;
+    type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
+
+    fn from_column<'columns>(col: Column<'columns, S, Self::From>) -> Self::Dummy<'columns>;
+}
 
 pub struct Trivial<'columns, S, T, X> {
     pub(crate) col: Column<'columns, S, T>,

@@ -5,7 +5,7 @@ use sea_query::Iden;
 use crate::{
     alias::Field,
     value::{DynTypedExpr, MyTyp},
-    Column, IntoColumn,
+    IntoColumn,
 };
 
 pub struct Cacher<'t, 'i, S> {
@@ -89,19 +89,32 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T, F: FnMut(Self::Out) -> T>(
-        self,
-        f: F,
-    ) -> PubDummy<'columns, S, MapPrepared<Self::Prepared<'static>, F>> {
-        let d = PubDummy::new(self);
-        PubDummy {
-            columns: d.columns,
-            inner: MapPrepared {
-                inner: d.inner,
-                map: f,
-            },
-            _p: PhantomData,
-            _p2: PhantomData,
+    fn map_dummy<T, F: FnMut(Self::Out) -> T>(self, f: F) -> MapDummy<Self, F> {
+        MapDummy {
+            dummy: self,
+            func: f,
+        }
+    }
+}
+
+pub struct MapDummy<D, F> {
+    dummy: D,
+    func: F,
+}
+
+impl<'columns, 'transaction, S, D, F, O> Dummy<'columns, 'transaction, S> for MapDummy<D, F>
+where
+    D: Dummy<'columns, 'transaction, S>,
+    F: FnMut(D::Out) -> O,
+{
+    type Out = O;
+
+    type Prepared<'i> = MapPrepared<D::Prepared<'i>, F>;
+
+    fn prepare<'i>(self, cacher: &mut Cacher<'columns, 'i, S>) -> Self::Prepared<'i> {
+        MapPrepared {
+            inner: self.dummy.prepare(cacher),
+            map: self.func,
         }
     }
 }
@@ -111,21 +124,14 @@ pub struct MapPrepared<X, M> {
     map: M,
 }
 
-pub trait FromColumn<'transaction, S> {
-    type From: 'static;
-    type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
-
-    fn from_column<'columns>(col: Column<'columns, S, Self::From>) -> Self::Dummy<'columns>;
-}
-
-impl<'transaction, X, M, Out> Prepared<'static, 'transaction> for MapPrepared<X, M>
+impl<'i, 'transaction, X, M, Out> Prepared<'i, 'transaction> for MapPrepared<X, M>
 where
-    X: Prepared<'static, 'transaction>,
+    X: Prepared<'i, 'transaction>,
     M: FnMut(X::Out) -> Out,
 {
     type Out = Out;
 
-    fn call(&mut self, row: Row<'_, 'static, 'transaction>) -> Self::Out {
+    fn call(&mut self, row: Row<'_, 'i, 'transaction>) -> Self::Out {
         (self.map)(self.inner.call(row))
     }
 }
