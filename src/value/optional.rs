@@ -12,6 +12,9 @@ use super::{
     Column, DynTyped, DynTypedExpr, IntoColumn, MyTyp,
 };
 
+/// This is a combinator function that allows constructing single row optional queries.
+///
+/// For more information refer to [Optional];
 pub fn optional<'outer, S, R>(
     f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>) -> R,
 ) -> R {
@@ -23,6 +26,11 @@ pub fn optional<'outer, S, R>(
     f(&mut optional)
 }
 
+/// This is the argument type used by the [optional] combinator.
+///
+/// Columns from the outer scope can be brought into the inner scope by using the [Optional::lower] method.
+/// Joining more optional columns can be done with the [Optional::and] method.
+/// Finally it is possible to return either columns or dummies using [Optional::then] and [Optional::then_dummy].
 pub struct Optional<'outer, 'inner, S> {
     nulls: Vec<DynTyped<bool>>,
     _p: PhantomData<&'inner &'outer ()>,
@@ -30,7 +38,9 @@ pub struct Optional<'outer, 'inner, S> {
 }
 
 impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
-    /// This method exists for now because `Column` is currently invariant in its lifetime
+    /// This method makes a column from the outer scope usable in the inner scope.
+    ///
+    /// In the future this might be automatic.
     pub fn lower<T: 'static>(
         &self,
         col: impl IntoColumn<'outer, S, Typ = T>,
@@ -38,7 +48,9 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Column::new(col.into_column().inner)
     }
 
-    /// Could be renamed to `join`
+    /// Join an optional column to the current row.
+    ///
+    /// If the joined column is [None], then the whole [optional] combinator will return [None].
     #[doc(alias = "join")]
     pub fn and<T: 'static>(
         &mut self,
@@ -49,7 +61,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Column::new(Assume(column.inner))
     }
 
-    /// Could be renamed `map`
+    /// Return [Some] column if the current row exists and [None] column otherwise.
     pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
         &self,
         col: impl IntoColumn<'inner, S, Typ = T>,
@@ -60,6 +72,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
             .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
     }
 
+    /// Return a [bool] column indicating whether the current row exists.
     pub fn is_some(&self) -> Column<'outer, S, bool> {
         let any_null = self
             .nulls
@@ -70,6 +83,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         any_null.map_or(Column::new(true), |x| Column::new(x).not())
     }
 
+    /// Returns an optional dummy that can be used as the result of the query.
     pub fn then_dummy<'transaction, P>(
         &self,
         d: impl Dummy<'inner, 'transaction, S, Prepared<'static> = P>,

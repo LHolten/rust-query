@@ -37,6 +37,7 @@ pub use value::{optional::optional, Column, IntoColumn, UnixEpoch};
 pub mod args {
     pub use crate::aggregate::Aggregate;
     pub use crate::query::Query;
+    pub use crate::value::optional::Optional;
 }
 
 /// Types to declare schemas and migrations.
