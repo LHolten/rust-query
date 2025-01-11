@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    dummy::{Dummy, Prepared, PubDummy, Row},
+    dummy::{Cacher, Dummy, Prepared, Row},
     rows::Rows,
 };
 
@@ -51,8 +51,10 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     where
         D: Dummy<'x, 'outer, S>,
     {
-        let mut d = PubDummy::new(dummy);
-        let cached = self.ast.cache(d.columns);
+        let mut cacher = Cacher::new();
+        let mut prepared = dummy.prepare(&mut cacher);
+
+        let cached = self.ast.cache(cacher.columns);
 
         let select = self.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
@@ -66,7 +68,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
 
         let mut out = vec![];
         while let Some(row) = rows.next().unwrap() {
-            out.push(d.inner.call(Row::new(row, &cached)));
+            out.push(prepared.call(Row::new(row, &cached)));
         }
         out
     }

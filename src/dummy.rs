@@ -4,7 +4,7 @@ use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    value::{DynTypedExpr, MyTyp},
+    value::{optional::OptionalPrepared, DynTypedExpr, MyTyp},
     IntoColumn,
 };
 
@@ -12,6 +12,16 @@ pub struct Cacher<'t, 'i, S> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'i ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) columns: Vec<DynTypedExpr>,
+}
+
+impl<S> Cacher<'_, '_, S> {
+    pub(crate) fn new() -> Self {
+        Self {
+            _p: PhantomData,
+            _p2: PhantomData,
+            columns: Vec::new(),
+        }
+    }
 }
 
 pub struct Cached<'i, T> {
@@ -153,34 +163,18 @@ impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for DynDummy<'i, X> {
 
 /// Erases the `'i` lifetime
 /// TODO: Make this type private
-pub struct PubDummy<'columns, S, X> {
+pub struct OptionalDummy<'columns, S, X> {
     pub(crate) columns: Vec<DynTypedExpr>,
-    pub(crate) inner: X,
+    pub(crate) inner: OptionalPrepared<X>,
     pub(crate) _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'columns, S, X> PubDummy<'columns, S, X> {
-    pub fn new<'a>(val: impl Dummy<'columns, 'a, S, Prepared<'static> = X>) -> Self {
-        let mut cacher = Cacher {
-            _p: PhantomData,
-            _p2: PhantomData,
-            columns: vec![],
-        };
-        PubDummy {
-            inner: val.prepare(&mut cacher),
-            columns: cacher.columns,
-            _p: PhantomData,
-            _p2: PhantomData,
-        }
-    }
-}
-
 impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'columns, 'transaction, S>
-    for PubDummy<'columns, S, X>
+    for OptionalDummy<'columns, S, X>
 {
-    type Out = X::Out;
-    type Prepared<'i> = DynDummy<'i, X>;
+    type Out = Option<X::Out>;
+    type Prepared<'i> = DynDummy<'i, OptionalPrepared<X>>;
 
     fn prepare<'i>(self, cacher: &mut Cacher<'_, 'i, S>) -> Self::Prepared<'i> {
         let mut diff = None;

@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy::{Prepared, PubDummy},
+    dummy::{OptionalDummy, Prepared},
     optional, Dummy, Table, TableRow,
 };
 
-use super::{optional::OptionalPrepared, Column, IntoColumn};
+use super::{Column, IntoColumn};
 
 pub trait FromColumn<'transaction, S> {
     type From: 'static;
@@ -71,7 +71,7 @@ where
     P: Prepared<'static, 'transaction, Out = T>,
 {
     type From = Option<T::From>;
-    type Dummy<'columns> = PubDummy<'columns, S, OptionalPrepared<P>>;
+    type Dummy<'columns> = OptionalDummy<'columns, S, P>;
 
     fn from_column<'columns>(col: Column<'columns, S, Self::From>) -> Self::Dummy<'columns> {
         optional(|row| {

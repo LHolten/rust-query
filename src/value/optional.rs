@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy::{Cached, Cacher, Prepared, PubDummy, Row},
+    dummy::{Cached, Cacher, OptionalDummy, Prepared, Row},
     Dummy,
 };
 
@@ -39,6 +39,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Could be renamed to `join`
+    #[doc(alias = "join")]
     pub fn and<T: 'static>(
         &mut self,
         col: impl IntoColumn<'inner, S, Typ = Option<T>>,
@@ -72,20 +73,14 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     pub fn then_dummy<'transaction, P>(
         &self,
         d: impl Dummy<'inner, 'transaction, S, Prepared<'static> = P>,
-    ) -> PubDummy<'outer, S, OptionalPrepared<P>> {
-        let d = PubDummy::new(d);
-        let mut cacher = Cacher {
-            _p: PhantomData,
-            _p2: PhantomData,
-            columns: d.columns,
-        };
-        let is_some = cacher.cache(self.is_some());
-        PubDummy {
-            columns: cacher.columns,
+    ) -> OptionalDummy<'outer, S, P> {
+        let mut cacher = Cacher::new();
+        OptionalDummy {
             inner: OptionalPrepared {
-                inner: d.inner,
-                is_some,
+                inner: d.prepare(&mut cacher),
+                is_some: cacher.cache(self.is_some()),
             },
+            columns: cacher.columns,
             _p: PhantomData,
             _p2: PhantomData,
         }
@@ -93,8 +88,8 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
 }
 
 pub struct OptionalPrepared<X> {
-    inner: X,
-    is_some: Cached<'static, bool>,
+    pub(crate) inner: X,
+    pub(crate) is_some: Cached<'static, bool>,
 }
 
 impl<'transaction, X> Prepared<'static, 'transaction> for OptionalPrepared<X>
