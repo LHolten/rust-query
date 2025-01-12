@@ -34,13 +34,13 @@ fn main() {
     let txn = client.transaction(&database);
 
     #[derive(FromDummy)]
-    #[rq(from = World)]
+    #[rq(From = World)]
     struct WorldInfo {
         name: String,
     }
 
     #[derive(FromDummy)]
-    #[rq(from = Player)]
+    #[rq(From = Player)]
     struct PlayerInfo {
         name: String,
         score: i64,

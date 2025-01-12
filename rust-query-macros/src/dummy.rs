@@ -48,7 +48,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     for attr in &item.attrs {
         if attr.path().is_ident("rq") {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("from") {
+                if meta.path.is_ident("From") {
                     let path: syn::Path = meta.value()?.parse()?;
                     if trivial.replace(path).is_some() {
                         return Err(syn::Error::new_spanned(
