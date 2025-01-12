@@ -1,14 +1,75 @@
 use std::marker::PhantomData;
 
-use crate::{dummy::Prepared, optional, Dummy, Table, TableRow};
+use crate::{
+    dummy::{Cacher, Prepared, Row},
+    optional, Dummy, Table, TableRow,
+};
 
 use super::{optional::OptionalDummy, Column, IntoColumn};
 
+/// Trait for values that can be retrieved from the database
+///
+/// Note that it is possible to get associated columns and even to do aggregates in here!
 pub trait FromColumn<'transaction, S> {
     type From: 'static;
     type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
 
     fn from_column<'columns>(col: Column<'columns, S, Self::From>) -> Self::Dummy<'columns>;
+}
+
+pub struct DynDummy<'columns, 'transaction, S, Out> {
+    inner: Box<
+        dyn 'columns
+            + FnOnce(
+                &mut Cacher<'columns, 'static, S>,
+            )
+                -> Box<dyn 'transaction + Prepared<'static, 'transaction, Out = Out>>,
+    >,
+    _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
+}
+
+impl<'columns, 'transaction, S, Out> DynDummy<'columns, 'transaction, S, Out> {
+    pub fn new<D>(val: D) -> Self
+    where
+        D: 'columns + Dummy<'columns, 'transaction, S, Out = Out>,
+        D::Prepared<'static>: 'transaction,
+    {
+        Self {
+            inner: Box::new(move |cacher| Box::new(val.prepare(cacher))),
+            _p: PhantomData,
+        }
+    }
+}
+
+impl<'columns, 'transaction, S, Out> Dummy<'columns, 'transaction, S>
+    for DynDummy<'columns, 'transaction, S, Out>
+{
+    type Out = Out;
+    type Prepared<'i> = DynPrepared<'i, 'transaction, Out>;
+
+    fn prepare<'i>(self, cacher: &mut Cacher<'columns, 'i, S>) -> Self::Prepared<'i> {
+        DynPrepared {
+            inner: (self.inner)(Cacher::from_ref(&mut cacher.columns)),
+            _p: PhantomData,
+        }
+    }
+}
+
+pub struct DynPrepared<'i, 'transaction, Out> {
+    inner: Box<dyn 'transaction + Prepared<'static, 'transaction, Out = Out>>,
+    _p: PhantomData<&'i ()>,
+}
+
+impl<'i, 'transaction, Out> Prepared<'i, 'transaction> for DynPrepared<'i, 'transaction, Out> {
+    type Out = Out;
+
+    fn call(&mut self, row: crate::dummy::Row<'_, 'i, 'transaction>) -> Self::Out {
+        self.inner.call(Row {
+            _p: PhantomData,
+            row: row.row,
+            fields: row.fields,
+        })
+    }
 }
 
 pub struct Trivial<'columns, S, T, X> {

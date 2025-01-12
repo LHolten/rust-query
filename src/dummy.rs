@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use ref_cast::{ref_cast_custom, RefCastCustom};
 use sea_query::Iden;
 
 use crate::{
@@ -8,10 +9,17 @@ use crate::{
     IntoColumn,
 };
 
+#[derive(RefCastCustom)]
+#[repr(transparent)]
 pub struct Cacher<'t, 'i, S> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'i ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) columns: Vec<DynTypedExpr>,
+}
+
+impl<'t, 'i, S> Cacher<'t, 'i, S> {
+    #[ref_cast_custom]
+    pub(crate) fn from_ref(val: &mut Vec<DynTypedExpr>) -> &mut Self;
 }
 
 impl<S> Cacher<'_, '_, S> {
