@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{parse::Parse, GenericParam, ItemStruct, Lifetime};
+use syn::{GenericParam, ItemStruct, Lifetime};
 
 use crate::make_generic;
 
@@ -46,21 +46,32 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut trivial = None;
     let mut transaction_lt = None;
     for attr in &item.attrs {
-        if attr.path().is_ident("trivial") {
-            if trivial
-                .replace(attr.parse_args_with(syn::Path::parse)?)
-                .is_some()
-            {
-                return Err(syn::Error::new_spanned(
-                    attr,
-                    "Can not have multiple `trivial` attributes.",
-                ));
-            }
-        } else if attr.path().is_ident("transaction") {
-            if transaction_lt.replace(attr.parse_args_with(syn::Lifetime::parse)?).is_some() {
-                return Err(syn::Error::new_spanned(attr, "Can not have multiple transaction lifetimes"))
-            }
+        if attr.path().is_ident("rq") {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("trivial") {
+                    let path: syn::Path = meta.value()?.parse()?;
+                    if trivial.replace(path).is_some() {
+                        return Err(syn::Error::new_spanned(
+                            attr,
+                            "Can not have multiple `trivial` attributes.",
+                        ));
+                    }
+                    return Ok(());
+                }
+                if meta.path.is_ident("transaction") {
+                    let lt: syn::Lifetime = meta.value()?.parse()?;
+                    if transaction_lt.replace(lt).is_some() {
+                        return Err(syn::Error::new_spanned(
+                            attr,
+                            "Can not have multiple transaction lifetimes",
+                        ));
+                    }
+                    return Ok(());
+                }
+                Err(meta.error("unrecognized rust-query attribute"))
+            })?;
         }
+        if attr.path().is_ident("trivial") {}
     }
 
     let CommonInfo {
@@ -88,9 +99,12 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let generic = make_generic(name);
 
         defs.push(quote! {#name: #generic});
-        constraints.push(quote! {#generic: ::rust_query::private::Dummy<'_t, #transaction_lt, S, Out = #typ>});
-        constraints_prepared
-            .push(quote! {#generic: ::rust_query::private::Prepared<'_i, #transaction_lt, Out = #typ>});
+        constraints.push(
+            quote! {#generic: ::rust_query::private::Dummy<'_t, #transaction_lt, S, Out = #typ>},
+        );
+        constraints_prepared.push(
+            quote! {#generic: ::rust_query::private::Prepared<'_i, #transaction_lt, Out = #typ>},
+        );
         prepared_typ.push(quote! {#generic::Prepared<'_i>});
         generics.push(generic);
         prepared.push(quote! {#name: ::rust_query::private::Dummy::prepare(self.#name, cacher)});
@@ -107,13 +121,13 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
                 quote! {<#typ as ::rust_query::private::FromColumn<#transaction_lt, #schema>>::Dummy<'_t>},
             );
             trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::from_column(col.#name())}); 
+                .push(quote! {#name: <#typ as ::rust_query::private::FromColumn<#schema>>::from_column(col.#name())});
         }
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::private::FromColumn<#transaction_lt, #schema> for #name<#(#original_generics),*> {
                 type From = #trivial;
                 type Dummy<'_t> = #dummy_name<#(#trivial_types),*>;
-    
+
                 fn from_column<'_t>(
                     col: ::rust_query::Column<'_t, #schema, Self::From>,
                 ) -> Self::Dummy<'_t> {
