@@ -29,6 +29,7 @@ use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::FromDummy;
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
+pub use value::trivial::FromColumn;
 pub use value::{optional::optional, Column, IntoColumn, UnixEpoch};
 
 /// Types that are used as closure arguments.
@@ -62,7 +63,6 @@ pub mod private {
         TableTypBuilder, C, M,
     };
     pub use crate::query::show_sql;
-    pub use crate::value::trivial::FromColumn;
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
     pub use crate::writable::{Reader, Writable};
 
