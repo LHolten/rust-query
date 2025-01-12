@@ -4,7 +4,9 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{aggregate, Dummy, FromDummy, LocalClient, Table, TableRow, Transaction};
+use rust_query::{
+    aggregate, Column, Dummy, FromDummy, IntoColumn, LocalClient, Table, TableRow, Transaction,
+};
 
 /// requires [PartialEq] to get rid of unused warnings.
 fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
@@ -204,7 +206,9 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
     })
 }
 
-fn customer_spending<'t>(customer: &impl MyTable<'t, Customer>) -> MyDyn<'t, f64> {
+fn customer_spending<'t>(
+    customer: impl IntoColumn<'t, Schema, Typ = Customer>,
+) -> Column<'t, Schema, f64> {
     aggregate(|rows| {
         let invoice = Invoice::join(rows);
         rows.filter_on(invoice.customer(), customer);

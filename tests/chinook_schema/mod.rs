@@ -1,19 +1,11 @@
-use std::{collections::HashMap, fs, ops::Deref};
+use std::{collections::HashMap, fs};
 
 use rust_query::{
     migration::{schema, Alter, Config, Create, NoTable},
-    Column, Database, Dummy, IntoColumn, LocalClient, Table,
+    Database, Dummy, LocalClient, Table,
 };
 
 pub use v2::*;
-
-pub trait MyValue<'t, T>: IntoColumn<'t, Schema, Typ = T> {}
-impl<'t, X> MyValue<'t, X::Typ> for X where X: IntoColumn<'t, Schema> {}
-
-pub trait MyTable<'t, T: Table>: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
-impl<'t, T: Table, X> MyTable<'t, T> for X where X: MyValue<'t, T> + Deref<Target = T::Ext<Self>> {}
-
-pub type MyDyn<'t, T> = Column<'t, Schema, T>;
 
 #[schema]
 #[version(0..=2)]
