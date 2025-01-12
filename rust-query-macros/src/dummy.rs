@@ -48,17 +48,17 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     for attr in &item.attrs {
         if attr.path().is_ident("rq") {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("trivial") {
+                if meta.path.is_ident("from") {
                     let path: syn::Path = meta.value()?.parse()?;
                     if trivial.replace(path).is_some() {
                         return Err(syn::Error::new_spanned(
                             attr,
-                            "Can not have multiple `trivial` attributes.",
+                            "Can not have multiple `from` attributes.",
                         ));
                     }
                     return Ok(());
                 }
-                if meta.path.is_ident("transaction") {
+                if meta.path.is_ident("lt") {
                     let lt: syn::Lifetime = meta.value()?.parse()?;
                     if transaction_lt.replace(lt).is_some() {
                         return Err(syn::Error::new_spanned(
