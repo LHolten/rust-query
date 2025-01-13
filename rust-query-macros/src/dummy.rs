@@ -115,26 +115,24 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
 
         let mut trivial_prepared = vec![];
+        let mut static_prepared_typs = vec![];
         for (name, typ) in fields {
             trivial_prepared
                 .push(quote! {#name: ::rust_query::IntoColumn::trivial(&col.#name())});
+            static_prepared_typs.push(quote! {<#typ as ::rust_query::StaticPrepared<#transaction_lt>>::Prepared<'_i>});
         }
         quote! {
+            impl<#(#original_plus_transaction),*> ::rust_query::StaticPrepared<#transaction_lt> for #name<#(#original_generics),*> {
+                type Prepared<'_i> = #dummy_name<#(#static_prepared_typs),*>;
+            }
             impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema> for #name<#(#original_generics),*>
-            // where Self: #transaction_lt 
             {
                 type From = #trivial;
-                // type Dummy<'_t> = ::rust_query::DynDummy<'_t, #transaction_lt, #schema, Self>;
 
                 fn from_column<'_t>(
                     col: ::rust_query::Column<'_t, #schema, Self::From>,
-                ) -> impl ::rust_query::Dummy<
-                    '_t,
-                    #transaction_lt,
-                    #schema,
-                    Out = Self,
-                    Prepared<'static> = impl #transaction_lt + ::rust_query::private::Prepared<'static, #transaction_lt, Out = Self>,
-                > {
+                ) -> impl for<'i> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Out = Self, Prepared<'i> = Self::Prepared<'i>>
+                {
                     #dummy_name {
                         #(#trivial_prepared,)*
                     }
