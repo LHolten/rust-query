@@ -4,17 +4,22 @@ use crate::{optional, Dummy, Table, TableRow};
 
 use super::{optional::OptionalDummy, Column, IntoColumn};
 
+/// This trait is implemented for types that want to implement [FromColumn].
+///
+/// The associated type here is the common return type of all [FromColumn] implementations.
+/// It is used by the [crate::FromColumn] macro to know what kind of [Dummy] to expect.
 pub trait FromDummy<'transaction, S> {
     type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
 }
 
-/// Trait for values that can be retrieved from the database
+/// Trait for values that can be retrieved from the database using one reference column.
 ///
 /// Note that it is possible to get associated columns and even to do aggregates in here!
 pub trait FromColumn<'transaction, S, From>: FromDummy<'transaction, S> {
     fn from_column<'columns>(col: Column<'columns, S, From>) -> Self::Dummy<'columns>;
 }
 
+/// This type implements [Dummy] for any column if there is a matching [FromColumn] implementation.
 pub struct Trivial<'columns, S, T, X> {
     pub(crate) col: Column<'columns, S, T>,
     pub(crate) _p: PhantomData<X>,

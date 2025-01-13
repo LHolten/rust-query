@@ -116,13 +116,17 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         let mut trivial_prepared = vec![];
         let mut static_dummy_typs = vec![];
+        let mut trivial_conds  = vec![];
         for (name, typ) in fields {
             trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::FromColumn<#schema, _>>::from_column(col.#name())});
-            static_dummy_typs.push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, #schema>>::Dummy<'_t>});
+                .push(quote! {#name: <#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
+            static_dummy_typs.push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, _S>>::Dummy<'_t>});
+            trivial_conds.push(quote! {#typ: ::rust_query::FromDummy<#transaction_lt, _S>});
         }
         quote! {
-            impl<#(#original_plus_transaction),*> ::rust_query::FromDummy<#transaction_lt, #schema> for #name<#(#original_generics),*> {
+            impl<#(#original_plus_transaction,)* _S> ::rust_query::FromDummy<#transaction_lt, _S> for #name<#(#original_generics),*>
+            where #(#trivial_conds,)* 
+            {
                 type Dummy<'_t> = #dummy_name<#(#static_dummy_typs),*>;
             }
             impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
