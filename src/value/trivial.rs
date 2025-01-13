@@ -1,42 +1,18 @@
 use std::marker::PhantomData;
 
-use crate::{
-    dummy::{Cached, Prepared, Row},
-    optional, Dummy, Table, TableRow,
-};
+use crate::{optional, Dummy, Table, TableRow};
 
-use super::{optional::OptionalPrepared, Column, IntoColumn};
+use super::{optional::OptionalDummy, Column, IntoColumn};
 
-pub trait StaticPrepared<'transaction> {
-    type Prepared<'i>: Prepared<'i, 'transaction, Out = Self>;
+pub trait FromDummy<'transaction, S> {
+    type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
 }
 
 /// Trait for values that can be retrieved from the database
 ///
 /// Note that it is possible to get associated columns and even to do aggregates in here!
-pub trait FromColumn<'transaction, S>: StaticPrepared<'transaction> {
-    type From: 'static;
-
-    fn from_column<'columns>(
-        col: Column<'columns, S, Self::From>,
-    ) -> impl for<'i> Dummy<'columns, 'transaction, S, Out = Self, Prepared<'i> = Self::Prepared<'i>>;
-}
-
-pub struct DynPrepared<'i, 'transaction, Out> {
-    inner: Box<dyn 'transaction + Prepared<'static, 'transaction, Out = Out>>,
-    _p: PhantomData<&'i ()>,
-}
-
-impl<'i, 'transaction, Out> Prepared<'i, 'transaction> for DynPrepared<'i, 'transaction, Out> {
-    type Out = Out;
-
-    fn call(&mut self, row: crate::dummy::Row<'_, 'i, 'transaction>) -> Self::Out {
-        self.inner.call(Row {
-            _p: PhantomData,
-            row: row.row,
-            fields: row.fields,
-        })
-    }
+pub trait FromColumn<'transaction, S, From>: FromDummy<'transaction, S> {
+    fn from_column<'columns>(col: Column<'columns, S, From>) -> Self::Dummy<'columns>;
 }
 
 pub struct Trivial<'columns, S, T, X> {
@@ -47,12 +23,12 @@ pub struct Trivial<'columns, S, T, X> {
 impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
     for Trivial<'columns, S, T, X>
 where
-    X: FromColumn<'transaction, S, From = T>,
+    X: FromColumn<'transaction, S, T>,
     X: 'transaction,
 {
     type Out = X;
 
-    type Prepared<'i> = X::Prepared<'i>;
+    type Prepared<'i> = <X::Dummy<'columns> as Dummy<'columns, 'transaction, S>>::Prepared<'i>;
 
     fn prepare<'i>(self, cacher: &mut crate::dummy::Cacher<'columns, 'i, S>) -> Self::Prepared<'i> {
         X::from_column(self.col).prepare(cacher)
@@ -61,21 +37,11 @@ where
 
 macro_rules! from_column {
     ($typ:ty) => {
-        impl<'transaction> StaticPrepared<'transaction> for $typ {
-            type Prepared<'i> = Cached<'i, $typ>;
+        impl<'transaction, S> FromDummy<'transaction, S> for $typ {
+            type Dummy<'columns> = Column<'columns, S, $typ>;
         }
-        impl<'transaction, S> FromColumn<'transaction, S> for $typ {
-            type From = $typ;
-
-            fn from_column<'columns>(
-                col: Column<'columns, S, Self::From>,
-            ) -> impl for<'i> Dummy<
-                'columns,
-                'transaction,
-                S,
-                Out = Self,
-                Prepared<'i> = Self::Prepared<'i>,
-            > {
+        impl<'transaction, S> FromColumn<'transaction, S, $typ> for $typ {
+            fn from_column<'columns>(col: Column<'columns, S, $typ>) -> Self::Dummy<'columns> {
                 col
             }
         }
@@ -87,36 +53,32 @@ from_column! {i64}
 from_column! {f64}
 from_column! {bool}
 
-impl<'transaction, T: Table> StaticPrepared<'transaction> for TableRow<'transaction, T> {
-    type Prepared<'i> = Cached<'i, T>;
+impl<'transaction, T: Table> FromDummy<'transaction, T::Schema> for TableRow<'transaction, T> {
+    type Dummy<'columns> = Column<'columns, T::Schema, T>;
 }
-impl<'t, T: Table> FromColumn<'t, T::Schema> for TableRow<'t, T> {
-    type From = T;
-
-    fn from_column<'columns>(
-        col: Column<'columns, T::Schema, Self::From>,
-    ) -> impl for<'i> Dummy<'columns, 't, T::Schema, Out = Self, Prepared<'i> = Self::Prepared<'i>>
-    {
+impl<'t, T: Table> FromColumn<'t, T::Schema, T> for TableRow<'t, T> {
+    fn from_column<'columns>(col: Column<'columns, T::Schema, T>) -> Self::Dummy<'columns> {
         col
     }
 }
 
-impl<'transaction, T> StaticPrepared<'transaction> for Option<T>
+impl<'transaction, S, T> FromDummy<'transaction, S> for Option<T>
 where
-    T: StaticPrepared<'transaction>,
+    T: FromDummy<'transaction, S>,
 {
-    type Prepared<'i> = OptionalPrepared<'i, T::Prepared<'static>>;
+    type Dummy<'columns> = OptionalDummy<
+        'columns,
+        S,
+        <T::Dummy<'columns> as Dummy<'columns, 'transaction, S>>::Prepared<'static>,
+    >;
 }
-impl<'transaction, S, T: 'static> FromColumn<'transaction, S> for Option<T>
+impl<'transaction, S, T: 'transaction, From: 'static, P> FromColumn<'transaction, S, Option<From>>
+    for Option<T>
 where
-    T: FromColumn<'transaction, S>,
+    T: FromColumn<'transaction, S, From>,
+    for<'columns> T::Dummy<'columns>: Dummy<'columns, 'transaction, S, Prepared<'static> = P>,
 {
-    type From = Option<T::From>;
-
-    fn from_column<'columns>(
-        col: Column<'columns, S, Self::From>,
-    ) -> impl for<'i> Dummy<'columns, 'transaction, S, Out = Self, Prepared<'i> = Self::Prepared<'i>>
-    {
+    fn from_column<'columns>(col: Column<'columns, S, Option<From>>) -> Self::Dummy<'columns> {
         optional(|row| {
             let col = row.lower(col);
             let col = row.and(col);
