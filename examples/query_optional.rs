@@ -31,11 +31,11 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    let txn = client.transaction(&database);
+    let mut txn = client.transaction_mut(&database);
 
     #[derive(FromDummy)]
-    #[rq(From = World)]
-    struct WorldInfo {
+    #[rq(From = World, From = Player)]
+    struct NameInfo {
         name: String,
     }
 
@@ -44,23 +44,23 @@ fn main() {
     struct PlayerInfo {
         name: String,
         score: i64,
-        home: WorldInfo,
+        home: NameInfo,
     }
 
     // old pattern, requires two queries
     let player = txn.query_one(Player::unique(pub_id));
-    let info = player.map(|player| {
+    let _info = player.map(|player| {
         txn.query_one(PlayerInfoDummy {
             name: player.name(),
             score: player.score(),
-            home: WorldInfoDummy {
+            home: NameInfoDummy {
                 name: player.home().name(),
             },
         })
     });
 
     // most powerful pattern, can retrieve optional data in one query
-    let info = txn.query_one(optional(|row| {
+    let _info = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
         row.then_dummy(PlayerInfoDummy {
             name: player.name(),
@@ -71,4 +71,18 @@ fn main() {
 
     // for simple queries, use the trivial mapping, this requries type annotation
     let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
+
+    assert!(info.is_none());
+
+    let home = txn.insert(World { name: "Dune" });
+    txn.try_insert(Player {
+        pub_id,
+        name: "Asterix",
+        score: 3000,
+        home,
+    })
+    .expect("there is no player with this pub_id yet");
+
+    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
+    assert!(info.is_some())
 }

@@ -43,19 +43,14 @@ impl CommonInfo {
 }
 
 pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
-    let mut trivial = None;
+    let mut trivial = vec![];
     let mut transaction_lt = None;
     for attr in &item.attrs {
         if attr.path().is_ident("rq") {
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("From") {
                     let path: syn::Path = meta.value()?.parse()?;
-                    if trivial.replace(path).is_some() {
-                        return Err(syn::Error::new_spanned(
-                            attr,
-                            "Can not have multiple `from` attributes.",
-                        ));
-                    }
+                    trivial.push(path);
                     return Ok(());
                 }
                 if meta.path.is_ident("lt") {
@@ -111,24 +106,32 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         inits.push(quote! {#name: self.#name.call(row)});
     }
 
-    let trivial = trivial.map(|trivial| {
-        let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
-
-        let mut trivial_prepared = vec![];
+    let mut from_dummy = None;
+    if !trivial.is_empty() {
         let mut static_dummy_typs = vec![];
-        let mut trivial_conds  = vec![];
-        for (name, typ) in fields {
-            trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
-            static_dummy_typs.push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, _S>>::Dummy<'_t>});
+        let mut trivial_conds = vec![];
+        for (_name, typ) in &fields {
+            static_dummy_typs
+                .push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, _S>>::Dummy<'_t>});
             trivial_conds.push(quote! {#typ: ::rust_query::FromDummy<#transaction_lt, _S>});
         }
-        quote! {
+
+        from_dummy = Some(quote! {
             impl<#(#original_plus_transaction,)* _S> ::rust_query::FromDummy<#transaction_lt, _S> for #name<#(#original_generics),*>
-            where #(#trivial_conds,)* 
+            where #(#trivial_conds,)*
             {
                 type Dummy<'_t> = #dummy_name<#(#static_dummy_typs),*>;
             }
+        })
+    }
+    let trivial = trivial.into_iter().map(|trivial| {
+        let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
+        let mut trivial_prepared = vec![];
+        for (name, typ) in &fields {
+            trivial_prepared
+                .push(quote! {#name: <#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
+        }
+        quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> Self::Dummy<'_t> {
@@ -167,6 +170,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             }
         }
 
-        #trivial
+        #from_dummy
+        #(#trivial)*
     })
 }
