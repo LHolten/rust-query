@@ -12,13 +12,8 @@ Notably it does not involve any new syntax or macro, while still being completel
 
 ## Roadmap
 
-This project is under development and there are many things missing.
-
-Query types:
-- [x] SELECT
-- [x] INSERT
-- [x] UPDATE
-- [x] DELETE
+This project is under development and there are some things missing.
+Below is a checklist of planned features and implemented features. 
 
 Basic operations:
 - [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat, Like
@@ -28,11 +23,6 @@ Advanced operations:
 - [x] Aggregate
 - [ ] Window
 - [ ] Limit
-
-Backend support:
-- [x] sqlite
-- [ ] postgres
-- [ ] duckdb
 
 Despite these limitations, I am dogfooding this query builder and using it in my own project: [advent-of-wasm](https://github.com/LHolten/advent-of-wasm).
 
@@ -112,4 +102,4 @@ Some features not shown in this example are:
 
 
 ## Examples
-For more example queries you can look at [the chinook test](/tests/chinook.rs).
+For more examples you can look at [the examples directory](/examples).
