@@ -43,7 +43,10 @@ impl<'t, 'i, S> Cacher<'t, 'i, S> {
         idx
     }
 
-    pub fn cache<T: 'static>(&mut self, val: impl IntoColumn<'t, S, Typ = T>) -> Cached<'i, T> {
+    pub(crate) fn cache<T: 'static>(
+        &mut self,
+        val: impl IntoColumn<'t, S, Typ = T>,
+    ) -> Cached<'i, T> {
         let val = val.into_column().inner;
 
         Cached {
@@ -144,6 +147,19 @@ where
     fn call(&mut self, row: Row<'_, 'i, 'transaction>) -> Self::Out {
         (self.map)(self.inner.call(row))
     }
+}
+
+impl<'i, 'a> Prepared<'i, 'a> for () {
+    type Out = ();
+
+    fn call(&mut self, _row: Row<'_, 'i, 'a>) -> Self::Out {}
+}
+
+impl<'t, 'a, S> Dummy<'t, 'a, S> for () {
+    type Out = ();
+    type Prepared<'i> = ();
+
+    fn prepare<'i>(self, _cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {}
 }
 
 impl<'i, 'a, T: MyTyp> Prepared<'i, 'a> for Cached<'i, T> {

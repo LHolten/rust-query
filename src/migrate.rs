@@ -247,7 +247,7 @@ impl<'a> SchemaBuilder<'_, 'a> {
         let mut rows = statement.query(&*values.as_params()).unwrap();
 
         while let Some(row) = rows.next().unwrap() {
-            let row = crate::private::Row {
+            let row = Row {
                 _p: PhantomData,
                 row,
                 fields: &cached,

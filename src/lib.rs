@@ -55,7 +55,7 @@ pub mod migration {
 #[doc(hidden)]
 pub mod private {
     pub use crate::db::Col;
-    pub use crate::dummy::{Cached, Cacher, Dummy, Prepared, Row};
+    pub use crate::dummy::{Cacher, Dummy, MapDummy};
     pub use crate::hash::TypBuilder;
     pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::migrate::{

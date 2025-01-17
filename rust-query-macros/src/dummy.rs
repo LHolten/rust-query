@@ -42,6 +42,17 @@ impl CommonInfo {
     }
 }
 
+pub fn wrap(parts: &[TokenStream]) -> TokenStream {
+    match parts {
+        [] => quote! {()},
+        [typ] => typ.clone(),
+        [a, b @ ..] => {
+            let rest = wrap(b);
+            quote! {(#a, #rest)}
+        }
+    }
+}
+
 pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut trivial = vec![];
     let mut transaction_lt = None;
@@ -86,10 +97,9 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut defs = vec![];
     let mut generics = vec![];
     let mut constraints = vec![];
-    let mut constraints_prepared = vec![];
-    let mut prepared_typ = vec![];
-    let mut prepared = vec![];
-    let mut inits = vec![];
+    let mut dummies = vec![];
+    let mut typs = vec![];
+    let mut names = vec![];
     for (name, typ) in &fields {
         let generic = make_generic(name);
 
@@ -97,13 +107,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         constraints.push(
             quote! {#generic: ::rust_query::private::Dummy<'_t, #transaction_lt, S, Out = #typ>},
         );
-        constraints_prepared.push(
-            quote! {#generic: ::rust_query::private::Prepared<'_i, #transaction_lt, Out = #typ>},
-        );
-        prepared_typ.push(quote! {#generic::Prepared<'_i>});
-        generics.push(generic);
-        prepared.push(quote! {#name: ::rust_query::private::Dummy::prepare(self.#name, cacher)});
-        inits.push(quote! {#name: self.#name.call(row)});
+        generics.push(quote! {#generic});
+        dummies.push(quote! {self.#name});
+        names.push(quote! {#name});
+        typs.push(quote! {#typ});
     }
 
     let mut from_dummy = None;
@@ -143,30 +150,23 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         }
     });
 
+    let parts_generic = wrap(&generics);
+    let parts_typ = wrap(&typs);
+    let parts_name = wrap(&names);
+    let parts_dummies = wrap(&dummies);
     Ok(quote! {
         struct #dummy_name<#(#generics),*> {
             #(#defs),*
         }
 
-        impl<'_i #(,#original_plus_transaction)* #(,#constraints_prepared)*> ::rust_query::private::Prepared<'_i, #transaction_lt> for #dummy_name<#(#generics),*> {
-            type Out = #name<#(#original_generics),*>;
-
-            fn call(&mut self, row: ::rust_query::private::Row<'_, '_i, #transaction_lt>) -> Self::Out {
-                #name {
-                    #(#inits,)*
-                }
-            }
-        }
-
-
         impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::private::Dummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
-            type Prepared<'_i> = #dummy_name<#(#prepared_typ),*>;
+            type Prepared<'_i> = <::rust_query::private::MapDummy<#parts_generic, fn(#parts_typ) -> Self::Out> as ::rust_query::private::Dummy<'_t, #transaction_lt, S>>::Prepared<'_i>;
 
-            fn prepare<'_i>(self, mut cacher: &mut ::rust_query::private::Cacher<'_t, '_i, S>) -> Self::Prepared<'_i> {
-                #dummy_name {
-                    #(#prepared,)*
-                }
+            fn prepare<'_i>(self, cacher: &mut ::rust_query::private::Cacher<'_t, '_i, S>) -> Self::Prepared<'_i> {
+                ::rust_query::private::Dummy::map_dummy(#parts_dummies, (|#parts_name| #name {
+                    #(#names,)*
+                }) as fn(#parts_typ) -> Self::Out).prepare(cacher)
             }
         }
 
