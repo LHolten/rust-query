@@ -37,14 +37,6 @@ impl<T, X> Col<T, X> {
     }
 }
 
-impl<T: Table, X: Clone> Deref for Col<T, X> {
-    type Target = T::Ext<Self>;
-
-    fn deref(&self) -> &Self::Target {
-        RefCast::ref_cast(self)
-    }
-}
-
 impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -76,14 +68,6 @@ impl<T> Clone for Join<T> {
 }
 
 impl<T> Copy for Join<T> {}
-
-impl<T: Table> Deref for Join<T> {
-    type Target = T::Ext<Self>;
-
-    fn deref(&self) -> &Self::Target {
-        RefCast::ref_cast(self)
-    }
-}
 
 impl<T: Table> Typed for Join<T> {
     type Typ = T;
@@ -203,9 +187,5 @@ mod tests {
         fn b(&self) -> Col<Admin, X> {
             Col::new("b", self.0.clone())
         }
-    }
-
-    fn test(x: Join<Admin>) {
-        let _res = &x.a().b().a().a();
     }
 }
