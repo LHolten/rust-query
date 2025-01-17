@@ -38,7 +38,14 @@ fn main() {
 }
 
 #[test]
+fn run() {
+    main();
+}
+
+#[test]
+#[cfg(feature = "dev")]
 fn schema_hash() {
-    use rust_query::migration::expect;
-    v0::assert_hash(expect!["822e0ab9b42056f7"]);
+    use expect_test::expect;
+    use rust_query::migration::hash_schema;
+    expect!["822e0ab9b42056f7"].assert_eq(&hash_schema::<v0::Schema>());
 }

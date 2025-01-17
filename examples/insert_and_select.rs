@@ -23,7 +23,7 @@ fn main() {
     // This is necessary to keep transactions separated.
     let mut client = LocalClient::try_new().unwrap();
     let database = client
-        .migrator(Config::open("my_database.sqlite"))
+        .migrator(Config::open_in_memory())
         .expect("database version is before supported versions")
         // migrations go here
         .finish()
@@ -63,7 +63,14 @@ fn do_stuff_with_database(db: &mut TransactionMut<MySchema>) {
 }
 
 #[test]
+fn run() {
+    main();
+}
+
+#[test]
+#[cfg(feature = "dev")]
 fn schema_hash() {
-    use rust_query::migration::expect;
-    v0::assert_hash(expect!["e6dbf93daba3ccfa"]);
+    use expect_test::expect;
+    use rust_query::migration::hash_schema;
+    expect!["e6dbf93daba3ccfa"].assert_eq(&hash_schema::<v0::MySchema>());
 }

@@ -589,10 +589,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #(#schema_table_typs;)*
                 }
             }
-
-            pub fn assert_hash(expect: ::rust_query::private::Expect) {
-                expect.assert_eq(&::rust_query::private::hash_schema::<#schema>())
-            }
         });
 
         let new_mod = format_ident!("v{version}");

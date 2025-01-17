@@ -179,12 +179,16 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
 #[cfg(test)]
 mod tests {
+    use expect_test::expect;
+
     use super::*;
-    use rust_query::migration::expect;
 
     #[test]
+    #[cfg(feature = "dev")]
     fn backwards_compat() {
-        v0::assert_hash(expect!["a57e97b8c243859a"]);
-        v1::assert_hash(expect!["15e9ff46816e4b45"]);
+        use rust_query::migration::hash_schema;
+
+        expect!["a57e97b8c243859a"].assert_eq(&hash_schema::<v0::Schema>());
+        expect!["15e9ff46816e4b45"].assert_eq(&hash_schema::<v1::Schema>());
     }
 }

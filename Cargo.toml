@@ -11,18 +11,16 @@ repository = "https://github.com/LHolten/rust-query/"
 license = "MIT OR Apache-2.0"
 rust-version = "1.84"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[example]]
+name = "unchecked"
+required-features = ["unchecked_transaction"]
 
 [dependencies]
 elsa = "1.10.0"
 sea-query = "0.31"
 sea-query-rusqlite = "0.6"
 rusqlite = { version = "0.31", features = ["modern_sqlite", "unlock_notify"] }
-quote = "1.0.35"
-proc-macro2 = "1.0.79"
-heck = "0.5.0"
-expect-test = "1"
-k12 = "0.3"
+k12 = {version = "0.3", optional = true}
 rust-query-macros = { path = "rust-query-macros", version = "=0.4.0" }
 ref-cast = "1.0.23"
 pretty_assertions = "1.4.0"
@@ -31,7 +29,9 @@ r2d2 = "0.8"
 
 [dev-dependencies]
 trybuild = "1.0.97"
+expect-test = "1"
 
 [features]
 bundled = ["rusqlite/bundled"]
 unchecked_transaction = []
+dev = ["k12"]

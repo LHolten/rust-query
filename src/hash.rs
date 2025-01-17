@@ -2,17 +2,8 @@
 //! The layout is hashable and the hashes are independent
 //! of the column ordering and some other stuff.
 
-use std::{
-    hash::{Hash, Hasher},
-    io::{Read, Write},
-    marker::PhantomData,
-    ops::Deref,
-};
+use std::{marker::PhantomData, ops::Deref};
 
-use k12::{
-    digest::{core_api::CoreWrapper, ExtendableOutput},
-    KangarooTwelve, KangarooTwelveCore,
-};
 use sea_query::TableCreateStatement;
 
 use crate::value::{EqTyp, MyTyp};
@@ -120,37 +111,50 @@ pub struct Schema {
     pub tables: MyVec<(String, Table)>,
 }
 
-pub struct KangarooHasher {
-    inner: CoreWrapper<KangarooTwelveCore<'static>>,
-}
+#[cfg(feature = "dev")]
+pub mod dev {
+    use std::{
+        hash::{Hash, Hasher},
+        io::{Read, Write},
+    };
 
-impl Default for KangarooHasher {
-    fn default() -> Self {
-        let core = KangarooTwelveCore::new(&[]);
-        let hasher = KangarooTwelve::from_core(core);
-        Self { inner: hasher }
-    }
-}
+    use k12::{
+        digest::{core_api::CoreWrapper, ExtendableOutput},
+        KangarooTwelve, KangarooTwelveCore,
+    };
 
-impl Hasher for KangarooHasher {
-    fn finish(&self) -> u64 {
-        let mut xof = self.inner.clone().finalize_xof();
-        let mut buf = [0; 8];
-        xof.read_exact(&mut buf).unwrap();
-        u64::from_le_bytes(buf)
+    pub struct KangarooHasher {
+        inner: CoreWrapper<KangarooTwelveCore<'static>>,
     }
 
-    fn write(&mut self, bytes: &[u8]) {
-        self.inner.write_all(bytes).unwrap();
+    impl Default for KangarooHasher {
+        fn default() -> Self {
+            let core = KangarooTwelveCore::new(&[]);
+            let hasher = KangarooTwelve::from_core(core);
+            Self { inner: hasher }
+        }
     }
-}
 
-pub fn hash_schema<S: crate::migrate::Schema>() -> String {
-    let mut b = crate::migrate::TableTypBuilder::default();
-    S::typs(&mut b);
-    let mut hasher = KangarooHasher::default();
-    b.ast.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
+    impl Hasher for KangarooHasher {
+        fn finish(&self) -> u64 {
+            let mut xof = self.inner.clone().finalize_xof();
+            let mut buf = [0; 8];
+            xof.read_exact(&mut buf).unwrap();
+            u64::from_le_bytes(buf)
+        }
+
+        fn write(&mut self, bytes: &[u8]) {
+            self.inner.write_all(bytes).unwrap();
+        }
+    }
+
+    pub fn hash_schema<S: crate::migrate::Schema>() -> String {
+        let mut b = crate::migrate::TableTypBuilder::default();
+        S::typs(&mut b);
+        let mut hasher = KangarooHasher::default();
+        b.ast.hash(&mut hasher);
+        format!("{:x}", hasher.finish())
+    }
 }
 
 pub struct TypBuilder<S> {

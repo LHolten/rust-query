@@ -45,8 +45,9 @@ pub mod args {
 ///
 /// A good starting point is too look at [crate::migration::schema].
 pub mod migration {
+    #[cfg(feature = "dev")]
+    pub use crate::hash::dev::hash_schema;
     pub use crate::migrate::{Alter, Config, Create, Migrator, NoTable};
-    pub use expect_test::expect;
     pub use rust_query_macros::schema;
 }
 
@@ -57,7 +58,6 @@ pub mod private {
     pub use crate::db::Col;
     pub use crate::dummy::{Cacher, MapDummy};
     pub use crate::hash::TypBuilder;
-    pub use crate::hash::{hash_schema, KangarooHasher};
     pub use crate::migrate::{
         CacheAndRead, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,
         TableTypBuilder, C, M,
@@ -66,7 +66,6 @@ pub mod private {
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
     pub use crate::writable::{Reader, Writable};
 
-    pub use expect_test::Expect;
     pub use ref_cast::RefCast;
     pub use sea_query::SimpleExpr;
 }
@@ -129,5 +128,4 @@ pub trait Table: Sized + 'static {
 fn compile_tests() {
     let t = trybuild::TestCases::new();
     t.compile_fail("tests/compile/*.rs");
-    t.pass("examples/*.rs");
 }

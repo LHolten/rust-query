@@ -86,3 +86,16 @@ fn main() {
     let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).into_trivial());
     assert!(info.is_some())
 }
+
+#[test]
+fn run() {
+    main();
+}
+
+#[test]
+#[cfg(feature = "dev")]
+fn schema_hash() {
+    use expect_test::expect;
+    use rust_query::migration::hash_schema;
+    expect!["93ca1485f9eba782"].assert_eq(&hash_schema::<v0::Schema>());
+}
