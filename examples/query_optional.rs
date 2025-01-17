@@ -65,12 +65,12 @@ fn main() {
         row.then_dummy(PlayerInfoDummy {
             name: player.name(),
             score: player.score(),
-            home: player.home().trivial(),
+            home: player.home().into_trivial(),
         })
     }));
 
     // for simple queries, use the trivial mapping, this requries type annotation
-    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
+    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).into_trivial());
 
     assert!(info.is_none());
 
@@ -83,6 +83,6 @@ fn main() {
     })
     .expect("there is no player with this pub_id yet");
 
-    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).trivial());
+    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).into_trivial());
     assert!(info.is_some())
 }

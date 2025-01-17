@@ -133,7 +133,7 @@ pub fn new_order<'a>(
         next_order: i64,
     }
 
-    let district_info: DistrictInfo = txn.query_one(district.trivial());
+    let district_info: DistrictInfo = txn.query_one(district.into_trivial());
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
@@ -150,7 +150,7 @@ pub fn new_order<'a>(
         last: String,
         credit: String,
     }
-    let customer_info: CustomerInfo = txn.query_one(input.customer.trivial());
+    let customer_info: CustomerInfo = txn.query_one(input.customer.into_trivial());
 
     let local = input
         .items
@@ -189,7 +189,7 @@ pub fn new_order<'a>(
             data: String,
         }
 
-        let item_info: ItemInfo = txn.query_one(item.trivial());
+        let item_info: ItemInfo = txn.query_one(item.into_trivial());
 
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();

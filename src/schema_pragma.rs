@@ -139,7 +139,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     for table_name in tables {
         let mut columns: Vec<Column> = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
-            q.into_vec(table.trivial())
+            q.into_vec(table.into_trivial())
         });
 
         let fks: HashMap<_, _> = conn

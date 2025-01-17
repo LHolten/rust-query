@@ -126,7 +126,7 @@ pub trait IntoColumn<'t, S>: Private + Clone {
     fn into_column(self) -> Column<'t, S, Self::Typ>;
 
     /// Convert the column to a dummy using the [FromColumn] implementation.
-    fn trivial<'x, X: FromColumn<'x, S, Self::Typ>>(&self) -> Trivial<'t, S, Self::Typ, X> {
+    fn into_trivial<'x, X: FromColumn<'x, S, Self::Typ>>(self) -> Trivial<'t, S, Self::Typ, X> {
         Trivial {
             col: self.into_column(),
             _p: PhantomData,

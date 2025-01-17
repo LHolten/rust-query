@@ -87,7 +87,7 @@ where
         optional(|row| {
             let col = row.lower(col);
             let col = row.and(col);
-            row.then_dummy(col.trivial::<T>())
+            row.then_dummy(col.into_trivial::<T>())
         })
     }
 }
