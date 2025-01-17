@@ -15,7 +15,7 @@ use crate::{
 /// This is the top level query type and dereferences to [Rows].
 /// Most importantly it can turn the query result into a [Vec].
 pub struct Query<'outer, 'inner, S> {
-    pub(crate) phantom: PhantomData<&'outer ()>,
+    pub(crate) phantom: PhantomData<&'inner &'outer ()>,
     pub(crate) q: Rows<'inner, S>,
     pub(crate) conn: &'inner rusqlite::Connection,
 }
@@ -40,14 +40,14 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Types that implement [crate::IntoColumn], will also implement [Dummy].
     /// Tuples of two values also implement [Dummy]. If you want to return more
     /// than two values, then you should use a struct that derives [crate::FromDummy].
-    pub fn into_vec<D>(&'inner self, dummy: D) -> Vec<D::Out>
+    pub fn into_vec<D>(&self, dummy: D) -> Vec<D::Out>
     where
         D: Dummy<'inner, 'outer, S>,
     {
         self.into_vec_private(dummy)
     }
 
-    pub(crate) fn into_vec_private<'x, 'l, D>(&'inner self, dummy: D) -> Vec<D::Out>
+    pub(crate) fn into_vec_private<'x, 'l, D>(&self, dummy: D) -> Vec<D::Out>
     where
         D: Dummy<'x, 'outer, S>,
     {
