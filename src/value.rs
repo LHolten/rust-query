@@ -507,7 +507,7 @@ impl MyTyp for NoTable {
 /// [Column] implements [Deref] to have table extension methods in case the type is a table type.
 pub struct Column<'t, S, T> {
     pub(crate) inner: DynTyped<T>,
-    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
+    pub(crate) _p: PhantomData<&'t ()>,
     pub(crate) _p2: PhantomData<S>,
 }
 

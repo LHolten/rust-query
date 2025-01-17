@@ -107,7 +107,7 @@ impl<'t, S> Transaction<'t, S> {
     /// Please take a look at the documentation of [Query] for how to use it.
     pub fn query<F, R>(&self, f: F) -> R
     where
-        F: for<'a> FnOnce(&'a mut Query<'t, 'a, S>) -> R,
+        F: for<'inner> FnOnce(&'inner mut Query<'t, 'inner, S>) -> R,
     {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed

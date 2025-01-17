@@ -38,16 +38,6 @@ pub struct Optional<'outer, 'inner, S> {
 }
 
 impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
-    /// This method makes a column from the outer scope usable in the inner scope.
-    ///
-    /// In the future this might be automatic.
-    pub fn lower<T: 'static>(
-        &self,
-        col: impl IntoColumn<'outer, S, Typ = T>,
-    ) -> Column<'inner, S, T> {
-        Column::new(col.into_column().inner)
-    }
-
     /// Join an optional column to the current row.
     ///
     /// If the joined column is [None], then the whole [optional] combinator will return [None].

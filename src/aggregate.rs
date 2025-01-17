@@ -44,8 +44,8 @@ impl<'outer, 'inner, S> DerefMut for Aggregate<'outer, 'inner, S> {
     }
 }
 
-impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
-    fn select<T>(&'inner self, expr: impl Into<SimpleExpr>) -> Aggr<S, Option<T>> {
+impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
+    fn select<T>(&self, expr: impl Into<SimpleExpr>) -> Aggr<S, Option<T>> {
         let alias = self
             .ast
             .select
@@ -59,7 +59,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Filter the rows of this sub-query based on a value from the outer query.
-    pub fn filter_on<T: 'static>(
+    pub fn filter_on<T: EqTyp + 'static>(
         &mut self,
         val: impl IntoColumn<'inner, S, Typ = T>,
         on: impl IntoColumn<'outer, S, Typ = T>,
@@ -76,7 +76,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
     /// Return the average value in a column, this is [None] if there are zero rows.
     pub fn avg(
-        &'inner self,
+        &self,
         val: impl IntoColumn<'inner, S, Typ = f64>,
     ) -> Column<'outer, S, Option<f64>> {
         let val = val.into_column().inner;
@@ -85,10 +85,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
-    pub fn max<T>(
-        &'inner self,
-        val: impl IntoColumn<'inner, S, Typ = T>,
-    ) -> Column<'outer, S, Option<T>>
+    pub fn max<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Column<'outer, S, Option<T>>
     where
         T: NumTyp,
     {
@@ -98,7 +95,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the sum of a column.
-    pub fn sum<T>(&'inner self, val: impl IntoColumn<'inner, S, Typ = T>) -> Column<'outer, S, T>
+    pub fn sum<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Column<'outer, S, T>
     where
         T: NumTyp,
     {
@@ -109,7 +106,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
     /// Return the number of distinct values in a column.
     pub fn count_distinct<T: 'static>(
-        &'inner self,
+        &self,
         val: impl IntoColumn<'inner, S, Typ = T>,
     ) -> Column<'outer, S, i64>
     where
@@ -121,7 +118,7 @@ impl<'outer: 'inner, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&'inner self) -> Column<'outer, S, bool> {
+    pub fn exists(&self) -> Column<'outer, S, bool> {
         let expr = SimpleExpr::Constant(1.into_sea_value());
         Column::new(IsNotNull(self.select::<i64>(expr)))
     }
@@ -173,7 +170,7 @@ impl<S, T: Table> Deref for Aggr<S, T> {
 /// That is the only way to get a different aggregate for each outer row.
 pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
-    F: for<'a> FnOnce(&'a mut Aggregate<'outer, 'a, S>) -> R,
+    F: for<'inner> FnOnce(&mut Aggregate<'outer, 'inner, S>) -> R,
 {
     let ast = MySelect::default();
     let inner = Rows {
