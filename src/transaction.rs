@@ -12,11 +12,10 @@ use crate::{
     ast::MySelect,
     client::LocalClient,
     migrate::schema_version,
-    private::Dummy,
     query::Query,
     value::MyTyp,
     writable::{Reader, Writable},
-    IntoColumn, Rows, Table, TableRow,
+    Dummy, IntoColumn, Rows, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.
