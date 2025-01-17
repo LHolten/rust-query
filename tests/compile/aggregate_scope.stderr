@@ -1,0 +1,27 @@
+error: lifetime may not live long enough
+ --> tests/compile/aggregate_scope.rs:9:5
+  |
+3 | fn columns<'outer, 'inner, S: 'static>(
+  |            ------  ------ lifetime `'inner` defined here
+  |            |
+  |            lifetime `'outer` defined here
+...
+9 |     aggr.filter_on(outer, 10);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'outer` must outlive `'inner`
+  |
+  = help: consider adding the following bound: `'outer: 'inner`
+
+error: lifetime may not live long enough
+  --> tests/compile/aggregate_scope.rs:10:5
+   |
+3  | fn columns<'outer, 'inner, S: 'static>(
+   |            ------  ------ lifetime `'inner` defined here
+   |            |
+   |            lifetime `'outer` defined here
+...
+10 |     aggr.filter_on(10, inner);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'inner` must outlive `'outer`
+   |
+   = help: consider adding the following bound: `'inner: 'outer`
+
+help: `'outer` and `'inner` must be the same: replace one with the other
