@@ -125,7 +125,7 @@ pub fn new_order<'a>(
     let district = txn.query_one(input.customer.district());
 
     #[derive(Dummy)]
-    #[rq(From = District, lt = 't)]
+    #[rust_query(From = District, lt = 't)]
     struct DistrictInfo<'t> {
         warehouse: TableRow<'t, Warehouse>,
         number: i64,
@@ -144,7 +144,7 @@ pub fn new_order<'a>(
     .unwrap();
 
     #[derive(Dummy)]
-    #[rq(From = Customer)]
+    #[rust_query(From = Customer)]
     struct CustomerInfo {
         discount: f64,
         last: String,
@@ -182,7 +182,7 @@ pub fn new_order<'a>(
         // TODO: make this a lookup by external item id
 
         #[derive(Dummy)]
-        #[rq(From = Item)]
+        #[rust_query(From = Item)]
         struct ItemInfo {
             price: i64,
             name: String,

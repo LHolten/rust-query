@@ -57,7 +57,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut trivial = vec![];
     let mut transaction_lt = None;
     for attr in &item.attrs {
-        if attr.path().is_ident("rq") {
+        if attr.path().is_ident("rust_query") {
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("From") {
                     let path: syn::Path = meta.value()?.parse()?;

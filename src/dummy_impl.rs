@@ -87,7 +87,7 @@ pub trait Prepared<'i, 'transaction> {
 
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
-/// Implement it on custom structs using [crate::FromDummy].
+/// This trait can be automatically implemented using [rust_query_macros::Dummy].
 pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out;

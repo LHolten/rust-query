@@ -118,7 +118,7 @@ table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     #[derive(Clone, Dummy)]
-    #[rq(From = TableInfo)]
+    #[rust_query(From = TableInfo)]
     struct Column {
         name: String,
         r#type: String,

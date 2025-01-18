@@ -39,7 +39,10 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     ///
     /// Types that implement [crate::IntoColumn], will also implement [Dummy].
     /// Tuples of two values also implement [Dummy]. If you want to return more
-    /// than two values, then you should use a struct that derives [crate::FromDummy].
+    /// than two values, then you should use a struct that derives [rust_query_macros::Dummy].
+    ///
+    /// Note that the result of `Query::into_vec` is sorted. When a `*Dummy` struct is used for
+    /// the output, the sorting order depends on the order of the fields in the struct definition.
     pub fn into_vec<D>(&self, dummy: D) -> Vec<D::Out>
     where
         D: Dummy<'inner, 'outer, S>,

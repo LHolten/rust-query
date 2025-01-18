@@ -160,11 +160,10 @@ pub fn schema(
 
 /// Derive [Dummy] to create a new `*Dummy` struct.
 ///
-/// This `*Dummy` struct can then be used with [Query::into_vec] or [Transaction::query_one].
-/// Usage can also be nested.
+/// This `*Dummy` struct will implement the `Dummy` trait and can be used with `Query::into_vec`
+/// or `Transaction::query_one`.
 ///
-/// Note that the result of [Query::into_vec] is sorted. When a `*Dummy` struct is used for
-/// the output, the sorting order depends on the order of the fields in the struct definition.
+/// Usage can also be nested.
 ///
 /// Example:
 /// ```
@@ -212,7 +211,15 @@ pub fn schema(
 ///     })
 /// }
 /// ```
-#[proc_macro_derive(Dummy, attributes(rq))]
+///
+/// This macro also supports some helper attributes on the struct.
+///
+/// - `#[rust_query(From = Thing)]`
+///   This will automatically derive `FromColumn` for the specified column type.
+/// - `#[rust_query(lt = 't)]`
+///   Can be used to specify the transaction lifetime for structs that contain `TableRow` fields.
+///   This is only necessary when using `#[rust_query(From = Thing)]`.
+#[proc_macro_derive(Dummy, attributes(rust_query))]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
     match from_row_impl(item) {

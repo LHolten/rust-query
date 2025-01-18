@@ -28,7 +28,6 @@ pub fn optional<'outer, S, R>(
 
 /// This is the argument type used by the [optional] combinator.
 ///
-/// Columns from the outer scope can be brought into the inner scope by using the [Optional::lower] method.
 /// Joining more optional columns can be done with the [Optional::and] method.
 /// Finally it is possible to return either columns or dummies using [Optional::then] and [Optional::then_dummy].
 pub struct Optional<'outer, 'inner, S> {
