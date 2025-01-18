@@ -112,9 +112,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
         typs.push(quote! {#typ});
-        static_dummy_typs
-            .push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, _S>>::Dummy<'_t>});
-        trivial_conds.push(quote! {#typ: ::rust_query::FromDummy<#transaction_lt, _S>});
+        static_dummy_typs.push(
+            quote! {<#typ as ::rust_query::dummy::FromDummy<#transaction_lt, _S>>::Dummy<'_t>},
+        );
+        trivial_conds.push(quote! {#typ: ::rust_query::dummy::FromDummy<#transaction_lt, _S>});
     }
 
     let trivial = trivial.into_iter().map(|trivial| {
@@ -122,10 +123,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let mut trivial_prepared = vec![];
         for (name, typ) in &fields {
             trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
+                .push(quote! {#name: <#typ as ::rust_query::dummy::FromColumn<_, _>>::from_column(col.#name())});
         }
         quote! {
-            impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
+            impl<#(#original_plus_transaction),*> ::rust_query::dummy::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> Self::Dummy<'_t> {
                     #dummy_name {
@@ -147,16 +148,16 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::Dummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
-            type Prepared<'_i> = <::rust_query::private::MapDummy<#parts_generic, fn(#parts_typ) -> Self::Out> as ::rust_query::Dummy<'_t, #transaction_lt, S>>::Prepared<'_i>;
+            type Prepared<'_i> = <::rust_query::dummy::MapDummy<#parts_generic, fn(#parts_typ) -> Self::Out> as ::rust_query::Dummy<'_t, #transaction_lt, S>>::Prepared<'_i>;
 
-            fn prepare<'_i>(self, cacher: &mut ::rust_query::private::Cacher<'_t, '_i, S>) -> Self::Prepared<'_i> {
+            fn prepare<'_i>(self, cacher: &mut ::rust_query::dummy::Cacher<'_t, '_i, S>) -> Self::Prepared<'_i> {
                 ::rust_query::Dummy::map_dummy(#parts_dummies, (|#parts_name| #name {
                     #(#names,)*
                 }) as fn(#parts_typ) -> Self::Out).prepare(cacher)
             }
         }
 
-        impl<#(#original_plus_transaction,)* _S> ::rust_query::FromDummy<#transaction_lt, _S> for #name<#(#original_generics),*>
+        impl<#(#original_plus_transaction,)* _S> ::rust_query::dummy::FromDummy<#transaction_lt, _S> for #name<#(#original_generics),*>
         where #(#trivial_conds,)*
         {
             type Dummy<'_t> = #dummy_name<#(#static_dummy_typs),*>;

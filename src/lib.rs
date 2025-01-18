@@ -27,9 +27,8 @@ pub use dummy_impl::Dummy;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
-pub use rust_query_macros::FromDummy;
+pub use rust_query_macros::Dummy;
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
-pub use value::trivial::{FromColumn, FromDummy};
 pub use value::{optional::optional, Column, IntoColumn, UnixEpoch};
 
 /// Types that are used as closure arguments.
@@ -51,12 +50,17 @@ pub mod migration {
     pub use rust_query_macros::schema;
 }
 
+/// Traits and types that are useful for implementing custom [crate::Dummy] types.
+pub mod dummy {
+    pub use crate::dummy_impl::{Cacher, MapDummy};
+    pub use crate::value::trivial::{FromColumn, FromDummy};
+}
+
 /// These items are only exposed for use by the proc macros.
 /// Direct use is unsupported.
 #[doc(hidden)]
 pub mod private {
     pub use crate::db::Col;
-    pub use crate::dummy_impl::{Cacher, MapDummy};
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{
         CacheAndRead, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,

@@ -1,6 +1,6 @@
 use rust_query::{
     migration::{schema, Config},
-    optional, Database, FromDummy, IntoColumn, LocalClient,
+    optional, Database, Dummy, IntoColumn, LocalClient,
 };
 
 // Start by defining your schema.
@@ -33,13 +33,13 @@ fn main() {
 
     let mut txn = client.transaction_mut(&database);
 
-    #[derive(FromDummy)]
+    #[derive(Dummy)]
     #[rq(From = World, From = Player)]
     struct NameInfo {
         name: String,
     }
 
-    #[derive(FromDummy)]
+    #[derive(Dummy)]
     #[rq(From = Player)]
     struct PlayerInfo {
         name: String,

@@ -158,7 +158,7 @@ pub fn schema(
     .into()
 }
 
-/// Derive [FromDummy] to create a new `*Dummy` struct.
+/// Derive [Dummy] to create a new `*Dummy` struct.
 ///
 /// This `*Dummy` struct can then be used with [Query::into_vec] or [Transaction::query_one].
 /// Usage can also be nested.
@@ -212,7 +212,7 @@ pub fn schema(
 ///     })
 /// }
 /// ```
-#[proc_macro_derive(FromDummy, attributes(rq))]
+#[proc_macro_derive(Dummy, attributes(rq))]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
     match from_row_impl(item) {
