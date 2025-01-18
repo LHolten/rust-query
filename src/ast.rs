@@ -73,7 +73,8 @@ impl MySelect {
 
         let mut any_from = false;
         for (table, alias) in &self.tables {
-            select.from_as(RawAlias(table.clone()), *alias);
+            let tbl_ref = (Alias::new("main"), RawAlias(table.clone()));
+            select.from_as(tbl_ref, *alias);
             any_from = true
         }
 
@@ -97,7 +98,8 @@ impl MySelect {
                 }
                 SourceKind::Implicit(table) => {
                     let join_type = sea_query::JoinType::LeftJoin;
-                    select.join_as(join_type, Alias::new(table), *table_alias, cond);
+                    let tbl_ref = (Alias::new("main"), Alias::new(table));
+                    select.join_as(join_type, tbl_ref, *table_alias, cond);
                 }
             }
         }
