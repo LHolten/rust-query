@@ -6,16 +6,20 @@ use super::{optional::OptionalDummy, Column, IntoColumn};
 
 /// This trait is implemented for types that want to implement [FromColumn].
 ///
-/// The associated type here is the common return type of all [FromColumn] implementations.
-/// It is used by the [rust_query_macros::Dummy] macro to know what kind of [Dummy] to expect.
+/// The [rust_query_macros::Dummy] derive macro will always implement this trait automatically.
 pub trait FromDummy<'transaction, S> {
+    /// The associated type here is the common return type of all [FromColumn] implementations.
     type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
 }
 
 /// Trait for values that can be retrieved from the database using one reference column.
 ///
 /// This is most likely the trait that you want to implement for your custom datatype.
+///
+/// Note that this trait can also be implemented using [rust_query_macros::Dummy] by
+/// adding the `#[rust_query(From = Thing)]` helper attribute.
 pub trait FromColumn<'transaction, S, From>: FromDummy<'transaction, S> {
+    /// How to turn a column reference into the associated dummy type of [FromDummy].
     fn from_column<'columns>(col: Column<'columns, S, From>) -> Self::Dummy<'columns>;
 }
 

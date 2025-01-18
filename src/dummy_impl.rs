@@ -8,6 +8,7 @@ use crate::{
     IntoColumn,
 };
 
+/// Opaque type used to implement [crate::Dummy].
 pub struct Cacher<'t, 'i, S> {
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'i ()>,
     pub(crate) _p2: PhantomData<S>,
@@ -116,6 +117,10 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     }
 }
 
+/// This is the result of the [Dummy::map_dummy] method.
+///
+/// [MapDummy] retrieves the same columns as the dummy that it wraps,
+/// but then it processes those columns using a rust closure.
 pub struct MapDummy<D, F> {
     dummy: D,
     func: F,

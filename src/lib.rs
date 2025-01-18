@@ -50,7 +50,7 @@ pub mod migration {
     pub use rust_query_macros::schema;
 }
 
-/// Traits and types that are useful for implementing custom types that can be retrieved
+/// Traits and types for implementing custom types that can be retrieved
 /// from the database.
 pub mod dummy {
     pub use crate::dummy_impl::{Cacher, MapDummy};

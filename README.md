@@ -95,11 +95,5 @@ println!("{mike_pictures:?}"); // This should print `["dog"]`.
 ```
 The full example code can be found in [insert_and_select.rs](examples/insert_and_select.rs)
 
-Some features not shown in this example are:
-- Migrations and unique constraints
-- Lookups by unique constraint
-- Aggregations
-
-
 ## Examples
 For more examples you can look at [the examples directory](/examples).
