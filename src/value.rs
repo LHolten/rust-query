@@ -110,23 +110,20 @@ pub trait Typed {
 
 pub(crate) trait Private {}
 
-/// Trait for all values that can be used in queries.
+/// Trait for all values that can be used as columns in queries.
 ///
-/// This includes [Column]s from queries and rust values.
-/// - `'t` is the context in which this value is valid.
-/// - `S` is the schema in which this value is valid.
-/// - `Typ` is the type of value in the column.
-///
-/// **You can not (yet) implement this trait yourself!**
-pub trait IntoColumn<'t, S>: Private + Clone {
+/// You can not (yet) implement this trait yourself!
+pub trait IntoColumn<'column, S>: Private + Clone {
     /// The type of the column.
     type Typ: 'static;
 
     /// Turn this value into a [Column].
-    fn into_column(self) -> Column<'t, S, Self::Typ>;
+    fn into_column(self) -> Column<'column, S, Self::Typ>;
 
     /// Convert the column to a dummy using the [FromColumn] implementation.
-    fn into_trivial<'x, X: FromColumn<'x, S, Self::Typ>>(self) -> Trivial<'t, S, Self::Typ, X> {
+    fn into_trivial<'x, X: FromColumn<'x, S, Self::Typ>>(
+        self,
+    ) -> Trivial<'column, S, Self::Typ, X> {
         Trivial {
             col: self.into_column(),
             _p: PhantomData,
@@ -134,69 +131,69 @@ pub trait IntoColumn<'t, S>: Private + Clone {
     }
 }
 
-impl<'t, S, T: NumTyp> Column<'t, S, T> {
+impl<'column, S, T: NumTyp> Column<'column, S, T> {
     /// Add two columns together.
-    pub fn add(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, T> {
+    pub fn add(&self, rhs: impl IntoColumn<'column, S, Typ = T>) -> Column<'column, S, T> {
         Column::new(Add(self.inner.clone(), rhs.into_column().inner))
     }
 
     /// Compute the less than operator of two columns.
-    pub fn lt(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, bool> {
+    pub fn lt(&self, rhs: impl IntoColumn<'column, S, Typ = T>) -> Column<'column, S, bool> {
         Column::new(Lt(self.inner.clone(), rhs.into_column().inner))
     }
 }
 
-impl<'t, S, T: EqTyp + 'static> Column<'t, S, T> {
+impl<'column, S, T: EqTyp + 'static> Column<'column, S, T> {
     /// Check whether two columns are equal.
-    pub fn eq(&self, rhs: impl IntoColumn<'t, S, Typ = T>) -> Column<'t, S, bool> {
+    pub fn eq(&self, rhs: impl IntoColumn<'column, S, Typ = T>) -> Column<'column, S, bool> {
         Column::new(Eq(self.inner.clone(), rhs.into_column().inner))
     }
 }
 
-impl<'t, S> Column<'t, S, bool> {
+impl<'column, S> Column<'column, S, bool> {
     /// Checks whether a column is false.
-    pub fn not(&self) -> Column<'t, S, bool> {
+    pub fn not(&self) -> Column<'column, S, bool> {
         Column::new(Not(self.inner.clone()))
     }
 
     /// Check if two columns are both true.
-    pub fn and(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool> {
+    pub fn and(&self, rhs: impl IntoColumn<'column, S, Typ = bool>) -> Column<'column, S, bool> {
         Column::new(And(self.inner.clone(), rhs.into_column().inner))
     }
 
     /// Check if one of two columns is true.
-    pub fn or(&self, rhs: impl IntoColumn<'t, S, Typ = bool>) -> Column<'t, S, bool> {
+    pub fn or(&self, rhs: impl IntoColumn<'column, S, Typ = bool>) -> Column<'column, S, bool> {
         Column::new(Or(self.inner.clone(), rhs.into_column().inner))
     }
 }
 
-impl<'t, S, Typ: 'static> Column<'t, S, Option<Typ>> {
+impl<'column, S, Typ: 'static> Column<'column, S, Option<Typ>> {
     /// Use the first column if it is [Some], otherwise use the second column.
-    pub fn unwrap_or(&self, rhs: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ>
+    pub fn unwrap_or(&self, rhs: impl IntoColumn<'column, S, Typ = Typ>) -> Column<'column, S, Typ>
     where
-        Self: IntoColumn<'t, S, Typ = Option<Typ>>,
+        Self: IntoColumn<'column, S, Typ = Option<Typ>>,
     {
         Column::new(UnwrapOr(self.inner.clone(), rhs.into_column().inner))
     }
 
     /// Check that the column is [Some].
-    pub fn is_some(&self) -> Column<'t, S, bool> {
+    pub fn is_some(&self) -> Column<'column, S, bool> {
         Column::new(IsNotNull(self.inner.clone()))
     }
 }
 
-impl<'t, S> Column<'t, S, i64> {
+impl<'column, S> Column<'column, S, i64> {
     /// Convert the [i64] column to [f64] type.
-    pub fn as_float(&self) -> Column<'t, S, f64> {
+    pub fn as_float(&self) -> Column<'column, S, f64> {
         Column::new(AsFloat(self.inner.clone()))
     }
 }
 
-impl<'t, S> Column<'t, S, String> {
+impl<'column, S> Column<'column, S, String> {
     /// Check if the column starts with the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
-    pub fn starts_with(&self, pattern: impl AsRef<str>) -> Column<'t, S, bool> {
+    pub fn starts_with(&self, pattern: impl AsRef<str>) -> Column<'column, S, bool> {
         Column::new(Glob(
             self.inner.clone(),
             format!("{}*", escape_glob(pattern)),
@@ -206,7 +203,7 @@ impl<'t, S> Column<'t, S, String> {
     /// Check if the column ends with the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
-    pub fn ends_with(&self, pattern: impl AsRef<str>) -> Column<'t, S, bool> {
+    pub fn ends_with(&self, pattern: impl AsRef<str>) -> Column<'column, S, bool> {
         Column::new(Glob(
             self.inner.clone(),
             format!("*{}", escape_glob(pattern)),
@@ -216,7 +213,7 @@ impl<'t, S> Column<'t, S, String> {
     /// Check if the column contains the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
-    pub fn contains(&self, pattern: impl AsRef<str>) -> Column<'t, S, bool> {
+    pub fn contains(&self, pattern: impl AsRef<str>) -> Column<'column, S, bool> {
         Column::new(Glob(
             self.inner.clone(),
             format!("*{}*", escape_glob(pattern)),
@@ -228,7 +225,7 @@ impl<'t, S> Column<'t, S, String> {
     /// As noted in the docs, it is **case-insensitive** for ASCII characters. Other characters are case-sensitive.
     /// For creating patterns it uses `%` as a wildcard for any sequence of characters and `_` for any single character.
     /// Special characters should be escaped with `\`.
-    pub fn like(&self, pattern: impl Into<String> + Clone + 't) -> Column<'t, S, bool> {
+    pub fn like(&self, pattern: impl Into<String>) -> Column<'column, S, bool> {
         Column::new(Like(self.inner.clone(), pattern.into()))
     }
 
@@ -237,7 +234,7 @@ impl<'t, S> Column<'t, S, String> {
     /// This is a case-sensitive version of [like](Self::like). It uses Unix file globbing syntax for wild
     /// cards. `*` matches any sequence of characters and `?` matches any single character. `[0-9]` matches
     /// any single digit and `[a-z]` matches any single lowercase letter. `^` negates the pattern.
-    pub fn glob(&self, rhs: impl IntoColumn<'t, S, Typ = String>) -> Column<'t, S, bool> {
+    pub fn glob(&self, rhs: impl IntoColumn<'column, S, Typ = String>) -> Column<'column, S, bool> {
         Column::new(Glob(self.inner.clone(), rhs.into_column().inner))
     }
 }
@@ -253,11 +250,11 @@ impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
 }
 
 impl<T> Private for Option<T> {}
-impl<'t, S, T: IntoColumn<'t, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoColumn<'t, S>
+impl<'column, S, T: IntoColumn<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoColumn<'column, S>
     for Option<T>
 {
     type Typ = Option<X>;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self.map(|x| x.into_column().inner))
     }
 }
@@ -270,9 +267,9 @@ impl Typed for &str {
 }
 
 impl Private for &str {}
-impl<'t, S> IntoColumn<'t, S> for &str {
+impl<'column, S> IntoColumn<'column, S> for &str {
     type Typ = String;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self.to_owned())
     }
 }
@@ -285,9 +282,9 @@ impl Typed for String {
 }
 
 impl Private for String {}
-impl<'t, S> IntoColumn<'t, S> for String {
+impl<'column, S> IntoColumn<'column, S> for String {
     type Typ = String;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self)
     }
 }
@@ -300,9 +297,9 @@ impl Typed for bool {
 }
 
 impl Private for bool {}
-impl<'t, S> IntoColumn<'t, S> for bool {
+impl<'column, S> IntoColumn<'column, S> for bool {
     type Typ = bool;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self)
     }
 }
@@ -315,9 +312,9 @@ impl Typed for i64 {
 }
 
 impl Private for i64 {}
-impl<'t, S> IntoColumn<'t, S> for i64 {
+impl<'column, S> IntoColumn<'column, S> for i64 {
     type Typ = i64;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self)
     }
 }
@@ -330,9 +327,9 @@ impl Typed for f64 {
 }
 
 impl Private for f64 {}
-impl<'t, S> IntoColumn<'t, S> for f64 {
+impl<'column, S> IntoColumn<'column, S> for f64 {
     type Typ = f64;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self)
     }
 }
@@ -354,12 +351,12 @@ where
 }
 
 impl<T> Private for &T {}
-impl<'t, S, T> IntoColumn<'t, S> for &T
+impl<'column, S, T> IntoColumn<'column, S> for &T
 where
-    T: IntoColumn<'t, S>,
+    T: IntoColumn<'column, S>,
 {
     type Typ = T::Typ;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         T::into_column(self.clone())
     }
 }
@@ -376,9 +373,9 @@ impl Typed for UnixEpoch {
 }
 
 impl Private for UnixEpoch {}
-impl<'t, S> IntoColumn<'t, S> for UnixEpoch {
+impl<'column, S> IntoColumn<'column, S> for UnixEpoch {
     type Typ = i64;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self)
     }
 }
@@ -500,14 +497,14 @@ impl MyTyp for NoTable {
 
 /// Values of this type reference a column in a query.
 ///
-/// - The lifetime parameter `'t` specifies in which query the column exists.
+/// - The lifetime parameter `'column` specifies in which query the column exists.
 /// - The type parameter `S` specifies the expected schema of the query.
 /// - And finally the type paramter `T` specifies the type of the column.
 ///
 /// [Column] implements [Deref] to have table extension methods in case the type is a table type.
-pub struct Column<'t, S, T> {
+pub struct Column<'column, S, T> {
     pub(crate) inner: DynTyped<T>,
-    pub(crate) _p: PhantomData<&'t ()>,
+    pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
 }
 
@@ -529,7 +526,7 @@ impl<S, T> Column<'_, S, T> {
     }
 }
 
-impl<'t, S, T> Clone for Column<'t, S, T> {
+impl<'column, S, T> Clone for Column<'column, S, T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -540,7 +537,7 @@ impl<'t, S, T> Clone for Column<'t, S, T> {
 }
 
 // TODO: remove this and replace with `Private`
-impl<'t, S, T: 'static> Typed for Column<'t, S, T> {
+impl<'column, S, T: 'static> Typed for Column<'column, S, T> {
     type Typ = T;
 
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
@@ -586,15 +583,15 @@ impl<Typ: 'static> Typed for DynTyped<Typ> {
     }
 }
 
-impl<'t, S, T> Private for Column<'t, S, T> {}
-impl<'t, S, T: 'static> IntoColumn<'t, S> for Column<'t, S, T> {
+impl<'column, S, T> Private for Column<'column, S, T> {}
+impl<'column, S, T: 'static> IntoColumn<'column, S> for Column<'column, S, T> {
     type Typ = T;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
         self
     }
 }
 
-impl<'t, S, T: Table> Deref for Column<'t, S, T> {
+impl<'column, S, T: Table> Deref for Column<'column, S, T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {
