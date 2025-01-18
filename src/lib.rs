@@ -8,7 +8,7 @@ mod alias;
 mod ast;
 mod client;
 mod db;
-mod dummy;
+mod dummy_impl;
 mod hash;
 mod migrate;
 mod mymap;
@@ -23,7 +23,7 @@ mod writable;
 pub use aggregate::aggregate;
 pub use client::LocalClient;
 pub use db::TableRow;
-pub use dummy::Dummy;
+pub use dummy_impl::Dummy;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
@@ -56,7 +56,7 @@ pub mod migration {
 #[doc(hidden)]
 pub mod private {
     pub use crate::db::Col;
-    pub use crate::dummy::{Cacher, MapDummy};
+    pub use crate::dummy_impl::{Cacher, MapDummy};
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{
         CacheAndRead, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,

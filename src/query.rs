@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    dummy::{Cacher, Dummy, Prepared, Row},
+    dummy_impl::{Cacher, Dummy, Prepared, Row},
     rows::Rows,
 };
 

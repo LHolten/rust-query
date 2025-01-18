@@ -11,7 +11,7 @@ use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
-    dummy::{Cacher, Prepared, Row},
+    dummy_impl::{Cacher, Prepared, Row},
     hash,
     schema_pragma::read_schema,
     transaction::Database,

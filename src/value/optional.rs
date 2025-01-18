@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy::{Cached, Cacher, Prepared, Row},
+    dummy_impl::{Cached, Cacher, Prepared, Row},
     Dummy,
 };
 

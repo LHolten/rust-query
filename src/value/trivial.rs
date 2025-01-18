@@ -35,7 +35,10 @@ where
 
     type Prepared<'i> = <X::Dummy<'columns> as Dummy<'columns, 'transaction, S>>::Prepared<'i>;
 
-    fn prepare<'i>(self, cacher: &mut crate::dummy::Cacher<'columns, 'i, S>) -> Self::Prepared<'i> {
+    fn prepare<'i>(
+        self,
+        cacher: &mut crate::dummy_impl::Cacher<'columns, 'i, S>,
+    ) -> Self::Prepared<'i> {
         X::from_column(self.col).prepare(cacher)
     }
 }
