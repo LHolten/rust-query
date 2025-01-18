@@ -402,13 +402,8 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
 
     /// This allows you to do anything you want with the internal [rusqlite::Transaction]
     ///
-    /// **Warning:** [TransactionWeak::unchecked_transaction] makes it possible to break the
-    /// invariants that [rust_query] relies on to avoid panics at run-time. It should
-    /// therefore be avoided whenever possible.
-    ///
     /// The specific version of rusqlite used is not stable. This means the [rusqlite]
     /// version might change as part of a non breaking version update of [rust_query].
-    #[cfg(feature = "unchecked_transaction")]
     pub fn unchecked_transaction(&mut self) -> &rusqlite::Transaction {
         &self.inner.transaction
     }

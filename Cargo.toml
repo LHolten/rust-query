@@ -11,10 +11,6 @@ repository = "https://github.com/LHolten/rust-query/"
 license = "MIT OR Apache-2.0"
 rust-version = "1.84"
 
-[[example]]
-name = "unchecked"
-required-features = ["unchecked_transaction"]
-
 [dependencies]
 elsa = "1.10.0"
 sea-query = "0.31"
@@ -33,5 +29,4 @@ expect-test = "1"
 
 [features]
 bundled = ["rusqlite/bundled"]
-unchecked_transaction = []
 dev = ["dep:k12"]

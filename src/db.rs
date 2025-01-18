@@ -150,7 +150,6 @@ impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
 
 /// This makes it possible to use TableRow as a parameter in
 /// rusqlite queries and statements.
-#[cfg(feature = "unchecked_transaction")]
 impl<T> rusqlite::ToSql for TableRow<'_, T> {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         self.inner.idx.to_sql()
