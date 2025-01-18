@@ -34,4 +34,4 @@ expect-test = "1"
 [features]
 bundled = ["rusqlite/bundled"]
 unchecked_transaction = []
-dev = ["k12"]
+dev = ["dep:k12"]

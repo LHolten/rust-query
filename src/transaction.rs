@@ -47,6 +47,13 @@ pub struct Database<S> {
     pub(crate) schema: PhantomData<S>,
 }
 
+impl<S> Database<S> {
+    pub fn rusqlite_connection(&self) -> rusqlite::Connection {
+        use r2d2::ManageConnection;
+        self.manager.connect().unwrap()
+    }
+}
+
 /// [Transaction] can be used to query the database.
 ///
 /// From the perspective of a [Transaction] each [TransactionMut] is fully applied or not at all.
