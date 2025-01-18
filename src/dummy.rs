@@ -92,10 +92,16 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out;
 
-    #[doc(hidden)]
+    /// The result of the [Dummy::prepare] method.
+    ///
+    /// Just like the [Dummy::prepare] implemenation, this should be specified
+    /// using the associated types of other [Dummy] implementations.
     type Prepared<'i>: Prepared<'i, 'transaction, Out = Self::Out>;
 
-    #[doc(hidden)]
+    /// This method is what tells rust-query how to retrieve the dummy.
+    ///
+    /// The only way to implement this method is by constructing a different dummy and
+    /// calling the [Dummy::prepare] method on that other dummy.
     fn prepare<'i>(self, cacher: &mut Cacher<'columns, 'i, S>) -> Self::Prepared<'i>;
 
     /// Map a dummy to another dummy using native rust.
