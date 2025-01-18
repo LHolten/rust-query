@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy_impl::{Cached, Cacher, Prepared, Row},
+    dummy_impl::{Cached, Cacher, Package, Prepared, Row},
     Dummy,
 };
 
@@ -75,12 +75,12 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// Returns an optional dummy that can be used as the result of the query.
     pub fn then_dummy<'transaction, P>(
         &self,
-        d: impl Dummy<'inner, 'transaction, S, Prepared<'static> = P>,
+        d: impl Dummy<'inner, 'transaction, S, Prepared = P>,
     ) -> OptionalDummy<'outer, S, P> {
         let mut cacher = Cacher::new();
         OptionalDummy {
-            inner: d.prepare(&mut cacher),
-            is_some: cacher.cache(self.is_some()),
+            inner: d.prepare(&mut cacher).inner,
+            is_some: cacher.cache(self.is_some().inner),
             columns: cacher.columns,
             _p: PhantomData,
             _p2: PhantomData,
@@ -92,18 +92,18 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
 pub struct OptionalDummy<'columns, S, X> {
     pub(crate) columns: Vec<DynTypedExpr>,
     pub(crate) inner: X,
-    pub(crate) is_some: Cached<'static, bool>,
+    pub(crate) is_some: Cached<bool>,
     pub(crate) _p: PhantomData<fn(&'columns ()) -> &'columns ()>,
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'columns, 'transaction, S>
+impl<'columns, 'transaction, S, X: Prepared<'transaction>> Dummy<'columns, 'transaction, S>
     for OptionalDummy<'columns, S, X>
 {
     type Out = Option<X::Out>;
-    type Prepared<'i> = OptionalPrepared<'i, X>;
+    type Prepared = OptionalPrepared<X>;
 
-    fn prepare<'i>(self, cacher: &mut Cacher<'_, 'i, S>) -> Self::Prepared<'i> {
+    fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
         let mut diff = None;
         self.columns.into_iter().enumerate().for_each(|(old, x)| {
             let new = cacher.cache_erased(x);
@@ -112,26 +112,24 @@ impl<'columns, 'transaction, S, X: Prepared<'static, 'transaction>> Dummy<'colum
             diff = Some(_diff);
         });
         let diff = diff.unwrap_or_default();
-        OptionalPrepared {
+        Package::new(OptionalPrepared {
             offset: diff,
             inner: self.inner,
             is_some: self.is_some,
-            _p: PhantomData,
-        }
+        })
     }
 }
 
-pub struct OptionalPrepared<'i, X> {
+pub struct OptionalPrepared<X> {
     offset: usize,
     inner: X,
-    is_some: Cached<'static, bool>,
-    _p: PhantomData<&'i ()>,
+    is_some: Cached<bool>,
 }
 
-impl<'i, 'a, X: Prepared<'static, 'a>> Prepared<'i, 'a> for OptionalPrepared<'i, X> {
+impl<'i, 'a, X: Prepared<'a>> Prepared<'a> for OptionalPrepared<X> {
     type Out = Option<X::Out>;
 
-    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+    fn call(&mut self, row: Row<'_>) -> Self::Out {
         let row = Row::new(row.row, &row.fields[self.offset..]);
         if row.get(self.is_some) {
             Some(self.inner.call(row))

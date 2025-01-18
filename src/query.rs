@@ -55,7 +55,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
         D: Dummy<'x, 'outer, S>,
     {
         let mut cacher = Cacher::new();
-        let mut prepared = dummy.prepare(&mut cacher);
+        let mut prepared = dummy.prepare(&mut cacher).inner;
 
         let cached = self.ast.cache(cacher.columns);
 

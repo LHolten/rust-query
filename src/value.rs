@@ -397,6 +397,10 @@ pub trait MyTyp: 'static {
     ) -> rusqlite::types::FromSqlResult<Self::Out<'a>>;
 }
 
+pub(crate) trait SecretFromSql: Sized {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>;
+}
+
 impl<T: Table> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));

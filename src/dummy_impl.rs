@@ -4,52 +4,47 @@ use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    value::{DynTypedExpr, MyTyp},
+    value::{DynTyped, DynTypedExpr, MyTyp},
     IntoColumn,
 };
 
 /// Opaque type used to implement [crate::Dummy].
-pub struct Cacher<'t, 'i, S> {
-    pub(crate) _p: PhantomData<fn(&'t ()) -> &'i ()>,
-    pub(crate) _p2: PhantomData<S>,
+pub struct Cacher<'columns, S> {
     pub(crate) columns: Vec<DynTypedExpr>,
+    _p: PhantomData<fn(&'columns ())>,
+    _p3: PhantomData<S>,
 }
 
-impl<S> Cacher<'_, '_, S> {
+impl<S> Cacher<'_, S> {
     pub(crate) fn new() -> Self {
         Self {
-            _p: PhantomData,
-            _p2: PhantomData,
             columns: Vec::new(),
+            _p: PhantomData,
+            _p3: PhantomData,
         }
     }
 }
 
-pub struct Cached<'i, T> {
-    pub(crate) _p: PhantomData<fn(&'i T) -> &'i T>,
+pub(crate) struct Cached<T> {
     pub(crate) idx: usize,
+    _p: PhantomData<T>,
 }
 
-impl<'t, T> Clone for Cached<'t, T> {
+impl<T> Clone for Cached<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<'t, T> Copy for Cached<'t, T> {}
+impl<T> Copy for Cached<T> {}
 
-impl<'t, 'i, S> Cacher<'t, 'i, S> {
+impl<S> Cacher<'_, S> {
     pub(crate) fn cache_erased(&mut self, val: DynTypedExpr) -> usize {
         let idx = self.columns.len();
         self.columns.push(val);
         idx
     }
 
-    pub(crate) fn cache<T: 'static>(
-        &mut self,
-        val: impl IntoColumn<'t, S, Typ = T>,
-    ) -> Cached<'i, T> {
-        let val = val.into_column().inner;
-
+    pub(crate) fn cache<'a, T: 'static>(&mut self, val: DynTyped<T>) -> Cached<T> {
         Cached {
             _p: PhantomData,
             idx: self.cache_erased(val.erase()),
@@ -58,32 +53,41 @@ impl<'t, 'i, S> Cacher<'t, 'i, S> {
 }
 
 #[derive(Clone, Copy)]
-pub struct Row<'x, 'i, 'a> {
-    pub(crate) _p: PhantomData<fn(&'i ()) -> &'a ()>,
+pub(crate) struct Row<'x> {
     pub(crate) row: &'x rusqlite::Row<'x>,
     pub(crate) fields: &'x [Field],
 }
 
-impl<'x, 'i, 'a> Row<'x, 'i, 'a> {
+impl<'x> Row<'x> {
     pub(crate) fn new(row: &'x rusqlite::Row<'x>, fields: &'x [Field]) -> Self {
-        Self {
-            row,
-            fields,
-            _p: PhantomData,
-        }
+        Self { row, fields }
     }
 
-    pub fn get<T: MyTyp>(&self, val: Cached<'i, T>) -> T::Out<'a> {
+    pub fn get<'transaction, T: MyTyp>(&self, val: Cached<T>) -> T::Out<'transaction> {
         let field = self.fields[val.idx];
         let idx = &*field.to_string();
         T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
     }
 }
 
-pub trait Prepared<'i, 'transaction> {
+pub(crate) trait Prepared<'transaction> {
     type Out;
 
-    fn call(&mut self, row: Row<'_, 'i, 'transaction>) -> Self::Out;
+    fn call(&mut self, row: Row<'_>) -> Self::Out;
+}
+
+pub struct Package<'i, T> {
+    pub(crate) inner: T,
+    pub(crate) _p: PhantomData<&'i ()>,
+}
+
+impl<T> Package<'_, T> {
+    pub(crate) fn new(val: T) -> Self {
+        Self {
+            inner: val,
+            _p: PhantomData,
+        }
+    }
 }
 
 /// This trait is implemented by everything that can be retrieved from the database.
@@ -93,17 +97,17 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out;
 
-    /// The result of the [Dummy::prepare] method.
+    /// The result of the [Dummy::into_impl] method.
     ///
-    /// Just like the [Dummy::prepare] implemenation, this should be specified
+    /// Just like the [Dummy::into_impl] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
-    type Prepared<'i>: Prepared<'i, 'transaction, Out = Self::Out>;
+    type Prepared: Prepared<'transaction, Out = Self::Out>;
 
     /// This method is what tells rust-query how to retrieve the dummy.
     ///
     /// The only way to implement this method is by constructing a different dummy and
-    /// calling the [Dummy::prepare] method on that other dummy.
-    fn prepare<'i>(self, cacher: &mut Cacher<'columns, 'i, S>) -> Self::Prepared<'i>;
+    /// calling the [Dummy::into_impl] method on that other dummy.
+    fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared>;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -133,79 +137,95 @@ where
 {
     type Out = O;
 
-    type Prepared<'i> = MapPrepared<D::Prepared<'i>, F>;
+    type Prepared = MapPrepared<D::Prepared, F>;
 
-    fn prepare<'i>(self, cacher: &mut Cacher<'columns, 'i, S>) -> Self::Prepared<'i> {
-        MapPrepared {
-            inner: self.dummy.prepare(cacher),
+    fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
+        Package::new(MapPrepared {
+            inner: self.dummy.prepare(cacher).inner,
             map: self.func,
-        }
+        })
     }
 }
 
-pub struct MapPrepared<X, M> {
+pub(crate) struct MapPrepared<X, M> {
     inner: X,
     map: M,
 }
 
-impl<'i, 'transaction, X, M, Out> Prepared<'i, 'transaction> for MapPrepared<X, M>
+impl<'transaction, X, M, Out> Prepared<'transaction> for MapPrepared<X, M>
 where
-    X: Prepared<'i, 'transaction>,
+    X: Prepared<'transaction>,
     M: FnMut(X::Out) -> Out,
 {
     type Out = Out;
 
-    fn call(&mut self, row: Row<'_, 'i, 'transaction>) -> Self::Out {
+    fn call(&mut self, row: Row<'_>) -> Self::Out {
         (self.map)(self.inner.call(row))
     }
 }
 
-impl<'i, 'a> Prepared<'i, 'a> for () {
+impl Prepared<'_> for () {
     type Out = ();
 
-    fn call(&mut self, _row: Row<'_, 'i, 'a>) -> Self::Out {}
+    fn call(&mut self, _row: Row<'_>) -> Self::Out {}
 }
 
-impl<'t, 'a, S> Dummy<'t, 'a, S> for () {
+impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
     type Out = ();
-    type Prepared<'i> = ();
 
-    fn prepare<'i>(self, _cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {}
+    type Prepared = ();
+
+    fn prepare<'i>(self, _cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
+        Package::new(())
+    }
 }
 
-impl<'i, 'a, T: MyTyp> Prepared<'i, 'a> for Cached<'i, T> {
-    type Out = T::Out<'a>;
+impl<'transaction, T: MyTyp> Prepared<'transaction> for Cached<T> {
+    type Out = T::Out<'transaction>;
 
-    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+    fn call(&mut self, row: Row<'_>) -> Self::Out {
         row.get(*self)
     }
 }
 
-impl<'t, 'a, S, T: IntoColumn<'t, S, Typ: MyTyp>> Dummy<'t, 'a, S> for T {
-    type Out = <T::Typ as MyTyp>::Out<'a>;
-    type Prepared<'i> = Cached<'i, T::Typ>;
+impl<'columns, 'transaction, S, T> Dummy<'columns, 'transaction, S> for T
+where
+    T: IntoColumn<'columns, S, Typ: MyTyp>,
+{
+    type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
-    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {
-        cacher.cache(self)
+    type Prepared = Cached<T::Typ>;
+
+    fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
+        Package::new(cacher.cache(self.into_column().inner))
     }
 }
 
-impl<'i, 'a, A: Prepared<'i, 'a>, B: Prepared<'i, 'a>> Prepared<'i, 'a> for (A, B) {
+impl<'transaction, A, B> Prepared<'transaction> for (A, B)
+where
+    A: Prepared<'transaction>,
+    B: Prepared<'transaction>,
+{
     type Out = (A::Out, B::Out);
 
-    fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
+    fn call(&mut self, row: Row<'_>) -> Self::Out {
         (self.0.call(row), self.1.call(row))
     }
 }
 
-impl<'t, 'a, S, A: Dummy<'t, 'a, S>, B: Dummy<'t, 'a, S>> Dummy<'t, 'a, S> for (A, B) {
+impl<'columns, 'transaction, S, A, B> Dummy<'columns, 'transaction, S> for (A, B)
+where
+    A: Dummy<'columns, 'transaction, S>,
+    B: Dummy<'columns, 'transaction, S>,
+{
     type Out = (A::Out, B::Out);
-    type Prepared<'i> = (A::Prepared<'i>, B::Prepared<'i>);
 
-    fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {
-        let prepared_a = self.0.prepare(cacher);
-        let prepared_b = self.1.prepare(cacher);
-        (prepared_a, prepared_b)
+    type Prepared = (A::Prepared, B::Prepared);
+
+    fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
+        let prepared_a = self.0.prepare(cacher).inner;
+        let prepared_b = self.1.prepare(cacher).inner;
+        Package::new((prepared_a, prepared_b))
     }
 }
 
@@ -224,33 +244,18 @@ mod tests {
         b: B,
     }
 
-    impl<'i, 'a, A, B> Prepared<'i, 'a> for UserDummy<A, B>
-    where
-        A: Prepared<'i, 'a, Out = i64>,
-        B: Prepared<'i, 'a, Out = String>,
-    {
-        type Out = User;
-
-        fn call(&mut self, row: Row<'_, 'i, 'a>) -> Self::Out {
-            User {
-                a: self.a.call(row),
-                b: self.b.call(row),
-            }
-        }
-    }
-
     impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
     where
         A: IntoColumn<'t, S, Typ = i64>,
         B: IntoColumn<'t, S, Typ = String>,
     {
         type Out = User;
-        type Prepared<'i> = UserDummy<Cached<'i, i64>, Cached<'i, String>>;
+        type Prepared = <MapDummy<(A, B), fn((i64, String)) -> User> as Dummy<'t, 'a, S>>::Prepared;
 
-        fn prepare<'i>(self, cacher: &mut Cacher<'t, 'i, S>) -> Self::Prepared<'i> {
-            let a = cacher.cache(self.a);
-            let b = cacher.cache(self.b);
-            UserDummy { a, b }
+        fn prepare<'i>(self, cacher: &'i mut Cacher<'t, S>) -> Package<'i, Self::Prepared> {
+            (self.a, self.b)
+                .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
+                .prepare(cacher)
         }
     }
 }

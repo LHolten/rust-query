@@ -114,16 +114,16 @@ pub trait Schema: Sized + 'static {
 }
 
 pub struct CacheAndRead<'t, 'a, S> {
-    cacher: Cacher<'t, 'static, S>,
+    cacher: Cacher<'t, S>,
     columns: Vec<(&'static str, DynPrepared<'a>)>,
 }
 
 struct DynPrepared<'a> {
-    inner: Box<dyn 'a + FnMut(Row<'_, 'static, 'a>) -> DynTypedExpr>,
+    inner: Box<dyn 'a + FnMut(Row<'_>) -> DynTypedExpr>,
 }
 
 impl<'a> DynPrepared<'a> {
-    pub fn new(val: impl 'a + FnMut(Row<'_, 'static, 'a>) -> DynTypedExpr) -> Self {
+    pub fn new(val: impl 'a + FnMut(Row<'_>) -> DynTypedExpr) -> Self {
         Self {
             inner: Box::new(val),
         }
@@ -134,11 +134,11 @@ impl<'t, 'a, S> CacheAndRead<'t, 'a, S> {
     pub fn col<O: IntoColumn<'a, S>, P>(
         &mut self,
         name: &'static str,
-        val: impl Dummy<'t, 'a, S, Out = O, Prepared<'static> = P>,
+        val: impl Dummy<'t, 'a, S, Out = O, Prepared = P>,
     ) where
-        P: 'a + Prepared<'static, 'a, Out = O>,
+        P: 'a + Prepared<'a, Out = O>,
     {
-        let mut p = val.prepare(&mut self.cacher);
+        let mut p = val.prepare(&mut self.cacher).inner;
         let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
         self.columns.push((name, p));
     }
@@ -230,11 +230,7 @@ impl<'a> SchemaBuilder<'_, 'a> {
         let create = f(&mut q);
         let mut cache_and_read = CacheAndRead {
             columns: Vec::new(),
-            cacher: Cacher {
-                _p: PhantomData,
-                _p2: PhantomData,
-                columns: Vec::new(),
-            },
+            cacher: Cacher::new(),
         };
         create.inner.prepare(&mut cache_and_read);
         let cached = q.ast.cache(cache_and_read.cacher.columns);
@@ -248,7 +244,6 @@ impl<'a> SchemaBuilder<'_, 'a> {
 
         while let Some(row) = rows.next().unwrap() {
             let row = Row {
-                _p: PhantomData,
                 row,
                 fields: &cached,
             };
