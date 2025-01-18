@@ -100,6 +100,8 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut dummies = vec![];
     let mut typs = vec![];
     let mut names = vec![];
+    let mut static_dummy_typs = vec![];
+    let mut trivial_conds = vec![];
     for (name, typ) in &fields {
         let generic = make_generic(name);
 
@@ -110,26 +112,11 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
         typs.push(quote! {#typ});
+        static_dummy_typs
+            .push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, _S>>::Dummy<'_t>});
+        trivial_conds.push(quote! {#typ: ::rust_query::FromDummy<#transaction_lt, _S>});
     }
 
-    let mut from_dummy = None;
-    if !trivial.is_empty() {
-        let mut static_dummy_typs = vec![];
-        let mut trivial_conds = vec![];
-        for (_name, typ) in &fields {
-            static_dummy_typs
-                .push(quote! {<#typ as ::rust_query::FromDummy<#transaction_lt, _S>>::Dummy<'_t>});
-            trivial_conds.push(quote! {#typ: ::rust_query::FromDummy<#transaction_lt, _S>});
-        }
-
-        from_dummy = Some(quote! {
-            impl<#(#original_plus_transaction,)* _S> ::rust_query::FromDummy<#transaction_lt, _S> for #name<#(#original_generics),*>
-            where #(#trivial_conds,)*
-            {
-                type Dummy<'_t> = #dummy_name<#(#static_dummy_typs),*>;
-            }
-        })
-    }
     let trivial = trivial.into_iter().map(|trivial| {
         let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
         let mut trivial_prepared = vec![];
@@ -169,7 +156,12 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             }
         }
 
-        #from_dummy
+        impl<#(#original_plus_transaction,)* _S> ::rust_query::FromDummy<#transaction_lt, _S> for #name<#(#original_generics),*>
+        where #(#trivial_conds,)*
+        {
+            type Dummy<'_t> = #dummy_name<#(#static_dummy_typs),*>;
+        }
+
         #(#trivial)*
     })
 }
