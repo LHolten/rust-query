@@ -94,7 +94,10 @@ pub(crate) trait DummyImpl {
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared;
 }
 
-pub trait DummyParent<'transaction>: Sized {
+/// This trait is implemented by everything that can be retrieved from the database.
+///
+/// This trait can be automatically implemented using [rust_query_macros::Dummy].
+pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out;
 
@@ -103,12 +106,7 @@ pub trait DummyParent<'transaction>: Sized {
     /// Just like the [Dummy::into_impl] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
     type Impl: DummyImpl<Prepared: Prepared<Out = Self::Out>>;
-}
 
-/// This trait is implemented by everything that can be retrieved from the database.
-///
-/// This trait can be automatically implemented using [rust_query_macros::Dummy].
-pub trait Dummy<'columns, 'transaction, S>: DummyParent<'transaction> {
     /// This method is what tells rust-query how to retrieve the dummy.
     ///
     /// The only way to implement this method is by constructing a different dummy and
@@ -151,21 +149,15 @@ where
     }
 }
 
-impl<'transaction, D, F, O> DummyParent<'transaction> for MapDummy<D, F>
-where
-    D: DummyParent<'transaction>,
-    F: FnMut(D::Out) -> O,
-{
-    type Out = O;
-
-    type Impl = MapDummy<D::Impl, F>;
-}
-
 impl<'columns, 'transaction, S, D, F, O> Dummy<'columns, 'transaction, S> for MapDummy<D, F>
 where
     D: Dummy<'columns, 'transaction, S>,
     F: FnMut(D::Out) -> O,
 {
+    type Out = O;
+
+    type Impl = MapDummy<D::Impl, F>;
+
     fn into_impl(self) -> Package<'columns, S, Self::Impl> {
         Package::new(MapDummy {
             dummy: self.dummy.into_impl().inner,
@@ -203,13 +195,11 @@ impl DummyImpl for () {
     fn prepare(self, _cacher: &mut Cacher) -> Self::Prepared {}
 }
 
-impl<'transaction> DummyParent<'transaction> for () {
+impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
     type Out = ();
 
     type Impl = ();
-}
 
-impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
     fn into_impl(self) -> Package<'columns, S, Self::Impl> {
         Package::new(())
     }
@@ -223,7 +213,7 @@ impl<T: SecretFromSql> Prepared for Cached<T> {
     }
 }
 
-pub(crate) struct NotCached<Out> {
+pub struct NotCached<Out> {
     expr: DynTypedExpr,
     _p: PhantomData<Out>,
 }
@@ -239,15 +229,12 @@ impl<Out: SecretFromSql> DummyImpl for NotCached<Out> {
     }
 }
 
-impl<'columns, 'transaction, S, T: MyTyp> DummyParent<'transaction> for Column<'columns, S, T> {
-    type Out = T::Out<'transaction>;
-
-    type Impl = NotCached<T::Out<'transaction>>;
-}
-
 impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
     for Column<'columns, S, T>
 {
+    type Out = T::Out<'transaction>;
+
+    type Impl = NotCached<Self::Out>;
     fn into_impl(self) -> Package<'columns, S, Self::Impl> {
         Package::new(NotCached {
             expr: self.inner.erase(),
@@ -278,21 +265,14 @@ impl<A: DummyImpl, B: DummyImpl> DummyImpl for (A, B) {
     }
 }
 
-impl<'transaction, A, B> DummyParent<'transaction> for (A, B)
-where
-    A: DummyParent<'transaction>,
-    B: DummyParent<'transaction>,
-{
-    type Out = (A::Out, B::Out);
-
-    type Impl = (A::Impl, B::Impl);
-}
-
 impl<'columns, 'transaction, S, A, B> Dummy<'columns, 'transaction, S> for (A, B)
 where
     A: Dummy<'columns, 'transaction, S>,
     B: Dummy<'columns, 'transaction, S>,
 {
+    type Out = (A::Out, B::Out);
+
+    type Impl = (A::Impl, B::Impl);
     fn into_impl(self) -> Package<'columns, S, Self::Impl> {
         Package::new((self.0.into_impl().inner, self.1.into_impl().inner))
     }

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy_impl::{DummyImpl, DummyParent, NotCached, Package, Prepared},
+    dummy_impl::{DummyImpl, NotCached, Package, Prepared},
     optional, Dummy, Table, TableRow,
 };
 
@@ -27,27 +27,22 @@ pub trait FromColumn<'transaction, S, From>: FromDummy {
 }
 
 /// This type implements [Dummy] for any column if there is a matching [FromColumn] implementation.
-pub struct Trivial<'columns, S, T, X> {
-    pub(crate) col: Column<'columns, S, T>,
+pub struct Trivial<C, X> {
+    pub(crate) col: C,
     pub(crate) _p: PhantomData<X>,
 }
 
-impl<'transaction, 'columns, S, T, X> DummyParent<'transaction> for Trivial<'columns, S, T, X>
+impl<'transaction, 'columns, S, C, X> Dummy<'columns, 'transaction, S> for Trivial<C, X>
 where
-    X: FromColumn<'transaction, S, T>,
+    C: IntoColumn<'columns, S>,
+    X: FromColumn<'transaction, S, C::Typ>,
 {
     type Out = X;
 
     type Impl = X::Impl;
-}
 
-impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
-    for Trivial<'columns, S, T, X>
-where
-    X: FromColumn<'transaction, S, T>,
-{
     fn into_impl(self) -> Package<'columns, S, Self::Impl> {
-        X::from_column(self.col)
+        X::from_column(self.col.into_column())
     }
 }
 

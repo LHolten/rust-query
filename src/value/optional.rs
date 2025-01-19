@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy_impl::{Cached, Cacher, DummyImpl, DummyParent, NotCached, Package, Prepared, Row},
+    dummy_impl::{Cached, Cacher, DummyImpl, NotCached, Package, Prepared, Row},
     Dummy,
 };
 
@@ -89,19 +89,14 @@ pub struct OptionalDummy<'columns, S, X> {
     pub(crate) is_some: Column<'columns, S, bool>,
 }
 
-impl<'columns, 'transaction, S, X> DummyParent<'transaction> for OptionalDummy<'columns, S, X>
-where
-    X: DummyImpl,
-{
-    type Out = Option<<X::Prepared as Prepared>::Out>;
-    type Impl = OptionalImpl<X>;
-}
-
 impl<'columns, 'transaction, S, X> Dummy<'columns, 'transaction, S>
     for OptionalDummy<'columns, S, X>
 where
     X: DummyImpl,
 {
+    type Out = Option<<X::Prepared as Prepared>::Out>;
+    type Impl = OptionalImpl<X>;
+
     fn into_impl(self) -> Package<'columns, S, Self::Impl> {
         Package::new(OptionalImpl {
             inner: self.inner,
