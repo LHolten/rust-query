@@ -13,7 +13,7 @@ use crate::{
     client::LocalClient,
     migrate::schema_version,
     query::Query,
-    value::MyTyp,
+    value::SecretFromSql,
     writable::{Reader, Writable},
     Dummy, IntoColumn, Rows, Table, TableRow,
 };
@@ -187,7 +187,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let mut statement = self.transaction.prepare_cached(&sql).unwrap();
         let mut res = statement
             .query_map(&*values.as_params(), |row| {
-                Ok(<T as MyTyp>::from_sql(row.get_ref(T::ID)?)?)
+                Ok(TableRow::<'_, T>::from_sql(row.get_ref(T::ID)?)?)
             })
             .unwrap();
 

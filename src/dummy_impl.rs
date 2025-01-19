@@ -4,8 +4,8 @@ use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    value::{DynTyped, DynTypedExpr, MyTyp},
-    Column, IntoColumn,
+    value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
+    Column,
 };
 
 /// Opaque type used to implement [crate::Dummy].
@@ -44,7 +44,7 @@ impl<S> Cacher<'_, S> {
         idx
     }
 
-    pub(crate) fn cache<'a, T: 'static>(&mut self, val: DynTyped<T>) -> Cached<T> {
+    pub(crate) fn cache<'a, T: MyTyp>(&mut self, val: DynTyped<T>) -> Cached<T::Out<'a>> {
         Cached {
             _p: PhantomData,
             idx: self.cache_erased(val.erase()),
@@ -63,14 +63,14 @@ impl<'x> Row<'x> {
         Self { row, fields }
     }
 
-    pub fn get<'transaction, T: MyTyp>(&self, val: Cached<T>) -> T::Out<'transaction> {
+    pub fn get<T: SecretFromSql>(&self, val: Cached<T>) -> T {
         let field = self.fields[val.idx];
         let idx = &*field.to_string();
         T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
     }
 }
 
-pub(crate) trait Prepared<'transaction> {
+pub(crate) trait Prepared {
     type Out;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out;
@@ -124,7 +124,7 @@ pub trait DummyParent<'transaction>: Sized {
     ///
     /// Just like the [Dummy::into_impl] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
-    type Prepared: Prepared<'transaction, Out = Self::Out>;
+    type Prepared: Prepared<Out = Self::Out>;
 }
 
 /// This trait is implemented by everything that can be retrieved from the database.
@@ -186,9 +186,9 @@ pub(crate) struct MapPrepared<X, M> {
     map: M,
 }
 
-impl<'transaction, X, M, Out> Prepared<'transaction> for MapPrepared<X, M>
+impl<X, M, Out> Prepared for MapPrepared<X, M>
 where
-    X: Prepared<'transaction>,
+    X: Prepared,
     M: FnMut(X::Out) -> Out,
 {
     type Out = Out;
@@ -198,7 +198,7 @@ where
     }
 }
 
-impl Prepared<'_> for () {
+impl Prepared for () {
     type Out = ();
 
     fn call(&mut self, _row: Row<'_>) -> Self::Out {}
@@ -216,8 +216,8 @@ impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
     }
 }
 
-impl<'transaction, T: MyTyp> Prepared<'transaction> for Cached<T> {
-    type Out = T::Out<'transaction>;
+impl<T: SecretFromSql> Prepared for Cached<T> {
+    type Out = T;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
         row.get(*self)
@@ -227,7 +227,7 @@ impl<'transaction, T: MyTyp> Prepared<'transaction> for Cached<T> {
 impl<'columns, 'transaction, S, T: MyTyp> DummyParent<'transaction> for Column<'columns, S, T> {
     type Out = T::Out<'transaction>;
 
-    type Prepared = Cached<T>;
+    type Prepared = Cached<T::Out<'transaction>>;
 }
 
 impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
@@ -238,10 +238,10 @@ impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
     }
 }
 
-impl<'transaction, A, B> Prepared<'transaction> for (A, B)
+impl<'transaction, A, B> Prepared for (A, B)
 where
-    A: Prepared<'transaction>,
-    B: Prepared<'transaction>,
+    A: Prepared,
+    B: Prepared,
 {
     type Out = (A::Out, B::Out);
 

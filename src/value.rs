@@ -388,13 +388,9 @@ pub trait MyTyp: 'static {
     #[doc(hidden)]
     const FK: Option<(&'static str, &'static str)> = None;
     #[doc(hidden)]
-    type Out<'t>;
+    type Out<'t>: SecretFromSql;
     #[doc(hidden)]
     type Sql;
-    #[doc(hidden)]
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>>;
 }
 
 pub(crate) trait SecretFromSql: Sized {
@@ -406,10 +402,10 @@ impl<T: Table> MyTyp for T {
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = TableRow<'t, Self>;
     type Sql = i64;
+}
 
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl<T> SecretFromSql for TableRow<'_, T> {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(TableRow {
             _p: PhantomData,
             _local: PhantomData,
@@ -425,10 +421,10 @@ impl MyTyp for i64 {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = i64;
+}
 
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl SecretFromSql for i64 {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         value.as_i64()
     }
 }
@@ -437,10 +433,10 @@ impl MyTyp for f64 {
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
     type Sql = f64;
+}
 
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl SecretFromSql for f64 {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         value.as_f64()
     }
 }
@@ -449,10 +445,10 @@ impl MyTyp for bool {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = bool;
+}
 
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl SecretFromSql for bool {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(value.as_i64()? != 0)
     }
 }
@@ -461,10 +457,10 @@ impl MyTyp for String {
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
     type Sql = String;
+}
 
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl SecretFromSql for String {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(value.as_str()?.to_owned())
     }
 }
@@ -475,10 +471,10 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out<'t> = Option<T::Out<'t>>;
     type Sql = T::Sql;
+}
 
-    fn from_sql<'a>(
-        value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl<T: SecretFromSql> SecretFromSql for Option<T> {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         if value.data_type() == rusqlite::types::Type::Null {
             Ok(None)
         } else {
@@ -491,10 +487,10 @@ impl MyTyp for NoTable {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = NoTable;
     type Sql = i64;
+}
 
-    fn from_sql<'a>(
-        _value: rusqlite::types::ValueRef<'_>,
-    ) -> rusqlite::types::FromSqlResult<Self::Out<'a>> {
+impl SecretFromSql for NoTable {
+    fn from_sql(_value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         unreachable!()
     }
 }

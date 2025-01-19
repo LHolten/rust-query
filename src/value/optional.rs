@@ -97,14 +97,14 @@ pub struct OptionalDummy<'columns, S, X> {
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'columns, 'transaction, S, X: Prepared<'transaction>> DummyParent<'transaction>
+impl<'columns, 'transaction, S, X: Prepared> DummyParent<'transaction>
     for OptionalDummy<'columns, S, X>
 {
     type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X>;
 }
 
-impl<'columns, 'transaction, S, X: Prepared<'transaction>> Dummy<'columns, 'transaction, S>
+impl<'columns, 'transaction, S, X: Prepared> Dummy<'columns, 'transaction, S>
     for OptionalDummy<'columns, S, X>
 {
     fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
@@ -130,7 +130,7 @@ pub struct OptionalPrepared<X> {
     is_some: Cached<bool>,
 }
 
-impl<'i, 'a, X: Prepared<'a>> Prepared<'a> for OptionalPrepared<X> {
+impl<'i, 'a, X: Prepared> Prepared for OptionalPrepared<X> {
     type Out = Option<X::Out>;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
