@@ -1,6 +1,10 @@
 use std::marker::PhantomData;
 
-use crate::{dummy::Cacher, dummy_impl::Package, optional, Dummy, Table, TableRow};
+use crate::{
+    dummy::Cacher,
+    dummy_impl::{DummyParent, Package},
+    optional, Dummy, Table, TableRow,
+};
 
 use super::{optional::OptionalDummy, Column, IntoColumn};
 
@@ -29,16 +33,20 @@ pub struct Trivial<'columns, S, T, X> {
     pub(crate) _p: PhantomData<X>,
 }
 
+impl<'transaction, 'columns, S, T, X> DummyParent<'transaction> for Trivial<'columns, S, T, X>
+where
+    X: FromColumn<'transaction, S, T>,
+{
+    type Out = X;
+
+    type Prepared = <X::Dummy<'columns> as DummyParent<'transaction>>::Prepared;
+}
+
 impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
     for Trivial<'columns, S, T, X>
 where
     X: FromColumn<'transaction, S, T>,
-    X: 'transaction,
 {
-    type Out = X;
-
-    type Prepared = <X::Dummy<'columns> as Dummy<'columns, 'transaction, S>>::Prepared;
-
     fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
         X::from_column(self.col).prepare(cacher)
     }
@@ -75,11 +83,8 @@ impl<'transaction, S, T> FromDummy<'transaction, S> for Option<T>
 where
     T: FromDummy<'transaction, S>,
 {
-    type Dummy<'columns> = OptionalDummy<
-        'columns,
-        S,
-        <T::Dummy<'columns> as Dummy<'columns, 'transaction, S>>::Prepared,
-    >;
+    type Dummy<'columns> =
+        OptionalDummy<'columns, S, <T::Dummy<'columns> as DummyParent<'transaction>>::Prepared>;
 }
 impl<'transaction, S, T: 'transaction, From: 'static, P> FromColumn<'transaction, S, Option<From>>
     for Option<T>

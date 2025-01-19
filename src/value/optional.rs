@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy_impl::{Cached, Cacher, Package, Prepared, Row},
+    dummy_impl::{Cached, Cacher, DummyParent, Package, Prepared, Row},
     Dummy,
 };
 
@@ -97,12 +97,16 @@ pub struct OptionalDummy<'columns, S, X> {
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'columns, 'transaction, S, X: Prepared<'transaction>> Dummy<'columns, 'transaction, S>
+impl<'columns, 'transaction, S, X: Prepared<'transaction>> DummyParent<'transaction>
     for OptionalDummy<'columns, S, X>
 {
     type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X>;
+}
 
+impl<'columns, 'transaction, S, X: Prepared<'transaction>> Dummy<'columns, 'transaction, S>
+    for OptionalDummy<'columns, S, X>
+{
     fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
         let mut diff = None;
         self.columns.into_iter().enumerate().for_each(|(old, x)| {

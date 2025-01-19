@@ -260,7 +260,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
         let mut stmt = self.transaction.prepare_cached(&query).unwrap();
 
-        let row_id = self.query_one(row).inner.idx;
+        let row_id = self.query_one(row.into_column()).inner.idx;
         let mut update = UpdateStatement::new()
             .table(Alias::new(T::NAME))
             .cond_where(Expr::val(row_id).equals(Alias::new(T::ID)))

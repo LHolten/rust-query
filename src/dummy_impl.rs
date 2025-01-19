@@ -5,7 +5,7 @@ use sea_query::Iden;
 use crate::{
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp},
-    IntoColumn,
+    Column, IntoColumn,
 };
 
 /// Opaque type used to implement [crate::Dummy].
@@ -90,10 +90,33 @@ impl<T> Package<'_, T> {
     }
 }
 
-/// This trait is implemented by everything that can be retrieved from the database.
-///
-/// This trait can be automatically implemented using [rust_query_macros::Dummy].
-pub trait Dummy<'columns, 'transaction, S>: Sized {
+// pub struct NewPackage<'columns, 'transaction, S, T> {
+//     pub(crate) inner: T,
+//     pub(crate) _p: PhantomData<&'columns ()>,
+//     pub(crate) _p2: PhantomData<&'transaction ()>,
+//     pub(crate) _p3: PhantomData<S>,
+// }
+
+// impl<S, T> NewPackage<'_, '_, S, T> {
+//     pub(crate) fn new(val: T) -> Self {
+//         Self {
+//             inner: val,
+//             _p: PhantomData,
+//             _p2: PhantomData,
+//             _p3: PhantomData,
+//         }
+//     }
+// }
+
+// pub trait IntoDummyParent<'transaction> {
+//     type Dummy;
+// }
+
+// pub trait IntoDummy<'columns, 'transaction, S>: IntoDummyParent<'transaction> {
+//     fn into_dummy(self) -> NewPackage<'columns, 'transaction, S, Self::Dummy>;
+// }
+
+pub trait DummyParent<'transaction>: Sized {
     /// The type that results from querying this dummy.
     type Out;
 
@@ -102,7 +125,12 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     /// Just like the [Dummy::into_impl] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
     type Prepared: Prepared<'transaction, Out = Self::Out>;
+}
 
+/// This trait is implemented by everything that can be retrieved from the database.
+///
+/// This trait can be automatically implemented using [rust_query_macros::Dummy].
+pub trait Dummy<'columns, 'transaction, S>: DummyParent<'transaction> {
     /// This method is what tells rust-query how to retrieve the dummy.
     ///
     /// The only way to implement this method is by constructing a different dummy and
@@ -130,15 +158,21 @@ pub struct MapDummy<D, F> {
     func: F,
 }
 
-impl<'columns, 'transaction, S, D, F, O> Dummy<'columns, 'transaction, S> for MapDummy<D, F>
+impl<'transaction, D, F, O> DummyParent<'transaction> for MapDummy<D, F>
 where
-    D: Dummy<'columns, 'transaction, S>,
+    D: DummyParent<'transaction>,
     F: FnMut(D::Out) -> O,
 {
     type Out = O;
 
     type Prepared = MapPrepared<D::Prepared, F>;
+}
 
+impl<'columns, 'transaction, S, D, F, O> Dummy<'columns, 'transaction, S> for MapDummy<D, F>
+where
+    D: Dummy<'columns, 'transaction, S>,
+    F: FnMut(D::Out) -> O,
+{
     fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
         Package::new(MapPrepared {
             inner: self.dummy.prepare(cacher).inner,
@@ -170,11 +204,13 @@ impl Prepared<'_> for () {
     fn call(&mut self, _row: Row<'_>) -> Self::Out {}
 }
 
-impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
+impl<'transaction> DummyParent<'transaction> for () {
     type Out = ();
 
     type Prepared = ();
+}
 
+impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
     fn prepare<'i>(self, _cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
         Package::new(())
     }
@@ -188,16 +224,17 @@ impl<'transaction, T: MyTyp> Prepared<'transaction> for Cached<T> {
     }
 }
 
-impl<'columns, 'transaction, S, T> Dummy<'columns, 'transaction, S> for T
-where
-    T: IntoColumn<'columns, S, Typ: MyTyp>,
+impl<'columns, 'transaction, S, T: MyTyp> DummyParent<'transaction> for Column<'columns, S, T> {
+    type Out = T::Out<'transaction>;
+
+    type Prepared = Cached<T>;
+}
+
+impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
+    for Column<'columns, S, T>
 {
-    type Out = <T::Typ as MyTyp>::Out<'transaction>;
-
-    type Prepared = Cached<T::Typ>;
-
     fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
-        Package::new(cacher.cache(self.into_column().inner))
+        Package::new(cacher.cache(self.inner))
     }
 }
 
@@ -213,15 +250,21 @@ where
     }
 }
 
+impl<'transaction, A, B> DummyParent<'transaction> for (A, B)
+where
+    A: DummyParent<'transaction>,
+    B: DummyParent<'transaction>,
+{
+    type Out = (A::Out, B::Out);
+
+    type Prepared = (A::Prepared, B::Prepared);
+}
+
 impl<'columns, 'transaction, S, A, B> Dummy<'columns, 'transaction, S> for (A, B)
 where
     A: Dummy<'columns, 'transaction, S>,
     B: Dummy<'columns, 'transaction, S>,
 {
-    type Out = (A::Out, B::Out);
-
-    type Prepared = (A::Prepared, B::Prepared);
-
     fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
         let prepared_a = self.0.prepare(cacher).inner;
         let prepared_b = self.1.prepare(cacher).inner;
@@ -244,18 +287,18 @@ mod tests {
         b: B,
     }
 
-    impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
-    where
-        A: IntoColumn<'t, S, Typ = i64>,
-        B: IntoColumn<'t, S, Typ = String>,
-    {
-        type Out = User;
-        type Prepared = <MapDummy<(A, B), fn((i64, String)) -> User> as Dummy<'t, 'a, S>>::Prepared;
+    // impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
+    // where
+    //     A: IntoColumn<'t, S, Typ = i64>,
+    //     B: IntoColumn<'t, S, Typ = String>,
+    // {
+    //     type Out = User;
+    //     type Prepared = <MapDummy<(A, B), fn((i64, String)) -> User> as Dummy<'t, 'a, S>>::Prepared;
 
-        fn prepare<'i>(self, cacher: &'i mut Cacher<'t, S>) -> Package<'i, Self::Prepared> {
-            (self.a, self.b)
-                .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
-                .prepare(cacher)
-        }
-    }
+    //     fn prepare<'i>(self, cacher: &'i mut Cacher<'t, S>) -> Package<'i, Self::Prepared> {
+    //         (self.a, self.b)
+    //             .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
+    //             .prepare(cacher)
+    //     }
+    // }
 }

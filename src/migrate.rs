@@ -173,7 +173,7 @@ impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To
 
     fn prepare(self: Box<Self>, cacher: &mut CacheAndRead<'t, 'a, Self::FromSchema>) {
         // keep the ID the same
-        cacher.col(From::ID, &self.db_id);
+        cacher.col(From::ID, self.db_id.clone());
         Box::new(self.inner).prepare(self.db_id, cacher);
     }
 }
