@@ -53,7 +53,7 @@ pub mod migration {
 /// Traits and types for implementing custom types that can be retrieved
 /// from the database.
 pub mod dummy {
-    pub use crate::dummy_impl::{Cacher, MapDummy};
+    pub use crate::dummy_impl::{MapDummy, NotCached, Package};
     pub use crate::value::trivial::{FromColumn, FromDummy};
 }
 

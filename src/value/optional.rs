@@ -97,7 +97,7 @@ where
     type Out = Option<<X::Prepared as Prepared>::Out>;
     type Impl = OptionalImpl<X>;
 
-    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         Package::new(OptionalImpl {
             inner: self.inner,
             is_some: self.is_some.into_impl().inner,

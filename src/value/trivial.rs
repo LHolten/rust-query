@@ -23,7 +23,9 @@ pub trait FromDummy {
 /// adding the `#[rust_query(From = Thing)]` helper attribute.
 pub trait FromColumn<'transaction, S, From>: FromDummy {
     /// How to turn a column reference into the associated dummy type of [FromDummy].
-    fn from_column<'columns>(col: Column<'columns, S, From>) -> Package<'columns, S, Self::Impl>;
+    fn from_column<'columns>(
+        col: Column<'columns, S, From>,
+    ) -> Package<'columns, 'transaction, S, Self::Impl>;
 }
 
 /// This type implements [Dummy] for any column if there is a matching [FromColumn] implementation.
@@ -41,7 +43,7 @@ where
 
     type Impl = X::Impl;
 
-    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         X::from_column(self.col.into_column())
     }
 }
@@ -54,7 +56,7 @@ macro_rules! from_column {
         impl<'transaction, S> FromColumn<'transaction, S, $typ> for $typ {
             fn from_column<'columns>(
                 col: Column<'columns, S, $typ>,
-            ) -> Package<'columns, S, Self::Impl> {
+            ) -> Package<'columns, 'transaction, S, Self::Impl> {
                 col.into_impl()
             }
         }
@@ -72,7 +74,7 @@ impl<'transaction, T> FromDummy for TableRow<'transaction, T> {
 impl<'transaction, T: Table> FromColumn<'transaction, T::Schema, T> for TableRow<'transaction, T> {
     fn from_column<'columns>(
         col: Column<'columns, T::Schema, T>,
-    ) -> Package<'columns, T::Schema, Self::Impl> {
+    ) -> Package<'columns, 'transaction, T::Schema, Self::Impl> {
         col.into_impl()
     }
 }
@@ -86,7 +88,7 @@ where
 {
     fn from_column<'columns>(
         col: Column<'columns, S, Option<From>>,
-    ) -> Package<'columns, S, Self::Impl> {
+    ) -> Package<'columns, 'transaction, S, Self::Impl> {
         optional(|row| {
             let col = row.and(col);
             row.then_dummy(col.into_trivial::<T>())

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
 use ref_cast::RefCast;
-use rust_query_macros::Dummy;
 
-use crate::{db::Col, hash, value::IntoColumn, Column, Table, Transaction};
+use crate::{db::Col, hash, value::IntoColumn, Column, Dummy, Table, Transaction};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {

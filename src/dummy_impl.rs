@@ -21,7 +21,7 @@ impl Cacher {
     }
 }
 
-pub(crate) struct Cached<T> {
+pub struct Cached<T> {
     pub(crate) idx: usize,
     _p: PhantomData<T>,
 }
@@ -66,29 +66,42 @@ impl<'x> Row<'x> {
     }
 }
 
-pub(crate) trait Prepared {
+pub trait Prepared {
     type Out;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
-pub struct Package<'columns, S, Impl> {
+pub struct Package<'columns, 'transaction, S, Impl> {
     pub(crate) inner: Impl,
     pub(crate) _p: PhantomData<&'columns ()>,
+    pub(crate) _p2: PhantomData<fn(&'transaction ())>,
     pub(crate) _p3: PhantomData<S>,
 }
 
-impl<S, T> Package<'_, S, T> {
+impl<S, T> Package<'_, '_, S, T> {
     pub(crate) fn new(val: T) -> Self {
         Self {
             inner: val,
             _p: PhantomData,
+            _p2: PhantomData,
             _p3: PhantomData,
         }
     }
 }
 
-pub(crate) trait DummyImpl {
+impl<'columns, 'transaction, S, Impl: DummyImpl> Dummy<'columns, 'transaction, S>
+    for Package<'columns, 'transaction, S, Impl>
+{
+    type Out = <Impl::Prepared as Prepared>::Out;
+    type Impl = Impl;
+
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
+        self
+    }
+}
+
+pub trait DummyImpl {
     type Prepared: Prepared;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared;
@@ -111,7 +124,7 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     ///
     /// The only way to implement this method is by constructing a different dummy and
     /// calling the [Dummy::into_impl] method on that other dummy.
-    fn into_impl(self) -> Package<'columns, S, Self::Impl>;
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl>;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -158,7 +171,7 @@ where
 
     type Impl = MapDummy<D::Impl, F>;
 
-    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         Package::new(MapDummy {
             dummy: self.dummy.into_impl().inner,
             func: self.func,
@@ -166,7 +179,7 @@ where
     }
 }
 
-pub(crate) struct MapPrepared<X, M> {
+pub struct MapPrepared<X, M> {
     inner: X,
     map: M,
 }
@@ -200,7 +213,7 @@ impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
 
     type Impl = ();
 
-    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         Package::new(())
     }
 }
@@ -235,7 +248,7 @@ impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
     type Out = T::Out<'transaction>;
 
     type Impl = NotCached<Self::Out>;
-    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         Package::new(NotCached {
             expr: self.inner.erase(),
             _p: PhantomData,
@@ -273,7 +286,7 @@ where
     type Out = (A::Out, B::Out);
 
     type Impl = (A::Impl, B::Impl);
-    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         Package::new((self.0.into_impl().inner, self.1.into_impl().inner))
     }
 }
