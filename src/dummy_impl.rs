@@ -4,7 +4,7 @@ use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
+    value::{DynTypedExpr, MyTyp, SecretFromSql},
     IntoColumn,
 };
 
@@ -38,13 +38,6 @@ impl Cacher {
         let idx = self.columns.len();
         self.columns.push(val);
         idx
-    }
-
-    pub(crate) fn cache<'a, T: MyTyp>(&mut self, val: DynTyped<T>) -> Cached<T::Out<'a>> {
-        Cached {
-            _p: PhantomData,
-            idx: self.cache_erased(val.erase()),
-        }
     }
 }
 

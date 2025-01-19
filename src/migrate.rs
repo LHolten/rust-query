@@ -29,7 +29,7 @@ pub type M<'a, From, To> = Box<
 
 /// This is the type used to return table alterations in migrations.
 ///
-/// Note that migrations allow you to use anything that implements [crate::Dummy] to specify the new values.
+/// Note that migrations allow you to use anything that implements [crate::IntoDummy] to specify the new values.
 /// In particular this allows mapping values using native rust with [crate::IntoDummy::map_dummy].
 ///
 /// Take a look at the documentation of [crate::migration::schema] for more general information.
