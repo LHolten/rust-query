@@ -15,7 +15,7 @@ use crate::{
     query::Query,
     value::SecretFromSql,
     writable::{Reader, Writable},
-    Dummy, IntoColumn, Rows, Table, TableRow,
+    IntoColumn, IntoDummy, Rows, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -137,7 +137,7 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<'e, O>(&self, val: impl Dummy<'t, 't, S, Out = O>) -> O
+    pub fn query_one<'e, O>(&self, val: impl IntoDummy<'t, 't, S, Out = O>) -> O
     where
         S: 'static,
     {

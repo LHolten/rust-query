@@ -4,7 +4,7 @@ use crate::{
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, Typed},
-    Dummy, IntoColumn, Table,
+    IntoDummy, IntoColumn, Table,
 };
 
 /// this trait is not safe to implement
@@ -16,7 +16,7 @@ pub trait Writable<'t> {
     type Conflict;
     fn get_conflict_unchecked(
         &self,
-    ) -> impl Dummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
+    ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
 }
 
 impl<'t, X: Writable<'t>> Writable<'t> for &X {
@@ -31,7 +31,7 @@ impl<'t, X: Writable<'t>> Writable<'t> for &X {
 
     fn get_conflict_unchecked(
         &self,
-    ) -> impl Dummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
+    ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
         X::get_conflict_unchecked(self)
     }
 }

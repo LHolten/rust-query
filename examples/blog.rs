@@ -1,7 +1,7 @@
 use rust_query::{
     aggregate,
     migration::{schema, Alter, Config},
-    Database, Dummy, LocalClient, Table, Transaction, TransactionMut,
+    Database, IntoDummy, LocalClient, Table, Transaction, TransactionMut,
 };
 
 #[schema]

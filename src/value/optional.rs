@@ -3,8 +3,8 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy_impl::{Cached, Cacher, DummyImpl, NotCached, Package, Prepared, Row},
-    Dummy,
+    dummy_impl::{Cached, Cacher, ColumnImpl, Dummy, DummyImpl, Prepared, Row},
+    IntoDummy,
 };
 
 use super::{
@@ -75,18 +75,18 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// Returns an optional dummy that can be used as the result of the query.
     pub fn then_dummy<'transaction, P>(
         &self,
-        d: impl Dummy<'inner, 'transaction, S, Impl = P>,
-    ) -> Package<'outer, 'transaction, S, OptionalImpl<P>> {
-        Package::new(OptionalImpl {
-            inner: d.into_impl().inner,
-            is_some: self.is_some().into_impl().inner,
+        d: impl IntoDummy<'inner, 'transaction, S, Impl = P>,
+    ) -> Dummy<'outer, 'transaction, S, OptionalImpl<P>> {
+        Dummy::new(OptionalImpl {
+            inner: d.into_dummy().inner,
+            is_some: self.is_some().into_dummy().inner,
         })
     }
 }
 
 pub struct OptionalImpl<X> {
     inner: X,
-    is_some: NotCached<bool>,
+    is_some: ColumnImpl<bool>,
 }
 
 impl<X: DummyImpl> DummyImpl for OptionalImpl<X> {

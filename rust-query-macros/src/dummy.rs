@@ -108,7 +108,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         defs.push(quote! {#name: #generic});
         constraints
-            .push(quote! {#generic: ::rust_query::Dummy<'_t, #transaction_lt, S, Out = #typ>});
+            .push(quote! {#generic: ::rust_query::IntoDummy<'_t, #transaction_lt, S, Out = #typ>});
         generics.push(quote! {#generic});
         into_impl.push(quote! {#generic::Impl});
         dummies.push(quote! {self.#name});
@@ -128,8 +128,8 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::dummy::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::dummy::Package<'_t, #transaction_lt, #schema, Self::Impl> {
-                    ::rust_query::Dummy::into_impl(#dummy_name {
+                fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::dummy::Dummy<'_t, #transaction_lt, #schema, Self::Impl> {
+                    ::rust_query::IntoDummy::into_dummy(#dummy_name {
                         #(#trivial_prepared,)*
                     })
                 }
@@ -148,12 +148,12 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             #(#defs),*
         }
 
-        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::Dummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
+        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoDummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
             type Impl = ::rust_query::dummy::MapImpl<#parts_into_impl, fn(#parts_typ) -> Self::Out>;
 
-            fn into_impl(self) -> ::rust_query::dummy::Package<'_t, #transaction_lt, S, Self::Impl> {
-                ::rust_query::Dummy::into_impl(::rust_query::Dummy::map_dummy(#parts_dummies, (|#parts_name| #name {
+            fn into_dummy(self) -> ::rust_query::dummy::Dummy<'_t, #transaction_lt, S, Self::Impl> {
+                ::rust_query::IntoDummy::into_dummy(::rust_query::IntoDummy::map_dummy(#parts_dummies, (|#parts_name| #name {
                     #(#names,)*
                 }) as fn(#parts_typ) -> Self::Out))
             }

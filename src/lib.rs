@@ -23,7 +23,7 @@ mod writable;
 pub use aggregate::aggregate;
 pub use client::LocalClient;
 pub use db::TableRow;
-pub use dummy_impl::Dummy;
+pub use dummy_impl::IntoDummy;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
@@ -53,7 +53,7 @@ pub mod migration {
 /// Traits and types for implementing custom types that can be retrieved
 /// from the database.
 pub mod dummy {
-    pub use crate::dummy_impl::{MapImpl, NotCached, Package};
+    pub use crate::dummy_impl::{MapImpl, ColumnImpl, Dummy};
     pub use crate::value::trivial::{FromColumn, FromDummy};
 }
 

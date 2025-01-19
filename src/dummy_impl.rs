@@ -72,14 +72,14 @@ pub(crate) trait Prepared {
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
-pub struct Package<'columns, 'transaction, S, Impl> {
+pub struct Dummy<'columns, 'transaction, S, Impl> {
     pub(crate) inner: Impl,
     pub(crate) _p: PhantomData<&'columns ()>,
     pub(crate) _p2: PhantomData<fn(&'transaction ())>,
     pub(crate) _p3: PhantomData<S>,
 }
 
-impl<S, T> Package<'_, '_, S, T> {
+impl<S, T> Dummy<'_, '_, S, T> {
     pub(crate) fn new(val: T) -> Self {
         Self {
             inner: val,
@@ -90,13 +90,13 @@ impl<S, T> Package<'_, '_, S, T> {
     }
 }
 
-impl<'columns, 'transaction, S, Impl: DummyImpl> Dummy<'columns, 'transaction, S>
-    for Package<'columns, 'transaction, S, Impl>
+impl<'columns, 'transaction, S, Impl: DummyImpl> IntoDummy<'columns, 'transaction, S>
+    for Dummy<'columns, 'transaction, S, Impl>
 {
     type Out = Impl::Out;
     type Impl = Impl;
 
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
+    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Impl> {
         self
     }
 }
@@ -112,21 +112,21 @@ pub trait DummyImpl {
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
 /// This trait can be automatically implemented using [rust_query_macros::Dummy].
-pub trait Dummy<'columns, 'transaction, S>: Sized {
+pub trait IntoDummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out;
 
-    /// The result of the [Dummy::into_impl] method.
+    /// The result of the [IntoDummy::into_dummy] method.
     ///
-    /// Just like the [Dummy::into_impl] implemenation, this should be specified
+    /// Just like the [IntoDummy::into_dummy] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
     type Impl: DummyImpl<Out = Self::Out>;
 
     /// This method is what tells rust-query how to retrieve the dummy.
     ///
     /// The only way to implement this method is by constructing a different dummy and
-    /// calling the [Dummy::into_impl] method on that other dummy.
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl>;
+    /// calling the [IntoDummy::into_dummy] method on that other dummy.
+    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Impl>;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -135,9 +135,9 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     fn map_dummy<T, F: FnMut(Self::Out) -> T>(
         self,
         f: F,
-    ) -> Package<'columns, 'transaction, S, MapImpl<Self::Impl, F>> {
-        Package::new(MapImpl {
-            dummy: self.into_impl().inner,
+    ) -> Dummy<'columns, 'transaction, S, MapImpl<Self::Impl, F>> {
+        Dummy::new(MapImpl {
+            dummy: self.into_dummy().inner,
             func: f,
         })
     }
@@ -198,12 +198,12 @@ impl DummyImpl for () {
     fn prepare(self, _cacher: &mut Cacher) -> Self::Prepared {}
 }
 
-impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
+impl<'columns, 'transaction, S> IntoDummy<'columns, 'transaction, S> for () {
     type Out = ();
     type Impl = ();
 
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
-        Package::new(())
+    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Impl> {
+        Dummy::new(())
     }
 }
 
@@ -215,12 +215,12 @@ impl<T: SecretFromSql> Prepared for Cached<T> {
     }
 }
 
-pub struct NotCached<Out> {
+pub struct ColumnImpl<Out> {
     expr: DynTypedExpr,
     _p: PhantomData<Out>,
 }
 
-impl<Out: SecretFromSql> DummyImpl for NotCached<Out> {
+impl<Out: SecretFromSql> DummyImpl for ColumnImpl<Out> {
     type Out = Out;
     type Prepared = Cached<Out>;
 
@@ -232,15 +232,15 @@ impl<Out: SecretFromSql> DummyImpl for NotCached<Out> {
     }
 }
 
-impl<'columns, 'transaction, S, T> Dummy<'columns, 'transaction, S> for T
+impl<'columns, 'transaction, S, T> IntoDummy<'columns, 'transaction, S> for T
 where
     T: IntoColumn<'columns, S, Typ: MyTyp>,
 {
     type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
-    type Impl = NotCached<Self::Out>;
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
-        Package::new(NotCached {
+    type Impl = ColumnImpl<Self::Out>;
+    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Impl> {
+        Dummy::new(ColumnImpl {
             expr: self.into_column().inner.erase(),
             _p: PhantomData,
         })
@@ -270,16 +270,16 @@ impl<A: DummyImpl, B: DummyImpl> DummyImpl for (A, B) {
     }
 }
 
-impl<'columns, 'transaction, S, A, B> Dummy<'columns, 'transaction, S> for (A, B)
+impl<'columns, 'transaction, S, A, B> IntoDummy<'columns, 'transaction, S> for (A, B)
 where
-    A: Dummy<'columns, 'transaction, S>,
-    B: Dummy<'columns, 'transaction, S>,
+    A: IntoDummy<'columns, 'transaction, S>,
+    B: IntoDummy<'columns, 'transaction, S>,
 {
     type Out = (A::Out, B::Out);
 
     type Impl = (A::Impl, B::Impl);
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
-        Package::new((self.0.into_impl().inner, self.1.into_impl().inner))
+    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Impl> {
+        Dummy::new((self.0.into_dummy().inner, self.1.into_dummy().inner))
     }
 }
 
@@ -298,18 +298,19 @@ mod tests {
         b: B,
     }
 
-    // impl<'t, 'a, S, A, B> Dummy<'t, 'a, S> for UserDummy<A, B>
-    // where
-    //     A: IntoColumn<'t, S, Typ = i64>,
-    //     B: IntoColumn<'t, S, Typ = String>,
-    // {
-    //     type Out = User;
-    //     type Prepared = <MapImpl<(A, B), fn((i64, String)) -> User> as Dummy<'t, 'a, S>>::Prepared;
+    impl<'t, 'a, S, A, B> IntoDummy<'t, 'a, S> for UserDummy<A, B>
+    where
+        A: IntoColumn<'t, S, Typ = i64>,
+        B: IntoColumn<'t, S, Typ = String>,
+    {
+        type Out = User;
 
-    //     fn prepare<'i>(self, cacher: &'i mut Cacher<'t, S>) -> Package<'i, Self::Prepared> {
-    //         (self.a, self.b)
-    //             .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
-    //             .prepare(cacher)
-    //     }
-    // }
+        type Impl = MapImpl<(ColumnImpl<i64>, ColumnImpl<String>), fn((i64, String)) -> User>;
+
+        fn into_dummy(self) -> Dummy<'t, 'a, S, Self::Impl> {
+            (self.a, self.b)
+                .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
+                .into_dummy()
+        }
+    }
 }

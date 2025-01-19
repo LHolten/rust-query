@@ -17,7 +17,7 @@ use crate::{
     transaction::Database,
     value::{self, DynTypedExpr, Private},
     writable::Reader,
-    Column, Dummy, IntoColumn, Rows, Table,
+    Column, IntoColumn, IntoDummy, Rows, Table,
 };
 
 pub type M<'a, From, To> = Box<
@@ -30,7 +30,7 @@ pub type M<'a, From, To> = Box<
 /// This is the type used to return table alterations in migrations.
 ///
 /// Note that migrations allow you to use anything that implements [crate::Dummy] to specify the new values.
-/// In particular this allows mapping values using native rust with [crate::Dummy::map_dummy].
+/// In particular this allows mapping values using native rust with [crate::IntoDummy::map_dummy].
 ///
 /// Take a look at the documentation of [crate::migration::schema] for more general information.
 ///
@@ -136,11 +136,11 @@ impl<'t, 'a, S> CacheAndRead<'t, 'a, S> {
     pub fn col<O: IntoColumn<'a, S>, Impl>(
         &mut self,
         name: &'static str,
-        val: impl Dummy<'t, 'a, S, Out = O, Impl = Impl>,
+        val: impl IntoDummy<'t, 'a, S, Out = O, Impl = Impl>,
     ) where
         Impl: 'a + DummyImpl<Prepared: Prepared<Out = O>>,
     {
-        let mut p = val.into_impl().inner.prepare(&mut self.cacher);
+        let mut p = val.into_dummy().inner.prepare(&mut self.cacher);
         let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
         self.columns.push((name, p));
     }

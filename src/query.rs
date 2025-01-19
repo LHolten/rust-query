@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    dummy_impl::{Cacher, Dummy, DummyImpl, Prepared, Row},
+    dummy_impl::{Cacher, DummyImpl, IntoDummy, Prepared, Row},
     rows::Rows,
 };
 
@@ -37,25 +37,25 @@ impl<'outer, 'inner, S> DerefMut for Query<'outer, 'inner, S> {
 impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Turn a database query into a rust [Vec] of results.
     ///
-    /// Types that implement [crate::IntoColumn], will also implement [Dummy].
-    /// Tuples of two values also implement [Dummy]. If you want to return more
+    /// Types that implement [crate::IntoColumn], will also implement [IntoDummy].
+    /// Tuples of two values also implement [IntoDummy]. If you want to return more
     /// than two values, then you should use a struct that derives [rust_query_macros::Dummy].
     ///
     /// Note that the result of `Query::into_vec` is sorted. When a `*Dummy` struct is used for
     /// the output, the sorting order depends on the order of the fields in the struct definition.
     pub fn into_vec<D>(&self, dummy: D) -> Vec<D::Out>
     where
-        D: Dummy<'inner, 'outer, S>,
+        D: IntoDummy<'inner, 'outer, S>,
     {
         self.into_vec_private(dummy)
     }
 
     pub(crate) fn into_vec_private<'x, 'l, D>(&self, dummy: D) -> Vec<D::Out>
     where
-        D: Dummy<'x, 'outer, S>,
+        D: IntoDummy<'x, 'outer, S>,
     {
         let mut cacher = Cacher::new();
-        let mut prepared = dummy.into_impl().inner.prepare(&mut cacher);
+        let mut prepared = dummy.into_dummy().inner.prepare(&mut cacher);
 
         let cached = self.ast.cache(cacher.columns);
 

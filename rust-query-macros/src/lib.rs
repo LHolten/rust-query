@@ -97,7 +97,7 @@ mod table;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// use rust_query::migration::{schema, Config, Alter};
-/// use rust_query::{Dummy, LocalClient, Database};
+/// use rust_query::{IntoDummy, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
 /// enum Schema {
@@ -160,7 +160,7 @@ pub fn schema(
 
 /// Derive [Dummy] to create a new `*Dummy` struct.
 ///
-/// This `*Dummy` struct will implement the `Dummy` trait and can be used with `Query::into_vec`
+/// This `*Dummy` struct will implement the `IntoDummy` trait and can be used with `Query::into_vec`
 /// or `Transaction::query_one`.
 ///
 /// Usage can also be nested.
@@ -364,10 +364,12 @@ fn define_table_migration(
             into_new.push(quote! {cacher.col(#name_str, prev.#name())});
         } else {
             defs.push(quote! {pub #name: #generic});
-            bounds.push(quote! {#generic: ::rust_query::Dummy<'t, 'a, _PrevSchema,
-                Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>,
-                Impl: 'a,
-            >});
+            bounds.push(
+                quote! {#generic: ::rust_query::IntoDummy<'t, 'a, _PrevSchema,
+                    Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>,
+                    Impl: 'a,
+                >},
+            );
             generics.push(generic);
             into_new.push(quote! {cacher.col(#name_str, self.#name)});
         }

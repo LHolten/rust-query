@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     migration::{schema, Alter, Config, Create, NoTable},
-    Database, Dummy, LocalClient, Table,
+    Database, IntoDummy, LocalClient, Table,
 };
 
 pub use v2::*;
