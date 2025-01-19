@@ -72,27 +72,13 @@ pub(crate) trait Prepared {
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
-pub struct Package<'i, T> {
-    pub(crate) inner: T,
-    pub(crate) _p: PhantomData<&'i ()>,
-}
-
-impl<T> Package<'_, T> {
-    pub(crate) fn new(val: T) -> Self {
-        Self {
-            inner: val,
-            _p: PhantomData,
-        }
-    }
-}
-
-pub struct NewPackage<'columns, S, Impl> {
+pub struct Package<'columns, S, Impl> {
     pub(crate) inner: Impl,
     pub(crate) _p: PhantomData<&'columns ()>,
     pub(crate) _p3: PhantomData<S>,
 }
 
-impl<S, T> NewPackage<'_, S, T> {
+impl<S, T> Package<'_, S, T> {
     pub(crate) fn new(val: T) -> Self {
         Self {
             inner: val,
@@ -102,16 +88,9 @@ impl<S, T> NewPackage<'_, S, T> {
     }
 }
 
-/// This trait is implemented by everything that can be retrieved from the database.
-///
-/// This trait can be automatically implemented using [rust_query_macros::Dummy].
-pub trait DummyImpl {
+pub(crate) trait DummyImpl {
     type Prepared: Prepared;
 
-    /// This method is what tells rust-query how to retrieve the dummy.
-    ///
-    /// The only way to implement this method is by constructing a different dummy and
-    /// calling the [Dummy::into_impl] method on that other dummy.
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared;
 }
 
@@ -134,7 +113,7 @@ pub trait Dummy<'columns, 'transaction, S>: DummyParent<'transaction> {
     ///
     /// The only way to implement this method is by constructing a different dummy and
     /// calling the [Dummy::into_impl] method on that other dummy.
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl>;
+    fn into_impl(self) -> Package<'columns, S, Self::Impl>;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -187,8 +166,8 @@ where
     D: Dummy<'columns, 'transaction, S>,
     F: FnMut(D::Out) -> O,
 {
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
-        NewPackage::new(MapDummy {
+    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+        Package::new(MapDummy {
             dummy: self.dummy.into_impl().inner,
             func: self.func,
         })
@@ -231,8 +210,8 @@ impl<'transaction> DummyParent<'transaction> for () {
 }
 
 impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
-        NewPackage::new(())
+    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+        Package::new(())
     }
 }
 
@@ -269,8 +248,8 @@ impl<'columns, 'transaction, S, T: MyTyp> DummyParent<'transaction> for Column<'
 impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
     for Column<'columns, S, T>
 {
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
-        NewPackage::new(NotCached {
+    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+        Package::new(NotCached {
             expr: self.inner.erase(),
             _p: PhantomData,
         })
@@ -314,8 +293,8 @@ where
     A: Dummy<'columns, 'transaction, S>,
     B: Dummy<'columns, 'transaction, S>,
 {
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
-        NewPackage::new((self.0.into_impl().inner, self.1.into_impl().inner))
+    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+        Package::new((self.0.into_impl().inner, self.1.into_impl().inner))
     }
 }
 

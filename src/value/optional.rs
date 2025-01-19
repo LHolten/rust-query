@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy_impl::{Cached, Cacher, DummyImpl, DummyParent, NewPackage, NotCached, Prepared, Row},
+    dummy_impl::{Cached, Cacher, DummyImpl, DummyParent, NotCached, Package, Prepared, Row},
     Dummy,
 };
 
@@ -102,8 +102,8 @@ impl<'columns, 'transaction, S, X> Dummy<'columns, 'transaction, S>
 where
     X: DummyImpl,
 {
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
-        NewPackage::new(OptionalImpl {
+    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
+        Package::new(OptionalImpl {
             inner: self.inner,
             is_some: self.is_some.into_impl().inner,
         })

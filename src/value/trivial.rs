@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy_impl::{DummyImpl, DummyParent, NewPackage, NotCached, Prepared},
+    dummy_impl::{DummyImpl, DummyParent, NotCached, Package, Prepared},
     optional, Dummy, Table, TableRow,
 };
 
@@ -23,8 +23,7 @@ pub trait FromDummy {
 /// adding the `#[rust_query(From = Thing)]` helper attribute.
 pub trait FromColumn<'transaction, S, From>: FromDummy {
     /// How to turn a column reference into the associated dummy type of [FromDummy].
-    fn from_column<'columns>(col: Column<'columns, S, From>)
-        -> NewPackage<'columns, S, Self::Impl>;
+    fn from_column<'columns>(col: Column<'columns, S, From>) -> Package<'columns, S, Self::Impl>;
 }
 
 /// This type implements [Dummy] for any column if there is a matching [FromColumn] implementation.
@@ -47,7 +46,7 @@ impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
 where
     X: FromColumn<'transaction, S, T>,
 {
-    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
+    fn into_impl(self) -> Package<'columns, S, Self::Impl> {
         X::from_column(self.col)
     }
 }
@@ -60,7 +59,7 @@ macro_rules! from_column {
         impl<'transaction, S> FromColumn<'transaction, S, $typ> for $typ {
             fn from_column<'columns>(
                 col: Column<'columns, S, $typ>,
-            ) -> NewPackage<'columns, S, Self::Impl> {
+            ) -> Package<'columns, S, Self::Impl> {
                 col.into_impl()
             }
         }
@@ -78,7 +77,7 @@ impl<'transaction, T> FromDummy for TableRow<'transaction, T> {
 impl<'transaction, T: Table> FromColumn<'transaction, T::Schema, T> for TableRow<'transaction, T> {
     fn from_column<'columns>(
         col: Column<'columns, T::Schema, T>,
-    ) -> NewPackage<'columns, T::Schema, Self::Impl> {
+    ) -> Package<'columns, T::Schema, Self::Impl> {
         col.into_impl()
     }
 }
@@ -92,7 +91,7 @@ where
 {
     fn from_column<'columns>(
         col: Column<'columns, S, Option<From>>,
-    ) -> NewPackage<'columns, S, Self::Impl> {
+    ) -> Package<'columns, S, Self::Impl> {
         optional(|row| {
             let col = row.and(col);
             row.then_dummy(col.into_trivial::<T>())
