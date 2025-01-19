@@ -76,31 +76,10 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     pub fn then_dummy<'transaction, P>(
         &self,
         d: impl Dummy<'inner, 'transaction, S, Impl = P>,
-    ) -> OptionalDummy<'outer, S, P> {
-        OptionalDummy {
-            inner: d.into_impl().inner,
-            is_some: self.is_some(),
-        }
-    }
-}
-
-pub struct OptionalDummy<'columns, S, X> {
-    pub(crate) inner: X,
-    pub(crate) is_some: Column<'columns, S, bool>,
-}
-
-impl<'columns, 'transaction, S, X> Dummy<'columns, 'transaction, S>
-    for OptionalDummy<'columns, S, X>
-where
-    X: DummyImpl,
-{
-    type Out = Option<<X::Prepared as Prepared>::Out>;
-    type Impl = OptionalImpl<X>;
-
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
+    ) -> Package<'outer, 'transaction, S, OptionalImpl<P>> {
         Package::new(OptionalImpl {
-            inner: self.inner,
-            is_some: self.is_some.into_impl().inner,
+            inner: d.into_impl().inner,
+            is_some: self.is_some().into_impl().inner,
         })
     }
 }
@@ -111,6 +90,7 @@ pub struct OptionalImpl<X> {
 }
 
 impl<X: DummyImpl> DummyImpl for OptionalImpl<X> {
+    type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X::Prepared>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {

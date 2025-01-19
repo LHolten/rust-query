@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy_impl::{DummyImpl, NotCached, Package, Prepared},
+    dummy_impl::{DummyImpl, NotCached, Package},
     optional, Dummy, Table, TableRow,
 };
 
@@ -12,7 +12,7 @@ use super::{optional::OptionalImpl, Column, IntoColumn};
 /// The [rust_query_macros::Dummy] derive macro will always implement this trait automatically.
 pub trait FromDummy {
     /// The associated type here is the common return type of all [FromColumn] implementations.
-    type Impl: DummyImpl<Prepared: Prepared<Out = Self>>;
+    type Impl: DummyImpl<Out = Self>;
 }
 
 /// Trait for values that can be retrieved from the database using one reference column.

@@ -150,7 +150,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::Dummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
-            type Impl = ::rust_query::dummy::MapDummy<#parts_into_impl, fn(#parts_typ) -> Self::Out>;
+            type Impl = ::rust_query::dummy::MapImpl<#parts_into_impl, fn(#parts_typ) -> Self::Out>;
 
             fn into_impl(self) -> ::rust_query::dummy::Package<'_t, #transaction_lt, S, Self::Impl> {
                 ::rust_query::Dummy::into_impl(::rust_query::Dummy::map_dummy(#parts_dummies, (|#parts_name| #name {
@@ -162,7 +162,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         impl<#(#original_generics),*> ::rust_query::dummy::FromDummy for #name<#(#original_generics),*>
         where #(#from_conds,)*
         {
-            type Impl = ::rust_query::dummy::MapDummy<#parts_from_impl, fn(#parts_typ) -> Self>;
+            type Impl = ::rust_query::dummy::MapImpl<#parts_from_impl, fn(#parts_typ) -> Self>;
         }
 
         #(#trivial)*

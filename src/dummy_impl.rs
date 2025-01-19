@@ -5,11 +5,11 @@ use sea_query::Iden;
 use crate::{
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
-    Column, IntoColumn,
+    IntoColumn,
 };
 
 /// Opaque type used to implement [crate::Dummy].
-pub struct Cacher {
+pub(crate) struct Cacher {
     pub(crate) columns: Vec<DynTypedExpr>,
 }
 
@@ -66,7 +66,7 @@ impl<'x> Row<'x> {
     }
 }
 
-pub trait Prepared {
+pub(crate) trait Prepared {
     type Out;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out;
@@ -93,7 +93,7 @@ impl<S, T> Package<'_, '_, S, T> {
 impl<'columns, 'transaction, S, Impl: DummyImpl> Dummy<'columns, 'transaction, S>
     for Package<'columns, 'transaction, S, Impl>
 {
-    type Out = <Impl::Prepared as Prepared>::Out;
+    type Out = Impl::Out;
     type Impl = Impl;
 
     fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
@@ -102,8 +102,10 @@ impl<'columns, 'transaction, S, Impl: DummyImpl> Dummy<'columns, 'transaction, S
 }
 
 pub trait DummyImpl {
-    type Prepared: Prepared;
-
+    type Out;
+    #[doc(hidden)]
+    type Prepared: Prepared<Out = Self::Out>;
+    #[doc(hidden)]
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared;
 }
 
@@ -118,7 +120,7 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     ///
     /// Just like the [Dummy::into_impl] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
-    type Impl: DummyImpl<Prepared: Prepared<Out = Self::Out>>;
+    type Impl: DummyImpl<Out = Self::Out>;
 
     /// This method is what tells rust-query how to retrieve the dummy.
     ///
@@ -130,28 +132,32 @@ pub trait Dummy<'columns, 'transaction, S>: Sized {
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T, F: FnMut(Self::Out) -> T>(self, f: F) -> MapDummy<Self, F> {
-        MapDummy {
-            dummy: self,
+    fn map_dummy<T, F: FnMut(Self::Out) -> T>(
+        self,
+        f: F,
+    ) -> Package<'columns, 'transaction, S, MapImpl<Self::Impl, F>> {
+        Package::new(MapImpl {
+            dummy: self.into_impl().inner,
             func: f,
-        }
+        })
     }
 }
 
 /// This is the result of the [Dummy::map_dummy] method.
 ///
-/// [MapDummy] retrieves the same columns as the dummy that it wraps,
+/// [MapImpl] retrieves the same columns as the dummy that it wraps,
 /// but then it processes those columns using a rust closure.
-pub struct MapDummy<D, F> {
+pub struct MapImpl<D, F> {
     dummy: D,
     func: F,
 }
 
-impl<D, F, O> DummyImpl for MapDummy<D, F>
+impl<D, F, O> DummyImpl for MapImpl<D, F>
 where
     D: DummyImpl,
-    F: FnMut(<D::Prepared as Prepared>::Out) -> O,
+    F: FnMut(D::Out) -> O,
 {
+    type Out = O;
     type Prepared = MapPrepared<D::Prepared, F>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
@@ -159,23 +165,6 @@ where
             inner: self.dummy.prepare(cacher),
             map: self.func,
         }
-    }
-}
-
-impl<'columns, 'transaction, S, D, F, O> Dummy<'columns, 'transaction, S> for MapDummy<D, F>
-where
-    D: Dummy<'columns, 'transaction, S>,
-    F: FnMut(D::Out) -> O,
-{
-    type Out = O;
-
-    type Impl = MapDummy<D::Impl, F>;
-
-    fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
-        Package::new(MapDummy {
-            dummy: self.dummy.into_impl().inner,
-            func: self.func,
-        })
     }
 }
 
@@ -203,6 +192,7 @@ impl Prepared for () {
 }
 
 impl DummyImpl for () {
+    type Out = ();
     type Prepared = ();
 
     fn prepare(self, _cacher: &mut Cacher) -> Self::Prepared {}
@@ -210,7 +200,6 @@ impl DummyImpl for () {
 
 impl<'columns, 'transaction, S> Dummy<'columns, 'transaction, S> for () {
     type Out = ();
-
     type Impl = ();
 
     fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
@@ -232,6 +221,7 @@ pub struct NotCached<Out> {
 }
 
 impl<Out: SecretFromSql> DummyImpl for NotCached<Out> {
+    type Out = Out;
     type Prepared = Cached<Out>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
@@ -270,6 +260,7 @@ where
 }
 
 impl<A: DummyImpl, B: DummyImpl> DummyImpl for (A, B) {
+    type Out = (A::Out, B::Out);
     type Prepared = (A::Prepared, B::Prepared);
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
@@ -313,7 +304,7 @@ mod tests {
     //     B: IntoColumn<'t, S, Typ = String>,
     // {
     //     type Out = User;
-    //     type Prepared = <MapDummy<(A, B), fn((i64, String)) -> User> as Dummy<'t, 'a, S>>::Prepared;
+    //     type Prepared = <MapImpl<(A, B), fn((i64, String)) -> User> as Dummy<'t, 'a, S>>::Prepared;
 
     //     fn prepare<'i>(self, cacher: &'i mut Cacher<'t, S>) -> Package<'i, Self::Prepared> {
     //         (self.a, self.b)
