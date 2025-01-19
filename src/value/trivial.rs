@@ -1,19 +1,18 @@
 use std::marker::PhantomData;
 
 use crate::{
-    dummy::Cacher,
-    dummy_impl::{DummyParent, Package},
+    dummy_impl::{DummyImpl, DummyParent, NewPackage, NotCached, Prepared},
     optional, Dummy, Table, TableRow,
 };
 
-use super::{optional::OptionalDummy, Column, IntoColumn};
+use super::{optional::OptionalImpl, Column, IntoColumn};
 
 /// This trait is implemented for types that want to implement [FromColumn].
 ///
 /// The [rust_query_macros::Dummy] derive macro will always implement this trait automatically.
-pub trait FromDummy<'transaction, S> {
+pub trait FromDummy {
     /// The associated type here is the common return type of all [FromColumn] implementations.
-    type Dummy<'columns>: Dummy<'columns, 'transaction, S, Out = Self>;
+    type Impl: DummyImpl<Prepared: Prepared<Out = Self>>;
 }
 
 /// Trait for values that can be retrieved from the database using one reference column.
@@ -22,9 +21,10 @@ pub trait FromDummy<'transaction, S> {
 ///
 /// Note that this trait can also be implemented using [rust_query_macros::Dummy] by
 /// adding the `#[rust_query(From = Thing)]` helper attribute.
-pub trait FromColumn<'transaction, S, From>: FromDummy<'transaction, S> {
+pub trait FromColumn<'transaction, S, From>: FromDummy {
     /// How to turn a column reference into the associated dummy type of [FromDummy].
-    fn from_column<'columns>(col: Column<'columns, S, From>) -> Self::Dummy<'columns>;
+    fn from_column<'columns>(col: Column<'columns, S, From>)
+        -> NewPackage<'columns, S, Self::Impl>;
 }
 
 /// This type implements [Dummy] for any column if there is a matching [FromColumn] implementation.
@@ -39,7 +39,7 @@ where
 {
     type Out = X;
 
-    type Prepared = <X::Dummy<'columns> as DummyParent<'transaction>>::Prepared;
+    type Impl = X::Impl;
 }
 
 impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
@@ -47,19 +47,21 @@ impl<'transaction, 'columns, S, T, X> Dummy<'columns, 'transaction, S>
 where
     X: FromColumn<'transaction, S, T>,
 {
-    fn prepare<'i>(self, cacher: &'i mut Cacher<'columns, S>) -> Package<'i, Self::Prepared> {
-        X::from_column(self.col).prepare(cacher)
+    fn into_impl(self) -> NewPackage<'columns, S, Self::Impl> {
+        X::from_column(self.col)
     }
 }
 
 macro_rules! from_column {
     ($typ:ty) => {
-        impl<'transaction, S> FromDummy<'transaction, S> for $typ {
-            type Dummy<'columns> = Column<'columns, S, $typ>;
+        impl FromDummy for $typ {
+            type Impl = NotCached<$typ>;
         }
         impl<'transaction, S> FromColumn<'transaction, S, $typ> for $typ {
-            fn from_column<'columns>(col: Column<'columns, S, $typ>) -> Self::Dummy<'columns> {
-                col
+            fn from_column<'columns>(
+                col: Column<'columns, S, $typ>,
+            ) -> NewPackage<'columns, S, Self::Impl> {
+                col.into_impl()
             }
         }
     };
@@ -70,32 +72,31 @@ from_column! {i64}
 from_column! {f64}
 from_column! {bool}
 
-impl<'transaction, T: Table> FromDummy<'transaction, T::Schema> for TableRow<'transaction, T> {
-    type Dummy<'columns> = Column<'columns, T::Schema, T>;
+impl<'transaction, T> FromDummy for TableRow<'transaction, T> {
+    type Impl = NotCached<Self>;
 }
-impl<'t, T: Table> FromColumn<'t, T::Schema, T> for TableRow<'t, T> {
-    fn from_column<'columns>(col: Column<'columns, T::Schema, T>) -> Self::Dummy<'columns> {
-        col
+impl<'transaction, T: Table> FromColumn<'transaction, T::Schema, T> for TableRow<'transaction, T> {
+    fn from_column<'columns>(
+        col: Column<'columns, T::Schema, T>,
+    ) -> NewPackage<'columns, T::Schema, Self::Impl> {
+        col.into_impl()
     }
 }
 
-impl<'transaction, S, T> FromDummy<'transaction, S> for Option<T>
-where
-    T: FromDummy<'transaction, S>,
-{
-    type Dummy<'columns> =
-        OptionalDummy<'columns, S, <T::Dummy<'columns> as DummyParent<'transaction>>::Prepared>;
+impl<T: FromDummy> FromDummy for Option<T> {
+    type Impl = OptionalImpl<T::Impl>;
 }
-impl<'transaction, S, T: 'transaction, From: 'static, P> FromColumn<'transaction, S, Option<From>>
-    for Option<T>
+impl<'transaction, S, T, From: 'static> FromColumn<'transaction, S, Option<From>> for Option<T>
 where
     T: FromColumn<'transaction, S, From>,
-    for<'columns> T::Dummy<'columns>: Dummy<'columns, 'transaction, S, Prepared = P>,
 {
-    fn from_column<'columns>(col: Column<'columns, S, Option<From>>) -> Self::Dummy<'columns> {
+    fn from_column<'columns>(
+        col: Column<'columns, S, Option<From>>,
+    ) -> NewPackage<'columns, S, Self::Impl> {
         optional(|row| {
             let col = row.and(col);
             row.then_dummy(col.into_trivial::<T>())
         })
+        .into_impl()
     }
 }

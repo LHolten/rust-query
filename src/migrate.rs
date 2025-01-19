@@ -11,7 +11,7 @@ use crate::{
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
-    dummy_impl::{Cacher, Prepared, Row},
+    dummy_impl::{Cacher, DummyImpl, Prepared, Row},
     hash,
     schema_pragma::read_schema,
     transaction::Database,
@@ -114,7 +114,9 @@ pub trait Schema: Sized + 'static {
 }
 
 pub struct CacheAndRead<'t, 'a, S> {
-    cacher: Cacher<'t, S>,
+    cacher: Cacher,
+    _p: PhantomData<fn(&'t ())>,
+    _p3: PhantomData<S>,
     columns: Vec<(&'static str, DynPrepared<'a>)>,
 }
 
@@ -131,14 +133,14 @@ impl<'a> DynPrepared<'a> {
 }
 
 impl<'t, 'a, S> CacheAndRead<'t, 'a, S> {
-    pub fn col<O: IntoColumn<'a, S>, P>(
+    pub fn col<O: IntoColumn<'a, S>, Impl>(
         &mut self,
         name: &'static str,
-        val: impl Dummy<'t, 'a, S, Out = O, Prepared = P>,
+        val: impl Dummy<'t, 'a, S, Out = O, Impl = Impl>,
     ) where
-        P: 'a + Prepared<Out = O>,
+        Impl: 'a + DummyImpl<Prepared: Prepared<Out = O>>,
     {
-        let mut p = val.prepare(&mut self.cacher).inner;
+        let mut p = val.into_impl().inner.prepare(&mut self.cacher);
         let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
         self.columns.push((name, p));
     }
@@ -231,6 +233,8 @@ impl<'a> SchemaBuilder<'_, 'a> {
         let mut cache_and_read = CacheAndRead {
             columns: Vec::new(),
             cacher: Cacher::new(),
+            _p: PhantomData,
+            _p3: PhantomData,
         };
         create.inner.prepare(&mut cache_and_read);
         let cached = q.ast.cache(cache_and_read.cacher.columns);
