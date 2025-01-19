@@ -137,7 +137,6 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         }
     });
 
-    let parts_generic = wrap(&generics);
     let parts_typ = wrap(&typs);
     let parts_name = wrap(&names);
     let parts_dummies = wrap(&dummies);

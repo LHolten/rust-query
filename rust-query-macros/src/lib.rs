@@ -366,7 +366,7 @@ fn define_table_migration(
             defs.push(quote! {pub #name: #generic});
             bounds.push(quote! {#generic: ::rust_query::Dummy<'t, 'a, _PrevSchema,
                 Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>,
-                Prepared<'static>: 'a,
+                Impl: 'a,
             >});
             generics.push(generic);
             into_new.push(quote! {cacher.col(#name_str, self.#name)});

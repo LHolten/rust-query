@@ -5,7 +5,7 @@ use sea_query::Iden;
 use crate::{
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
-    Column,
+    Column, IntoColumn,
 };
 
 /// Opaque type used to implement [crate::Dummy].
@@ -242,15 +242,16 @@ impl<Out: SecretFromSql> DummyImpl for NotCached<Out> {
     }
 }
 
-impl<'columns, 'transaction, S, T: MyTyp> Dummy<'columns, 'transaction, S>
-    for Column<'columns, S, T>
+impl<'columns, 'transaction, S, T> Dummy<'columns, 'transaction, S> for T
+where
+    T: IntoColumn<'columns, S, Typ: MyTyp>,
 {
-    type Out = T::Out<'transaction>;
+    type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
     type Impl = NotCached<Self::Out>;
     fn into_impl(self) -> Package<'columns, 'transaction, S, Self::Impl> {
         Package::new(NotCached {
-            expr: self.inner.erase(),
+            expr: self.into_column().inner.erase(),
             _p: PhantomData,
         })
     }
