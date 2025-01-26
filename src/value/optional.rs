@@ -76,7 +76,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     pub fn then_dummy<'transaction, P>(
         &self,
         d: impl IntoDummy<'inner, 'transaction, S, Impl = P>,
-    ) -> Dummy<'outer, 'transaction, S, OptionalImpl<P>> {
+    ) -> Dummy<'outer, S, OptionalImpl<P>> {
         Dummy::new(OptionalImpl {
             inner: d.into_dummy().inner,
             is_some: self.is_some().into_dummy().inner,
@@ -89,7 +89,7 @@ pub struct OptionalImpl<X> {
     is_some: ColumnImpl<bool>,
 }
 
-impl<X: DummyImpl> DummyImpl for OptionalImpl<X> {
+impl<'transaction, X: DummyImpl<'transaction>> DummyImpl<'transaction> for OptionalImpl<X> {
     type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X::Prepared>;
 

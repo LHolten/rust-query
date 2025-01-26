@@ -138,7 +138,7 @@ impl<'t, 'a, S> CacheAndRead<'t, 'a, S> {
         name: &'static str,
         val: impl IntoDummy<'t, 'a, S, Out = O, Impl = Impl>,
     ) where
-        Impl: 'a + DummyImpl<Prepared: Prepared<Out = O>>,
+        Impl: 'a + DummyImpl<'a, Prepared: Prepared<Out = O>>,
     {
         let mut p = val.into_dummy().inner.prepare(&mut self.cacher);
         let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
