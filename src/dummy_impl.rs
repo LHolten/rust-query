@@ -4,7 +4,7 @@ use sea_query::Iden;
 
 use crate::{
     alias::Field,
-    value::{DynTypedExpr, MyTyp, SecretFromSql},
+    value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
     IntoColumn,
 };
 
@@ -65,34 +65,32 @@ pub(crate) trait Prepared {
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
-pub struct Dummy<'columns, S, Impl> {
+pub struct Dummy<'columns, Impl> {
     pub(crate) inner: Impl,
     pub(crate) _p: PhantomData<&'columns ()>,
-    pub(crate) _p3: PhantomData<S>,
 }
 
-impl<S, T> Dummy<'_, S, T> {
+impl<T> Dummy<'_, T> {
     pub(crate) fn new(val: T) -> Self {
         Self {
             inner: val,
             _p: PhantomData,
-            _p3: PhantomData,
         }
     }
 }
 
-impl<'columns, 'transaction, S, Impl: DummyImpl<'transaction>> IntoDummy<'columns, 'transaction, S>
-    for Dummy<'columns, S, Impl>
+impl<'columns, 'transaction, S, Impl: DummyImpl<'transaction, S>>
+    IntoDummy<'columns, 'transaction, S> for Dummy<'columns, Impl>
 {
     type Out = Impl::Out;
     type Impl = Impl;
 
-    fn into_dummy(self) -> Dummy<'columns, S, Self::Impl> {
+    fn into_dummy(self) -> Dummy<'columns, Self::Impl> {
         self
     }
 }
 
-pub trait DummyImpl<'transaction> {
+pub trait DummyImpl<'transaction, S> {
     type Out;
     #[doc(hidden)]
     type Prepared: Prepared<Out = Self::Out>;
@@ -111,13 +109,13 @@ pub trait IntoDummy<'columns, 'transaction, S>: Sized {
     ///
     /// Just like the [IntoDummy::into_dummy] implemenation, this should be specified
     /// using the associated types of other [Dummy] implementations.
-    type Impl: DummyImpl<'transaction, Out = Self::Out>;
+    type Impl: DummyImpl<'transaction, S, Out = Self::Out>;
 
     /// This method is what tells rust-query how to retrieve the dummy.
     ///
     /// The only way to implement this method is by constructing a different dummy and
     /// calling the [IntoDummy::into_dummy] method on that other dummy.
-    fn into_dummy(self) -> Dummy<'columns, S, Self::Impl>;
+    fn into_dummy(self) -> Dummy<'columns, Self::Impl>;
 
     /// Map a dummy to another dummy using native rust.
     ///
@@ -126,7 +124,7 @@ pub trait IntoDummy<'columns, 'transaction, S>: Sized {
     fn map_dummy<T, F: FnMut(Self::Out) -> T>(
         self,
         f: F,
-    ) -> Dummy<'columns, S, MapImpl<Self::Impl, F>> {
+    ) -> Dummy<'columns, MapImpl<Self::Impl, F>> {
         Dummy::new(MapImpl {
             dummy: self.into_dummy().inner,
             func: f,
@@ -143,9 +141,9 @@ pub struct MapImpl<D, F> {
     func: F,
 }
 
-impl<'transaction, D, F, O> DummyImpl<'transaction> for MapImpl<D, F>
+impl<'transaction, S, D, F, O> DummyImpl<'transaction, S> for MapImpl<D, F>
 where
-    D: DummyImpl<'transaction>,
+    D: DummyImpl<'transaction, S>,
     F: FnMut(D::Out) -> O,
 {
     type Out = O;
@@ -182,7 +180,7 @@ impl Prepared for () {
     fn call(&mut self, _row: Row<'_>) -> Self::Out {}
 }
 
-impl DummyImpl<'_> for () {
+impl<S> DummyImpl<'_, S> for () {
     type Out = ();
     type Prepared = ();
 
@@ -193,7 +191,7 @@ impl<'columns, 'transaction, S> IntoDummy<'columns, 'transaction, S> for () {
     type Out = ();
     type Impl = ();
 
-    fn into_dummy(self) -> Dummy<'columns, S, Self::Impl> {
+    fn into_dummy(self) -> Dummy<'columns, Self::Impl> {
         Dummy::new(())
     }
 }
@@ -206,18 +204,18 @@ impl<'transaction, T: SecretFromSql<'transaction>> Prepared for Cached<T> {
     }
 }
 
-pub struct ColumnImpl<Out> {
-    expr: DynTypedExpr,
-    _p: PhantomData<Out>,
+pub struct ColumnImpl<S, T> {
+    expr: DynTyped<T>,
+    _p: PhantomData<S>,
 }
 
-impl<'transaction, Out: SecretFromSql<'transaction>> DummyImpl<'transaction> for ColumnImpl<Out> {
-    type Out = Out;
-    type Prepared = Cached<Out>;
+impl<'transaction, S, T: MyTyp> DummyImpl<'transaction, S> for ColumnImpl<S, T> {
+    type Out = T::Out<'transaction>;
+    type Prepared = Cached<Self::Out>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
         Cached {
-            idx: cacher.cache_erased(self.expr),
+            idx: cacher.cache_erased(self.expr.erase()),
             _p: PhantomData,
         }
     }
@@ -229,10 +227,10 @@ where
 {
     type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
-    type Impl = ColumnImpl<Self::Out>;
-    fn into_dummy(self) -> Dummy<'columns, S, Self::Impl> {
+    type Impl = ColumnImpl<S, T::Typ>;
+    fn into_dummy(self) -> Dummy<'columns, Self::Impl> {
         Dummy::new(ColumnImpl {
-            expr: self.into_column().inner.erase(),
+            expr: self.into_column().inner,
             _p: PhantomData,
         })
     }
@@ -250,8 +248,10 @@ where
     }
 }
 
-impl<'transaction, A: DummyImpl<'transaction>, B: DummyImpl<'transaction>> DummyImpl<'transaction>
-    for (A, B)
+impl<'transaction, S, A, B> DummyImpl<'transaction, S> for (A, B)
+where
+    A: DummyImpl<'transaction, S>,
+    B: DummyImpl<'transaction, S>,
 {
     type Out = (A::Out, B::Out);
     type Prepared = (A::Prepared, B::Prepared);
@@ -271,7 +271,7 @@ where
     type Out = (A::Out, B::Out);
 
     type Impl = (A::Impl, B::Impl);
-    fn into_dummy(self) -> Dummy<'columns, S, Self::Impl> {
+    fn into_dummy(self) -> Dummy<'columns, Self::Impl> {
         Dummy::new((self.0.into_dummy().inner, self.1.into_dummy().inner))
     }
 }
@@ -298,9 +298,9 @@ mod tests {
     {
         type Out = User;
 
-        type Impl = MapImpl<(ColumnImpl<i64>, ColumnImpl<String>), fn((i64, String)) -> User>;
+        type Impl = MapImpl<(ColumnImpl<S, i64>, ColumnImpl<S, String>), fn((i64, String)) -> User>;
 
-        fn into_dummy(self) -> Dummy<'t, S, Self::Impl> {
+        fn into_dummy(self) -> Dummy<'t, Self::Impl> {
             (self.a, self.b)
                 .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
                 .into_dummy()

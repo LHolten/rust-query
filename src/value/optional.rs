@@ -50,17 +50,6 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Column::new(Assume(column.inner))
     }
 
-    /// Return [Some] column if the current row exists and [None] column otherwise.
-    pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
-        &self,
-        col: impl IntoColumn<'inner, S, Typ = T>,
-    ) -> Column<'outer, S, Option<T>> {
-        let res = Column::new(Some(col.into_column().inner));
-        self.nulls
-            .iter()
-            .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
-    }
-
     /// Return a [bool] column indicating whether the current row exists.
     pub fn is_some(&self) -> Column<'outer, S, bool> {
         let any_null = self
@@ -72,11 +61,22 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         any_null.map_or(Column::new(true), |x| Column::new(x).not())
     }
 
+    /// Return [Some] column if the current row exists and [None] column otherwise.
+    pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
+        &self,
+        col: impl IntoColumn<'inner, S, Typ = T>,
+    ) -> Column<'outer, S, Option<T>> {
+        let res = Column::new(Some(col.into_column().inner));
+        self.nulls
+            .iter()
+            .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
+    }
+
     /// Returns an optional dummy that can be used as the result of the query.
     pub fn then_dummy<'transaction, P>(
         &self,
         d: impl IntoDummy<'inner, 'transaction, S, Impl = P>,
-    ) -> Dummy<'outer, S, OptionalImpl<P>> {
+    ) -> Dummy<'outer, OptionalImpl<S, P>> {
         Dummy::new(OptionalImpl {
             inner: d.into_dummy().inner,
             is_some: self.is_some().into_dummy().inner,
@@ -84,12 +84,14 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 }
 
-pub struct OptionalImpl<X> {
+pub struct OptionalImpl<S, X> {
     inner: X,
-    is_some: ColumnImpl<bool>,
+    is_some: ColumnImpl<S, bool>,
 }
 
-impl<'transaction, X: DummyImpl<'transaction>> DummyImpl<'transaction> for OptionalImpl<X> {
+impl<'transaction, S, X: DummyImpl<'transaction, S>> DummyImpl<'transaction, S>
+    for OptionalImpl<S, X>
+{
     type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X::Prepared>;
 

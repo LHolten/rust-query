@@ -114,8 +114,8 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
         typs.push(quote! {#typ});
-        from_impl.push(quote! {<#typ as ::rust_query::dummy::FromDummy<#transaction_lt>>::Impl});
-        from_conds.push(quote! {#typ: ::rust_query::dummy::FromDummy<#transaction_lt>});
+        from_impl.push(quote! {<#typ as ::rust_query::dummy::FromDummy<#transaction_lt, S>>::Impl});
+        from_conds.push(quote! {#typ: ::rust_query::dummy::FromDummy<#transaction_lt, S>});
     }
 
     let trivial = trivial.into_iter().map(|trivial| {
@@ -128,7 +128,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::dummy::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #schema, Self::Impl> {
+                fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, Self::Impl> {
                     ::rust_query::IntoDummy::into_dummy(#dummy_name {
                         #(#trivial_prepared,)*
                     })
@@ -152,14 +152,14 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             type Out = #name<#(#original_generics),*>;
             type Impl = ::rust_query::dummy::MapImpl<#parts_into_impl, fn(#parts_typ) -> Self::Out>;
 
-            fn into_dummy(self) -> ::rust_query::Dummy<'_t, S, Self::Impl> {
+            fn into_dummy(self) -> ::rust_query::Dummy<'_t, Self::Impl> {
                 ::rust_query::IntoDummy::into_dummy(::rust_query::IntoDummy::map_dummy(#parts_dummies, (|#parts_name| #name {
                     #(#names,)*
                 }) as fn(#parts_typ) -> Self::Out))
             }
         }
 
-        impl<#(#original_plus_transaction),*> ::rust_query::dummy::FromDummy<#transaction_lt> for #name<#(#original_generics),*>
+        impl<#(#original_plus_transaction,)* S> ::rust_query::dummy::FromDummy<#transaction_lt, S> for #name<#(#original_generics),*>
         where #(#from_conds,)*
         {
             type Impl = ::rust_query::dummy::MapImpl<#parts_from_impl, fn(#parts_typ) -> Self>;
