@@ -1,11 +1,9 @@
-use std::marker::PhantomData;
-
 use crate::{
     dummy_impl::{ColumnImpl, Dummy, DummyImpl},
     optional, IntoDummy, Table, TableRow,
 };
 
-use super::{optional::OptionalImpl, Column, IntoColumn};
+use super::{optional::OptionalImpl, Column, MyTyp};
 
 /// This trait is implemented for types that want to implement [FromColumn].
 ///
@@ -24,26 +22,6 @@ pub trait FromDummy<'transaction, S> {
 pub trait FromColumn<'transaction, S, From>: FromDummy<'transaction, S> {
     /// How to turn a column reference into the associated dummy type of [FromDummy].
     fn from_column<'columns>(col: Column<'columns, S, From>) -> Dummy<'columns, Self::Impl>;
-}
-
-/// This type implements [Dummy] for any column if there is a matching [FromColumn] implementation.
-pub struct Trivial<C, X> {
-    pub(crate) col: C,
-    pub(crate) _p: PhantomData<X>,
-}
-
-impl<'transaction, 'columns, S, C, X> IntoDummy<'columns, 'transaction, S> for Trivial<C, X>
-where
-    C: IntoColumn<'columns, S>,
-    X: FromColumn<'transaction, S, C::Typ>,
-{
-    type Out = X;
-
-    type Impl = X::Impl;
-
-    fn into_dummy(self) -> Dummy<'columns, Self::Impl> {
-        X::from_column(self.col.into_column())
-    }
 }
 
 macro_rules! from_column {
@@ -78,7 +56,7 @@ impl<'transaction, T: Table> FromColumn<'transaction, T::Schema, T> for TableRow
 impl<'transaction, S, T: FromDummy<'transaction, S>> FromDummy<'transaction, S> for Option<T> {
     type Impl = OptionalImpl<S, T::Impl>;
 }
-impl<'transaction, S, T, From: 'static> FromColumn<'transaction, S, Option<From>> for Option<T>
+impl<'transaction, S, T, From: MyTyp> FromColumn<'transaction, S, Option<From>> for Option<T>
 where
     T: FromColumn<'transaction, S, From>,
 {
@@ -87,7 +65,7 @@ where
     ) -> Dummy<'columns, Self::Impl> {
         optional(|row| {
             let col = row.and(col);
-            row.then_dummy(col.into_trivial::<T>())
+            row.then_dummy(T::from_column(col))
         })
     }
 }

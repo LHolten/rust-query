@@ -56,6 +56,7 @@ pub mod migration {
 pub mod dummy {
     pub use crate::dummy_impl::{ColumnImpl, MapImpl};
     pub use crate::value::trivial::{FromColumn, FromDummy};
+    pub use crate::value::TrivialImpl;
 }
 
 /// These items are only exposed for use by the proc macros.

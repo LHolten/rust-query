@@ -205,7 +205,7 @@ impl<'transaction, T: SecretFromSql<'transaction>> Prepared for Cached<T> {
 }
 
 pub struct ColumnImpl<S, T> {
-    expr: DynTyped<T>,
+    pub(crate) expr: DynTyped<T>,
     _p: PhantomData<S>,
 }
 
@@ -223,7 +223,7 @@ impl<'transaction, S, T: MyTyp> DummyImpl<'transaction, S> for ColumnImpl<S, T> 
 
 impl<'columns, 'transaction, S, T> IntoDummy<'columns, 'transaction, S> for T
 where
-    T: IntoColumn<'columns, S, Typ: MyTyp>,
+    T: IntoColumn<'columns, S>,
 {
     type Out = <T::Typ as MyTyp>::Out<'transaction>;
 

@@ -7,15 +7,17 @@ use std::{marker::PhantomData, ops::Deref, rc::Rc};
 use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use sea_query::{Alias, Expr, Nullable, SelectStatement, SimpleExpr};
-use trivial::{FromColumn, Trivial};
+use trivial::FromColumn;
 
 use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
+    dummy::ColumnImpl,
+    dummy_impl::DummyImpl,
     hash,
     migrate::NoTable,
-    Table,
+    Dummy, Table,
 };
 
 #[derive(Clone, Copy)]
@@ -115,17 +117,44 @@ pub(crate) trait Private {}
 /// You can not (yet) implement this trait yourself!
 pub trait IntoColumn<'column, S>: Private + Clone {
     /// The type of the column.
-    type Typ: 'static;
+    type Typ: MyTyp;
 
     /// Turn this value into a [Column].
     fn into_column(self) -> Column<'column, S, Self::Typ>;
 
     /// Convert the column to a dummy using the [FromColumn] implementation.
-    fn into_trivial<'x, X: FromColumn<'x, S, Self::Typ>>(self) -> Trivial<Self, X> {
-        Trivial {
-            col: self,
+    fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
+        self,
+    ) -> Dummy<'column, TrivialImpl<S, Self::Typ, X>> {
+        use crate::IntoDummy;
+        Dummy {
+            inner: TrivialImpl {
+                inner: self.into_dummy().inner,
+                _p: PhantomData,
+            },
             _p: PhantomData,
         }
+    }
+}
+
+pub struct TrivialImpl<S, C, X> {
+    inner: ColumnImpl<S, C>,
+    _p: PhantomData<X>,
+}
+
+impl<'transaction, S, C, X: FromColumn<'transaction, S, C>> DummyImpl<'transaction, S>
+    for TrivialImpl<S, C, X>
+{
+    type Out = X;
+    type Prepared = <X::Impl as DummyImpl<'transaction, S>>::Prepared;
+
+    fn prepare(self, cacher: &mut crate::dummy_impl::Cacher) -> Self::Prepared {
+        let val = X::from_column(Column {
+            inner: self.inner.expr,
+            _p: PhantomData,
+            _p2: PhantomData,
+        });
+        val.inner.prepare(cacher)
     }
 }
 
@@ -582,7 +611,7 @@ impl<Typ: 'static> Typed for DynTyped<Typ> {
 }
 
 impl<'column, S, T> Private for Column<'column, S, T> {}
-impl<'column, S, T: 'static> IntoColumn<'column, S> for Column<'column, S, T> {
+impl<'column, S, T: MyTyp> IntoColumn<'column, S> for Column<'column, S, T> {
     type Typ = T;
     fn into_column(self) -> Column<'column, S, Self::Typ> {
         self

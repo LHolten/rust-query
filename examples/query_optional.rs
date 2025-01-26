@@ -49,27 +49,15 @@ fn main() {
 
     // old pattern, requires two queries
     let player = txn.query_one(Player::unique(pub_id));
-    let _info = player.map(|player| {
-        txn.query_one(PlayerInfoDummy {
-            name: player.name(),
-            score: player.score(),
-            home: NameInfoDummy {
-                name: player.home().name(),
-            },
-        })
-    });
+    let _info: Option<PlayerInfo> = player.map(|player| txn.query_one(player.into_trivial()));
 
     // most powerful pattern, can retrieve optional data in one query
-    let _info = txn.query_one(optional(|row| {
+    let _info: Option<PlayerInfo> = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
-        row.then_dummy(PlayerInfoDummy {
-            name: player.name(),
-            score: player.score(),
-            home: player.home().into_trivial(),
-        })
+        row.then_dummy(player.into_trivial())
     }));
 
-    // for simple queries, use the trivial mapping, this requries type annotation
+    // for simple queries, use the trivial mapping
     let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).into_trivial());
 
     assert!(info.is_none());
