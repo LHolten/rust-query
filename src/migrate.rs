@@ -133,13 +133,11 @@ impl<'a> DynPrepared<'a> {
 }
 
 impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
-    pub fn col<O: IntoColumn<'a, S>, Impl>(
+    pub fn col<O: 'a + IntoColumn<'a, S>>(
         &mut self,
         name: &'static str,
-        val: impl IntoDummy<'t, 'a, S, Out = O, Impl = Impl>,
-    ) where
-        Impl: 'a + DummyImpl<'a, S, Prepared: Prepared<Out = O>>,
-    {
+        val: impl IntoDummy<'t, 'a, S, Out = O>,
+    ) {
         let mut p = val.into_dummy().inner.prepare(&mut self.cacher);
         let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
         self.columns.push((name, p));

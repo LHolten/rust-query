@@ -367,7 +367,6 @@ fn define_table_migration(
             bounds.push(
                 quote! {#generic: ::rust_query::IntoDummy<'t, 'a, _PrevSchema,
                     Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>,
-                    Impl: 'a,
                 >},
             );
             generics.push(generic);

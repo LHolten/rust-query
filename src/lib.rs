@@ -54,9 +54,7 @@ pub mod migration {
 /// Traits and types for implementing custom types that can be retrieved
 /// from the database.
 pub mod dummy {
-    pub use crate::dummy_impl::{ColumnImpl, MapImpl};
-    pub use crate::value::trivial::{FromColumn, FromDummy};
-    pub use crate::value::TrivialImpl;
+    pub use crate::value::trivial::FromColumn;
 }
 
 /// These items are only exposed for use by the proc macros.

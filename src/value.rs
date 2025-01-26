@@ -13,8 +13,6 @@ use crate::{
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
-    dummy::ColumnImpl,
-    dummy_impl::DummyImpl,
     hash,
     migrate::NoTable,
     Dummy, Table,
@@ -125,36 +123,8 @@ pub trait IntoColumn<'column, S>: Private + Clone {
     /// Convert the column to a dummy using the [FromColumn] implementation.
     fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
         self,
-    ) -> Dummy<'column, TrivialImpl<S, Self::Typ, X>> {
-        use crate::IntoDummy;
-        Dummy {
-            inner: TrivialImpl {
-                inner: self.into_dummy().inner,
-                _p: PhantomData,
-            },
-            _p: PhantomData,
-        }
-    }
-}
-
-pub struct TrivialImpl<S, C, X> {
-    inner: ColumnImpl<S, C>,
-    _p: PhantomData<X>,
-}
-
-impl<'transaction, S, C, X: FromColumn<'transaction, S, C>> DummyImpl<'transaction, S>
-    for TrivialImpl<S, C, X>
-{
-    type Out = X;
-    type Prepared = <X::Impl as DummyImpl<'transaction, S>>::Prepared;
-
-    fn prepare(self, cacher: &mut crate::dummy_impl::Cacher) -> Self::Prepared {
-        let val = X::from_column(Column {
-            inner: self.inner.expr,
-            _p: PhantomData,
-            _p2: PhantomData,
-        });
-        val.inner.prepare(cacher)
+    ) -> Dummy<'column, 'transaction, S, X> {
+        X::from_column(self.into_column())
     }
 }
 

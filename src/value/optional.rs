@@ -73,25 +73,25 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Returns an optional dummy that can be used as the result of the query.
-    pub fn then_dummy<'transaction, P>(
+    pub fn then_dummy<'transaction, Out: 'transaction>(
         &self,
-        d: impl IntoDummy<'inner, 'transaction, S, Impl = P>,
-    ) -> Dummy<'outer, OptionalImpl<S, P>> {
+        d: impl IntoDummy<'inner, 'transaction, S, Out = Out>,
+    ) -> Dummy<'outer, 'transaction, S, Option<Out>> {
         Dummy::new(OptionalImpl {
             inner: d.into_dummy().inner,
-            is_some: self.is_some().into_dummy().inner,
+            is_some: ColumnImpl {
+                expr: self.is_some().into_column().inner,
+            },
         })
     }
 }
 
-pub struct OptionalImpl<S, X> {
+pub struct OptionalImpl<X> {
     inner: X,
-    is_some: ColumnImpl<S, bool>,
+    is_some: ColumnImpl<bool>,
 }
 
-impl<'transaction, S, X: DummyImpl<'transaction, S>> DummyImpl<'transaction, S>
-    for OptionalImpl<S, X>
-{
+impl<'transaction, X: DummyImpl<'transaction>> DummyImpl<'transaction> for OptionalImpl<X> {
     type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X::Prepared>;
 

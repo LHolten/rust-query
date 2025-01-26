@@ -96,13 +96,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
     let mut defs = vec![];
     let mut generics = vec![];
-    let mut into_impl = vec![];
     let mut constraints = vec![];
     let mut dummies = vec![];
     let mut typs = vec![];
     let mut names = vec![];
-    let mut from_impl = vec![];
-    let mut from_conds = vec![];
     for (name, typ) in &fields {
         let generic = make_generic(name);
 
@@ -110,12 +107,9 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         constraints
             .push(quote! {#generic: ::rust_query::IntoDummy<'_t, #transaction_lt, S, Out = #typ>});
         generics.push(quote! {#generic});
-        into_impl.push(quote! {#generic::Impl});
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
         typs.push(quote! {#typ});
-        from_impl.push(quote! {<#typ as ::rust_query::dummy::FromDummy<#transaction_lt, S>>::Impl});
-        from_conds.push(quote! {#typ: ::rust_query::dummy::FromDummy<#transaction_lt, S>});
     }
 
     let trivial = trivial.into_iter().map(|trivial| {
@@ -128,7 +122,7 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::dummy::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, Self::Impl> {
+                fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
                     ::rust_query::IntoDummy::into_dummy(#dummy_name {
                         #(#trivial_prepared,)*
                     })
@@ -140,8 +134,6 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     let parts_typ = wrap(&typs);
     let parts_name = wrap(&names);
     let parts_dummies = wrap(&dummies);
-    let parts_from_impl = wrap(&from_impl);
-    let parts_into_impl = wrap(&into_impl);
 
     Ok(quote! {
         struct #dummy_name<#(#generics),*> {
@@ -150,19 +142,12 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoDummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
             type Out = #name<#(#original_generics),*>;
-            type Impl = ::rust_query::dummy::MapImpl<#parts_into_impl, fn(#parts_typ) -> Self::Out>;
 
-            fn into_dummy(self) -> ::rust_query::Dummy<'_t, Self::Impl> {
+            fn into_dummy(self) -> ::rust_query::Dummy<'_t, #transaction_lt, S, Self::Out> {
                 ::rust_query::IntoDummy::into_dummy(::rust_query::IntoDummy::map_dummy(#parts_dummies, (|#parts_name| #name {
                     #(#names,)*
                 }) as fn(#parts_typ) -> Self::Out))
             }
-        }
-
-        impl<#(#original_plus_transaction,)* S> ::rust_query::dummy::FromDummy<#transaction_lt, S> for #name<#(#original_generics),*>
-        where #(#from_conds,)*
-        {
-            type Impl = ::rust_query::dummy::MapImpl<#parts_from_impl, fn(#parts_typ) -> Self>;
         }
 
         #(#trivial)*
