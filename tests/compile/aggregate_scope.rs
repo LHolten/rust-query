@@ -10,4 +10,11 @@ fn columns<'outer, 'inner, S: 'static>(
     aggr.filter_on(10, inner);
 }
 
+fn sum<'outer, 'inner, S: 'static>(
+    outer: Column<'outer, S, i64>,
+    aggr: &Aggregate<'outer, 'inner, S>,
+) {
+    aggr.sum(outer);
+}
+
 fn main() {}

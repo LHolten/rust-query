@@ -91,6 +91,5 @@ where
             let col = row.and(col);
             row.then_dummy(col.into_trivial::<T>())
         })
-        .into_dummy()
     }
 }

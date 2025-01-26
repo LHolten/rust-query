@@ -179,9 +179,9 @@ pub fn schema(
 ///     },
 /// }
 /// use v0::*;
-/// use rust_query::{Table, FromDummy, Transaction};
+/// use rust_query::{Table, Dummy, Transaction};
 ///
-/// #[derive(FromDummy)]
+/// #[derive(Dummy)]
 /// struct MyData {
 ///     seconds: i64,
 ///     is_it_real: bool,
@@ -189,7 +189,7 @@ pub fn schema(
 ///     other: OtherData
 /// }
 ///
-/// #[derive(FromDummy)]
+/// #[derive(Dummy)]
 /// struct OtherData {
 ///     alpha: f64,
 ///     beta: f64,
