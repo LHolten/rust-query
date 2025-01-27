@@ -43,14 +43,11 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     ///
     /// Note that the result of `Query::into_vec` is sorted. When a `*Dummy` struct is used for
     /// the output, the sorting order depends on the order of the fields in the struct definition.
-    pub fn into_vec<D>(&self, dummy: D) -> Vec<D::Out>
-    where
-        D: IntoDummy<'inner, 'outer, S>,
-    {
+    pub fn into_vec<O>(&self, dummy: impl IntoDummy<'inner, 'outer, S, Out = O>) -> Vec<O> {
         self.into_vec_private(dummy)
     }
 
-    pub(crate) fn into_vec_private<'x, 'l, D>(&self, dummy: D) -> Vec<D::Out>
+    pub(crate) fn into_vec_private<'x, D>(&self, dummy: D) -> Vec<D::Out>
     where
         D: IntoDummy<'x, 'outer, S>,
     {

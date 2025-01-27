@@ -94,7 +94,7 @@ pub trait Table: Sized + 'static {
     /// ```rust,ignore
     /// txn.find_and_update(User {
     ///     email: new_email,
-    ///     ..user.dummy()
+    ///     ..Table::dummy(user)
     /// })
     /// .unwrap();
     /// ```

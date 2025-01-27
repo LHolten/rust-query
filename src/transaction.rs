@@ -137,10 +137,7 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<'e, O>(&self, val: impl IntoDummy<'t, 't, S, Out = O>) -> O
-    where
-        S: 'static,
-    {
+    pub fn query_one<'e, O>(&self, val: impl IntoDummy<'t, 't, S, Out = O>) -> O {
         // Theoretically this doesn't even need to be in a transaction.
         // We already have one though, so we must use it.
         let mut res = self.query(|e| {
