@@ -117,10 +117,10 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let mut trivial_prepared = vec![];
         for (name, typ) in &fields {
             trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::dummy::FromColumn<_, _>>::from_column(col.#name())});
+                .push(quote! {#name: <#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
         }
         quote! {
-            impl<#(#original_plus_transaction),*> ::rust_query::dummy::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
+            impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
                     ::rust_query::IntoDummy::into_dummy(#dummy_name {

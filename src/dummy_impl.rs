@@ -144,9 +144,9 @@ pub trait IntoDummy<'columns, 'transaction, S>: Sized {
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T, F: FnMut(Self::Out) -> T + 'transaction>(
+    fn map_dummy<T>(
         self,
-        f: F,
+        f: impl 'transaction + FnMut(Self::Out) -> T,
     ) -> Dummy<'columns, 'transaction, S, T> {
         Dummy::new(MapImpl {
             dummy: self.into_dummy().inner,

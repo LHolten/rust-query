@@ -30,6 +30,7 @@ use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::Dummy;
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
+pub use value::trivial::FromColumn;
 pub use value::{optional::optional, Column, IntoColumn, UnixEpoch};
 
 /// Types that are used as closure arguments.
@@ -49,12 +50,6 @@ pub mod migration {
     pub use crate::hash::dev::hash_schema;
     pub use crate::migrate::{Alter, Config, Create, Migrator, NoTable};
     pub use rust_query_macros::schema;
-}
-
-/// Traits and types for implementing custom types that can be retrieved
-/// from the database.
-pub mod dummy {
-    pub use crate::value::trivial::FromColumn;
 }
 
 /// These items are only exposed for use by the proc macros.
