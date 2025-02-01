@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use ref_cast::RefCast;
+use rust_query_macros::FromColumn;
 
-use crate::{db::Col, hash, value::IntoColumn, Column, Dummy, Table, Transaction};
+use crate::{db::Col, hash, value::IntoColumn, Column, Table, Transaction};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -116,7 +117,7 @@ impl IndexInfoDummy<Column<'_, Pragma, IndexInfo>> {
 table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main')", val.0)}
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
-    #[derive(Clone, Dummy)]
+    #[derive(Clone, FromColumn)]
     #[rust_query(From = TableInfo)]
     struct Column {
         name: String,

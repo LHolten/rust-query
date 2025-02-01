@@ -53,7 +53,64 @@ pub fn wrap(parts: &[TokenStream]) -> TokenStream {
     }
 }
 
-pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
+pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
+    let transaction_lt = None;
+
+    let CommonInfo {
+        name,
+        dummy_name,
+        original_generics,
+        fields,
+    } = CommonInfo::from_item(item)?;
+
+    let mut original_plus_transaction = original_generics.clone();
+    let builtin_lt = syn::Lifetime::new("'_a", Span::mixed_site());
+    if transaction_lt.is_none() {
+        original_plus_transaction.push(builtin_lt.clone());
+    }
+    let transaction_lt = transaction_lt.unwrap_or(builtin_lt);
+
+    let mut defs = vec![];
+    let mut generics = vec![];
+    let mut constraints = vec![];
+    let mut dummies = vec![];
+    let mut typs = vec![];
+    let mut names = vec![];
+    for (name, typ) in &fields {
+        let generic = make_generic(name);
+
+        defs.push(quote! {#name: #generic});
+        constraints
+            .push(quote! {#generic: ::rust_query::IntoDummy<'_t, #transaction_lt, S, Out = #typ>});
+        generics.push(quote! {#generic});
+        dummies.push(quote! {self.#name});
+        names.push(quote! {#name});
+        typs.push(quote! {#typ});
+    }
+
+    let parts_name = wrap(&names);
+    let parts_dummies = wrap(&dummies);
+
+    Ok(quote! {
+        struct #dummy_name<#(#generics),*> {
+            #(#defs),*
+        }
+
+        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoDummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*>
+        where #name<#(#original_generics),*>: #transaction_lt {
+            type Out = #name<#(#original_generics),*>;
+
+            fn into_dummy(self) -> ::rust_query::Dummy<'_t, #transaction_lt, S, Self::Out> {
+                ::rust_query::IntoDummy::map_dummy(#parts_dummies, |#parts_name| #name {
+                    #(#names,)*
+                })
+            }
+        }
+
+    })
+}
+
+pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut trivial = vec![];
     let mut transaction_lt = None;
     for attr in &item.attrs {
@@ -117,39 +174,24 @@ pub fn from_row_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let mut trivial_prepared = vec![];
         for (name, typ) in &fields {
             trivial_prepared
-                .push(quote! {#name: <#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
+                .push(quote! {<#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
         }
+        let parts_dummies = wrap(&trivial_prepared);
+        let parts_name = wrap(&names);
+
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
-                    ::rust_query::IntoDummy::into_dummy(#dummy_name {
-                        #(#trivial_prepared,)*
+                    ::rust_query::IntoDummy::map_dummy(#parts_dummies, |#parts_name| #name {
+                        #(#names,)*
                     })
                 }
             }
         }
     });
 
-    let parts_typ = wrap(&typs);
-    let parts_name = wrap(&names);
-    let parts_dummies = wrap(&dummies);
-
     Ok(quote! {
-        struct #dummy_name<#(#generics),*> {
-            #(#defs),*
-        }
-
-        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoDummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*> {
-            type Out = #name<#(#original_generics),*>;
-
-            fn into_dummy(self) -> ::rust_query::Dummy<'_t, #transaction_lt, S, Self::Out> {
-                ::rust_query::IntoDummy::into_dummy(::rust_query::IntoDummy::map_dummy(#parts_dummies, (|#parts_name| #name {
-                    #(#names,)*
-                }) as fn(#parts_typ) -> Self::Out))
-            }
-        }
-
         #(#trivial)*
     })
 }

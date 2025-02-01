@@ -28,7 +28,7 @@ pub use dummy_impl::IntoDummy;
 use hash::TypBuilder;
 use ref_cast::RefCast;
 pub use rows::Rows;
-pub use rust_query_macros::Dummy;
+pub use rust_query_macros::{Dummy, FromColumn};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromColumn;
 pub use value::{optional::optional, Column, IntoColumn, UnixEpoch};

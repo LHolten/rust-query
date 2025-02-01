@@ -1,7 +1,9 @@
 #![feature(type_changing_struct_update)]
 use std::time;
 
-use rust_query::{migration::schema, Dummy, IntoColumn, Table, TableRow, TransactionMut};
+use rust_query::{
+    migration::schema, Dummy, FromColumn, IntoColumn, Table, TableRow, TransactionMut,
+};
 
 #[schema]
 enum Schema {
@@ -124,7 +126,7 @@ pub fn new_order<'a>(
 ) -> OutputData<'a> {
     let district = txn.query_one(input.customer.district());
 
-    #[derive(Dummy)]
+    #[derive(FromColumn)]
     #[rust_query(From = District, lt = 't)]
     struct DistrictInfo<'t> {
         warehouse: TableRow<'t, Warehouse>,
@@ -143,7 +145,7 @@ pub fn new_order<'a>(
     })
     .unwrap();
 
-    #[derive(Dummy)]
+    #[derive(FromColumn)]
     #[rust_query(From = Customer)]
     struct CustomerInfo {
         discount: f64,
@@ -181,7 +183,7 @@ pub fn new_order<'a>(
     {
         // TODO: make this a lookup by external item id
 
-        #[derive(Dummy)]
+        #[derive(FromColumn)]
         #[rust_query(From = Item)]
         struct ItemInfo {
             price: i64,

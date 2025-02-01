@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ops::Not};
 
-use dummy::from_row_impl;
+use dummy::{dummy_impl, from_column};
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -211,7 +211,16 @@ pub fn schema(
 ///     })
 /// }
 /// ```
-///
+#[proc_macro_derive(Dummy)]
+pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let item = syn::parse_macro_input!(item as ItemStruct);
+    match dummy_impl(item) {
+        Ok(x) => x,
+        Err(e) => e.into_compile_error(),
+    }
+    .into()
+}
+
 /// This macro also supports some helper attributes on the struct.
 ///
 /// - `#[rust_query(From = Thing)]`
@@ -219,10 +228,10 @@ pub fn schema(
 /// - `#[rust_query(lt = 't)]`
 ///   Can be used to specify the transaction lifetime for structs that contain `TableRow` fields.
 ///   This is only necessary when using `#[rust_query(From = Thing)]`.
-#[proc_macro_derive(Dummy, attributes(rust_query))]
-pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(FromColumn, attributes(rust_query))]
+pub fn from_column_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
-    match from_row_impl(item) {
+    match from_column(item) {
         Ok(x) => x,
         Err(e) => e.into_compile_error(),
     }

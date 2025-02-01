@@ -55,7 +55,6 @@ fn test_queries() {
 }
 
 #[derive(Debug, Dummy, PartialEq)]
-#[rust_query(lt = 'a)]
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
