@@ -1,9 +1,9 @@
 #![feature(type_changing_struct_update)]
-use std::time;
+use std::time::UNIX_EPOCH;
 
 use rust_query::{
     aggregate, migration::schema, Dummy, FromColumn, IntoColumnExt, IntoDummy, Table, TableRow,
-    TransactionMut,
+    TransactionMut, UnixEpoch,
 };
 
 #[schema]
@@ -175,7 +175,7 @@ pub fn new_order<'a>(
         .iter()
         .all(|item| item.supplying_warehouse == district_info.warehouse);
 
-    let entry_d = time::SystemTime::UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
+    let entry_d = UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
 
     let order = txn.insert(Order {
         customer: input.customer,
@@ -326,4 +326,141 @@ pub struct OutputLine<'t> {
     brand_generic: &'static str,
     item_price: i64,
     amount: i64,
+}
+
+enum CustomerIdent<'a> {
+    Id(TableRow<'a, Customer>),
+    Name(String),
+}
+
+struct PaymentInput<'a> {
+    disctrict: TableRow<'a, District>,
+    customer: CustomerIdent<'a>,
+    amount: i64,
+}
+
+#[derive(FromColumn)]
+#[rust_query(From = Warehouse, From = District)]
+struct LocationYtd {
+    name: String,
+    street_1: String,
+    street_2: String,
+    city: String,
+    state: String,
+    zip: String,
+    ytd: i64,
+}
+
+#[derive(FromColumn)]
+#[rust_query(From = Customer)]
+struct CustomerInfo {
+    first: String,
+    middle: String,
+    last: String,
+    street_1: String,
+    street_2: String,
+    city: String,
+    state: String,
+    zip: String,
+    phone: String,
+    since: i64,
+    credit: String,
+    credit_lim: i64,
+    discount: f64,
+    balance: i64,
+}
+
+fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> PaymentOutput<'a> {
+    let district = input.disctrict;
+    let warehouse = district.warehouse();
+    let warehouse_info: LocationYtd = txn.query_one(warehouse.into_trivial());
+
+    txn.update(
+        &warehouse,
+        Warehouse {
+            ytd: warehouse_info.ytd + input.amount,
+            ..Table::dummy(&warehouse)
+        },
+    );
+
+    let district_info: LocationYtd = txn.query_one(district.into_trivial());
+
+    txn.find_and_update(District {
+        ytd: district_info.ytd + input.amount,
+        ..Table::dummy(&district)
+    })
+    .unwrap();
+
+    let (customer, customer_info) = match input.customer {
+        CustomerIdent::Id(row) => (row, txn.query_one(row.into_trivial())),
+        CustomerIdent::Name(name) => {
+            let mut customers = txn.query(|rows| {
+                let customer = Customer::join(rows);
+                rows.filter(customer.district().eq(district));
+                rows.filter(customer.last().eq(name));
+                rows.into_vec((&customer, customer.into_trivial::<CustomerInfo>()))
+            });
+
+            let count = customers.len();
+            let id = count / 2;
+            customers.swap_remove(id)
+        }
+    };
+
+    txn.update(
+        customer,
+        Customer {
+            ytd_payment: customer.ytd_payment().add(input.amount),
+            payment_cnt: customer.payment_cnt().add(1),
+            ..Table::dummy(customer)
+        },
+    );
+
+    let mut credit_data = None;
+    if customer_info.credit == "BC" {
+        let data = txn.query_one(customer.data());
+        let mut data = format!("{customer:?},{};{data}", input.amount);
+        txn.update(
+            customer,
+            Customer {
+                data: &data[..500],
+                ..Table::dummy(customer)
+            },
+        );
+        data.truncate(200);
+        credit_data = Some(data);
+    }
+
+    let date = UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
+
+    let data = format!("{}    {}", warehouse_info.name, district_info.name);
+    txn.insert(History {
+        customer,
+        district,
+        date,
+        amount: input.amount,
+        data,
+    });
+
+    PaymentOutput {
+        district,
+        customer,
+        warehouse_info,
+        district_info,
+        customer_info,
+        data: credit_data,
+        amount: input.amount,
+        date,
+    }
+}
+
+struct PaymentOutput<'a> {
+    district: TableRow<'a, District>,
+    customer: TableRow<'a, Customer>,
+    warehouse_info: LocationYtd,
+    district_info: LocationYtd,
+    customer_info: CustomerInfo,
+    data: Option<String>,
+    amount: i64,
+    date: i64,
 }

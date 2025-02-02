@@ -129,7 +129,7 @@ pub trait IntoColumn<'column, S>: Private + Clone {
 pub trait IntoColumnExt<'column, S>: IntoColumn<'column, S> {
     /// Convert the column to a dummy using the [FromColumn] implementation.
     fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
-        self,
+        &self,
     ) -> Dummy<'column, 'transaction, S, X>;
 }
 
@@ -138,7 +138,7 @@ where
     T: IntoColumn<'column, S>,
 {
     fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
-        self,
+        &self,
     ) -> Dummy<'column, 'transaction, S, X> {
         X::from_column(self.into_column())
     }
