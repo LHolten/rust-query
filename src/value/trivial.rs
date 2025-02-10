@@ -29,6 +29,7 @@ macro_rules! from_column {
 }
 
 from_column! {String}
+from_column! {Vec<u8>}
 from_column! {i64}
 from_column! {f64}
 from_column! {bool}

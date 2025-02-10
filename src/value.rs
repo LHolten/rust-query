@@ -87,6 +87,7 @@ impl NumTyp for f64 {
 pub trait EqTyp {}
 
 impl EqTyp for String {}
+impl EqTyp for Vec<u8> {}
 impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
@@ -455,10 +456,24 @@ impl MyTyp for String {
     type Out<'t> = Self;
     type Sql = String;
 }
+assert_impl_all!(String: Nullable);
 
 impl SecretFromSql<'_> for String {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(value.as_str()?.to_owned())
+    }
+}
+
+impl MyTyp for Vec<u8> {
+    const TYP: hash::ColumnType = hash::ColumnType::Blob;
+    type Out<'t> = Self;
+    type Sql = Vec<u8>;
+}
+assert_impl_all!(Vec<u8>: Nullable);
+
+impl SecretFromSql<'_> for Vec<u8> {
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(value.as_blob()?.to_owned())
     }
 }
 

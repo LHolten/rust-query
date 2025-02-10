@@ -3,6 +3,9 @@
 
 extern crate self as rust_query;
 
+#[macro_use]
+extern crate static_assertions;
+
 mod aggregate;
 mod alias;
 mod ast;

@@ -13,6 +13,7 @@ pub enum ColumnType {
     Integer = 0,
     Float = 1,
     String = 2,
+    Blob = 3,
 }
 
 impl ColumnType {
@@ -22,6 +23,7 @@ impl ColumnType {
             ColumnType::Integer => T::Integer,
             ColumnType::Float => T::custom("REAL"),
             ColumnType::String => T::Text,
+            ColumnType::Blob => T::Blob,
         }
     }
 }
@@ -210,6 +212,9 @@ trait SchemaType<S>: MyTyp {
 }
 
 impl<S> SchemaType<S> for String {
+    type N = NotNull;
+}
+impl<S> SchemaType<S> for Vec<u8> {
     type N = NotNull;
 }
 impl<S> SchemaType<S> for i64 {
