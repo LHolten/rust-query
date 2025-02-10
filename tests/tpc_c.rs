@@ -2,7 +2,8 @@
 use std::time;
 
 use rust_query::{
-    migration::schema, Dummy, FromColumn, IntoColumn, Table, TableRow, TransactionMut,
+    aggregate, migration::schema, Dummy, FromColumn, IntoColumn, IntoDummy, Table, TableRow,
+    TransactionMut,
 };
 
 #[schema]
@@ -66,7 +67,7 @@ enum Schema {
         customer: Customer,
         entry_d: i64,
         carrier_id: Option<i64>,
-        order_line_cnt: i64, // unnecessary
+        // order_line_cnt: OrderLineCnt,
         all_local: i64,
     },
     #[unique(order, number)]
@@ -108,6 +109,21 @@ enum Schema {
     },
 }
 use v0::*;
+
+// The number of order lines associated with an order
+pub struct OrderLineCnt(i64);
+
+impl<'transaction> FromColumn<'transaction, Schema, Order> for OrderLineCnt {
+    fn from_column<'columns>(
+        order: rust_query::Column<'columns, Schema, Order>,
+    ) -> Dummy<'columns, 'transaction, Schema, Self> {
+        aggregate(|rows| {
+            let order_line = OrderLine::join(rows);
+            rows.filter_on(order_line.order(), order);
+            rows.count_distinct(order_line).map_dummy(Self)
+        })
+    }
+}
 
 pub struct NewOrderInput<'a> {
     customer: TableRow<'a, Customer>,
@@ -165,7 +181,6 @@ pub fn new_order<'a>(
         customer: input.customer,
         entry_d,
         carrier_id: None::<i64>,
-        order_line_cnt: input.items.len() as i64,
         all_local: local as i64,
     });
     txn.try_insert(NewOrder { order }).unwrap();
