@@ -409,6 +409,16 @@ impl<'column, S> IntoColumn<'column, S> for UnixEpoch {
     }
 }
 
+#[cfg(feature = "uuid")]
+impl Private for uuid::Uuid {}
+#[cfg(feature = "uuid")]
+impl<'column, S> IntoColumn<'column, S> for uuid::Uuid {
+    type Typ = Vec<u8>;
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
+        IntoColumn::into_column(self.as_bytes().as_slice())
+    }
+}
+
 pub trait MyTyp: 'static {
     #[doc(hidden)]
     const NULLABLE: bool = false;
