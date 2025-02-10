@@ -272,21 +272,6 @@ impl<'column, S, T: IntoColumn<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> In
     }
 }
 
-impl Typed for &str {
-    type Typ = String;
-    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        SimpleExpr::from(*self)
-    }
-}
-
-impl Private for &str {}
-impl<'column, S> IntoColumn<'column, S> for &str {
-    type Typ = String;
-    fn into_column(self) -> Column<'column, S, Self::Typ> {
-        Column::new(self.to_owned())
-    }
-}
-
 impl Typed for String {
     type Typ = String;
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
@@ -299,6 +284,37 @@ impl<'column, S> IntoColumn<'column, S> for String {
     type Typ = String;
     fn into_column(self) -> Column<'column, S, Self::Typ> {
         Column::new(self)
+    }
+}
+
+impl Private for &str {}
+impl<'column, S> IntoColumn<'column, S> for &str {
+    type Typ = String;
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
+        Column::new(self.to_owned())
+    }
+}
+
+impl Typed for Vec<u8> {
+    type Typ = Vec<u8>;
+    fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
+        SimpleExpr::from(self.to_owned())
+    }
+}
+
+impl Private for Vec<u8> {}
+impl<'column, S> IntoColumn<'column, S> for Vec<u8> {
+    type Typ = Vec<u8>;
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
+        Column::new(self)
+    }
+}
+
+impl Private for &[u8] {}
+impl<'column, S> IntoColumn<'column, S> for &[u8] {
+    type Typ = Vec<u8>;
+    fn into_column(self) -> Column<'column, S, Self::Typ> {
+        Column::new(self.to_owned())
     }
 }
 
