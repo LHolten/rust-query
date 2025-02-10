@@ -120,8 +120,23 @@ pub trait IntoColumn<'column, S>: Private + Clone {
 
     /// Turn this value into a [Column].
     fn into_column(self) -> Column<'column, S, Self::Typ>;
+}
 
+/// Methods that only require `IntoColumn`.
+///
+/// These are not default methods on `IntoColumn`, because they never need to
+/// be implemented manually.
+pub trait IntoColumnExt<'column, S>: IntoColumn<'column, S> {
     /// Convert the column to a dummy using the [FromColumn] implementation.
+    fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
+        self,
+    ) -> Dummy<'column, 'transaction, S, X>;
+}
+
+impl<'column, S, T> IntoColumnExt<'column, S> for T
+where
+    T: IntoColumn<'column, S>,
+{
     fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
         self,
     ) -> Dummy<'column, 'transaction, S, X> {

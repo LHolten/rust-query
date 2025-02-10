@@ -2,7 +2,7 @@
 use std::time;
 
 use rust_query::{
-    aggregate, migration::schema, Dummy, FromColumn, IntoColumn, IntoDummy, Table, TableRow,
+    aggregate, migration::schema, Dummy, FromColumn, IntoColumnExt, IntoDummy, Table, TableRow,
     TransactionMut,
 };
 

@@ -3,7 +3,12 @@ use std::collections::HashMap;
 use ref_cast::RefCast;
 use rust_query_macros::FromColumn;
 
-use crate::{db::Col, hash, value::IntoColumn, Column, Table, Transaction};
+use crate::{
+    db::Col,
+    hash,
+    value::{IntoColumn, IntoColumnExt},
+    Column, Table, Transaction,
+};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
