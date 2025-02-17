@@ -23,7 +23,6 @@ pretty_assertions = "1.4.0"
 r2d2_sqlite = "0.24.0"
 r2d2 = "0.8"
 static_assertions = "1.1.0"
-uuid = { version = "1", optional = true }
 
 [dev-dependencies]
 trybuild = "1.0.97"
@@ -32,4 +31,3 @@ expect-test = "1"
 [features]
 bundled = ["rusqlite/bundled"]
 dev = ["dep:k12"]
-uuid = ["dep:uuid"]
