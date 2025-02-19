@@ -155,11 +155,15 @@ pub fn new_order<'a>(
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
-    txn.find_and_update(District {
-        next_order: district_info.next_order + 1,
-        ..Table::dummy(district)
-    })
-    .unwrap();
+    txn.update(
+        district,
+        District {
+            next_order: district_info.next_order + 1,
+            warehouse: (),
+            number: (),
+            ..Table::dummy(district)
+        },
+    );
 
     #[derive(FromColumn)]
     #[rust_query(From = Customer)]
@@ -242,14 +246,18 @@ pub fn new_order<'a>(
         };
 
         let is_remote = supplying_warehouse != district_info.warehouse;
-        txn.find_and_update(Stock {
-            ytd: stock.ytd().add(quantity),
-            quantity: new_quantity,
-            order_cnt: stock.order_cnt().add(1),
-            remote_cnt: stock.remote_cnt().add(is_remote as i64),
-            ..Table::dummy(stock)
-        })
-        .unwrap();
+        txn.update(
+            stock,
+            Stock {
+                warehouse: (),
+                item: (),
+                ytd: stock.ytd().add(quantity),
+                quantity: new_quantity,
+                order_cnt: stock.order_cnt().add(1),
+                remote_cnt: stock.remote_cnt().add(is_remote as i64),
+                ..Table::dummy(stock)
+            },
+        );
 
         let amount = quantity * item_info.price;
         let brand_generic =
@@ -385,11 +393,15 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
 
     let district_info: LocationYtd = txn.query_one(district.into_trivial());
 
-    txn.find_and_update(District {
-        ytd: district_info.ytd + input.amount,
-        ..Table::dummy(&district)
-    })
-    .unwrap();
+    txn.update(
+        district,
+        District {
+            warehouse: (),
+            number: (),
+            ytd: district_info.ytd + input.amount,
+            ..Table::dummy(&district)
+        },
+    );
 
     let (customer, customer_info) = match input.customer {
         CustomerIdent::Id(row) => (row, txn.query_one(row.into_trivial())),

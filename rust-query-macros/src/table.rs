@@ -100,6 +100,9 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let mut bounds = vec![];
     let mut dummy_columns = vec![];
     let mut dummy_inits = vec![];
+    let mut bounds_safe = vec![];
+    let mut generics_safe = vec![];
+    let mut reads_safe = vec![];
 
     for col in table.columns.values() {
         let typ = &col.typ;
@@ -116,6 +119,11 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         let mut unique_columns = table.uniques.iter().flat_map(|x| &x.columns);
         if unique_columns.any(|x| x == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#typ>()));
+            generics_safe.push(quote! {()});
+        } else {
+            generics_safe.push(quote! {#generic});
+            bounds_safe.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
+            reads_safe.push(quote!(f.col(#ident_str, &self.#ident)));
         }
         col_defs.push(quote! {pub #ident: #generic});
         bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
@@ -124,6 +132,22 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         generic_defaults.push(quote! {#generic = ()});
         generics.push(generic);
     }
+
+    let safe_writable = (!table.uniques.is_empty()).then_some(quote! {
+        impl<'t #(,#bounds_safe)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics_safe),*> {
+            type Schema = #schema;
+            type T = #table_ident;
+            fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
+                #(#reads_safe;)*
+            }
+
+            type Conflict = ::std::convert::Infallible;
+            fn get_conflict_unchecked(&self) -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
+                let x = ::rust_query::IntoColumn::into_column(&0i64);
+                ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
+            }
+        }
+    });
 
     let ext_ident = format_ident!("{}Ext", table_ident);
 
@@ -187,6 +211,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 #conflict_dummy
             }
         }
+        #safe_writable
 
         #[allow(unused)]
         impl #table_ident {

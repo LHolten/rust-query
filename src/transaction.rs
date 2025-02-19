@@ -307,27 +307,6 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let Ok(()) = self.try_update(row, val);
     }
 
-    /// This is a convenience function to use [TransactionMut::try_update] on tables with
-    /// exactly one unique constraint.
-    ///
-    /// This function works slightly different in that it does not receive a row reference.
-    /// Instead it tries to update the row that would conflict if the new row would be inserted.
-    /// When such a conflicting row is found, it is updated to the new column values and [Ok] is
-    /// returned with a reference to the found row.
-    /// If it can not find a conflicting row, then nothing happens and the function returns [Err]
-    pub fn find_and_update<T: Table<Schema = S>>(
-        &mut self,
-        val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
-    ) -> Result<TableRow<'t, T>, ()> {
-        match self.query_one(val.get_conflict_unchecked()) {
-            Some(row) => {
-                self.try_update(row, val).unwrap();
-                Ok(row)
-            }
-            None => Err(()),
-        }
-    }
-
     /// Make the changes made in this [TransactionMut] permanent.
     ///
     /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.

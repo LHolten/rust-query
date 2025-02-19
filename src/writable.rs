@@ -4,7 +4,7 @@ use crate::{
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, Typed},
-    IntoDummy, IntoColumn, Table,
+    IntoColumn, IntoDummy, Table,
 };
 
 /// this trait is not safe to implement
