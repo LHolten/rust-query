@@ -8,6 +8,7 @@ error[E0277]: Can not use `bool` as a column type in schema `v0::Schema`
   = help: the following other types implement trait `rust_query::hash::SchemaType<S>`:
             Option<T>
             String
+            Vec<u8>
             f64
             i64
 note: required by a bound in `TypBuilder::<S>::col`
@@ -42,6 +43,7 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
   = note: `EqTyp` is also implemented for all table types
   = help: the following other types implement trait `rust_query::value::EqTyp`:
             String
+            Vec<u8>
             bool
             f64
             i64

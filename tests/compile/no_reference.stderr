@@ -8,6 +8,7 @@ error[E0277]: Can not use `SomeTable` as a column type in schema `v0::Schema`
    = help: the following other types implement trait `rust_query::hash::SchemaType<S>`:
              Option<T>
              String
+             Vec<u8>
              f64
              i64
 note: required by a bound in `TypBuilder::<S>::col`
