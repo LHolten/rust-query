@@ -58,7 +58,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 })
             }
         });
-        unique_defs.push(define_unique(unique, table_name, table_ident, schema));
+        unique_defs.push(define_unique(unique, table_ident, schema));
     }
 
     let (conflict_type, conflict_dummy) = match &*table.uniques {
@@ -224,12 +224,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     })
 }
 
-fn define_unique(
-    unique: &Unique,
-    table_str: &str,
-    table_typ: &Ident,
-    schema: &Ident,
-) -> TokenStream {
+fn define_unique(unique: &Unique, table_typ: &Ident, schema: &Ident) -> TokenStream {
     let name = &unique.name;
     let typ_name = make_generic(name);
 
@@ -262,7 +257,7 @@ fn define_unique(
         impl<#(#constraints_typed),*> ::rust_query::private::Typed for #typ_name<#(#generics),*> {
             type Typ = Option<super::#table_typ>;
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
-                b.get_unique(#table_str, vec![#(#conds),*])
+                b.get_unique::<super::#table_typ>(vec![#(#conds),*])
             }
         }
     }

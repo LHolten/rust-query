@@ -234,7 +234,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<(), C> {
         let id = MySelect::default();
-        id.reader().col("id", row);
+        id.reader().col(T::ID, row);
         let id = id.build_select(false);
 
         let ast = MySelect::default();

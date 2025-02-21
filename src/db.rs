@@ -180,6 +180,9 @@ mod tests {
 
         type Dummy<'t> = ();
         fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
+
+        const ID: &'static str = "";
+        const NAME: &'static str = "";
     }
 
     #[repr(transparent)]
