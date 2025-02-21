@@ -3,19 +3,14 @@ use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 use ref_cast::{ref_cast_custom, RefCastCustom};
 use rusqlite::ErrorCode;
 use sea_query::{
-    Alias, DeleteStatement, Expr, InsertStatement, SqliteQueryBuilder, UpdateStatement, Value,
+    Alias, CommonTableExpression, DeleteStatement, Expr, InsertStatement, SelectStatement,
+    SimpleExpr, SqliteQueryBuilder, UpdateStatement, WithClause,
 };
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    alias::Field,
-    ast::MySelect,
-    client::LocalClient,
-    migrate::schema_version,
-    query::Query,
-    value::SecretFromSql,
-    writable::{Reader, Writable},
-    IntoColumn, IntoDummy, Rows, Table, TableRow,
+    ast::MySelect, client::LocalClient, migrate::schema_version, query::Query,
+    value::SecretFromSql, writable::Writable, IntoColumn, IntoDummy, Rows, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -245,33 +240,32 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let ast = MySelect::default();
         val.read(ast.reader());
 
-        let select = ast.simple();
-        let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
-        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
+        let select = ast.build_select(false);
+        let cte = CommonTableExpression::new()
+            .query(select)
+            .columns(ast.select.iter().map(|x| x.1))
+            .table_name(Alias::new("cte"))
+            .to_owned();
+        let with_clause = WithClause::new().cte(cte).to_owned();
 
         let mut update = UpdateStatement::new()
             .table(Alias::new(T::NAME))
             .cond_where(Expr::col(Alias::new(T::ID)).in_subquery(id))
             .to_owned();
 
-        stmt.query_row(&*args.as_params(), |row| {
-            for (_, field) in ast.select.iter() {
-                let Field::Str(name) = field else { panic!() };
+        for (_, col) in ast.select.iter() {
+            let select = SelectStatement::new()
+                .from(Alias::new("cte"))
+                .column(*col)
+                .to_owned();
+            let value = SimpleExpr::SubQuery(
+                None,
+                Box::new(sea_query::SubQueryStatement::SelectStatement(select)),
+            );
+            update.value(*col, value);
+        }
 
-                let val = match row.get_unwrap::<&str, rusqlite::types::Value>(*name) {
-                    rusqlite::types::Value::Null => Value::BigInt(None),
-                    rusqlite::types::Value::Integer(x) => Value::BigInt(Some(x)),
-                    rusqlite::types::Value::Real(x) => Value::Double(Some(x)),
-                    rusqlite::types::Value::Text(x) => Value::String(Some(Box::new(x))),
-                    rusqlite::types::Value::Blob(x) => Value::Bytes(Some(Box::new(x))),
-                };
-                update.value(*field, Expr::val(val));
-            }
-            Ok(())
-        })
-        .unwrap();
-
-        let (query, args) = update.build_rusqlite(SqliteQueryBuilder);
+        let (query, args) = update.with(with_clause).build_rusqlite(SqliteQueryBuilder);
 
         let mut stmt = self.transaction.prepare_cached(&query).unwrap();
         match stmt.execute(&*args.as_params()) {

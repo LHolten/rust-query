@@ -49,6 +49,8 @@ fn test_queries() {
     let Err(_) = db.try_update(id, Artist { name: "first" }) else {
         panic!()
     };
+    db.try_update(id, Artist { name: "other" }).unwrap();
+    assert_eq!(db.query_one(id.name()), "other");
 
     let mut db = db.downgrade();
     assert!(db.try_delete(id).unwrap());
