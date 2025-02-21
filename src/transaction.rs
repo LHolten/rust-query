@@ -162,13 +162,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<TableRow<'t, T>, C> {
         let ast = MySelect::default();
-
-        let reader = Reader {
-            ast: &ast,
-            _p: PhantomData,
-            _p2: PhantomData,
-        };
-        val.read(reader);
+        val.read(ast.reader());
 
         let select = ast.simple();
 
@@ -244,23 +238,20 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         row: impl IntoColumn<'t, S, Typ = T>,
         val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<(), C> {
-        let ast = MySelect::default();
+        let id = MySelect::default();
+        id.reader().col("id", row);
+        let id = id.build_select(false);
 
-        let reader = Reader {
-            ast: &ast,
-            _p: PhantomData,
-            _p2: PhantomData,
-        };
-        val.read(reader);
+        let ast = MySelect::default();
+        val.read(ast.reader());
 
         let select = ast.simple();
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
         let mut stmt = self.transaction.prepare_cached(&query).unwrap();
 
-        let row_id = self.query_one(row.into_column()).inner.idx;
         let mut update = UpdateStatement::new()
             .table(Alias::new(T::NAME))
-            .cond_where(Expr::val(row_id).equals(Alias::new(T::ID)))
+            .cond_where(Expr::col(Alias::new(T::ID)).in_subquery(id))
             .to_owned();
 
         stmt.query_row(&*args.as_params(), |row| {
@@ -272,7 +263,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                     rusqlite::types::Value::Integer(x) => Value::BigInt(Some(x)),
                     rusqlite::types::Value::Real(x) => Value::Double(Some(x)),
                     rusqlite::types::Value::Text(x) => Value::String(Some(Box::new(x))),
-                    rusqlite::types::Value::Blob(_) => todo!(),
+                    rusqlite::types::Value::Blob(x) => Value::Bytes(Some(Box::new(x))),
                 };
                 update.value(*field, Expr::val(val));
             }

@@ -1,9 +1,12 @@
+use std::marker::PhantomData;
+
 use elsa::FrozenVec;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias, RawAlias, Scope},
     mymap::MyMap,
+    private::Reader,
     value::{DynTypedExpr, ValueBuilder},
 };
 
@@ -47,6 +50,14 @@ impl PartialEq for SourceKind {
 impl MySelect {
     pub fn builder(&self) -> ValueBuilder<'_> {
         ValueBuilder { inner: self }
+    }
+
+    pub fn reader<'t, S>(&self) -> Reader<'_, 't, S> {
+        Reader {
+            ast: self,
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
     }
 
     pub fn cache(&self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
