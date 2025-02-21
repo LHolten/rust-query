@@ -134,7 +134,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     }
 
     let safe_writable = (!table.uniques.is_empty()).then_some(quote! {
-        impl<'t #(,#bounds_safe)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics_safe),*> {
+        impl<'t #(,#bounds_safe)*> ::rust_query::private::Update<'t> for #table_ident<#(#generics_safe),*> {
             type Schema = #schema;
             type T = #table_ident;
             fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
@@ -199,7 +199,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
         }
 
-        impl<'t #(,#bounds)*> ::rust_query::private::Writable<'t> for #table_ident<#(#generics),*> {
+        impl<'t #(,#bounds)*> ::rust_query::private::Insert<'t> for #table_ident<#(#generics),*> {}
+        impl<'t #(,#bounds)*> ::rust_query::private::Update<'t> for #table_ident<#(#generics),*> {
             type Schema = #schema;
             type T = #table_ident;
             fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {

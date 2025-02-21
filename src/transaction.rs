@@ -9,8 +9,13 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    ast::MySelect, client::LocalClient, migrate::schema_version, query::Query,
-    value::SecretFromSql, writable::Writable, IntoColumn, IntoDummy, Rows, Table, TableRow,
+    ast::MySelect,
+    client::LocalClient,
+    migrate::schema_version,
+    query::Query,
+    value::SecretFromSql,
+    writable::{Insert, Update},
+    IntoColumn, IntoDummy, Rows, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -154,7 +159,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 2+ unique constraints => `()` no further information is provided.
     pub fn try_insert<T: Table<Schema = S>, C>(
         &mut self,
-        val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
+        val: impl Update<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<TableRow<'t, T>, C> {
         let ast = MySelect::default();
         val.read(ast.reader());
@@ -196,7 +201,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The new row is added to the table and the row reference is returned.
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
+        val: impl Insert<'t, T = T, Conflict = Infallible, Schema = S>,
     ) -> TableRow<'t, T> {
         let Ok(row) = self.try_insert(val);
         row
@@ -210,7 +215,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// to the conflicting row is returned.
     pub fn find_or_insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl Writable<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+        val: impl Insert<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
     ) -> TableRow<'t, T> {
         match self.try_insert(val) {
             Ok(row) => row,
@@ -231,7 +236,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn try_update<T: Table<Schema = S>, C>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl Writable<'t, T = T, Conflict = C, Schema = S>,
+        val: impl Update<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<(), C> {
         let id = MySelect::default();
         id.reader().col(T::ID, row);
@@ -282,12 +287,12 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         }
     }
 
-    /// This is a convenience function to use [TransactionMut::try_update] on tables without
-    /// unique constraints.
+    /// This is a convenience function to use [TransactionMut::try_update] for updates
+    /// that can not cause unique constraint violations.
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl Writable<'t, T = T, Conflict = Infallible, Schema = S>,
+        val: impl Update<'t, T = T, Conflict = Infallible, Schema = S>,
     ) {
         let Ok(()) = self.try_update(row, val);
     }

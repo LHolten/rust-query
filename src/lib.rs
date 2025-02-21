@@ -67,7 +67,7 @@ pub mod private {
     };
     pub use crate::query::show_sql;
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
-    pub use crate::writable::{Reader, Writable};
+    pub use crate::writable::{Insert, Reader, Update};
 
     pub use ref_cast::RefCast;
     pub use sea_query::SimpleExpr;

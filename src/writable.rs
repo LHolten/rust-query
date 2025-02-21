@@ -7,8 +7,11 @@ use crate::{
     IntoColumn, IntoDummy, Table,
 };
 
-/// this trait is not safe to implement
-pub trait Writable<'t> {
+/// this trait has to be implemented by the `schema` macro.
+pub trait Insert<'t>: Update<'t> {}
+
+/// this trait has to be implemented by the `schema` macro.
+pub trait Update<'t> {
     type Schema;
     type T: Table<Schema = Self::Schema>;
     fn read(&self, f: Reader<'_, 't, Self::Schema>);
@@ -19,7 +22,7 @@ pub trait Writable<'t> {
     ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
 }
 
-impl<'t, X: Writable<'t>> Writable<'t> for &X {
+impl<'t, X: Update<'t>> Update<'t> for &X {
     type Schema = X::Schema;
     type T = X::T;
 
