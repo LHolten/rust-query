@@ -6,7 +6,6 @@ use crate::make_generic;
 
 struct CommonInfo {
     name: syn::Ident,
-    dummy_name: syn::Ident,
     original_generics: Vec<Lifetime>,
     fields: Vec<(syn::Ident, syn::Type)>,
 }
@@ -14,7 +13,6 @@ struct CommonInfo {
 impl CommonInfo {
     fn from_item(item: ItemStruct) -> syn::Result<Self> {
         let name = item.ident;
-        let dummy_name = format_ident!("{name}Dummy");
         let original_generics = item.generics.params.into_iter().map(|x| {
             let GenericParam::Lifetime(lt) = x else {
                 return Err(syn::Error::new_spanned(
@@ -35,7 +33,6 @@ impl CommonInfo {
         });
         Ok(Self {
             name,
-            dummy_name,
             original_generics: original_generics.collect::<Result<_, _>>()?,
             fields: fields.collect::<Result<_, _>>()?,
         })
@@ -58,10 +55,10 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
     let CommonInfo {
         name,
-        dummy_name,
         original_generics,
         fields,
     } = CommonInfo::from_item(item)?;
+    let dummy_name = format_ident!("{name}Dummy");
 
     let mut original_plus_transaction = original_generics.clone();
     let builtin_lt = syn::Lifetime::new("'_a", Span::mixed_site());
@@ -139,7 +136,6 @@ pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
 
     let CommonInfo {
         name,
-        dummy_name,
         original_generics,
         fields,
     } = CommonInfo::from_item(item)?;
