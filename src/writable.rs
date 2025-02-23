@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{
     alias::Field,
     ast::MySelect,
-    value::{DynTypedExpr, Typed},
+    value::{DynTypedExpr, NumTyp, Typed},
     Column, IntoColumn, IntoDummy, Table,
 };
 
@@ -30,6 +30,15 @@ impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
     #[doc(hidden)]
     pub fn apply(&self, val: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ> {
         (self.inner)(val.into_column())
+    }
+}
+
+impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
+    pub fn add(val: impl IntoColumn<'t, S, Typ = Typ>) -> Self {
+        let val = val.into_column();
+        Self {
+            inner: Box::new(move |old| old.add(&val)),
+        }
     }
 }
 

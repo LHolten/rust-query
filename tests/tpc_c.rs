@@ -157,7 +157,7 @@ pub fn new_order<'a>(
     txn.update(
         district,
         District {
-            next_order: Update::set(district_info.next_order + 1),
+            next_order: Update::add(1),
             ..District::update()
         },
     );
@@ -246,10 +246,10 @@ pub fn new_order<'a>(
         txn.update(
             stock,
             Stock {
-                ytd: Update::set(stock.ytd().add(quantity)),
+                ytd: Update::add(quantity),
                 quantity: Update::set(new_quantity),
-                order_cnt: Update::set(stock.order_cnt().add(1)),
-                remote_cnt: Update::set(stock.remote_cnt().add(is_remote as i64)),
+                order_cnt: Update::add(1),
+                remote_cnt: Update::add(is_remote as i64),
                 ..Stock::update()
             },
         );
@@ -381,7 +381,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     txn.update(
         &warehouse,
         Warehouse {
-            ytd: Update::set(warehouse_info.ytd + input.amount),
+            ytd: Update::add(input.amount),
             ..Warehouse::update()
         },
     );
@@ -391,7 +391,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     txn.update(
         district,
         District {
-            ytd: Update::set(district_info.ytd + input.amount),
+            ytd: Update::add(input.amount),
             ..District::update()
         },
     );
@@ -415,8 +415,8 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     txn.update(
         customer,
         Customer {
-            ytd_payment: Update::set(customer.ytd_payment().add(input.amount)),
-            payment_cnt: Update::set(customer.payment_cnt().add(1)),
+            ytd_payment: Update::add(input.amount),
+            payment_cnt: Update::add(1),
             ..Customer::update()
         },
     );
