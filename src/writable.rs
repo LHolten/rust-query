@@ -4,39 +4,56 @@ use crate::{
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, Typed},
-    IntoColumn, IntoDummy, Table,
+    Column, IntoColumn, IntoDummy, Table,
 };
 
-/// this trait has to be implemented by the `schema` macro.
-pub trait Insert<'t>: Update<'t> {}
+pub struct Update<'t, S, Typ> {
+    inner: Box<dyn 't + Fn(Column<'t, S, Typ>) -> Column<'t, S, Typ>>,
+}
+
+impl<'t, S, Typ> Default for Update<'t, S, Typ> {
+    fn default() -> Self {
+        Self {
+            inner: Box::new(|x| x),
+        }
+    }
+}
+
+impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
+    pub fn set(val: impl IntoColumn<'t, S, Typ = Typ>) -> Self {
+        let val = val.into_column();
+        Self {
+            inner: Box::new(move |_| val.clone()),
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn apply(&self, val: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ> {
+        (self.inner)(val.into_column())
+    }
+}
 
 /// this trait has to be implemented by the `schema` macro.
-pub trait Update<'t> {
-    type Schema;
-    type T: Table<Schema = Self::Schema>;
+pub trait TableInsert<'t>: TableConflict<'t> {
     fn read(&self, f: Reader<'_, 't, Self::Schema>);
-
-    type Conflict;
     fn get_conflict_unchecked(
         &self,
     ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
 }
 
-impl<'t, X: Update<'t>> Update<'t> for &X {
-    type Schema = X::Schema;
-    type T = X::T;
-
-    fn read(&self, f: Reader<'_, 't, Self::Schema>) {
-        X::read(self, f);
-    }
-
-    type Conflict = X::Conflict;
-
+/// this trait has to be implemented by the `schema` macro.
+pub trait TableUpdate<'t>: TableConflict<'t> {
+    fn read(&self, old: Column<'t, Self::Schema, Self::T>, f: Reader<'_, 't, Self::Schema>);
     fn get_conflict_unchecked(
         &self,
-    ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
-        X::get_conflict_unchecked(self)
-    }
+        old: Column<'t, Self::Schema, Self::T>,
+    ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
+}
+
+pub trait TableConflict<'t> {
+    type Schema;
+    type T: Table<Schema = Self::Schema>;
+    type Conflict;
 }
 
 pub struct Reader<'x, 't, S> {

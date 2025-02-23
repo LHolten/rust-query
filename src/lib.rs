@@ -35,6 +35,7 @@ pub use rust_query_macros::{Dummy, FromColumn};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromColumn;
 pub use value::{optional::optional, Column, IntoColumn, IntoColumnExt, UnixEpoch};
+pub use writable::Update;
 
 /// Types that are used as closure arguments.
 ///
@@ -67,7 +68,7 @@ pub mod private {
     };
     pub use crate::query::show_sql;
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
-    pub use crate::writable::{Insert, Reader, Update};
+    pub use crate::writable::{Reader, TableConflict, TableInsert, TableUpdate};
 
     pub use ref_cast::RefCast;
     pub use sea_query::SimpleExpr;
@@ -91,21 +92,30 @@ pub trait Table: Sized + 'static {
     }
 
     /// The type returned by the [Table::dummy] method.
-    type Dummy<'t>;
+    type Update<'t>;
+    type TryUpdate<'t>;
 
-    /// Create a dummy that can be used for [TransactionMut::try_insert] and [TransactionMut::try_update] etc.
+    /// Default values that don't update any columns in unique constraints.
+    ///
+    /// This can be used in combination with [TransactionMut::update].
     /// ```rust,ignore
-    /// txn.find_and_update(User {
-    ///     email: new_email,
-    ///     ..Table::dummy(user)
-    /// })
-    /// .unwrap();
+    /// txn.update(User {
+    ///     score: Update::set(100),
+    ///     ..Table::update()
+    /// });
     /// ```
-    /// Note that all fields of the dummy have type [Column], so if you want to change the value to something that is not
-    /// a [Column], then you need to do one of the following:
-    /// - Turn the value into a [Column] with [IntoColumn::into_column].
-    /// - Use `#![feature(type_changing_struct_update)]`.
-    fn dummy<'t>(val: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t>;
+    fn update<'t>() -> Self::Update<'t>;
+
+    /// Default values that include columns in unique constraints.
+    ///
+    /// This can be used in combination with [TransactionMut::try_update].
+    /// ```rust,ignore
+    /// txn.try_update(User {
+    ///     email: Update::set(new_email),
+    ///     ..Table::try_update()
+    /// });
+    /// ```
+    fn try_update<'t>() -> Self::TryUpdate<'t>;
 
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;

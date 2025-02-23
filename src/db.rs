@@ -178,8 +178,10 @@ mod tests {
 
         fn typs(_: &mut crate::hash::TypBuilder<Self::Schema>) {}
 
-        type Dummy<'t> = ();
-        fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
+        type Update<'t> = ();
+        type TryUpdate<'t> = ();
+        fn update<'t>() -> Self::Update<'t> {}
+        fn try_update<'t>() -> Self::TryUpdate<'t> {}
 
         const ID: &'static str = "";
         const NAME: &'static str = "";

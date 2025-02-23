@@ -6,6 +6,7 @@ use chinook_schema::*;
 use expect_test::expect_file;
 use rust_query::{
     aggregate, Column, Dummy, IntoColumn, IntoDummy, LocalClient, Table, TableRow, Transaction,
+    Update,
 };
 
 /// requires [PartialEq] to get rid of unused warnings.
@@ -46,10 +47,21 @@ fn test_queries() {
     db.try_insert(Artist { name: "first" }).unwrap();
     let id = db.try_insert(Artist { name: "second" }).unwrap();
 
-    let Err(_) = db.try_update(id, Artist { name: "first" }) else {
+    let Err(_) = db.try_update(
+        id,
+        Artist {
+            name: Update::set("first"),
+        },
+    ) else {
         panic!()
     };
-    db.try_update(id, Artist { name: "other" }).unwrap();
+    db.try_update(
+        id,
+        Artist {
+            name: Update::set("other"),
+        },
+    )
+    .unwrap();
     assert_eq!(db.query_one(id.name()), "other");
 
     let mut db = db.downgrade();

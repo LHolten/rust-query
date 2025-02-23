@@ -61,9 +61,13 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         unique_defs.push(define_unique(unique, table_ident, schema));
     }
 
-    let (conflict_type, conflict_dummy) = match &*table.uniques {
+    let (conflict_type, conflict_dummy, conflict_dummy_insert) = match &*table.uniques {
         [] => (
             quote! {::std::convert::Infallible},
+            quote! {
+                let x = ::rust_query::IntoColumn::into_column(&0i64);
+                ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
+            },
             quote! {
                 let x = ::rust_query::IntoColumn::into_column(&0i64);
                 ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
@@ -72,13 +76,18 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         [unique] => {
             let unique_name = &unique.name;
             let mut parts = vec![];
+            let mut parts_insert = vec![];
             for field in &unique.columns {
-                parts.push(quote! {&self.#field});
+                parts.push(quote! {&self.#field.apply(old.#field())});
+                parts_insert.push(quote! {&self.#field});
             }
             (
                 quote! {::rust_query::TableRow<'t, #table_ident>},
                 quote! {
                     #table_ident::#unique_name(#(#parts),*)
+                },
+                quote! {
+                    #table_ident::#unique_name(#(#parts_insert),*)
                 },
             )
         }
@@ -88,21 +97,25 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 let x = ::rust_query::IntoColumn::into_column(&0i64);
                 ::rust_query::IntoDummy::map_dummy(x, |_| Some(()))
             },
+            quote! {
+                let x = ::rust_query::IntoColumn::into_column(&0i64);
+                ::rust_query::IntoDummy::map_dummy(x, |_| Some(()))
+            },
         ),
     };
 
     let mut defs = vec![];
     let mut reads = vec![];
+    let mut read_insert = vec![];
     let mut def_typs = vec![];
     let mut col_defs = vec![];
-    let mut generics = vec![];
     let mut generic_defaults = vec![];
-    let mut bounds = vec![];
-    let mut dummy_columns = vec![];
+    let mut update_columns = vec![];
+    let mut update_columns_safe = vec![];
     let mut dummy_inits = vec![];
-    let mut bounds_safe = vec![];
-    let mut generics_safe = vec![];
     let mut reads_safe = vec![];
+    let mut insert_bound = vec![];
+    let mut generics = vec![];
 
     for col in table.columns.values() {
         let typ = &col.typ;
@@ -114,35 +127,41 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 ::rust_query::private::new_column((::rust_query::private::Col::new(#ident_str, ::rust_query::private::into_owned(&self.0))))
             }
         });
-        reads.push(quote!(f.col(#ident_str, &self.#ident)));
+        reads.push(quote!(f.col(#ident_str, &self.#ident.apply(old.#ident()))));
+        read_insert.push(quote!(f.col(#ident_str, &self.#ident)));
         def_typs.push(quote!(f.col::<#typ>(#ident_str)));
         let mut unique_columns = table.uniques.iter().flat_map(|x| &x.columns);
         if unique_columns.any(|x| x == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#typ>()));
-            generics_safe.push(quote! {()});
+            update_columns_safe.push(quote! {()});
         } else {
-            generics_safe.push(quote! {#generic});
-            bounds_safe.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
-            reads_safe.push(quote!(f.col(#ident_str, &self.#ident)));
+            reads_safe.push(quote!(f.col(#ident_str, &self.#ident.apply(old.#ident()))));
+            update_columns_safe.push(quote! {::rust_query::Update<'t, #schema, #typ>});
         }
         col_defs.push(quote! {pub #ident: #generic});
-        bounds.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
-        dummy_columns.push(quote! {::rust_query::Column<'t, #schema, #typ>});
-        dummy_inits.push(quote! {#ident: val.#ident()});
+        dummy_inits.push(quote! {#ident: Default::default()});
         generic_defaults.push(quote! {#generic = ()});
+        update_columns.push(quote! {::rust_query::Update<'t, #schema, #typ>});
+        insert_bound.push(quote! {#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #typ>});
         generics.push(generic);
     }
 
     let safe_writable = (!table.uniques.is_empty()).then_some(quote! {
-        impl<'t #(,#bounds_safe)*> ::rust_query::private::Update<'t> for #table_ident<#(#generics_safe),*> {
+        impl<'t> ::rust_query::private::TableConflict<'t> for #table_ident<#(#update_columns_safe),*> {
             type Schema = #schema;
             type T = #table_ident;
-            fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
+            type Conflict = ::std::convert::Infallible;
+        }
+        impl<'t> ::rust_query::private::TableUpdate<'t> for #table_ident<#(#update_columns_safe),*> {
+            fn read(&self,
+                old: ::rust_query::Column<'t, Self::Schema, Self::T>,
+                f: ::rust_query::private::Reader<'_, 't, Self::Schema>
+            ) {
                 #(#reads_safe;)*
             }
-
-            type Conflict = ::std::convert::Infallible;
-            fn get_conflict_unchecked(&self) -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
+            fn get_conflict_unchecked(&self, old: ::rust_query::Column<'t, Self::Schema, Self::T>)
+                -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>
+            {
                 let x = ::rust_query::IntoColumn::into_column(&0i64);
                 ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
             }
@@ -184,10 +203,15 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             const ID: &'static str = "id";
             const NAME: &'static str = #table_name;
 
-            type Dummy<'t> = #table_ident<#(#dummy_columns),*>;
+            type Update<'t> = #table_ident<#(#update_columns_safe),*>;
+            type TryUpdate<'t> = #table_ident<#(#update_columns),*>;
 
-            fn dummy<'t>(val: impl ::rust_query::IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {
-                let val = val.into_column();
+            fn update<'t>() -> Self::Update<'t> {
+                #table_ident {
+                    #(#dummy_inits,)*
+                }
+            }
+            fn try_update<'t>() -> Self::TryUpdate<'t> {
                 #table_ident {
                     #(#dummy_inits,)*
                 }
@@ -199,16 +223,35 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
         }
 
-        impl<'t #(,#bounds)*> ::rust_query::private::Insert<'t> for #table_ident<#(#generics),*> {}
-        impl<'t #(,#bounds)*> ::rust_query::private::Update<'t> for #table_ident<#(#generics),*> {
+        impl<'t #(, #insert_bound)*> ::rust_query::private::TableConflict<'t> for #table_ident<#(#generics),*> {
             type Schema = #schema;
             type T = #table_ident;
+            type Conflict = #conflict_type;
+        }
+        impl<'t #(, #insert_bound)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(#generics),*> {
             fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
+                #(#read_insert;)*
+            }
+            fn get_conflict_unchecked(&self) -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>
+            {
+                #conflict_dummy_insert
+            }
+        }
+        impl<'t> ::rust_query::private::TableConflict<'t> for #table_ident<#(#update_columns),*> {
+            type Schema = #schema;
+            type T = #table_ident;
+            type Conflict = #conflict_type;
+        }
+        impl<'t> ::rust_query::private::TableUpdate<'t> for #table_ident<#(#update_columns),*> {
+            fn read(&self,
+                old: ::rust_query::Column<'t, Self::Schema, Self::T>,
+                f: ::rust_query::private::Reader<'_, 't, Self::Schema>
+            ) {
                 #(#reads;)*
             }
-
-            type Conflict = #conflict_type;
-            fn get_conflict_unchecked(&self) -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
+            fn get_conflict_unchecked(&self, old: ::rust_query::Column<'t, Self::Schema, Self::T>)
+                -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>
+            {
                 #conflict_dummy
             }
         }

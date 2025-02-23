@@ -14,7 +14,7 @@ use crate::{
     migrate::schema_version,
     query::Query,
     value::SecretFromSql,
-    writable::{Insert, Update},
+    writable::{TableInsert, TableUpdate},
     IntoColumn, IntoDummy, Rows, Table, TableRow,
 };
 
@@ -159,7 +159,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 2+ unique constraints => `()` no further information is provided.
     pub fn try_insert<T: Table<Schema = S>, C>(
         &mut self,
-        val: impl Update<'t, T = T, Conflict = C, Schema = S>,
+        val: impl TableInsert<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<TableRow<'t, T>, C> {
         let ast = MySelect::default();
         val.read(ast.reader());
@@ -201,7 +201,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The new row is added to the table and the row reference is returned.
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl Insert<'t, T = T, Conflict = Infallible, Schema = S>,
+        val: impl TableInsert<'t, T = T, Conflict = Infallible, Schema = S>,
     ) -> TableRow<'t, T> {
         let Ok(row) = self.try_insert(val);
         row
@@ -215,7 +215,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// to the conflicting row is returned.
     pub fn find_or_insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl Insert<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+        val: impl TableInsert<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
     ) -> TableRow<'t, T> {
         match self.try_insert(val) {
             Ok(row) => row,
@@ -236,14 +236,14 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn try_update<T: Table<Schema = S>, C>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl Update<'t, T = T, Conflict = C, Schema = S>,
+        val: impl TableUpdate<'t, T = T, Conflict = C, Schema = S>,
     ) -> Result<(), C> {
         let id = MySelect::default();
-        id.reader().col(T::ID, row);
+        id.reader().col(T::ID, &row);
         let id = id.build_select(false);
 
         let ast = MySelect::default();
-        val.read(ast.reader());
+        val.read((&row).into_column(), ast.reader());
 
         let select = ast.build_select(false);
         let cte = CommonTableExpression::new()
@@ -280,7 +280,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                let conflict = self.query_one(val.get_conflict_unchecked());
+                let conflict = self.query_one(val.get_conflict_unchecked(row.into_column()));
                 Err(conflict.unwrap())
             }
             Err(err) => Err(err).unwrap(),
@@ -292,7 +292,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl Update<'t, T = T, Conflict = Infallible, Schema = S>,
+        val: impl TableUpdate<'t, T = T, Conflict = Infallible, Schema = S>,
     ) {
         let Ok(()) = self.try_update(row, val);
     }

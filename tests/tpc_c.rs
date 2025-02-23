@@ -1,9 +1,8 @@
-#![feature(type_changing_struct_update)]
 use std::time::UNIX_EPOCH;
 
 use rust_query::{
     aggregate, migration::schema, Dummy, FromColumn, IntoColumnExt, IntoDummy, Table, TableRow,
-    TransactionMut, UnixEpoch,
+    TransactionMut, Update,
 };
 
 #[schema]
@@ -158,10 +157,8 @@ pub fn new_order<'a>(
     txn.update(
         district,
         District {
-            next_order: district_info.next_order + 1,
-            warehouse: (),
-            number: (),
-            ..Table::dummy(district)
+            next_order: Update::set(district_info.next_order + 1),
+            ..District::update()
         },
     );
 
@@ -249,13 +246,11 @@ pub fn new_order<'a>(
         txn.update(
             stock,
             Stock {
-                warehouse: (),
-                item: (),
-                ytd: stock.ytd().add(quantity),
-                quantity: new_quantity,
-                order_cnt: stock.order_cnt().add(1),
-                remote_cnt: stock.remote_cnt().add(is_remote as i64),
-                ..Table::dummy(stock)
+                ytd: Update::set(stock.ytd().add(quantity)),
+                quantity: Update::set(new_quantity),
+                order_cnt: Update::set(stock.order_cnt().add(1)),
+                remote_cnt: Update::set(stock.remote_cnt().add(is_remote as i64)),
+                ..Stock::update()
             },
         );
 
@@ -386,8 +381,8 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     txn.update(
         &warehouse,
         Warehouse {
-            ytd: warehouse_info.ytd + input.amount,
-            ..Table::dummy(&warehouse)
+            ytd: Update::set(warehouse_info.ytd + input.amount),
+            ..Warehouse::update()
         },
     );
 
@@ -396,10 +391,8 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     txn.update(
         district,
         District {
-            warehouse: (),
-            number: (),
-            ytd: district_info.ytd + input.amount,
-            ..Table::dummy(&district)
+            ytd: Update::set(district_info.ytd + input.amount),
+            ..District::update()
         },
     );
 
@@ -422,9 +415,9 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     txn.update(
         customer,
         Customer {
-            ytd_payment: customer.ytd_payment().add(input.amount),
-            payment_cnt: customer.payment_cnt().add(1),
-            ..Table::dummy(customer)
+            ytd_payment: Update::set(customer.ytd_payment().add(input.amount)),
+            payment_cnt: Update::set(customer.payment_cnt().add(1)),
+            ..Customer::update()
         },
     );
 
@@ -435,8 +428,8 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         txn.update(
             customer,
             Customer {
-                data: &data[..500],
-                ..Table::dummy(customer)
+                data: Update::set(&data[..500]),
+                ..Customer::update()
             },
         );
         data.truncate(200);

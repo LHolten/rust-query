@@ -3,12 +3,7 @@ use std::collections::HashMap;
 use ref_cast::RefCast;
 use rust_query_macros::FromColumn;
 
-use crate::{
-    db::Col,
-    hash,
-    value::{IntoColumn, IntoColumnExt},
-    Column, Table, Transaction,
-};
+use crate::{db::Col, hash, value::IntoColumnExt, Column, Table, Transaction};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -38,8 +33,10 @@ macro_rules! table {
 
             fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
-            type Dummy<'t> = ();
-            fn dummy<'t>(_: impl IntoColumn<'t, Self::Schema, Typ = Self>) -> Self::Dummy<'t> {}
+            type Update<'t> = ();
+            type TryUpdate<'t> = ();
+            fn update<'t>() -> Self::Update<'t> {}
+            fn try_update<'t>() -> Self::TryUpdate<'t> {}
 
             const ID: &'static str = "";
             const NAME: &'static str = "";
