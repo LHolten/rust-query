@@ -29,6 +29,7 @@ pub use db::TableRow;
 pub use dummy_impl::Dummy;
 pub use dummy_impl::IntoDummy;
 use hash::TypBuilder;
+use private::TableInsert;
 use ref_cast::RefCast;
 pub use rows::Rows;
 pub use rust_query_macros::{Dummy, FromColumn};
@@ -68,7 +69,7 @@ pub mod private {
     };
     pub use crate::query::show_sql;
     pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
-    pub use crate::writable::{Reader, TableConflict, TableInsert, TableUpdate};
+    pub use crate::writable::{Reader, TableInsert};
 
     pub use ref_cast::RefCast;
     pub use sea_query::SimpleExpr;
@@ -91,31 +92,18 @@ pub trait Table: Sized + 'static {
         rows.join()
     }
 
-    /// The type returned by the [Table::dummy] method.
+    type Conflict<'t>;
     type Update<'t>;
     type TryUpdate<'t>;
 
-    /// Default values that don't update any columns in unique constraints.
-    ///
-    /// This can be used in combination with [TransactionMut::update].
-    /// ```rust,ignore
-    /// txn.update(User {
-    ///     score: Update::set(100),
-    ///     ..Table::update()
-    /// });
-    /// ```
-    fn update<'t>() -> Self::Update<'t>;
+    #[doc(hidden)]
+    fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t>;
 
-    /// Default values that include columns in unique constraints.
-    ///
-    /// This can be used in combination with [TransactionMut::try_update].
-    /// ```rust,ignore
-    /// txn.try_update(User {
-    ///     email: Update::set(new_email),
-    ///     ..Table::try_update()
-    /// });
-    /// ```
-    fn try_update<'t>() -> Self::TryUpdate<'t>;
+    #[doc(hidden)]
+    fn apply_try_update<'t>(
+        val: Self::TryUpdate<'t>,
+        old: Column<'t, Self::Schema, Self>,
+    ) -> impl TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>>;
 
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;

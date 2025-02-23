@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use ref_cast::RefCast;
 use rust_query_macros::FromColumn;
 
-use crate::{db::Col, hash, value::IntoColumnExt, Column, Table, Transaction};
+use crate::{
+    db::Col, hash, private::TableInsert, value::IntoColumnExt, Column, Table, Transaction,
+};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -33,15 +35,43 @@ macro_rules! table {
 
             fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
+            type Conflict<'t> = Infallible;
             type Update<'t> = ();
             type TryUpdate<'t> = ();
-            fn update<'t>() -> Self::Update<'t> {}
-            fn try_update<'t>() -> Self::TryUpdate<'t> {}
+
+            fn update_into_try_update<'t>(_val: Self::Update<'t>) -> Self::TryUpdate<'t> {}
+
+            fn apply_try_update<'t>(
+                _val: Self::TryUpdate<'t>,
+                _old: Column<'t, Self::Schema, Self>,
+            ) -> impl TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>>
+            {
+                FakeInsert(PhantomData)
+            }
 
             const ID: &'static str = "";
             const NAME: &'static str = "";
         }
     };
+}
+
+pub struct FakeInsert<T>(pub PhantomData<T>);
+
+impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
+    type Schema = T::Schema;
+    type Conflict = T::Conflict<'t>;
+    type T = T;
+
+    fn read(&self, f: crate::private::Reader<'_, 't, Self::Schema>) {
+        todo!()
+    }
+
+    fn get_conflict_unchecked(
+        &self,
+    ) -> impl crate::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
+        let x = ::rust_query::IntoColumn::into_column(&0i64);
+        ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
+    }
 }
 
 pub struct Pragma;

@@ -166,6 +166,10 @@ impl<T> rusqlite::ToSql for TableRow<'_, T> {
 #[cfg(test)]
 #[allow(unused)]
 mod tests {
+    use std::convert::Infallible;
+
+    use crate::schema_pragma::FakeInsert;
+
     use super::*;
     struct Admin;
 
@@ -178,10 +182,25 @@ mod tests {
 
         fn typs(_: &mut crate::hash::TypBuilder<Self::Schema>) {}
 
+        type Conflict<'t> = Infallible;
         type Update<'t> = ();
         type TryUpdate<'t> = ();
-        fn update<'t>() -> Self::Update<'t> {}
-        fn try_update<'t>() -> Self::TryUpdate<'t> {}
+
+        fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
+            todo!()
+        }
+
+        fn apply_try_update<'t>(
+            val: Self::TryUpdate<'t>,
+            old: Column<'t, Self::Schema, Self>,
+        ) -> impl crate::private::TableInsert<
+            't,
+            T = Self,
+            Schema = Self::Schema,
+            Conflict = Self::Conflict<'t>,
+        > {
+            FakeInsert(PhantomData)
+        }
 
         const ID: &'static str = "";
         const NAME: &'static str = "";

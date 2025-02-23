@@ -9,13 +9,8 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    ast::MySelect,
-    client::LocalClient,
-    migrate::schema_version,
-    query::Query,
-    value::SecretFromSql,
-    writable::{TableInsert, TableUpdate},
-    IntoColumn, IntoDummy, Rows, Table, TableRow,
+    ast::MySelect, client::LocalClient, migrate::schema_version, query::Query,
+    value::SecretFromSql, writable::TableInsert, IntoColumn, IntoDummy, Rows, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -233,17 +228,18 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
-    pub fn try_update<T: Table<Schema = S>, C>(
+    pub fn try_update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl TableUpdate<'t, T = T, Conflict = C, Schema = S>,
-    ) -> Result<(), C> {
+        val: T::TryUpdate<'t>,
+    ) -> Result<(), T::Conflict<'t>> {
         let id = MySelect::default();
         id.reader().col(T::ID, &row);
         let id = id.build_select(false);
 
+        let val = T::apply_try_update(val, row.into_column());
         let ast = MySelect::default();
-        val.read((&row).into_column(), ast.reader());
+        val.read(ast.reader());
 
         let select = ast.build_select(false);
         let cte = CommonTableExpression::new()
@@ -280,7 +276,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                let conflict = self.query_one(val.get_conflict_unchecked(row.into_column()));
+                let conflict = self.query_one(val.get_conflict_unchecked());
                 Err(conflict.unwrap())
             }
             Err(err) => Err(err).unwrap(),
@@ -292,9 +288,14 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoColumn<'t, S, Typ = T>,
-        val: impl TableUpdate<'t, T = T, Conflict = Infallible, Schema = S>,
+        val: T::Update<'t>,
     ) {
-        let Ok(()) = self.try_update(row, val);
+        match self.try_update(row, T::update_into_try_update(val)) {
+            Ok(val) => val,
+            Err(_) => {
+                unreachable!("update can not fail")
+            }
+        }
     }
 
     /// Make the changes made in this [TransactionMut] permanent.

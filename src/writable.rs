@@ -43,26 +43,15 @@ impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
 }
 
 /// this trait has to be implemented by the `schema` macro.
-pub trait TableInsert<'t>: TableConflict<'t> {
+pub trait TableInsert<'t> {
+    type Schema;
+    type Conflict;
+    type T: Table<Schema = Self::Schema, Conflict<'t> = Self::Conflict>;
+
     fn read(&self, f: Reader<'_, 't, Self::Schema>);
     fn get_conflict_unchecked(
         &self,
     ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
-}
-
-/// this trait has to be implemented by the `schema` macro.
-pub trait TableUpdate<'t>: TableConflict<'t> {
-    fn read(&self, old: Column<'t, Self::Schema, Self::T>, f: Reader<'_, 't, Self::Schema>);
-    fn get_conflict_unchecked(
-        &self,
-        old: Column<'t, Self::Schema, Self::T>,
-    ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
-}
-
-pub trait TableConflict<'t> {
-    type Schema;
-    type T: Table<Schema = Self::Schema>;
-    type Conflict;
 }
 
 pub struct Reader<'x, 't, S> {

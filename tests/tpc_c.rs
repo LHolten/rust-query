@@ -147,7 +147,6 @@ pub fn new_order<'a>(
         warehouse: TableRow<'t, Warehouse>,
         number: i64,
         tax: f64,
-        next_order: i64,
     }
 
     let district_info: DistrictInfo = txn.query_one(district.into_trivial());
@@ -158,7 +157,7 @@ pub fn new_order<'a>(
         district,
         District {
             next_order: Update::add(1),
-            ..District::update()
+            ..Default::default()
         },
     );
 
@@ -250,7 +249,7 @@ pub fn new_order<'a>(
                 quantity: Update::set(new_quantity),
                 order_cnt: Update::add(1),
                 remote_cnt: Update::add(is_remote as i64),
-                ..Stock::update()
+                ..Default::default()
             },
         );
 
@@ -382,7 +381,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         &warehouse,
         Warehouse {
             ytd: Update::add(input.amount),
-            ..Warehouse::update()
+            ..Default::default()
         },
     );
 
@@ -392,7 +391,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         district,
         District {
             ytd: Update::add(input.amount),
-            ..District::update()
+            ..Default::default()
         },
     );
 
@@ -417,7 +416,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         Customer {
             ytd_payment: Update::add(input.amount),
             payment_cnt: Update::add(1),
-            ..Customer::update()
+            ..Default::default()
         },
     );
 
@@ -429,7 +428,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
             customer,
             Customer {
                 data: Update::set(&data[..500]),
-                ..Customer::update()
+                ..Default::default()
             },
         );
         data.truncate(200);
