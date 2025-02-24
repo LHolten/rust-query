@@ -45,7 +45,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
 
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a #(,#generic)*>(#(#col: #generic),*) -> ::rust_query::Column<'a, #schema, Option<#table_ident>>
+            pub fn #unique_name<'a #(,#generic)*>(#(#col: #generic),*) -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
             where
                 #(#generic: ::rust_query::IntoColumn<'a, #schema, Typ = #col_typ>,)*
             {
@@ -127,7 +127,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         impl<'t, T> #ext_ident<T>
             where T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
         {#(
-            pub fn #col_ident(&self) -> ::rust_query::Column<'t, #schema, #col_typ> {
+            pub fn #col_ident(&self) -> ::rust_query::Expr<'t, #schema, #col_typ> {
                 ::rust_query::private::new_column(::rust_query::private::Col::new(#col_str, ::rust_query::private::into_owned(&self.0)))
             }
         )*}
@@ -162,7 +162,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
 
             fn apply_try_update<'t>(
                 val: Self::TryUpdate<'t>,
-                old: ::rust_query::Column<'t, Self::Schema, Self>,
+                old: ::rust_query::Expr<'t, Self::Schema, Self>,
             ) -> impl ::rust_query::private::TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>> {
                 #table_ident {#(
                     #col_ident: val.#col_ident.apply(old.#col_ident()),

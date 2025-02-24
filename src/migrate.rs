@@ -18,13 +18,13 @@ use crate::{
     transaction::Database,
     value::{self, DynTypedExpr, Private},
     writable::Reader,
-    Column, IntoColumn, IntoDummy, Table,
+    Expr, IntoColumn, IntoDummy, Table,
 };
 
 pub type M<'a, From, To> = Box<
     dyn 'a
         + for<'t> FnOnce(
-            ::rust_query::Column<'t, <From as Table>::Schema, From>,
+            ::rust_query::Expr<'t, <From as Table>::Schema, From>,
         ) -> Alter<'t, 'a, From, To>,
 >;
 
@@ -151,7 +151,7 @@ pub trait TableMigration<'t, 'a> {
 
     fn prepare(
         self: Box<Self>,
-        prev: Column<'t, <Self::From as Table>::Schema, Self::From>,
+        prev: Expr<'t, <Self::From as Table>::Schema, Self::From>,
         cacher: &mut CacheAndRead<'t, 'a, <Self::From as Table>::Schema>,
     );
 }
@@ -165,7 +165,7 @@ pub trait TableCreation<'t, 'a> {
 
 struct Wrapper<'t, 'a, From: Table, To> {
     inner: Box<dyn 't + TableMigration<'t, 'a, From = From, To = To>>,
-    db_id: Column<'t, From::Schema, From>,
+    db_id: Expr<'t, From::Schema, From>,
 }
 
 impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
@@ -529,7 +529,7 @@ impl value::Typed for NoTable {
 impl Private for NoTable {}
 impl<'t, S> IntoColumn<'t, S> for NoTable {
     type Typ = NoTable;
-    fn into_column(self) -> Column<'t, S, Self::Typ> {
-        Column::new(self)
+    fn into_column(self) -> Expr<'t, S, Self::Typ> {
+        Expr::new(self)
     }
 }

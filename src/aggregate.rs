@@ -5,7 +5,7 @@ use std::{
 };
 
 use ref_cast::RefCast;
-use sea_query::{Expr, Func, SelectStatement, SimpleExpr};
+use sea_query::{Func, SelectStatement, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
@@ -15,7 +15,7 @@ use crate::{
         operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, IntoColumn, MyTyp, NumTyp, Typed, ValueBuilder,
     },
-    Column, Table,
+    Expr, Table,
 };
 
 /// This is the argument type used for aggregates.
@@ -75,52 +75,49 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
-    pub fn avg(
-        &self,
-        val: impl IntoColumn<'inner, S, Typ = f64>,
-    ) -> Column<'outer, S, Option<f64>> {
+    pub fn avg(&self, val: impl IntoColumn<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
         let val = val.into_column().inner;
         let expr = Func::avg(val.build_expr(self.ast.builder()));
-        Column::new(self.select(expr))
+        Expr::new(self.select(expr))
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
-    pub fn max<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Column<'outer, S, Option<T>>
+    pub fn max<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
     where
         T: NumTyp,
     {
         let val = val.into_column().inner;
         let expr = Func::max(val.build_expr(self.ast.builder()));
-        Column::new(self.select(expr))
+        Expr::new(self.select(expr))
     }
 
     /// Return the sum of a column.
-    pub fn sum<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Column<'outer, S, T>
+    pub fn sum<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Expr<'outer, S, T>
     where
         T: NumTyp,
     {
         let val = val.into_column().inner;
         let expr = Func::sum(val.build_expr(self.ast.builder()));
-        Column::new(UnwrapOr(self.select::<T>(expr), Const(T::ZERO)))
+        Expr::new(UnwrapOr(self.select::<T>(expr), Const(T::ZERO)))
     }
 
     /// Return the number of distinct values in a column.
     pub fn count_distinct<T: 'static>(
         &self,
         val: impl IntoColumn<'inner, S, Typ = T>,
-    ) -> Column<'outer, S, i64>
+    ) -> Expr<'outer, S, i64>
     where
         T: EqTyp,
     {
         let val = val.into_column().inner;
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        Column::new(UnwrapOr(self.select::<i64>(expr), Const(0)))
+        Expr::new(UnwrapOr(self.select::<i64>(expr), Const(0)))
     }
 
     /// Return whether there are any rows.
-    pub fn exists(&self) -> Column<'outer, S, bool> {
+    pub fn exists(&self) -> Expr<'outer, S, bool> {
         let expr = SimpleExpr::Constant(1.into_sea_value());
-        Column::new(IsNotNull(self.select::<i64>(expr)))
+        Expr::new(IsNotNull(self.select::<i64>(expr)))
     }
 }
 
@@ -145,7 +142,7 @@ impl<S, T> Clone for Aggr<S, T> {
 impl<S, T: MyTyp> Typed for Aggr<S, T> {
     type Typ = T;
     fn build_expr(&self, b: crate::value::ValueBuilder) -> SimpleExpr {
-        Expr::col((self.build_table(b), self.field)).into()
+        sea_query::Expr::col((self.build_table(b), self.field)).into()
     }
 }
 

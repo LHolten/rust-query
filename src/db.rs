@@ -1,12 +1,12 @@
 use std::{fmt::Debug, marker::PhantomData, ops::Deref};
 
 use ref_cast::RefCast;
-use sea_query::{Alias, Expr, SimpleExpr};
+use sea_query::{Alias, SimpleExpr};
 
 use crate::{
     alias::{Field, MyAlias},
     value::{MyTyp, Private, Typed, ValueBuilder},
-    Column, IntoColumn, LocalClient, Table,
+    Expr, IntoColumn, LocalClient, Table,
 };
 
 pub struct Col<T, X> {
@@ -40,7 +40,7 @@ impl<T, X> Col<T, X> {
 impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::col((self.inner.build_table(b), self.field)).into()
+        sea_query::Expr::col((self.inner.build_table(b), self.field)).into()
     }
 }
 
@@ -72,7 +72,7 @@ impl<T> Copy for Join<T> {}
 impl<T: Table> Typed for Join<T> {
     type Typ = T;
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
-        Expr::col((self.build_table(b), Alias::new(T::ID))).into()
+        sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
     fn build_table(&self, _: ValueBuilder) -> MyAlias {
         self.table
@@ -143,15 +143,15 @@ impl<'t, T> From<TableRow<'t, T>> for sea_query::Value {
 impl<T: Table> Typed for TableRowInner<T> {
     type Typ = T;
     fn build_expr(&self, _: ValueBuilder) -> SimpleExpr {
-        Expr::val(self.idx).into()
+        sea_query::Expr::val(self.idx).into()
     }
 }
 
 impl<'t, T> Private for TableRow<'t, T> {}
 impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
     type Typ = T;
-    fn into_column(self) -> Column<'t, T::Schema, Self::Typ> {
-        Column::new(self.inner)
+    fn into_column(self) -> Expr<'t, T::Schema, Self::Typ> {
+        Expr::new(self.inner)
     }
 }
 
@@ -192,7 +192,7 @@ mod tests {
 
         fn apply_try_update<'t>(
             val: Self::TryUpdate<'t>,
-            old: Column<'t, Self::Schema, Self>,
+            old: Expr<'t, Self::Schema, Self>,
         ) -> impl crate::private::TableInsert<
             't,
             T = Self,

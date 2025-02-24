@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use sea_query::{Expr, SimpleExpr};
+use sea_query::SimpleExpr;
 
 use crate::{
     ast::MySelect,
     db::Join,
     value::{operations::Assume, IntoColumn, Typed},
-    Column, Table,
+    Expr, Table,
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -30,20 +30,20 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// For convenience there is also [Table::join].
-    pub fn join<T: Table<Schema = S>>(&mut self) -> Column<'inner, S, T> {
+    pub fn join<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
-        Column::new(Join::new(alias))
+        Expr::new(Join::new(alias))
     }
 
-    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Column<'inner, S, T> {
+    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Expr<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
-        Column::new(Join::new(alias))
+        Expr::new(Join::new(alias))
     }
 
     // Join a vector of values.
-    // pub fn vec<V: Column<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
+    // pub fn vec<V: IntoColumn<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
     //     todo!()
     // }
 
@@ -63,9 +63,11 @@ impl<'inner, S> Rows<'inner, S> {
     pub fn filter_some<Typ: 'static>(
         &mut self,
         val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
-    ) -> Column<'inner, S, Typ> {
+    ) -> Expr<'inner, S, Typ> {
         let val = val.into_column().inner;
-        self.filter_private(Expr::expr(val.build_expr(self.ast.builder())).is_not_null());
-        Column::new(Assume(val))
+        self.filter_private(
+            sea_query::Expr::expr(val.build_expr(self.ast.builder())).is_not_null(),
+        );
+        Expr::new(Assume(val))
     }
 }

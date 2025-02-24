@@ -401,7 +401,7 @@ fn define_table_migration(
 
                 fn prepare(
                     self: Box<Self>,
-                    prev: ::rust_query::Column<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
+                    prev: ::rust_query::Expr<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
                     cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, <Self::From as ::rust_query::Table>::Schema>,
                 ) {
                     #(#into_new;)*

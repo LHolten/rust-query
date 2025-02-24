@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     operations::{Assume, NullIf, Or},
-    Column, DynTyped, IntoColumn, MyTyp,
+    DynTyped, Expr, IntoColumn, MyTyp,
 };
 
 /// This is a combinator function that allows constructing single row optional queries.
@@ -44,32 +44,32 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     pub fn and<T: 'static>(
         &mut self,
         col: impl IntoColumn<'inner, S, Typ = Option<T>>,
-    ) -> Column<'inner, S, T> {
+    ) -> Expr<'inner, S, T> {
         let column = col.into_column();
         self.nulls.push(column.is_some().not().into_column().inner);
-        Column::new(Assume(column.inner))
+        Expr::new(Assume(column.inner))
     }
 
     /// Return a [bool] column indicating whether the current row exists.
-    pub fn is_some(&self) -> Column<'outer, S, bool> {
+    pub fn is_some(&self) -> Expr<'outer, S, bool> {
         let any_null = self
             .nulls
             .iter()
             .cloned()
             .reduce(|a, b| DynTyped(Rc::new(Or(a, b))));
         // TODO: make this not double wrap the `DynTyped`
-        any_null.map_or(Column::new(true), |x| Column::new(x).not())
+        any_null.map_or(Expr::new(true), |x| Expr::new(x).not())
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
     pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
         &self,
         col: impl IntoColumn<'inner, S, Typ = T>,
-    ) -> Column<'outer, S, Option<T>> {
-        let res = Column::new(Some(col.into_column().inner));
+    ) -> Expr<'outer, S, Option<T>> {
+        let res = Expr::new(Some(col.into_column().inner));
         self.nulls
             .iter()
-            .rfold(res, |accum, e| Column::new(NullIf(e.clone(), accum.inner)))
+            .rfold(res, |accum, e| Expr::new(NullIf(e.clone(), accum.inner)))
     }
 
     /// Returns an optional dummy that can be used as the result of the query.

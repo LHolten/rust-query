@@ -3,19 +3,17 @@ use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 use ref_cast::RefCast;
 use rust_query_macros::FromColumn;
 
-use crate::{
-    db::Col, hash, private::TableInsert, value::IntoColumnExt, Column, Table, Transaction,
-};
+use crate::{db::Col, hash, private::TableInsert, value::IntoColumnExt, Expr, Table, Transaction};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
-        pub fn $name<'x>(&self) -> Column<'x, Pragma, $typ> {
-            Column::new(Col::new(stringify!($name), self.0.inner.clone()))
+        pub fn $name<'x>(&self) -> Expr<'x, Pragma, $typ> {
+            Expr::new(Col::new(stringify!($name), self.0.inner.clone()))
         }
     };
     ($name:ident($name_str:literal): $typ:ty) => {
-        pub fn $name<'x>(&self) -> Column<'x, Pragma, $typ> {
-            Column::new(Col::new($name_str, self.0.inner.clone()))
+        pub fn $name<'x>(&self) -> Expr<'x, Pragma, $typ> {
+            Expr::new(Col::new($name_str, self.0.inner.clone()))
         }
     };
 }
@@ -43,7 +41,7 @@ macro_rules! table {
 
             fn apply_try_update<'t>(
                 _val: Self::TryUpdate<'t>,
-                _old: Column<'t, Self::Schema, Self>,
+                _old: Expr<'t, Self::Schema, Self>,
             ) -> impl TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>>
             {
                 FakeInsert(PhantomData)
@@ -83,7 +81,7 @@ struct TableList;
 struct TableListDummy<T>(T);
 
 #[allow(unused)]
-impl TableListDummy<Column<'_, Pragma, TableList>> {
+impl TableListDummy<Expr<'_, Pragma, TableList>> {
     field! {schema: String}
     field! {name: String}
     field! {r#type("type"): String}
@@ -100,7 +98,7 @@ struct TableInfo(pub String);
 #[derive(RefCast)]
 struct TableInfoDummy<T>(T);
 
-impl TableInfoDummy<Column<'_, Pragma, TableInfo>> {
+impl TableInfoDummy<Expr<'_, Pragma, TableInfo>> {
     field! {name: String}
     field! {r#type("type"): String}
     field! {notnull: i64}
@@ -116,7 +114,7 @@ struct ForeignKeyList(pub String);
 struct ForeignKeyListDummy<T>(T);
 
 #[allow(unused)]
-impl ForeignKeyListDummy<Column<'_, Pragma, ForeignKeyList>> {
+impl ForeignKeyListDummy<Expr<'_, Pragma, ForeignKeyList>> {
     field! {table: String}
     field! {from: String}
     field! {to: String}
@@ -130,7 +128,7 @@ struct IndexList(String);
 #[derive(RefCast)]
 struct IndexListDummy<T>(T);
 
-impl IndexListDummy<Column<'_, Pragma, IndexList>> {
+impl IndexListDummy<Expr<'_, Pragma, IndexList>> {
     field! {name: String}
     field! {unique: bool}
     field! {origin: String}
@@ -145,7 +143,7 @@ struct IndexInfo(String);
 #[derive(RefCast)]
 struct IndexInfoDummy<T>(T);
 
-impl IndexInfoDummy<Column<'_, Pragma, IndexInfo>> {
+impl IndexInfoDummy<Expr<'_, Pragma, IndexInfo>> {
     field! {name: Option<String>}
 }
 

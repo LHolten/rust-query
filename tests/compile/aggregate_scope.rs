@@ -1,8 +1,8 @@
-use rust_query::{args::Aggregate, Column};
+use rust_query::{args::Aggregate, Expr};
 
 fn columns<'outer, 'inner, S: 'static>(
-    outer: Column<'outer, S, i64>,
-    inner: Column<'inner, S, i64>,
+    outer: Expr<'outer, S, i64>,
+    inner: Expr<'inner, S, i64>,
     aggr: &mut Aggregate<'outer, 'inner, S>,
 ) {
     aggr.filter_on(&inner, &outer);
@@ -11,7 +11,7 @@ fn columns<'outer, 'inner, S: 'static>(
 }
 
 fn sum<'outer, 'inner, S: 'static>(
-    outer: Column<'outer, S, i64>,
+    outer: Expr<'outer, S, i64>,
     aggr: &Aggregate<'outer, 'inner, S>,
 ) {
     aggr.sum(outer);

@@ -34,7 +34,7 @@ use rows::Rows;
 pub use rust_query_macros::{Dummy, FromColumn};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromColumn;
-pub use value::{optional::optional, Column, IntoColumn, IntoColumnExt, UnixEpoch};
+pub use value::{optional::optional, Expr, IntoColumn, IntoColumnExt, UnixEpoch};
 pub use writable::Update;
 
 /// Types that are used as closure arguments.
@@ -88,7 +88,7 @@ pub trait Table: Sized + 'static {
     type Schema;
 
     /// Please refer to [Rows::join].
-    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Column<'inner, Self::Schema, Self> {
+    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Expr<'inner, Self::Schema, Self> {
         rows.join()
     }
 
@@ -102,7 +102,7 @@ pub trait Table: Sized + 'static {
     #[doc(hidden)]
     fn apply_try_update<'t>(
         val: Self::TryUpdate<'t>,
-        old: Column<'t, Self::Schema, Self>,
+        old: Expr<'t, Self::Schema, Self>,
     ) -> impl TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>>;
 
     /// The type of error when a delete fails due to a foreign key constraint.

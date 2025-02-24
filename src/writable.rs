@@ -4,11 +4,11 @@ use crate::{
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, NumTyp, Typed},
-    Column, IntoColumn, IntoDummy, Table,
+    Expr, IntoColumn, IntoDummy, Table,
 };
 
 pub struct Update<'t, S, Typ> {
-    inner: Box<dyn 't + Fn(Column<'t, S, Typ>) -> Column<'t, S, Typ>>,
+    inner: Box<dyn 't + Fn(Expr<'t, S, Typ>) -> Expr<'t, S, Typ>>,
 }
 
 impl<'t, S, Typ> Default for Update<'t, S, Typ> {
@@ -28,7 +28,7 @@ impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
     }
 
     #[doc(hidden)]
-    pub fn apply(&self, val: impl IntoColumn<'t, S, Typ = Typ>) -> Column<'t, S, Typ> {
+    pub fn apply(&self, val: impl IntoColumn<'t, S, Typ = Typ>) -> Expr<'t, S, Typ> {
         (self.inner)(val.into_column())
     }
 }
