@@ -147,22 +147,9 @@ pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
     }
     let transaction_lt = transaction_lt.unwrap_or(builtin_lt);
 
-    let mut defs = vec![];
-    let mut generics = vec![];
-    let mut constraints = vec![];
-    let mut dummies = vec![];
-    let mut typs = vec![];
     let mut names = vec![];
-    for (name, typ) in &fields {
-        let generic = make_generic(name);
-
-        defs.push(quote! {#name: #generic});
-        constraints
-            .push(quote! {#generic: ::rust_query::IntoDummy<'_t, #transaction_lt, S, Out = #typ>});
-        generics.push(quote! {#generic});
-        dummies.push(quote! {self.#name});
+    for (name, _) in &fields {
         names.push(quote! {#name});
-        typs.push(quote! {#typ});
     }
 
     let trivial = trivial.into_iter().map(|trivial| {
