@@ -98,7 +98,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             type Out = #name<#(#original_generics),*>;
 
             fn into_dummy(self) -> ::rust_query::Dummy<'_t, #transaction_lt, S, Self::Out> {
-                ::rust_query::IntoDummy::map_dummy(#parts_dummies, |#parts_name| #name {
+                ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {
                     #(#names,)*
                 })
             }
@@ -179,7 +179,7 @@ pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
             impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_column<'_t>(col: ::rust_query::Column<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
-                    ::rust_query::IntoDummy::map_dummy(#parts_dummies, |#parts_name| #name {
+                    ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {
                         #(#names,)*
                     })
                 }

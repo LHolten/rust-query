@@ -66,7 +66,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             quote! {::std::convert::Infallible},
             quote! {
                 let x = ::rust_query::IntoColumn::into_column(&0i64);
-                ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
+                ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
             },
         ),
         [unique] => {
@@ -88,7 +88,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             quote! {()},
             quote! {
                 let x = ::rust_query::IntoColumn::into_column(&0i64);
-                ::rust_query::IntoDummy::map_dummy(x, |_| Some(()))
+                ::rust_query::IntoDummyExt::map_dummy(x, |_| Some(()))
             },
         ),
     };

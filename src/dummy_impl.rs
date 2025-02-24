@@ -139,11 +139,23 @@ pub trait IntoDummy<'columns, 'transaction, S>: Sized {
     /// The only way to implement this method is by constructing a different dummy and
     /// calling the [IntoDummy::into_dummy] method on that other dummy.
     fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out>;
+}
 
+pub trait IntoDummyExt<'columns, 'transaction, S>: IntoDummy<'columns, 'transaction, S> {
     /// Map a dummy to another dummy using native rust.
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
+    fn map_dummy<T>(
+        self,
+        f: impl 'transaction + FnMut(Self::Out) -> T,
+    ) -> Dummy<'columns, 'transaction, S, T>;
+}
+
+impl<'columns, 'transaction, S, X> IntoDummyExt<'columns, 'transaction, S> for X
+where
+    X: IntoDummy<'columns, 'transaction, S>,
+{
     fn map_dummy<T>(
         self,
         f: impl 'transaction + FnMut(Self::Out) -> T,

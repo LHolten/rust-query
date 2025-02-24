@@ -62,7 +62,7 @@ impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
     type Conflict = T::Conflict<'t>;
     type T = T;
 
-    fn read(&self, f: crate::private::Reader<'_, 't, Self::Schema>) {
+    fn read(&self, _f: crate::private::Reader<'_, 't, Self::Schema>) {
         todo!()
     }
 
@@ -70,7 +70,7 @@ impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
         &self,
     ) -> impl crate::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
         let x = ::rust_query::IntoColumn::into_column(&0i64);
-        ::rust_query::IntoDummy::map_dummy(x, |_| unreachable!())
+        ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
     }
 }
 
