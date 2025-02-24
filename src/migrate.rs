@@ -13,11 +13,12 @@ use crate::{
     client::LocalClient,
     dummy_impl::{Cacher, DummyImpl, Prepared, Row},
     hash,
+    rows::Rows,
     schema_pragma::read_schema,
     transaction::Database,
     value::{self, DynTypedExpr, Private},
     writable::Reader,
-    Column, IntoColumn, IntoDummy, Rows, Table,
+    Column, IntoColumn, IntoDummy, Table,
 };
 
 pub type M<'a, From, To> = Box<
@@ -30,7 +31,7 @@ pub type M<'a, From, To> = Box<
 /// This is the type used to return table alterations in migrations.
 ///
 /// Note that migrations allow you to use anything that implements [crate::IntoDummy] to specify the new values.
-/// In particular this allows mapping values using native rust with [crate::IntoDummy::map_dummy].
+/// In particular this allows mapping values using native rust with [crate::IntoDummyExt::map_dummy].
 ///
 /// Take a look at the documentation of [crate::migration::schema] for more general information.
 ///

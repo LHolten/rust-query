@@ -9,8 +9,8 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    ast::MySelect, client::LocalClient, migrate::schema_version, query::Query,
-    value::SecretFromSql, writable::TableInsert, IntoColumn, IntoDummy, Rows, Table, TableRow,
+    ast::MySelect, client::LocalClient, migrate::schema_version, query::Query, rows::Rows,
+    value::SecretFromSql, writable::TableInsert, IntoColumn, IntoDummy, Table, TableRow,
 };
 
 /// [Database] is a proof that the database has been configured.

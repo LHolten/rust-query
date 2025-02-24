@@ -30,7 +30,7 @@ pub use dummy_impl::{Dummy, IntoDummy, IntoDummyExt};
 use hash::TypBuilder;
 use private::TableInsert;
 use ref_cast::RefCast;
-pub use rows::Rows;
+use rows::Rows;
 pub use rust_query_macros::{Dummy, FromColumn};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromColumn;
@@ -43,6 +43,7 @@ pub use writable::Update;
 pub mod args {
     pub use crate::aggregate::Aggregate;
     pub use crate::query::Query;
+    pub use crate::rows::Rows;
     pub use crate::value::optional::Optional;
 }
 
