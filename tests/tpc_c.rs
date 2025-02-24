@@ -1,8 +1,8 @@
 use std::time::UNIX_EPOCH;
 
 use rust_query::{
-    aggregate, migration::schema, Dummy, FromColumn, IntoColumnExt, IntoDummyExt, Table, TableRow,
-    TransactionMut, Update,
+    Dummy, FromColumn, IntoColumnExt, IntoDummyExt, Table, TableRow, TransactionMut, Update,
+    aggregate, migration::schema,
 };
 
 #[schema]

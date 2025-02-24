@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use sea_query::Iden;
 
 use crate::{
+    IntoColumn,
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
-    IntoColumn,
 };
 
 /// Opaque type used to implement [crate::Dummy].

@@ -3,13 +3,13 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::Nullable;
 
 use crate::{
-    dummy_impl::{Cached, Cacher, ColumnImpl, Dummy, DummyImpl, Prepared, Row},
     IntoDummy,
+    dummy_impl::{Cached, Cacher, ColumnImpl, Dummy, DummyImpl, Prepared, Row},
 };
 
 use super::{
-    operations::{Assume, NullIf, Or},
     DynTyped, Expr, IntoColumn, MyTyp,
+    operations::{Assume, NullIf, Or},
 };
 
 /// This is a combinator function that allows constructing single row optional queries.

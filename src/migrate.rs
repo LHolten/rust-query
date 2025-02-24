@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, path::Path, sync::atomic::AtomicBool};
 
-use rusqlite::{config::DbConfig, Connection};
+use rusqlite::{Connection, config::DbConfig};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
     TableRenameStatement,
@@ -8,6 +8,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
+    Expr, IntoColumn, IntoDummy, Table,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -18,7 +19,6 @@ use crate::{
     transaction::Database,
     value::{self, DynTypedExpr, Private},
     writable::Reader,
-    Expr, IntoColumn, IntoDummy, Table,
 };
 
 pub type M<'a, From, To> = Box<

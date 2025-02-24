@@ -1,8 +1,12 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    migration::{schema, Alter, Config, Create, NoTable},
-    Database, IntoDummy, IntoDummyExt, LocalClient, Table,
+    migration::{Alter, Config, Create, NoTable, schema},
+IntoDummy,
+    Database,
+IntoDummyExt,
+LocalClient,
+Table,
 };
 
 pub use v2::*;

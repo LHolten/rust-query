@@ -4,9 +4,9 @@ use ref_cast::RefCast;
 use sea_query::{Alias, SimpleExpr};
 
 use crate::{
+    Expr, IntoColumn, LocalClient, Table,
     alias::{Field, MyAlias},
     value::{MyTyp, Private, Typed, ValueBuilder},
-    Expr, IntoColumn, LocalClient, Table,
 };
 
 pub struct Col<T, X> {

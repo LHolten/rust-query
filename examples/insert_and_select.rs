@@ -1,6 +1,6 @@
 use rust_query::{
-    migration::{schema, Config},
     LocalClient, Table, TransactionMut,
+    migration::{Config, schema},
 };
 
 // Start by defining your schema.

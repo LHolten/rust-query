@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 use ref_cast::RefCast;
 use rust_query_macros::FromColumn;
 
-use crate::{db::Col, hash, private::TableInsert, value::IntoColumnExt, Expr, Table, Transaction};
+use crate::{Expr, Table, Transaction, db::Col, hash, private::TableInsert, value::IntoColumnExt};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {

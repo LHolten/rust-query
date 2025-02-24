@@ -1,6 +1,6 @@
 use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 
-use ref_cast::{ref_cast_custom, RefCastCustom};
+use ref_cast::{RefCastCustom, ref_cast_custom};
 use rusqlite::ErrorCode;
 use sea_query::{
     Alias, CommonTableExpression, DeleteStatement, Expr, InsertStatement, SelectStatement,
@@ -9,8 +9,8 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    ast::MySelect, client::LocalClient, migrate::schema_version, query::Query, rows::Rows,
-    value::SecretFromSql, writable::TableInsert, IntoColumn, IntoDummy, Table, TableRow,
+    IntoColumn, IntoDummy, Table, TableRow, ast::MySelect, client::LocalClient,
+    migrate::schema_version, query::Query, rows::Rows, value::SecretFromSql, writable::TableInsert,
 };
 
 /// [Database] is a proof that the database has been configured.

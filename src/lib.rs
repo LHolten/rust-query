@@ -34,7 +34,7 @@ use rows::Rows;
 pub use rust_query_macros::{Dummy, FromColumn};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromColumn;
-pub use value::{optional::optional, Expr, IntoColumn, IntoColumnExt, UnixEpoch};
+pub use value::{Expr, IntoColumn, IntoColumnExt, UnixEpoch, optional::optional};
 pub use writable::Update;
 
 /// Types that are used as closure arguments.
@@ -64,11 +64,11 @@ pub mod private {
     pub use crate::db::Col;
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{
-        CacheAndRead, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,
-        TableTypBuilder, C, M,
+        C, CacheAndRead, M, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,
+        TableTypBuilder,
     };
     pub use crate::query::show_sql;
-    pub use crate::value::{into_owned, new_column, MyTyp, Typed, ValueBuilder};
+    pub use crate::value::{MyTyp, Typed, ValueBuilder, into_owned, new_column};
     pub use crate::writable::{Reader, TableInsert};
 
     pub use ref_cast::RefCast;

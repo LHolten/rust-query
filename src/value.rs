@@ -10,12 +10,12 @@ use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
 use trivial::FromColumn;
 
 use crate::{
+    Dummy, Table,
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
     hash,
     migrate::NoTable,
-    Dummy, Table,
 };
 
 #[derive(Clone, Copy)]

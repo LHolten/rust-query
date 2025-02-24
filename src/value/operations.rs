@@ -1,4 +1,4 @@
-use sea_query::{extension::sqlite::SqliteExpr, Alias, Expr, Keyword, LikeExpr, SimpleExpr};
+use sea_query::{Alias, Expr, Keyword, LikeExpr, SimpleExpr, extension::sqlite::SqliteExpr};
 
 use super::{NumTyp, Typed, ValueBuilder};
 

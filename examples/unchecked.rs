@@ -1,6 +1,6 @@
 use rust_query::{
-    migration::{schema, Config},
     Database, LocalClient,
+    migration::{Config, schema},
 };
 
 #[schema]

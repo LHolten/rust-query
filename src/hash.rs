@@ -121,8 +121,8 @@ pub mod dev {
     };
 
     use k12::{
-        digest::{core_api::CoreWrapper, ExtendableOutput},
         KangarooTwelve, KangarooTwelveCore,
+        digest::{ExtendableOutput, core_api::CoreWrapper},
     };
 
     pub struct KangarooHasher {

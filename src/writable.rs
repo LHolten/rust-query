@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 
 use crate::{
+    Expr, IntoColumn, IntoDummy, Table,
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, NumTyp, Typed},
-    Expr, IntoColumn, IntoDummy, Table,
 };
 
 pub struct Update<'t, S, Typ> {

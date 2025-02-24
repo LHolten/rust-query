@@ -8,14 +8,14 @@ use ref_cast::RefCast;
 use sea_query::{Func, SelectStatement, SimpleExpr};
 
 use crate::{
+    Expr, Table,
     alias::{Field, MyAlias},
     ast::MySelect,
     rows::Rows,
     value::{
-        operations::{Const, IsNotNull, UnwrapOr},
         EqTyp, IntoColumn, MyTyp, NumTyp, Typed, ValueBuilder,
+        operations::{Const, IsNotNull, UnwrapOr},
     },
-    Expr, Table,
 };
 
 /// This is the argument type used for aggregates.

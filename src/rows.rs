@@ -3,10 +3,10 @@ use std::marker::PhantomData;
 use sea_query::SimpleExpr;
 
 use crate::{
+    Expr, Table,
     ast::MySelect,
     db::Join,
-    value::{operations::Assume, IntoColumn, Typed},
-    Expr, Table,
+    value::{IntoColumn, Typed, operations::Assume},
 };
 
 /// [Rows] keeps track of all rows in the current query.

@@ -1,6 +1,7 @@
 use rust_query::{
-    migration::{schema, Config},
-    optional, Database, FromColumn, IntoColumnExt, LocalClient,
+    Database, FromColumn, IntoColumnExt, LocalClient,
+    migration::{Config, schema},
+    optional,
 };
 
 // Start by defining your schema.

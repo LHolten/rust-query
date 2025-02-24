@@ -1,4 +1,4 @@
-use crate::{dummy_impl::Dummy, optional, IntoDummy, Table, TableRow};
+use crate::{IntoDummy, Table, TableRow, dummy_impl::Dummy, optional};
 
 use super::{Expr, MyTyp};
 
