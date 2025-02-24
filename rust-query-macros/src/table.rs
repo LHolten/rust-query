@@ -58,7 +58,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
                 })
             }
         });
-        unique_defs.push(define_unique(unique, table_ident, schema));
+        unique_defs.push(define_unique(unique, table_ident));
     }
 
     let (conflict_type, conflict_dummy_insert) = match &*table.uniques {
@@ -218,40 +218,29 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     })
 }
 
-fn define_unique(unique: &Unique, table_typ: &Ident, schema: &Ident) -> TokenStream {
+fn define_unique(unique: &Unique, table_typ: &Ident) -> TokenStream {
     let name = &unique.name;
     let typ_name = make_generic(name);
 
-    let mut generics = vec![];
-    let mut generics_owned = vec![];
-    let mut fields = vec![];
-    let mut fields_owned = vec![];
-    let mut constraints_typed = vec![];
-    let mut constraints = vec![];
-    let mut conds = vec![];
-    for col in &unique.columns {
-        let col_str = col.to_string();
-
-        let generic = make_generic(col);
-        fields.push(quote! {pub(super) #col: #generic});
-        fields_owned.push(quote! {#col: self.#col.into_owned()});
-        constraints.push(quote! {#generic: ::rust_query::IntoColumn<'t, super::#schema>});
-        constraints_typed.push(quote! {#generic: ::rust_query::private::Typed});
-        conds.push(quote! {(#col_str, self.#col.build_expr(b))});
-        generics_owned.push(quote! {#generic::Owned});
-        generics.push(generic);
+    let col = &unique.columns;
+    let mut generic = vec![];
+    let mut col_str = vec![];
+    for col in col {
+        generic.push(make_generic(col));
+        col_str.push(col.to_string());
     }
 
     quote! {
-        #[derive(Clone, Copy)]
-        pub struct #typ_name<#(#generics),*> {
-            #(#fields),*
+        pub struct #typ_name<#(#generic),*> {
+            #(pub(super) #col: #generic),*
         }
 
-        impl<#(#constraints_typed),*> ::rust_query::private::Typed for #typ_name<#(#generics),*> {
+        impl<#(#generic: ::rust_query::private::Typed),*> ::rust_query::private::Typed for #typ_name<#(#generic),*> {
             type Typ = Option<super::#table_typ>;
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
-                b.get_unique::<super::#table_typ>(vec![#(#conds),*])
+                b.get_unique::<super::#table_typ>(vec![#(
+                    (#col_str, self.#col.build_expr(b))
+                ),*])
             }
         }
     }
