@@ -97,7 +97,7 @@ mod table;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// use rust_query::migration::{schema, Config, Alter};
-/// use rust_query::{IntoDummy, LocalClient, Database};
+/// use rust_query::{IntoDummyExt, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
 /// enum Schema {
