@@ -360,25 +360,16 @@ fn define_table_migration(
 ) -> Option<TokenStream> {
     let mut defs = vec![];
     let mut into_new = vec![];
-    let mut generics = vec![];
-    let mut bounds = vec![];
     let prev_columns_uwrapped = prev_columns.unwrap_or(const { &BTreeMap::new() });
 
     for (i, col) in &table.columns {
         let name = &col.name;
         let name_str = col.name.to_string();
         let typ = &col.typ;
-        let generic = make_generic(name);
         if prev_columns_uwrapped.contains_key(i) {
             into_new.push(quote! {cacher.col(#name_str, prev.#name())});
         } else {
-            defs.push(quote! {pub #name: #generic});
-            bounds.push(
-                quote! {#generic: ::rust_query::IntoDummy<'t, 'a, _PrevSchema,
-                    Out = <#typ as ::rust_query::private::MyTyp>::Out<'a>,
-                >},
-            );
-            generics.push(generic);
+            defs.push(quote! {pub #name: ::rust_query::Dummy<'t, 'a, _PrevSchema, <#typ as ::rust_query::private::MyTyp>::Out<'a>>});
             into_new.push(quote! {cacher.col(#name_str, self.#name)});
         }
     }
@@ -395,7 +386,7 @@ fn define_table_migration(
 
     let trait_impl = if prev_columns.is_some() {
         quote! {
-            impl<'t, 'a #(,#bounds)*> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<#(#generics),*> {
+            impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
                 type From = #prev_typ;
                 type To = super::#table_name;
 
@@ -410,7 +401,7 @@ fn define_table_migration(
         }
     } else {
         quote! {
-            impl<'t, 'a #(,#bounds)*> ::rust_query::private::TableCreation<'t, 'a> for #migration_name<#(#generics),*>{
+            impl<'t, 'a> ::rust_query::private::TableCreation<'t, 'a> for #migration_name<'t, 'a>{
                 type FromSchema = _PrevSchema;
                 type To = super::#table_name;
 
@@ -425,7 +416,7 @@ fn define_table_migration(
     };
 
     let migration = quote! {
-        pub struct #migration_name<#(#generics),*> {
+        pub struct #migration_name<'t, 'a> {
             #(#defs,)*
         }
 

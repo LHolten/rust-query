@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     migration::{schema, Alter, Config, Create, NoTable},
-    Database, IntoDummyExt, LocalClient, Table,
+    Database, IntoDummy, IntoDummyExt, LocalClient, Table,
 };
 
 pub use v2::*;
@@ -137,12 +137,14 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let m = m.migrate(v1::update::Schema {
         playlist_track: Box::new(|pt| {
             Alter::new(v1::update::PlaylistTrackMigration {
-                playlist: pt.playlist(),
+                playlist: pt.playlist().into_dummy(),
             })
         }),
         genre_new: Box::new(|rows| {
             let genre = v0::Genre::join(rows);
-            Create::new(v1::update::GenreNewMigration { name: genre.name() })
+            Create::new(v1::update::GenreNewMigration {
+                name: genre.name().into_dummy(),
+            })
         }),
         listens_to: Box::new(|rows| Create::empty(rows)),
     });
@@ -158,8 +160,8 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         }),
         track: Box::new(|track| {
             Alter::new(v2::update::TrackMigration {
-                media_type: track.media_type().name(),
-                composer_table: None::<NoTable>,
+                media_type: track.media_type().name().into_dummy(),
+                composer_table: None::<NoTable>.into_dummy(),
                 byte_price: (track.unit_price(), track.bytes())
                     .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
             })
