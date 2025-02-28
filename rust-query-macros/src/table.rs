@@ -111,6 +111,19 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         col_typ.push(typ);
     }
 
+    let mut safe_default = None;
+    if !table.uniques.is_empty() {
+        safe_default = Some(quote! {
+            impl<'t> Default for <#table_ident as ::rust_query::Table>::Update<'t> {
+                fn default() -> Self {
+                    Self {#(
+                        #col_ident: Default::default(),
+                    )*}
+                }
+            }
+        })
+    }
+
     let ext_ident = format_ident!("{}Ext", table_ident);
 
     let (referer, referer_expr) = if table.referer {
@@ -132,10 +145,19 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             }
         )*}
 
-        #[derive(Default)]
         pub struct #table_ident<#(#generic = ()),*> {#(
             pub #col_ident: #generic,
         )*}
+
+        impl<'t> Default for <#table_ident as ::rust_query::Table>::TryUpdate<'t> {
+            fn default() -> Self {
+                Self {#(
+                    #col_ident: Default::default(),
+                )*}
+            }
+        }
+
+        #safe_default
 
         impl ::rust_query::Table for #table_ident {
             type Ext<T> = #ext_ident<T>;
