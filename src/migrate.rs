@@ -20,7 +20,7 @@ use crate::{
     rows::Rows,
     schema_pragma::read_schema,
     transaction::{Database, try_insert_private},
-    value::{self, DynTypedExpr, Private},
+    value::DynTypedExpr,
     writable::Reader,
 };
 
@@ -549,22 +549,4 @@ fn foreign_key_check<S: Schema>(conn: &rusqlite::Transaction) {
         read_schema(crate::Transaction::ref_cast(conn)),
         "schema is different (expected left, but got right)",
     );
-}
-
-/// Special table name that is used as souce of newly created tables.
-#[derive(Clone, Copy)]
-pub struct NoTable(());
-
-impl value::Typed for NoTable {
-    type Typ = NoTable;
-    fn build_expr(&self, _b: value::ValueBuilder) -> sea_query::SimpleExpr {
-        unreachable!("NoTable can not be constructed")
-    }
-}
-impl Private for NoTable {}
-impl<'t, S> IntoColumn<'t, S> for NoTable {
-    type Typ = NoTable;
-    fn into_column(self) -> Expr<'t, S, Self::Typ> {
-        Expr::new(self)
-    }
 }

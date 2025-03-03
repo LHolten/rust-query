@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database, IntoDummy, IntoDummyExt, LocalClient, Table,
-    migration::{Alter, Config, NoTable, schema},
+    Database, IntoDummy, IntoDummyExt, LocalClient, Table, TableRow,
+    migration::{Alter, Config, schema},
 };
 
 pub use v2::*;
@@ -155,7 +155,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         track: Box::new(|track| {
             Alter::new(v2::update::TrackMigration {
                 media_type: track.media_type().name().into_dummy(),
-                composer_table: None::<NoTable>.into_dummy(),
+                composer_table: None::<TableRow<'_, v2::Composer>>.into_dummy(),
                 byte_price: (track.unit_price(), track.bytes())
                     .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
             })

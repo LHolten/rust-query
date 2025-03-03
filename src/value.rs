@@ -15,7 +15,6 @@ use crate::{
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
     hash,
-    migrate::NoTable,
 };
 
 #[derive(Clone, Copy)]
@@ -519,18 +518,6 @@ impl<'t, T: SecretFromSql<'t>> SecretFromSql<'t> for Option<T> {
         } else {
             Ok(Some(T::from_sql(value)?))
         }
-    }
-}
-
-impl MyTyp for NoTable {
-    const TYP: hash::ColumnType = hash::ColumnType::Integer;
-    type Out<'t> = NoTable;
-    type Sql = i64;
-}
-
-impl SecretFromSql<'_> for NoTable {
-    fn from_sql(_value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        unreachable!()
     }
 }
 
