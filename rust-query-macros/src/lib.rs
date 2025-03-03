@@ -115,7 +115,7 @@ mod table;
 /// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
-///     let m = m.migrate(v1::update::Schema {
+///     let m = m.migrate(|_| v1::update::Schema {
 ///         user: Box::new(|user|
 ///             Alter::new(v1::update::UserMigration {
 ///                 score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
@@ -355,18 +355,17 @@ fn to_lower(name: &Ident) -> Ident {
 
 // prev_table is only used for the columns
 fn define_table_migration(
-    prev_columns: Option<&BTreeMap<usize, Column>>,
+    prev_columns: &BTreeMap<usize, Column>,
     table: &Table,
 ) -> Option<TokenStream> {
     let mut defs = vec![];
     let mut into_new = vec![];
-    let prev_columns_uwrapped = prev_columns.unwrap_or(const { &BTreeMap::new() });
 
     for (i, col) in &table.columns {
         let name = &col.name;
         let name_str = col.name.to_string();
         let typ = &col.typ;
-        if prev_columns_uwrapped.contains_key(i) {
+        if prev_columns.contains_key(i) {
             into_new.push(quote! {cacher.col(#name_str, prev.#name())});
         } else {
             defs.push(quote! {pub #name: ::rust_query::Dummy<'t, 'a, _PrevSchema, <#typ as ::rust_query::private::MyTyp>::Out<'a>>});
@@ -376,7 +375,7 @@ fn define_table_migration(
 
     // check that nothing was added or removed
     // we don't need input if only stuff was removed, but it still needs migrating
-    if defs.is_empty() && table.columns.len() == prev_columns_uwrapped.len() {
+    if defs.is_empty() && table.columns.len() == prev_columns.len() {
         return None;
     }
 
@@ -384,33 +383,17 @@ fn define_table_migration(
     let migration_name = format_ident!("{table_name}Migration");
     let prev_typ = quote! {#table_name};
 
-    let trait_impl = if prev_columns.is_some() {
-        quote! {
-            impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
-                type From = #prev_typ;
-                type To = super::#table_name;
+    let trait_impl = quote! {
+        impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
+            type From = #prev_typ;
+            type To = super::#table_name;
 
-                fn prepare(
-                    self: Box<Self>,
-                    prev: ::rust_query::Expr<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
-                    cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, <Self::From as ::rust_query::Table>::Schema>,
-                ) {
-                    #(#into_new;)*
-                }
-            }
-        }
-    } else {
-        quote! {
-            impl<'t, 'a> ::rust_query::private::TableCreation<'t, 'a> for #migration_name<'t, 'a>{
-                type FromSchema = _PrevSchema;
-                type To = super::#table_name;
-
-                fn prepare(
-                    self: Box<Self>,
-                    cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, Self::FromSchema>,
-                ) {
-                    #(#into_new;)*
-                }
+            fn prepare(
+                self: Box<Self>,
+                prev: ::rust_query::Expr<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
+                cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, <Self::From as ::rust_query::Table>::Schema>,
+            ) {
+                #(#into_new;)*
             }
         }
     };
@@ -541,6 +524,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let mut table_defs = vec![];
         let mut tables = vec![];
+        let mut create_tables = vec![];
 
         let mut table_migrations = TokenStream::new();
 
@@ -555,8 +539,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             if let Some(prev_table) = prev_tables.remove(i) {
                 // a table already existed, so we need to define a migration
 
-                let Some(migration) = define_table_migration(Some(&prev_table.columns), table)
-                else {
+                let Some(migration) = define_table_migration(&prev_table.columns, table) else {
                     continue;
                 };
                 table_migrations.extend(migration);
@@ -566,18 +549,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
             } else {
-                let Some(migration) = define_table_migration(None, table) else {
-                    return Err(syn::Error::new_spanned(
-                        &table.name,
-                        "Empty tables are not supported (yet).",
-                    ));
-                };
-                table_migrations.extend(migration);
-
-                table_defs.push(quote! {
-                    pub #table_lower: ::rust_query::private::C<'t, _PrevSchema, super::#table_name>
-                });
-                tables.push(quote! {b.create_from(self.#table_lower)});
+                create_tables.push(quote! {b.create_empty::<_PrevSchema, super::#table_name>()});
             }
         }
         for prev_table in prev_tables.into_values() {
@@ -621,6 +593,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                         fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'_, 't>) {
                             #(#tables;)*
+                        }
+
+                        fn new_tables(b: &mut ::rust_query::private::SchemaBuilder<'_, 't>) {
+                            #(#create_tables;)*
                         }
                     }
                 }

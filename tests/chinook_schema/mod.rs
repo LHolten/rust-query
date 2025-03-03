@@ -1,12 +1,8 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    migration::{Alter, Config, Create, NoTable, schema},
-IntoDummy,
-    Database,
-IntoDummyExt,
-LocalClient,
-Table,
+    Database, IntoDummy, IntoDummyExt, LocalClient, Table,
+    migration::{Alter, Config, NoTable, schema},
 };
 
 pub use v2::*;
@@ -96,9 +92,6 @@ enum Schema {
     },
     #[unique(playlist, track)]
     PlaylistTrack {
-        #[version(..1)]
-        playlist: Playlist,
-        #[version(1..)]
         playlist: Playlist,
         track: Track,
     },
@@ -138,22 +131,18 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(v1::update::Schema {
-        playlist_track: Box::new(|pt| {
-            Alter::new(v1::update::PlaylistTrackMigration {
-                playlist: pt.playlist().into_dummy(),
-            })
-        }),
-        genre_new: Box::new(|rows| {
+    let m = m.migrate(|txn| {
+        for name in txn.query(|rows| {
             let genre = v0::Genre::join(rows);
-            Create::new(v1::update::GenreNewMigration {
-                name: genre.name().into_dummy(),
-            })
-        }),
-        listens_to: Box::new(|rows| Create::empty(rows)),
+            rows.into_vec(genre.name())
+        }) {
+            txn.try_insert_migrated(v1::GenreNew { name }).unwrap();
+        }
+
+        v1::update::Schema {}
     });
 
-    let m = m.migrate(v2::update::Schema {
+    let m = m.migrate(|_| v2::update::Schema {
         customer: Box::new(|customer| {
             Alter::new(v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
@@ -170,7 +159,6 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
                     .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
             })
         }),
-        composer: Box::new(|rows| Create::empty(rows)),
         genre_new: Box::new(|genre| {
             Alter::new(v2::update::GenreNewMigration {
                 extra: genre

@@ -3,8 +3,8 @@ use std::{convert::Infallible, marker::PhantomData, ops::Deref};
 use ref_cast::{RefCastCustom, ref_cast_custom};
 use rusqlite::ErrorCode;
 use sea_query::{
-    Alias, CommonTableExpression, DeleteStatement, Expr, InsertStatement, SelectStatement,
-    SimpleExpr, SqliteQueryBuilder, UpdateStatement, WithClause,
+    Alias, CommonTableExpression, DeleteStatement, Expr, InsertStatement, IntoTableRef,
+    SelectStatement, SimpleExpr, SqliteQueryBuilder, UpdateStatement, WithClause,
 };
 use sea_query_rusqlite::RusqliteBinder;
 
@@ -59,16 +59,16 @@ impl<S> Database<S> {
 /// This makes these references effectively local to this [Transaction].
 #[derive(RefCastCustom)]
 #[repr(transparent)]
-pub struct Transaction<'a, S> {
-    pub(crate) transaction: rusqlite::Transaction<'a>,
-    pub(crate) _p: PhantomData<fn(&'a ()) -> &'a ()>,
+pub struct Transaction<'t, S> {
+    pub(crate) transaction: rusqlite::Transaction<'t>,
+    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
 
-impl<'a, S> Transaction<'a, S> {
+impl<'t, S> Transaction<'t, S> {
     #[ref_cast_custom]
-    pub(crate) fn ref_cast<'x>(raw: &'x rusqlite::Transaction<'a>) -> &'x Self;
+    pub(crate) fn ref_cast<'x>(raw: &'x rusqlite::Transaction<'t>) -> &'x Self;
 }
 
 /// Same as [Transaction], but allows inserting new rows.
@@ -77,12 +77,12 @@ impl<'a, S> Transaction<'a, S> {
 ///
 /// To make mutations to the database permanent you need to use [TransactionMut::commit].
 /// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
-pub struct TransactionMut<'a, S> {
-    pub(crate) inner: Transaction<'a, S>,
+pub struct TransactionMut<'t, S> {
+    pub(crate) inner: Transaction<'t, S>,
 }
 
-impl<'a, S> Deref for TransactionMut<'a, S> {
-    type Target = Transaction<'a, S>;
+impl<'t, S> Deref for TransactionMut<'t, S> {
+    type Target = Transaction<'t, S>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -152,49 +152,18 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
-    pub fn try_insert<T: Table<Schema = S>, C>(
+    pub fn try_insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl TableInsert<'t, T = T, Conflict = C, Schema = S>,
-    ) -> Result<TableRow<'t, T>, C> {
-        let ast = MySelect::default();
-        val.read(ast.reader());
-
-        let select = ast.simple();
-
-        let mut insert = InsertStatement::new();
-        let names = ast.select.iter().map(|(_field, name)| *name);
-        insert.into_table(Alias::new(T::NAME));
-        insert.columns(names);
-        insert.select_from(select).unwrap();
-        insert.returning_col(Alias::new(T::ID));
-
-        let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
-
-        let mut statement = self.transaction.prepare_cached(&sql).unwrap();
-        let mut res = statement
-            .query_map(&*values.as_params(), |row| {
-                Ok(TableRow::<'_, T>::from_sql(row.get_ref(T::ID)?)?)
-            })
-            .unwrap();
-
-        match res.next().unwrap() {
-            Ok(id) => Ok(id),
-            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-                if kind.code == ErrorCode::ConstraintViolation =>
-            {
-                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                let conflict = self.query_one(val.get_conflict_unchecked());
-                Err(conflict.unwrap())
-            }
-            Err(err) => Err(err).unwrap(),
-        }
+        val: impl TableInsert<'t, T = T, Schema = S, Conflict = T::Conflict<'t>>,
+    ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
+        try_insert_private(&self.transaction, Alias::new(T::NAME).into_table_ref(), val)
     }
 
     /// This is a convenience function to make using [TransactionMut::try_insert]
     /// easier for tables without unique constraints.
     ///
     /// The new row is added to the table and the row reference is returned.
-    pub fn insert<T: Table<Schema = S>>(
+    pub fn insert<T: Table<Schema = S, Conflict<'t> = Infallible>>(
         &mut self,
         val: impl TableInsert<'t, T = T, Conflict = Infallible, Schema = S>,
     ) -> TableRow<'t, T> {
@@ -208,7 +177,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The new row is inserted and the reference to the row is returned OR
     /// an existing row is found which conflicts with the new row and a reference
     /// to the conflicting row is returned.
-    pub fn find_or_insert<T: Table<Schema = S>>(
+    pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = TableRow<'t, T>>>(
         &mut self,
         val: impl TableInsert<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
     ) -> TableRow<'t, T> {
@@ -380,5 +349,45 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     /// If the [TransactionWeak] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
         self.inner.commit();
+    }
+}
+
+pub fn try_insert_private<'t, T: Table>(
+    transaction: &rusqlite::Transaction<'t>,
+    table: sea_query::TableRef,
+    val: impl TableInsert<'t, T = T, Conflict = T::Conflict<'t>>,
+) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
+    let ast = MySelect::default();
+    val.read(ast.reader());
+
+    let select = ast.simple();
+
+    let mut insert = InsertStatement::new();
+    let names = ast.select.iter().map(|(_field, name)| *name);
+    insert.into_table(table);
+    insert.columns(names);
+    insert.select_from(select).unwrap();
+    insert.returning_col(Alias::new(T::ID));
+
+    let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+
+    let mut statement = transaction.prepare_cached(&sql).unwrap();
+    let mut res = statement
+        .query_map(&*values.as_params(), |row| {
+            Ok(TableRow::<'_, T>::from_sql(row.get_ref(T::ID)?)?)
+        })
+        .unwrap();
+
+    match res.next().unwrap() {
+        Ok(id) => Ok(id),
+        Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+            if kind.code == ErrorCode::ConstraintViolation =>
+        {
+            // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+            let conflict =
+                Transaction::ref_cast(transaction).query_one(val.get_conflict_unchecked());
+            Err(conflict.unwrap())
+        }
+        Err(err) => Err(err).unwrap(),
     }
 }
