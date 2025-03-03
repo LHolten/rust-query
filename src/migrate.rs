@@ -55,9 +55,6 @@ impl<'t, 'a, From, To> Alter<'t, 'a, From, To> {
     }
 }
 
-pub type C<'a, FromSchema, To> =
-    Box<dyn 'a + for<'t> FnOnce(&mut Rows<'t, FromSchema>) -> Create<'t, 'a, FromSchema, To>>;
-
 /// This is the type used to return table creations in migrations.
 ///
 /// For more information take a look at [Alter].
@@ -182,18 +179,17 @@ impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To
     }
 }
 
-// TODO: remove 'x
-pub struct SchemaBuilder<'x, 'a> {
+pub struct SchemaBuilder<'a> {
     // this is used to create temporary table names
     scope: Scope,
     create: HashMap<&'static str, TmpTable>,
-    conn: rusqlite::Transaction<'x>,
+    conn: rusqlite::Transaction<'a>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
     _p: PhantomData<fn(&'a ()) -> &'a ()>,
 }
 
-impl<'a> SchemaBuilder<'_, 'a> {
+impl<'a> SchemaBuilder<'a> {
     pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
         self.create_inner::<From::Schema, To>(|rows| {
             let db_id = From::join(rows);
@@ -306,8 +302,8 @@ pub trait Migration<'a> {
     type From: Schema;
     type To: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder<'_, 'a>);
-    fn new_tables(b: &mut SchemaBuilder<'_, 'a>);
+    fn tables(self, b: &mut SchemaBuilder<'a>);
+    fn new_tables(b: &mut SchemaBuilder<'a>);
 }
 
 /// [Config] is used to open a database from a file or in memory.

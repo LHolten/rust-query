@@ -64,7 +64,7 @@ pub mod private {
     pub use crate::db::Col;
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{
-        C, CacheAndRead, M, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,
+        CacheAndRead, M, Migration, Schema, SchemaBuilder, TableCreation, TableMigration,
         TableTypBuilder,
     };
     pub use crate::query::show_sql;

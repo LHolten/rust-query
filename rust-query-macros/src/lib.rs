@@ -591,11 +591,11 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         type From = _PrevSchema;
                         type To = super::#schema;
 
-                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'_, 't>) {
+                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#tables;)*
                         }
 
-                        fn new_tables(b: &mut ::rust_query::private::SchemaBuilder<'_, 't>) {
+                        fn new_tables(b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#create_tables;)*
                         }
                     }
