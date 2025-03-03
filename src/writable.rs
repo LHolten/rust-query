@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    Expr, IntoColumn, IntoDummy, Table,
+    Dummy, Expr, IntoColumn, Table,
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, NumTyp, Typed},
@@ -49,9 +49,7 @@ pub trait TableInsert<'t> {
     type T: Table<Schema = Self::Schema, Conflict<'t> = Self::Conflict>;
 
     fn read(&self, f: Reader<'_, 't, Self::Schema>);
-    fn get_conflict_unchecked(
-        &self,
-    ) -> impl IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>;
+    fn get_conflict_unchecked(&self) -> Dummy<'t, 't, Self::Schema, Option<Self::Conflict>>;
 }
 
 pub struct Reader<'x, 't, S> {

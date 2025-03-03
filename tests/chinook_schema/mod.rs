@@ -136,7 +136,8 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
             let genre = v0::Genre::join(rows);
             rows.into_vec(genre.name())
         }) {
-            txn.try_insert_migrated(v1::GenreNew { name }).unwrap();
+            txn.try_insert_migrated(v1::update::GenreNewMigration { name })
+                .unwrap();
         }
 
         v1::update::Schema {}

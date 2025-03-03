@@ -10,7 +10,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Expr, IntoColumn, IntoDummy, Table, TableRow, Transaction,
+    Dummy, Expr, IntoColumn, IntoDummy, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -53,38 +53,6 @@ impl<'t, 'a, From, To> Alter<'t, 'a, From, To> {
             _p: PhantomData,
         }
     }
-}
-
-/// This is the type used to return table creations in migrations.
-///
-/// For more information take a look at [Alter].
-pub struct Create<'t, 'a, FromSchema, To> {
-    inner: Box<dyn 't + TableCreation<'t, 'a, FromSchema = FromSchema, To = To>>,
-    _p: PhantomData<&'t &'a ()>,
-}
-
-impl<'t, 'a, FromSchema: 't, To: 't> Create<'t, 'a, FromSchema, To> {
-    pub fn new(val: impl 't + TableCreation<'t, 'a, FromSchema = FromSchema, To = To>) -> Self {
-        Self {
-            inner: Box::new(val),
-            _p: PhantomData,
-        }
-    }
-
-    /// Use this if you want the new table to be empty.
-    pub fn empty(rows: &mut Rows<'t, FromSchema>) -> Self {
-        rows.filter(false);
-        Create::new(NeverCreate(PhantomData, PhantomData))
-    }
-}
-
-struct NeverCreate<FromSchema, To>(PhantomData<FromSchema>, PhantomData<To>);
-
-impl<'t, 'a, FromSchema, To> TableCreation<'t, 'a> for NeverCreate<FromSchema, To> {
-    type FromSchema = FromSchema;
-    type To = To;
-
-    fn prepare(self: Box<Self>, _: &mut CacheAndRead<'t, 'a, Self::FromSchema>) {}
 }
 
 pub struct TableTypBuilder<S> {
@@ -156,26 +124,41 @@ pub trait TableMigration<'t, 'a> {
     );
 }
 
-pub trait TableCreation<'t, 'a> {
+pub trait TableCreation<'t> {
     type FromSchema;
-    type To;
+    type Conflict;
+    type T: Table<Conflict<'t> = Self::Conflict>;
 
-    fn prepare(self: Box<Self>, cacher: &mut CacheAndRead<'t, 'a, Self::FromSchema>);
+    #[doc(hidden)]
+    fn read(&self, f: Reader<'_, 't, Self::FromSchema>);
+    #[doc(hidden)]
+    fn get_conflict_unchecked(&self) -> Dummy<'t, 't, Self::FromSchema, Option<Self::Conflict>>;
 }
 
-struct Wrapper<'t, 'a, From: Table, To> {
-    inner: Box<dyn 't + TableMigration<'t, 'a, From = From, To = To>>,
-    db_id: Expr<'t, From::Schema, From>,
-}
+pub struct Wrapper<X>(X);
+impl<'t, X> TableInsert<'t> for Wrapper<X>
+where
+    X: TableCreation<'t>,
+{
+    type Schema = <X::T as Table>::Schema;
+    type Conflict = X::Conflict;
+    type T = X::T;
 
-impl<'t, 'a, From: Table, To> TableCreation<'t, 'a> for Wrapper<'t, 'a, From, To> {
-    type FromSchema = From::Schema;
-    type To = To;
+    fn read(&self, f: Reader<'_, 't, Self::Schema>) {
+        self.0.read(Reader {
+            ast: f.ast,
+            _p: PhantomData,
+            _p2: PhantomData,
+        });
+    }
 
-    fn prepare(self: Box<Self>, cacher: &mut CacheAndRead<'t, 'a, Self::FromSchema>) {
-        // keep the ID the same
-        cacher.col(From::ID, self.db_id.clone());
-        Box::new(self.inner).prepare(self.db_id, cacher);
+    fn get_conflict_unchecked(&self) -> Dummy<'t, 't, Self::Schema, Option<Self::Conflict>> {
+        let dummy = self.0.get_conflict_unchecked();
+        Dummy {
+            inner: dummy.inner,
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
     }
 }
 
@@ -191,53 +174,28 @@ pub struct SchemaBuilder<'a> {
 
 impl<'a> SchemaBuilder<'a> {
     pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
-        self.create_inner::<From::Schema, To>(|rows| {
-            let db_id = From::join(rows);
-            let migration = m(db_id.clone());
-            Create::new(Wrapper {
-                inner: migration.inner,
-                db_id,
-            })
-        });
+        let new_table_name = self.create_inner::<To>();
 
-        self.drop.push(
-            sea_query::Table::drop()
-                .table(Alias::new(From::NAME))
-                .take(),
-        );
-    }
-
-    pub fn create_empty<FromSchema: 'a, To: Table>(&mut self) {
-        self.create_inner::<FromSchema, To>(|rows| Create::empty(rows));
-    }
-
-    fn create_inner<FromSchema, To: Table>(
-        &mut self,
-        f: impl for<'t> FnOnce(&mut Rows<'t, FromSchema>) -> Create<'t, 'a, FromSchema, To>,
-    ) {
-        let new_table_name = self.scope.tmp_table();
-        self.create.insert(To::NAME, new_table_name);
-        new_table::<To>(&self.conn, new_table_name);
-
-        self.rename.push(
-            sea_query::Table::rename()
-                .table(new_table_name, Alias::new(To::NAME))
-                .take(),
-        );
-
-        let mut q = Rows::<FromSchema> {
+        let mut q = Rows::<From::Schema> {
             phantom: PhantomData,
             ast: MySelect::default(),
             _p: PhantomData,
         };
-        let create = f(&mut q);
+
+        let db_id = From::join(&mut q);
+        let migration = m(db_id.clone());
+
         let mut cache_and_read = CacheAndRead {
             columns: Vec::new(),
             cacher: Cacher::new(),
             _p: PhantomData,
             _p3: PhantomData,
         };
-        create.inner.prepare(&mut cache_and_read);
+
+        // keep the ID the same
+        cache_and_read.col(From::ID, db_id.clone());
+        Box::new(migration.inner).prepare(db_id, &mut cache_and_read);
+
         let cached = q.ast.cache(cache_and_read.cacher.columns);
 
         let select = q.ast.simple();
@@ -254,7 +212,7 @@ impl<'a> SchemaBuilder<'a> {
             };
 
             let new_ast = MySelect::default();
-            let reader = Reader::<FromSchema> {
+            let reader = Reader::<From::Schema> {
                 ast: &new_ast,
                 _p: PhantomData,
                 _p2: PhantomData,
@@ -273,6 +231,29 @@ impl<'a> SchemaBuilder<'a> {
             let mut statement = self.conn.prepare_cached(&sql).unwrap();
             statement.execute(&*values.as_params()).unwrap();
         }
+
+        self.drop.push(
+            sea_query::Table::drop()
+                .table(Alias::new(From::NAME))
+                .take(),
+        );
+    }
+
+    pub fn create_empty<To: Table>(&mut self) {
+        let new_table_name = self.create_inner::<To>();
+        self.create.insert(To::NAME, new_table_name);
+    }
+
+    fn create_inner<To: Table>(&mut self) -> TmpTable {
+        let new_table_name = self.scope.tmp_table();
+        new_table::<To>(&self.conn, new_table_name);
+
+        self.rename.push(
+            sea_query::Table::rename()
+                .table(new_table_name, Alias::new(To::NAME))
+                .take(),
+        );
+        new_table_name
     }
 
     pub fn drop_table<T: Table>(&mut self) {
@@ -444,13 +425,12 @@ impl<'t, Old, New> Deref for TransactionMigrate<'t, Old, New> {
 }
 
 impl<'t, Old: Schema, New: Schema> TransactionMigrate<'t, Old, New> {
-    // TODO: make sure this can not read values from the new schema
     pub fn try_insert_migrated<T: Table<Schema = New>>(
         &mut self,
-        val: impl TableInsert<'t, Schema = New, T = T, Conflict = T::Conflict<'t>>,
+        val: impl TableCreation<'t, FromSchema = Old, T = T, Conflict = T::Conflict<'t>>,
     ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
         let table = self.create[T::NAME];
-        try_insert_private(&self.transaction, table.into_table_ref(), val)
+        try_insert_private(&self.transaction, table.into_table_ref(), Wrapper(val))
     }
 }
 

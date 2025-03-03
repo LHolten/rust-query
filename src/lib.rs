@@ -53,7 +53,7 @@ pub mod args {
 pub mod migration {
     #[cfg(feature = "dev")]
     pub use crate::hash::dev::hash_schema;
-    pub use crate::migrate::{Alter, Config, Create, Migrator, NoTable};
+    pub use crate::migrate::{Alter, Config, Migrator, NoTable};
     pub use rust_query_macros::schema;
 }
 
@@ -68,7 +68,7 @@ pub mod private {
         TableTypBuilder,
     };
     pub use crate::query::show_sql;
-    pub use crate::value::{MyTyp, Typed, ValueBuilder, into_owned, new_column};
+    pub use crate::value::{MyTyp, Typed, ValueBuilder, into_owned, new_column, new_dummy};
     pub use crate::writable::{Reader, TableInsert};
 
     pub use ref_cast::RefCast;

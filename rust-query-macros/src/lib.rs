@@ -383,7 +383,11 @@ fn define_table_migration(
     let migration_name = format_ident!("{table_name}Migration");
     let prev_typ = quote! {#table_name};
 
-    let trait_impl = quote! {
+    let migration = quote! {
+        pub struct #migration_name<'t, 'a> {
+            #(#defs,)*
+        }
+
         impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
             type From = #prev_typ;
             type To = super::#table_name;
@@ -397,15 +401,42 @@ fn define_table_migration(
             }
         }
     };
+    Some(migration)
+}
 
-    let migration = quote! {
-        pub struct #migration_name<'t, 'a> {
-            #(#defs,)*
+fn define_table_creation(table: &Table) -> TokenStream {
+    let mut col_str = vec![];
+    let mut col_ident = vec![];
+    let mut col_typ = vec![];
+
+    for col in table.columns.values() {
+        col_str.push(col.name.to_string());
+        col_ident.push(&col.name);
+        col_typ.push(&col.typ);
+    }
+
+    let table_name = &table.name;
+    let migration_name = format_ident!("{table_name}Migration");
+    let (conflict_type, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
+
+    quote! {
+        pub struct #migration_name<'t> {
+            #(pub #col_ident: <#col_typ as ::rust_query::private::MyTyp>::Out<'t>,)*
         }
 
-        #trait_impl
-    };
-    Some(migration)
+        impl<'t> ::rust_query::private::TableCreation<'t> for #migration_name<'t> {
+            type FromSchema = _PrevSchema;
+            type Conflict = #conflict_type;
+            type T = super::#table_name;
+
+            fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::FromSchema>) {
+                #(f.col(#col_str, &self.#col_ident);)*
+            }
+            fn get_conflict_unchecked(&self) -> ::rust_query::Dummy<'t, 't, Self::FromSchema, Option<Self::Conflict>> {
+                #conflict_expr
+            }
+        }
+    }
 }
 
 fn is_unique(path: &Path) -> Option<Ident> {
@@ -549,7 +580,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
             } else {
-                create_tables.push(quote! {b.create_empty::<_PrevSchema, super::#table_name>()});
+                create_tables.push(quote! {b.create_empty::<super::#table_name>()});
+                table_migrations.extend(define_table_creation(table));
             }
         }
         for prev_table in prev_tables.into_values() {

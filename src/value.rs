@@ -10,7 +10,7 @@ use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
 use trivial::FromColumn;
 
 use crate::{
-    Dummy, Table,
+    Dummy, IntoDummy, Table,
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
@@ -549,6 +549,12 @@ pub struct Expr<'column, S, T> {
 
 pub fn new_column<'x, S, T>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T> {
     Expr::new(val)
+}
+
+pub fn new_dummy<'x, S, T: MyTyp>(
+    val: impl Typed<Typ = T> + 'static,
+) -> Dummy<'x, 'x, S, T::Out<'x>> {
+    IntoDummy::into_dummy(Expr::new(val))
 }
 
 pub fn into_owned<'x, S, T>(val: impl IntoColumn<'x, S, Typ = T>) -> DynTyped<T> {

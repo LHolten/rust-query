@@ -148,9 +148,9 @@ impl<T: Table> Typed for TableRowInner<T> {
 }
 
 impl<'t, T> Private for TableRow<'t, T> {}
-impl<'t, T: Table> IntoColumn<'t, T::Schema> for TableRow<'t, T> {
+impl<'t, S, T: Table> IntoColumn<'t, S> for TableRow<'t, T> {
     type Typ = T;
-    fn into_column(self) -> Expr<'t, T::Schema, Self::Typ> {
+    fn into_column(self) -> Expr<'t, S, Self::Typ> {
         Expr::new(self.inner)
     }
 }

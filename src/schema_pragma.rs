@@ -64,9 +64,7 @@ impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
         todo!()
     }
 
-    fn get_conflict_unchecked(
-        &self,
-    ) -> impl crate::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>> {
+    fn get_conflict_unchecked(&self) -> crate::Dummy<'t, 't, Self::Schema, Option<Self::Conflict>> {
         let x = ::rust_query::IntoColumn::into_column(&0i64);
         ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
     }

@@ -57,32 +57,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         unique_defs.push(define_unique(unique, table_ident));
     }
 
-    let (conflict_type, conflict_dummy_insert) = match &*table.uniques {
-        [] => (
-            quote! {::std::convert::Infallible},
-            quote! {
-                let x = ::rust_query::IntoColumn::into_column(&0i64);
-                ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
-            },
-        ),
-        [unique] => {
-            let unique_name = &unique.name;
-            let col = &unique.columns;
-            (
-                quote! {::rust_query::TableRow<'t, #table_ident>},
-                quote! {
-                    #table_ident::#unique_name(#(&self.#col),*)
-                },
-            )
-        }
-        _ => (
-            quote! {()},
-            quote! {
-                let x = ::rust_query::IntoColumn::into_column(&0i64);
-                ::rust_query::IntoDummyExt::map_dummy(x, |_| Some(()))
-            },
-        ),
-    };
+    let (conflict_type, conflict_dummy_insert) = table.conflict(quote! {}, quote! {#schema});
 
     let mut def_typs = vec![];
     let mut update_columns_safe = vec![];
@@ -206,7 +181,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
                 #(f.col(#col_str, &self.#col_ident);)*
             }
-            fn get_conflict_unchecked(&self) -> impl ::rust_query::IntoDummy<'t, 't, Self::Schema, Out = Option<Self::Conflict>>
+            fn get_conflict_unchecked(&self) -> ::rust_query::Dummy<'t, 't, Self::Schema, Option<Self::Conflict>>
             {
                 #conflict_dummy_insert
             }
@@ -247,6 +222,45 @@ fn define_unique(unique: &Unique, table_typ: &Ident) -> TokenStream {
                     (#col_str, self.#col.build_expr(b)),
                 )*])
             }
+        }
+    }
+}
+
+impl Table {
+    pub fn conflict(&self, prefix: TokenStream, schema: TokenStream) -> (TokenStream, TokenStream) {
+        match &*self.uniques {
+            [] => (
+                quote! {::std::convert::Infallible},
+                quote! {{
+                    let x = ::rust_query::IntoColumn::into_column(&0i64);
+                    ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
+                }},
+            ),
+            [unique] => {
+                let unique_name = &unique.name;
+                let unique_type = make_generic(unique_name);
+
+                let table_ident = &self.name;
+                let table_name: &String = &table_ident.to_string().to_snek_case();
+                let table_mod = format_ident!("{table_name}");
+
+                let col = &unique.columns;
+                (
+                    quote! {::rust_query::TableRow<'t, #prefix #table_ident>},
+                    quote! {
+                        ::rust_query::private::new_dummy(#prefix #table_mod::#unique_type {#(
+                            #col: ::rust_query::private::into_owned::<#schema, _>(&self.#col),
+                        )*})
+                    },
+                )
+            }
+            _ => (
+                quote! {()},
+                quote! {{
+                    let x = ::rust_query::IntoColumn::into_column(&0i64);
+                    ::rust_query::IntoDummyExt::map_dummy(x, |_| Some(()))
+                }},
+            ),
         }
     }
 }
