@@ -95,6 +95,13 @@ pub struct TableRow<'t, T> {
     pub(crate) inner: TableRowInner<T>,
 }
 
+// impl<'t, T> TableRow<'t, T> {
+//     #[doc(hidden)]
+//     pub fn upgrade<New: Table<Prev = T>>(self) -> TableRow<'t, New> {
+
+//     }
+// }
+
 pub struct TableRowInner<T> {
     pub(crate) _p: PhantomData<T>,
     pub(crate) idx: i64,

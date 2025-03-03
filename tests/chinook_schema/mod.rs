@@ -92,9 +92,6 @@ enum Schema {
     },
     #[unique(playlist, track)]
     PlaylistTrack {
-        #[version(..1)]
-        playlist: Playlist,
-        #[version(1..)]
         playlist: Playlist,
         track: Track,
     },
@@ -134,22 +131,24 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(v1::update::Schema {
-        playlist_track: Box::new(|pt| {
-            Alter::new(v1::update::PlaylistTrackMigration {
-                playlist: pt.playlist().into_dummy(),
-            })
-        }),
-        genre_new: Box::new(|rows| {
+    let m = m.migrate(|txn| {
+        for name in txn.query(|rows| {
             let genre = v0::Genre::join(rows);
-            Create::new(v1::update::GenreNewMigration {
-                name: genre.name().into_dummy(),
+            rows.into_vec(genre.name())
+        }) {
+            txn.try_create(v1::update::GenreNewMigration {
+                name: name.into_dummy(),
             })
-        }),
-        listens_to: Box::new(|rows| Create::empty(rows)),
+            .unwrap();
+        }
+
+        v1::update::Schema {
+            genre_new: Box::new(|rows| Create::empty(rows)),
+            listens_to: Box::new(|rows| Create::empty(rows)),
+        }
     });
 
-    let m = m.migrate(v2::update::Schema {
+    let m = m.migrate(|_| v2::update::Schema {
         customer: Box::new(|customer| {
             Alter::new(v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D

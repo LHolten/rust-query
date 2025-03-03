@@ -74,7 +74,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
     let m = client
         .migrator(Config::open_in_memory())
         .expect("database is older than supported versions");
-    let m = m.migrate(v1::update::Schema {
+    let m = m.migrate(|_| v1::update::Schema {
         user: Box::new(|old_user| {
             Alter::new(v1::update::UserMigration {
                 email: old_user
