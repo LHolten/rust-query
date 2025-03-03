@@ -95,7 +95,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoDummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*>
         where #name<#(#original_generics),*>: #transaction_lt {
-            type Out = #name<#(#original_generics),*>;
+            type Out = (#name<#(#original_generics),*>);
 
             fn into_dummy(self) -> ::rust_query::Dummy<'_t, #transaction_lt, S, Self::Out> {
                 ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {

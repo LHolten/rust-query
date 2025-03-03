@@ -148,8 +148,8 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             const NAME: &'static str = #table_name;
 
             type Conflict<'t> = #conflict_type;
-            type Update<'t> = #table_ident<#(#update_columns_safe),*>;
-            type TryUpdate<'t> = #table_ident<#(::rust_query::Update<'t, #schema, #col_typ>),*>;
+            type Update<'t> = (#table_ident<#(#update_columns_safe),*>);
+            type TryUpdate<'t> = (#table_ident<#(::rust_query::Update<'t, #schema, #col_typ>),*>);
 
             fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
                 #table_ident {#(
