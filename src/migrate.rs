@@ -24,37 +24,6 @@ use crate::{
     writable::Reader,
 };
 
-pub type M<'a, From, To> = Box<
-    dyn 'a
-        + for<'t> FnOnce(
-            ::rust_query::Expr<'t, <From as Table>::Schema, From>,
-        ) -> Alter<'t, 'a, From, To>,
->;
-
-/// This is the type used to return table alterations in migrations.
-///
-/// Note that migrations allow you to use anything that implements [crate::IntoDummy] to specify the new values.
-/// In particular this allows mapping values using native rust with [crate::IntoDummyExt::map_dummy].
-///
-/// Take a look at the documentation of [crate::migration::schema] for more general information.
-///
-/// The purpose of wrapping migration results in [Alter] (and [Create]) is to dyn box the type so that type inference works.
-/// (Type inference is problematic with higher ranked generic returns from closures).
-/// Futhermore [Alter] (and [Create]) also have an implied bound of `'a: 't` which makes it easier to implement migrations.
-pub struct Alter<'t, 'a, From, To> {
-    inner: Box<dyn 't + TableMigration<'t, 'a, From = From, To = To>>,
-    _p: PhantomData<&'t &'a ()>,
-}
-
-impl<'t, 'a, From, To> Alter<'t, 'a, From, To> {
-    pub fn new(val: impl 't + TableMigration<'t, 'a, From = From, To = To>) -> Self {
-        Self {
-            inner: Box::new(val),
-            _p: PhantomData,
-        }
-    }
-}
-
 pub struct TableTypBuilder<S> {
     pub(crate) ast: hash::Schema,
     _p: PhantomData<S>,
@@ -82,11 +51,11 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-pub struct CacheAndRead<'t, 'a, S> {
+pub struct CacheAndRead<'column, 'transaction, S> {
     cacher: Cacher,
-    _p: PhantomData<fn(&'t ())>,
+    _p: PhantomData<fn(&'column ())>,
     _p3: PhantomData<S>,
-    columns: Vec<(&'static str, DynPrepared<'a>)>,
+    columns: Vec<(&'static str, DynPrepared<'transaction>)>,
 }
 
 struct DynPrepared<'a> {
@@ -113,14 +82,14 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
     }
 }
 
-pub trait TableMigration<'t, 'a> {
+pub trait TableMigration<'column, 't> {
     type From: Table;
     type To;
 
     fn prepare(
-        self: Box<Self>,
-        prev: Expr<'t, <Self::From as Table>::Schema, Self::From>,
-        cacher: &mut CacheAndRead<'t, 'a, <Self::From as Table>::Schema>,
+        self,
+        prev: Expr<'column, <Self::From as Table>::Schema, Self::From>,
+        cacher: &mut CacheAndRead<'column, 't, <Self::From as Table>::Schema>,
     );
 }
 
@@ -162,27 +131,32 @@ where
     }
 }
 
-pub struct SchemaBuilder<'a> {
+pub struct SchemaBuilder<'t> {
     // this is used to create temporary table names
     scope: Scope,
     create: HashMap<&'static str, TmpTable>,
-    conn: rusqlite::Transaction<'a>,
+    conn: rusqlite::Transaction<'t>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
-    _p: PhantomData<fn(&'a ()) -> &'a ()>,
+    _p: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
-impl<'a> SchemaBuilder<'a> {
-    pub fn migrate_table<From: Table, To: Table>(&mut self, m: M<'a, From, To>) {
-        let new_table_name = self.create_inner::<To>();
+impl<'t> SchemaBuilder<'t> {
+    pub fn migrate_table<M>(
+        &mut self,
+        m: Box<dyn 't + FnOnce(::rust_query::Expr<'t, <M::From as Table>::Schema, M::From>) -> M>,
+    ) where
+        M: TableMigration<'t, 't, To: Table>,
+    {
+        let new_table_name = self.create_inner::<M::To>();
 
-        let mut q = Rows::<From::Schema> {
+        let mut q = Rows::<<M::From as Table>::Schema> {
             phantom: PhantomData,
             ast: MySelect::default(),
             _p: PhantomData,
         };
 
-        let db_id = From::join(&mut q);
+        let db_id = M::From::join(&mut q);
         let migration = m(db_id.clone());
 
         let mut cache_and_read = CacheAndRead {
@@ -193,8 +167,8 @@ impl<'a> SchemaBuilder<'a> {
         };
 
         // keep the ID the same
-        cache_and_read.col(From::ID, db_id.clone());
-        Box::new(migration.inner).prepare(db_id, &mut cache_and_read);
+        cache_and_read.col(M::From::ID, db_id.clone());
+        migration.prepare(db_id, &mut cache_and_read);
 
         let cached = q.ast.cache(cache_and_read.cacher.columns);
 
@@ -212,7 +186,7 @@ impl<'a> SchemaBuilder<'a> {
             };
 
             let new_ast = MySelect::default();
-            let reader = Reader::<From::Schema> {
+            let reader = Reader::<<M::From as Table>::Schema> {
                 ast: &new_ast,
                 _p: PhantomData,
                 _p2: PhantomData,
@@ -234,7 +208,7 @@ impl<'a> SchemaBuilder<'a> {
 
         self.drop.push(
             sea_query::Table::drop()
-                .table(Alias::new(From::NAME))
+                .table(Alias::new(M::From::NAME))
                 .take(),
         );
     }

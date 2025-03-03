@@ -1,6 +1,6 @@
 use rust_query::{
     Database, IntoDummyExt, LocalClient, Table, Transaction, TransactionMut, aggregate,
-    migration::{Alter, Config, schema},
+    migration::{Config, schema},
 };
 
 #[schema]
@@ -74,12 +74,10 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
         .migrator(Config::open_in_memory())
         .expect("database is older than supported versions");
     let m = m.migrate(|_| v1::update::Schema {
-        user: Box::new(|old_user| {
-            Alter::new(v1::update::UserMigration {
-                email: old_user
-                    .name()
-                    .map_dummy(|name| format!("{name}@example.com")),
-            })
+        user: Box::new(|old_user| v1::update::UserMigration {
+            email: old_user
+                .name()
+                .map_dummy(|name| format!("{name}@example.com")),
         }),
     });
     m.finish()

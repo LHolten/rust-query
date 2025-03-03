@@ -4,7 +4,9 @@ use std::fmt::Debug;
 
 use chinook_schema::*;
 use expect_test::expect_file;
-use rust_query::{ Dummy, Expr, IntoColumn, IntoDummyExt, LocalClient, Table, TableRow, Transaction, Update, aggregate,
+use rust_query::{
+    Dummy, Expr, IntoColumn, IntoDummyExt, LocalClient, Table, TableRow, Transaction, Update,
+    aggregate,
 };
 
 /// requires [PartialEq] to get rid of unused warnings.

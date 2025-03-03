@@ -96,7 +96,7 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
-/// use rust_query::migration::{schema, Config, Alter};
+/// use rust_query::migration::{schema, Config};
 /// use rust_query::{IntoDummyExt, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
@@ -116,11 +116,9 @@ mod table;
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
 ///     let m = m.migrate(|_| v1::update::Schema {
-///         user: Box::new(|user|
-///             Alter::new(v1::update::UserMigration {
-///                 score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
-///             })
-///         ),
+///         user: Box::new(|user| v1::update::UserMigration {
+///             score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
+///         }),
 ///     });
 ///     m.finish().expect("database version is after supported versions")
 /// }
@@ -353,6 +351,13 @@ fn to_lower(name: &Ident) -> Ident {
     format_ident!("{normalized}")
 }
 
+impl Table {
+    pub fn migration_name(&self) -> Ident {
+        let table_name = &self.name;
+        format_ident!("{table_name}Migration")
+    }
+}
+
 // prev_table is only used for the columns
 fn define_table_migration(
     prev_columns: &BTreeMap<usize, Column>,
@@ -380,7 +385,7 @@ fn define_table_migration(
     }
 
     let table_name = &table.name;
-    let migration_name = format_ident!("{table_name}Migration");
+    let migration_name = table.migration_name();
     let prev_typ = quote! {#table_name};
 
     let migration = quote! {
@@ -393,7 +398,7 @@ fn define_table_migration(
             type To = super::#table_name;
 
             fn prepare(
-                self: Box<Self>,
+                self,
                 prev: ::rust_query::Expr<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
                 cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, <Self::From as ::rust_query::Table>::Schema>,
             ) {
@@ -416,7 +421,7 @@ fn define_table_creation(table: &Table) -> TokenStream {
     }
 
     let table_name = &table.name;
-    let migration_name = format_ident!("{table_name}Migration");
+    let migration_name = table.migration_name();
     let (conflict_type, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
 
     quote! {
@@ -574,9 +579,14 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     continue;
                 };
                 table_migrations.extend(migration);
+                let migration_name = table.migration_name();
 
                 table_defs.push(quote! {
-                    pub #table_lower: ::rust_query::private::M<'t, #table_name, super::#table_name>
+                    pub #table_lower: Box<
+                        dyn 't + for<'column> FnOnce(
+                            ::rust_query::Expr<'column, _PrevSchema, #table_name>,
+                        ) -> #migration_name<'column, 't>,
+                    >
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
             } else {

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     Database, IntoDummy, IntoDummyExt, LocalClient, Table, TableRow,
-    migration::{Alter, Config, schema},
+    migration::{Config, schema},
 };
 
 pub use v2::*;
@@ -145,27 +145,23 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let m = m.migrate(|_| v2::update::Schema {
         customer: Box::new(|customer| {
-            Alter::new(v2::update::CustomerMigration {
+            v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
                 phone: customer
                     .phone()
                     .map_dummy(|x| x.and_then(|x| x.parse().ok())),
-            })
+            }
         }),
-        track: Box::new(|track| {
-            Alter::new(v2::update::TrackMigration {
-                media_type: track.media_type().name().into_dummy(),
-                composer_table: None::<TableRow<'_, v2::Composer>>.into_dummy(),
-                byte_price: (track.unit_price(), track.bytes())
-                    .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
-            })
+        track: Box::new(|track| v2::update::TrackMigration {
+            media_type: track.media_type().name().into_dummy(),
+            composer_table: None::<TableRow<'_, v2::Composer>>.into_dummy(),
+            byte_price: (track.unit_price(), track.bytes())
+                .map_dummy(|(price, bytes)| price as f64 / bytes as f64),
         }),
-        genre_new: Box::new(|genre| {
-            Alter::new(v2::update::GenreNewMigration {
-                extra: genre
-                    .name()
-                    .map_dummy(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
-            })
+        genre_new: Box::new(|genre| v2::update::GenreNewMigration {
+            extra: genre
+                .name()
+                .map_dummy(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
         }),
     });
 
