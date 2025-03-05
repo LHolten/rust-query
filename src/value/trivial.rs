@@ -2,13 +2,12 @@ use crate::{IntoDummy, IntoExpr, Table, TableRow, dummy_impl::Dummy, optional};
 
 use super::MyTyp;
 
-/// Trait for values that can be retrieved from the database using one reference column.
+/// Trait for values that can be retrieved from the database using one expression.
 ///
 /// This is most likely the trait that you want to implement for your custom datatype.
-/// Together with the [crate::IntoExpr] trait.
+/// Together with the [crate::IntoExpr] trait (when that is made possible).
 ///
-/// Note that this trait can also be implemented using [rust_query_macros::Dummy] by
-/// adding the `#[rust_query(From = Thing)]` helper attribute.
+/// Note that this trait can also be implemented using [derive@rust_query::FromExpr].
 pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
     /// How to turn a column reference into a [Dummy].
     fn from_expr<'columns>(
