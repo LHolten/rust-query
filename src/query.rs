@@ -41,10 +41,10 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Tuples of two values also implement [IntoSelect]. If you want to return more
     /// than two values, then you should use a struct that derives [rust_query_macros::Select].
     ///
-    /// Note that the result of `Query::into_vec` is sorted. When a `*Select` struct is used for
+    /// Note that the result of [Query::into_vec] is sorted. When a `*Select` struct is used for
     /// the output, the sorting order depends on the order of the fields in the struct definition.
-    pub fn into_vec<O>(&self, dummy: impl IntoSelect<'inner, 'outer, S, Out = O>) -> Vec<O> {
-        self.into_vec_private(dummy)
+    pub fn into_vec<O>(&self, select: impl IntoSelect<'inner, 'outer, S, Out = O>) -> Vec<O> {
+        self.into_vec_private(select)
     }
 
     pub(crate) fn into_vec_private<'x, D>(&self, dummy: D) -> Vec<D::Out>

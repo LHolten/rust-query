@@ -55,7 +55,7 @@ fn main() {
     // most powerful pattern, can retrieve optional data in one query
     let _info = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
-        row.then_dummy(PlayerInfo::from_expr(player))
+        row.then_select(PlayerInfo::from_expr(player))
     }));
 
     // for simple queries, use the trivial mapping

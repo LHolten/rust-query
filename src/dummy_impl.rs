@@ -136,7 +136,7 @@ pub trait SelectImpl<'transaction> {
 ///
 /// Instead of implementing it yourself you probably want to use the [derive@rust_query::Select] macro.
 pub trait IntoSelect<'columns, 'transaction, S>: Sized {
-    /// The type that results from querying this dummy.
+    /// The type that results from executing the [Select].
     type Out: 'transaction;
 
     /// This method is what tells rust-query how to turn the value into a [Select].

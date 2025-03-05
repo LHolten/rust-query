@@ -1,4 +1,4 @@
-use crate::{IntoSelect, IntoExpr, Table, TableRow, dummy_impl::Select, optional};
+use crate::{IntoExpr, IntoSelect, Table, TableRow, dummy_impl::Select, optional};
 
 use super::MyTyp;
 
@@ -51,7 +51,7 @@ where
         let col = col.into_expr();
         optional(|row| {
             let col = row.and(col);
-            row.then_dummy(T::from_expr(col))
+            row.then_select(T::from_expr(col))
         })
     }
 }

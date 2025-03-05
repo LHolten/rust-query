@@ -4,7 +4,7 @@ use sea_query::Nullable;
 
 use crate::{
     IntoSelect,
-    dummy_impl::{Cached, Cacher, ColumnImpl, Select, SelectImpl, Prepared, Row},
+    dummy_impl::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
 };
 
 use super::{
@@ -29,7 +29,7 @@ pub fn optional<'outer, S, R>(
 /// This is the argument type used by the [optional] combinator.
 ///
 /// Joining more optional columns can be done with the [Optional::and] method.
-/// Finally it is possible to return either columns or dummies using [Optional::then] and [Optional::then_dummy].
+/// Finally it is possible to return either columns or dummies using [Optional::then] and [Optional::then_select].
 pub struct Optional<'outer, 'inner, S> {
     nulls: Vec<DynTyped<bool>>,
     _p: PhantomData<&'inner &'outer ()>,
@@ -72,8 +72,8 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
             .rfold(res, |accum, e| Expr::new(NullIf(e.clone(), accum.inner)))
     }
 
-    /// Returns an optional dummy that can be used as the result of the query.
-    pub fn then_dummy<'transaction, Out: 'transaction>(
+    /// Returns a [Select] with optional result.
+    pub fn then_select<'transaction, Out: 'transaction>(
         &self,
         d: impl IntoSelect<'inner, 'transaction, S, Out = Out>,
     ) -> Select<'outer, 'transaction, S, Option<Out>> {
