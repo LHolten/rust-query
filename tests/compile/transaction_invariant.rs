@@ -1,5 +1,4 @@
-use rust_query::{Database, LocalClient, Table};
-use rust_query_macros::schema;
+use rust_query::{Database, LocalClient, Table, migration::schema};
 
 #[schema]
 enum Schema {

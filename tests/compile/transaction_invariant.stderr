@@ -1,10 +1,10 @@
 error[E0521]: borrowed data escapes outside of closure
-  --> tests/compile/transaction_invariant.rs:17:9
+  --> tests/compile/transaction_invariant.rs:16:9
    |
-13 |     let txn = client.transaction(&db);
+12 |     let txn = client.transaction(&db);
    |         --- `txn` declared here, outside of the closure body
-14 |     let name = txn.query(|rows| {
+13 |     let name = txn.query(|rows| {
    |                           ---- `rows` is a reference that is only valid in the closure body
 ...
-17 |         txn.query_one(item.name())
+16 |         txn.query_one(item.name())
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ `rows` escapes the closure body here

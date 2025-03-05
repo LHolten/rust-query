@@ -1,4 +1,4 @@
-use rust_query_macros::schema;
+use rust_query::migration::schema;
 
 #[schema]
 enum Schema {
