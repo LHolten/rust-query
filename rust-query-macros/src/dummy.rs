@@ -157,13 +157,13 @@ pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
         let mut trivial_prepared = vec![];
         for (name, typ) in &fields {
             trivial_prepared
-                .push(quote! {<#typ as ::rust_query::FromColumn<_, _>>::from_column(col.#name())});
+                .push(quote! {<#typ as ::rust_query::FromExpr<_, _>>::from_column(col.#name())});
         }
         let parts_dummies = wrap(&trivial_prepared);
         let parts_name = wrap(&names);
 
         quote! {
-            impl<#(#original_plus_transaction),*> ::rust_query::FromColumn<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
+            impl<#(#original_plus_transaction),*> ::rust_query::FromExpr<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_column<'_t>(col: ::rust_query::Expr<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
                     ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {

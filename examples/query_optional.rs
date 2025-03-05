@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromColumn, IntoExprExt, LocalClient,
+    Database, FromExpr, IntoExprExt, LocalClient,
     migration::{Config, schema},
     optional,
 };
@@ -34,13 +34,13 @@ fn main() {
 
     let mut txn = client.transaction_mut(&database);
 
-    #[derive(FromColumn)]
+    #[derive(FromExpr)]
     #[rust_query(From = World, From = Player)]
     struct NameInfo {
         name: String,
     }
 
-    #[derive(FromColumn)]
+    #[derive(FromExpr)]
     #[rust_query(From = Player)]
     struct PlayerInfo {
         name: String,

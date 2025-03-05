@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use ref_cast::RefCast;
-use rust_query_macros::FromColumn;
+use rust_query_macros::FromExpr;
 
 use crate::{Expr, Table, Transaction, db::Col, hash, private::TableInsert, value::IntoExprExt};
 
@@ -148,7 +148,7 @@ impl IndexInfoDummy<Expr<'_, Pragma, IndexInfo>> {
 table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main')", val.0)}
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
-    #[derive(Clone, FromColumn)]
+    #[derive(Clone, FromExpr)]
     #[rust_query(From = TableInfo)]
     struct Column {
         name: String,

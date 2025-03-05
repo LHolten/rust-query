@@ -31,9 +31,9 @@ use hash::TypBuilder;
 use private::TableInsert;
 use ref_cast::RefCast;
 use rows::Rows;
-pub use rust_query_macros::{Dummy, FromColumn};
+pub use rust_query_macros::{Dummy, FromExpr};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
-pub use value::trivial::FromColumn;
+pub use value::trivial::FromExpr;
 pub use value::{Expr, IntoExpr, IntoExprExt, UnixEpoch, optional::optional};
 pub use writable::Update;
 

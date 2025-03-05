@@ -9,7 +9,7 @@ use super::{Expr, MyTyp};
 ///
 /// Note that this trait can also be implemented using [rust_query_macros::Dummy] by
 /// adding the `#[rust_query(From = Thing)]` helper attribute.
-pub trait FromColumn<'transaction, S, From>: 'transaction + Sized {
+pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
     /// How to turn a column reference into a [Dummy].
     fn from_column<'columns>(
         col: Expr<'columns, S, From>,
@@ -18,7 +18,7 @@ pub trait FromColumn<'transaction, S, From>: 'transaction + Sized {
 
 macro_rules! from_column {
     ($typ:ty) => {
-        impl<'transaction, S> FromColumn<'transaction, S, $typ> for $typ {
+        impl<'transaction, S> FromExpr<'transaction, S, $typ> for $typ {
             fn from_column<'columns>(
                 col: Expr<'columns, S, $typ>,
             ) -> Dummy<'columns, 'transaction, S, Self> {
@@ -34,7 +34,7 @@ from_column! {i64}
 from_column! {f64}
 from_column! {bool}
 
-impl<'transaction, T: Table> FromColumn<'transaction, T::Schema, T> for TableRow<'transaction, T> {
+impl<'transaction, T: Table> FromExpr<'transaction, T::Schema, T> for TableRow<'transaction, T> {
     fn from_column<'columns>(
         col: Expr<'columns, T::Schema, T>,
     ) -> Dummy<'columns, 'transaction, T::Schema, Self> {
@@ -42,9 +42,9 @@ impl<'transaction, T: Table> FromColumn<'transaction, T::Schema, T> for TableRow
     }
 }
 
-impl<'transaction, S, T, From: MyTyp> FromColumn<'transaction, S, Option<From>> for Option<T>
+impl<'transaction, S, T, From: MyTyp> FromExpr<'transaction, S, Option<From>> for Option<T>
 where
-    T: FromColumn<'transaction, S, From>,
+    T: FromExpr<'transaction, S, From>,
 {
     fn from_column<'columns>(
         col: Expr<'columns, S, Option<From>>,
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<'transaction, S, From> FromColumn<'transaction, S, From> for () {
+impl<'transaction, S, From> FromExpr<'transaction, S, From> for () {
     fn from_column<'columns>(
         _col: Expr<'columns, S, From>,
     ) -> Dummy<'columns, 'transaction, S, Self> {

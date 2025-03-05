@@ -7,7 +7,7 @@ use std::{marker::PhantomData, ops::Deref, rc::Rc};
 use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
-use trivial::FromColumn;
+use trivial::FromExpr;
 
 use crate::{
     Dummy, IntoDummy, Table,
@@ -122,8 +122,8 @@ pub trait IntoExpr<'column, S>: Private + Clone {
 /// These are not default methods on `IntoExpr`, because they never need to
 /// be implemented manually.
 pub trait IntoExprExt<'column, S>: IntoExpr<'column, S> {
-    /// Convert the column to a dummy using the [FromColumn] implementation.
-    fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
+    /// Convert the column to a dummy using the [FromExpr] implementation.
+    fn into_trivial<'transaction, X: FromExpr<'transaction, S, Self::Typ>>(
         &self,
     ) -> Dummy<'column, 'transaction, S, X>;
 }
@@ -132,7 +132,7 @@ impl<'column, S, T> IntoExprExt<'column, S> for T
 where
     T: IntoExpr<'column, S>,
 {
-    fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
+    fn into_trivial<'transaction, X: FromExpr<'transaction, S, Self::Typ>>(
         &self,
     ) -> Dummy<'column, 'transaction, S, X> {
         X::from_column(self.into_column())

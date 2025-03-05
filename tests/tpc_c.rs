@@ -1,8 +1,8 @@
 use std::time::UNIX_EPOCH;
 
 use rust_query::{
-    Dummy, FromColumn, IntoExprExt, IntoDummyExt, Table, TableRow, TransactionMut, Update,
-    aggregate, migration::schema,
+    Dummy, FromExpr, IntoDummyExt, IntoExprExt, Table, TableRow, TransactionMut, Update, aggregate,
+    migration::schema,
 };
 
 #[schema]
@@ -112,7 +112,7 @@ use v0::*;
 // The number of order lines associated with an order
 pub struct OrderLineCnt(i64);
 
-impl<'transaction> FromColumn<'transaction, Schema, Order> for OrderLineCnt {
+impl<'transaction> FromExpr<'transaction, Schema, Order> for OrderLineCnt {
     fn from_column<'columns>(
         order: rust_query::Expr<'columns, Schema, Order>,
     ) -> Dummy<'columns, 'transaction, Schema, Self> {
@@ -141,7 +141,7 @@ pub fn new_order<'a>(
 ) -> OutputData<'a> {
     let district = txn.query_one(input.customer.district());
 
-    #[derive(FromColumn)]
+    #[derive(FromExpr)]
     #[rust_query(From = District, lt = 't)]
     struct DistrictInfo<'t> {
         warehouse: TableRow<'t, Warehouse>,
@@ -161,7 +161,7 @@ pub fn new_order<'a>(
         },
     );
 
-    #[derive(FromColumn)]
+    #[derive(FromExpr)]
     #[rust_query(From = Customer)]
     struct CustomerInfo {
         discount: f64,
@@ -198,7 +198,7 @@ pub fn new_order<'a>(
     {
         // TODO: make this a lookup by external item id
 
-        #[derive(FromColumn)]
+        #[derive(FromExpr)]
         #[rust_query(From = Item)]
         struct ItemInfo {
             price: i64,
@@ -341,7 +341,7 @@ struct PaymentInput<'a> {
     amount: i64,
 }
 
-#[derive(FromColumn)]
+#[derive(FromExpr)]
 #[rust_query(From = Warehouse, From = District)]
 struct LocationYtd {
     name: String,
@@ -353,7 +353,7 @@ struct LocationYtd {
     ytd: i64,
 }
 
-#[derive(FromColumn)]
+#[derive(FromExpr)]
 #[rust_query(From = Customer)]
 struct CustomerInfo {
     first: String,
