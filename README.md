@@ -14,13 +14,26 @@ Notably it does not involve any new syntax or macro, while still being completel
 
 This project is under development and there are some things missing.
 Below is a checklist of planned features and implemented features. 
+(Implemented features have a checkmark, planned features do not). 
 
-Basic operations:
+Schema:
+- [x] Basic types (integer, real, text, blob, null)
+- [x] Basic foreign keys
+- [x] (Multi column) unique constraints
+- [ ] Check constraints
+- [ ] Overlapping foreign keys
+
+Statements:
+- [x] Multi row query + single row query (and optional query)
+- [x] Single row insert, update and delete
+
+Expressions:
 - [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat, Like
+- [x] Aggregate combinator
+- [x] Optional combinator
 - [ ] Everything else
 
 Advanced operations:
-- [x] Aggregate
 - [ ] Window
 - [ ] Limit
 

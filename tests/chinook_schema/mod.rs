@@ -14,10 +14,11 @@ enum Schema {
         title: String,
         artist: Artist,
     },
+    #[unique(name)]
     Artist {
-        #[unique]
         name: String,
     },
+    #[unique_by_email(email)]
     Customer {
         #[version(..2)]
         phone: Option<String>,
@@ -32,7 +33,6 @@ enum Schema {
         country: String,
         postal_code: Option<String>,
         fax: Option<String>,
-        #[unique_by_email]
         email: String,
         support_rep: Employee,
     },

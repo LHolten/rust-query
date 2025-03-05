@@ -4,9 +4,7 @@ use dummy::{dummy_impl, from_column};
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{
-    punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Meta, Path, Token, Type,
-};
+use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Path, Token, Type};
 
 mod dummy;
 mod table;
@@ -17,6 +15,7 @@ mod table;
 /// - `i64` (sqlite `integer`)
 /// - `f64` (sqlite `real`)
 /// - `String` (sqlite `text`)
+/// - `Vec<u8>` (sqlite `blob`)
 /// - Any table in the same schema (sqlite `integer` with foreign key constraint)
 /// - `Option<T>` where `T` is not an `Option` (sqlite nullable)
 ///
@@ -29,19 +28,19 @@ mod table;
 /// #[rust_query::migration::schema]
 /// #[version(0..=0)]
 /// enum Schema {
+///     #[unique_email(email)]
+///     #[unique_username(username)]
 ///     User {
-///         #[unique_email]
 ///         email: String,
-///         #[unique_username]
 ///         username: String,
-///     }
+///     },
 /// }
 /// # fn main() {}
 /// ```
 /// This will create a single schema with a single table called `user` and two columns.
 /// The table will also have two unique contraints.
 ///
-/// To define a unique constraint on a column, you need to add an attribute to that field.
+/// To define a unique constraint on a column, you need to add an attribute to the table.
 /// The attribute needs to start with `unique` and can have any suffix.
 /// Within a table, the different unique constraints must have different suffixes.
 ///
@@ -54,7 +53,8 @@ mod table;
 /// The generated code will have a structure like this:
 /// ```rust,ignore
 /// mod v0 {
-///     struct User(..);
+///     pub struct Schema;
+///     pub struct User(..);
 ///     // a bunch of other stuff
 /// }
 /// ```
@@ -65,10 +65,10 @@ mod table;
 /// #[rust_query::migration::schema]
 /// #[version(0..=1)]
 /// enum Schema {
+///     #[unique_email(email)]
+///     #[unique_username(username)]
 ///     User {
-///         #[unique_email]
 ///         email: String,
-///         #[unique_username]
 ///         username: String,
 ///     },
 ///     #[version(1..)] // <-- note that `Game`` has a version range
@@ -83,12 +83,14 @@ mod table;
 /// They look something like this:
 /// ```rust,ignore
 /// mod v0 {
-///     struct User(..);
+///     pub struct Schema;
+///     pub struct User(..);
 ///     // a bunch of other stuff
 /// }
 /// mod v1 {
-///     struct User(..);
-///     struct Game(..);
+///     pub struct Schema;
+///     pub struct User(..);
+///     pub struct Game(..);
 ///     // a bunch of other stuff
 /// }
 /// ```
@@ -101,10 +103,10 @@ mod table;
 /// #[schema]
 /// #[version(0..=1)]
 /// enum Schema {
+///     #[unique_email(email)]
+///     #[unique_username(username)]
 ///     User {
-///         #[unique_email]
 ///         email: String,
-///         #[unique_username]
 ///         username: String,
 ///         #[version(1..)] // <-- here
 ///         score: i64,
@@ -126,21 +128,6 @@ mod table;
 /// ```
 /// The `migrate` function first creates an empty database if it does not exists.
 /// Then it migrates the database if necessary, where it initializes every user score to the length of their email.
-///
-/// # Other features
-/// You can delete columns and tables by specifying the version range end.
-/// ```rust,ignore
-/// #[version(..3)]
-/// ```
-/// You can make a multi column unique constraint by specifying it before the table.
-/// ```rust,ignore
-/// #[unique(user, game)]
-/// UserGameStats {
-///     user: User,
-///     game: Game,
-///     score: i64,
-/// }
-/// ```
 #[proc_macro_attribute]
 pub fn schema(
     attr: proc_macro::TokenStream,
@@ -526,25 +513,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         "The `id` column is reserved to be used by rust-query internally.",
                     ));
                 }
-                let mut other_attrs = vec![];
-                let mut unique = None;
-                for attr in &field.attrs {
-                    if let Some(unique_name) = is_unique(attr.path()) {
-                        let Meta::Path(_) = &attr.meta else {
-                            return Err(syn::Error::new_spanned(
-                                attr,
-                                "Expected no arguments for field specific unique attribute.",
-                            ));
-                        };
-                        unique = Some(Unique {
-                            name: unique_name,
-                            columns: vec![name.clone()],
-                        })
-                    } else {
-                        other_attrs.push(attr.clone());
-                    }
-                }
-                let range = parse_version(&other_attrs)?;
+                let range = parse_version(&field.attrs)?;
                 if !range.includes(version) {
                     continue;
                 }
@@ -553,7 +522,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     typ: field.ty.clone(),
                 };
                 columns.insert(i, col);
-                uniques.extend(unique);
             }
 
             let table = Table {

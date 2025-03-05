@@ -7,8 +7,8 @@ use rust_query::{
 // Start by defining your schema.
 #[schema]
 enum Schema {
+    #[unique(pub_id)]
     Player {
-        #[unique]
         pub_id: i64,
         name: String,
         score: i64,
