@@ -65,6 +65,9 @@ pub(crate) trait Prepared {
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
+/// [Dummy] values are used to define what to query from the database and how to convert the retrieved rows into rust values.
+///
+/// For this reason many [rust_query] APIs accept values that implement [IntoDummy] and can thus be converted into a [Dummy].
 pub struct Dummy<'columns, 'transaction, S, Out> {
     pub(crate) inner: DynDummyImpl<'transaction, Out>,
     pub(crate) _p: PhantomData<&'columns ()>,
@@ -129,18 +132,20 @@ pub trait DummyImpl<'transaction> {
 
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
-/// This trait can be automatically implemented using [rust_query_macros::Dummy].
+/// Instead of implementing it yourself you probably want to use the [derive@rust_query::Dummy] macro.
 pub trait IntoDummy<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out: 'transaction;
 
-    /// This method is what tells rust-query how to retrieve the dummy.
+    /// This method is what tells rust-query how to turn the value into a [Dummy].
     ///
-    /// The only way to implement this method is by constructing a different dummy and
-    /// calling the [IntoDummy::into_dummy] method on that other dummy.
+    /// The only way to implement this method is by constructing a different value
+    /// that implements [IntoDummy] and then calling the [IntoDummy::into_dummy] method
+    /// on that other dummy.
     fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out>;
 }
 
+/// [IntoDummyExt] adds extra methods to types that implement [IntoDummy].
 pub trait IntoDummyExt<'columns, 'transaction, S>: IntoDummy<'columns, 'transaction, S> {
     /// Map a dummy to another dummy using native rust.
     ///

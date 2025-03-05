@@ -254,6 +254,9 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
     /// This is a convenience function to use [TransactionMut::try_update] for updates
     /// that can not cause unique constraint violations.
+    ///
+    /// This method can be used for all tables, it just does not allow modifying
+    /// columns that are part of unique constraints.
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'t, S, Typ = T>,

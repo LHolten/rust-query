@@ -106,23 +106,20 @@ pub trait Typed {
 
 pub(crate) trait Private {}
 
-/// Trait for all values that can be used as columns in queries.
+/// Trait for all values that can be used as expressions in queries.
 ///
 /// You can not (yet) implement this trait yourself!
 pub trait IntoExpr<'column, S>: Private + Clone {
-    /// The type of the column.
+    /// The type of the expression.
     type Typ: MyTyp;
 
-    /// Turn this value into a [Expr].
+    /// Turn this value into an [Expr].
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
 }
 
-/// Methods that only require `IntoExpr`.
-///
-/// These are not default methods on `IntoExpr`, because they never need to
-/// be implemented manually.
+/// [IntoExprExt] adds extra methods on types that implement [IntoExpr].
 pub trait IntoExprExt<'column, S>: IntoExpr<'column, S> {
-    /// Convert the column to a dummy using the [FromExpr] implementation.
+    /// Convert the expression to a dummy using the [FromExpr] implementation.
     fn into_trivial<'transaction, X: FromExpr<'transaction, S, Self::Typ>>(
         &self,
     ) -> Dummy<'column, 'transaction, S, X>;
@@ -140,43 +137,43 @@ where
 }
 
 impl<'column, S, T: NumTyp> Expr<'column, S, T> {
-    /// Add two columns together.
+    /// Add two expressions together.
     pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
         Expr::new(Add(self.inner.clone(), rhs.into_expr().inner))
     }
 
-    /// Compute the less than operator of two columns.
+    /// Compute the less than operator of two expressions.
     pub fn lt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         Expr::new(Lt(self.inner.clone(), rhs.into_expr().inner))
     }
 }
 
 impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
-    /// Check whether two columns are equal.
+    /// Check whether two expressions are equal.
     pub fn eq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         Expr::new(Eq(self.inner.clone(), rhs.into_expr().inner))
     }
 }
 
 impl<'column, S> Expr<'column, S, bool> {
-    /// Checks whether a column is false.
+    /// Checks whether an expression is false.
     pub fn not(&self) -> Expr<'column, S, bool> {
         Expr::new(Not(self.inner.clone()))
     }
 
-    /// Check if two columns are both true.
+    /// Check if two expressions are both true.
     pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
         Expr::new(And(self.inner.clone(), rhs.into_expr().inner))
     }
 
-    /// Check if one of two columns is true.
+    /// Check if one of two expressions is true.
     pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
         Expr::new(Or(self.inner.clone(), rhs.into_expr().inner))
     }
 }
 
 impl<'column, S, Typ: 'static> Expr<'column, S, Option<Typ>> {
-    /// Use the first column if it is [Some], otherwise use the second column.
+    /// Use the first expression if it is [Some], otherwise use the second expression.
     pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ>
     where
         Self: IntoExpr<'column, S, Typ = Option<Typ>>,
@@ -184,21 +181,21 @@ impl<'column, S, Typ: 'static> Expr<'column, S, Option<Typ>> {
         Expr::new(UnwrapOr(self.inner.clone(), rhs.into_expr().inner))
     }
 
-    /// Check that the column is [Some].
+    /// Check that the expression is [Some].
     pub fn is_some(&self) -> Expr<'column, S, bool> {
         Expr::new(IsNotNull(self.inner.clone()))
     }
 }
 
 impl<'column, S> Expr<'column, S, i64> {
-    /// Convert the [i64] column to [f64] type.
+    /// Convert the [i64] expression to [f64] type.
     pub fn as_float(&self) -> Expr<'column, S, f64> {
         Expr::new(AsFloat(self.inner.clone()))
     }
 }
 
 impl<'column, S> Expr<'column, S, String> {
-    /// Check if the column starts with the string pattern.
+    /// Check if the expression starts with the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
     pub fn starts_with(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
@@ -208,7 +205,7 @@ impl<'column, S> Expr<'column, S, String> {
         ))
     }
 
-    /// Check if the column ends with the string pattern.
+    /// Check if the expression ends with the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
     pub fn ends_with(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
@@ -218,7 +215,7 @@ impl<'column, S> Expr<'column, S, String> {
         ))
     }
 
-    /// Check if the column contains the string pattern.
+    /// Check if the expression contains the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
     pub fn contains(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
@@ -228,7 +225,7 @@ impl<'column, S> Expr<'column, S, String> {
         ))
     }
 
-    /// Check if the column matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the expression matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// As noted in the docs, it is **case-insensitive** for ASCII characters. Other characters are case-sensitive.
     /// For creating patterns it uses `%` as a wildcard for any sequence of characters and `_` for any single character.
@@ -237,7 +234,7 @@ impl<'column, S> Expr<'column, S, String> {
         Expr::new(Like(self.inner.clone(), pattern.into()))
     }
 
-    /// Check if the column matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the expression matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// This is a case-sensitive version of [like](Self::like). It uses Unix file globbing syntax for wild
     /// cards. `*` matches any sequence of characters and `?` matches any single character. `[0-9]` matches
@@ -522,11 +519,11 @@ impl<'t, T: SecretFromSql<'t>> SecretFromSql<'t> for Option<T> {
     }
 }
 
-/// Values of this type reference a column in a query.
+/// This is an expression that can be used in queries.
 ///
-/// - The lifetime parameter `'column` specifies in which query the column exists.
+/// - The lifetime parameter `'column` specifies which columns need to be in scope.
 /// - The type parameter `S` specifies the expected schema of the query.
-/// - And finally the type paramter `T` specifies the type of the column.
+/// - And finally the type paramter `T` specifies the type of the expression.
 ///
 /// [Expr] implements [Deref] to have table extension methods in case the type is a table type.
 pub struct Expr<'column, S, T> {

@@ -7,6 +7,7 @@ use crate::{
     value::{DynTypedExpr, NumTyp, Typed},
 };
 
+/// Defines a column update.
 pub struct Update<'t, S, Typ> {
     inner: Box<dyn 't + Fn(Expr<'t, S, Typ>) -> Expr<'t, S, Typ>>,
 }
@@ -20,6 +21,7 @@ impl<'t, S, Typ> Default for Update<'t, S, Typ> {
 }
 
 impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
+    /// Set the new value of the column.
     pub fn set(val: impl IntoExpr<'t, S, Typ = Typ>) -> Self {
         let val = val.into_expr();
         Self {
@@ -34,6 +36,7 @@ impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
 }
 
 impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
+    /// Update the column value to the old value plus some new value.
     pub fn add(val: impl IntoExpr<'t, S, Typ = Typ>) -> Self {
         let val = val.into_expr();
         Self {

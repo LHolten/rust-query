@@ -8,7 +8,8 @@ Writing queries using this library involves:
 - Lifetimes to check the scopes of row/column references.
 - Procedural mutation of row sets with methods like `filter` and `join`.
 
-Notably it does not involve any new syntax or macro, while still being completely type safe.
+Notably writing queries does not involve any new syntax or macro, while still being completely type safe.
+(There are macros to define the schema and to simplify defining composite types to retrieve from queries)
 
 ## Roadmap
 
