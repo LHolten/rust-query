@@ -65,9 +65,11 @@ pub(crate) trait Prepared {
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
-/// [Dummy] values are used to define what to query from the database and how to convert the retrieved rows into rust values.
+/// [Dummy] values are used to define what to query from the database for each row.
 ///
-/// For this reason many [rust_query] APIs accept values that implement [IntoDummy] and can thus be converted into a [Dummy].
+/// They define a set of expressions to evaluate in the database, and then how to turn the results into rust values.
+///
+/// For this reason many [rust_query] APIs accept values that implement [IntoDummy].
 pub struct Dummy<'columns, 'transaction, S, Out> {
     pub(crate) inner: DynDummyImpl<'transaction, Out>,
     pub(crate) _p: PhantomData<&'columns ()>,

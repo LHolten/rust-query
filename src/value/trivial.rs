@@ -1,6 +1,6 @@
-use crate::{IntoDummy, Table, TableRow, dummy_impl::Dummy, optional};
+use crate::{IntoDummy, IntoExpr, Table, TableRow, dummy_impl::Dummy, optional};
 
-use super::{Expr, MyTyp};
+use super::MyTyp;
 
 /// Trait for values that can be retrieved from the database using one reference column.
 ///
@@ -11,14 +11,16 @@ use super::{Expr, MyTyp};
 /// adding the `#[rust_query(From = Thing)]` helper attribute.
 pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
     /// How to turn a column reference into a [Dummy].
-    fn from_expr<'columns>(col: Expr<'columns, S, From>) -> Dummy<'columns, 'transaction, S, Self>;
+    fn from_expr<'columns>(
+        col: impl IntoExpr<'columns, S, Typ = From>,
+    ) -> Dummy<'columns, 'transaction, S, Self>;
 }
 
 macro_rules! from_expr {
     ($typ:ty) => {
         impl<'transaction, S> FromExpr<'transaction, S, $typ> for $typ {
             fn from_expr<'columns>(
-                col: Expr<'columns, S, $typ>,
+                col: impl IntoExpr<'columns, S, Typ = $typ>,
             ) -> Dummy<'columns, 'transaction, S, Self> {
                 col.into_dummy()
             }
@@ -34,7 +36,7 @@ from_expr! {bool}
 
 impl<'transaction, T: Table> FromExpr<'transaction, T::Schema, T> for TableRow<'transaction, T> {
     fn from_expr<'columns>(
-        col: Expr<'columns, T::Schema, T>,
+        col: impl IntoExpr<'columns, T::Schema, Typ = T>,
     ) -> Dummy<'columns, 'transaction, T::Schema, Self> {
         col.into_dummy()
     }
@@ -45,8 +47,9 @@ where
     T: FromExpr<'transaction, S, From>,
 {
     fn from_expr<'columns>(
-        col: Expr<'columns, S, Option<From>>,
+        col: impl IntoExpr<'columns, S, Typ = Option<From>>,
     ) -> Dummy<'columns, 'transaction, S, Self> {
+        let col = col.into_expr();
         optional(|row| {
             let col = row.and(col);
             row.then_dummy(T::from_expr(col))
@@ -56,7 +59,7 @@ where
 
 impl<'transaction, S, From> FromExpr<'transaction, S, From> for () {
     fn from_expr<'columns>(
-        _col: Expr<'columns, S, From>,
+        _col: impl IntoExpr<'columns, S, Typ = From>,
     ) -> Dummy<'columns, 'transaction, S, Self> {
         ().into_dummy()
     }

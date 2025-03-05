@@ -165,7 +165,8 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::FromExpr<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_expr<'_t>(col: ::rust_query::Expr<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
+                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
+                    let col = ::rust_query::IntoExpr::into_expr(col);
                     ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {
                         #(#names,)*
                     })

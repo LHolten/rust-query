@@ -7,7 +7,6 @@ use std::{marker::PhantomData, ops::Deref, rc::Rc};
 use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
 use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
-use trivial::FromExpr;
 
 use crate::{
     Dummy, IntoDummy, Table,
@@ -115,25 +114,6 @@ pub trait IntoExpr<'column, S>: Private + Clone {
 
     /// Turn this value into an [Expr].
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
-}
-
-/// [IntoExprExt] adds extra methods on types that implement [IntoExpr].
-pub trait IntoExprExt<'column, S>: IntoExpr<'column, S> {
-    /// Convert the expression to a dummy using the [FromExpr] implementation.
-    fn into_trivial<'transaction, X: FromExpr<'transaction, S, Self::Typ>>(
-        &self,
-    ) -> Dummy<'column, 'transaction, S, X>;
-}
-
-impl<'column, S, T> IntoExprExt<'column, S> for T
-where
-    T: IntoExpr<'column, S>,
-{
-    fn into_trivial<'transaction, X: FromExpr<'transaction, S, Self::Typ>>(
-        &self,
-    ) -> Dummy<'column, 'transaction, S, X> {
-        X::from_expr(self.into_expr())
-    }
 }
 
 impl<'column, S, T: NumTyp> Expr<'column, S, T> {

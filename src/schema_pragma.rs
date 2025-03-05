@@ -1,9 +1,8 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use ref_cast::RefCast;
-use rust_query_macros::FromExpr;
 
-use crate::{Expr, Table, Transaction, db::Col, hash, private::TableInsert, value::IntoExprExt};
+use crate::{Expr, FromExpr, Table, Transaction, db::Col, hash, private::TableInsert};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -170,7 +169,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     for table_name in tables {
         let mut columns: Vec<Column> = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
-            q.into_vec(table.into_trivial())
+            q.into_vec(Column::from_expr(table))
         });
 
         let fks: HashMap<_, _> = conn

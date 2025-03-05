@@ -1,7 +1,7 @@
 use std::time::UNIX_EPOCH;
 
 use rust_query::{
-    Dummy, FromExpr, IntoDummyExt, IntoExprExt, Table, TableRow, TransactionMut, Update, aggregate,
+    Dummy, FromExpr, IntoDummyExt, Table, TableRow, TransactionMut, Update, aggregate,
     migration::schema,
 };
 
@@ -114,7 +114,7 @@ pub struct OrderLineCnt(i64);
 
 impl<'transaction> FromExpr<'transaction, Schema, Order> for OrderLineCnt {
     fn from_expr<'columns>(
-        order: rust_query::Expr<'columns, Schema, Order>,
+        order: impl rust_query::IntoExpr<'columns, Schema, Typ = Order>,
     ) -> Dummy<'columns, 'transaction, Schema, Self> {
         aggregate(|rows| {
             let order_line = OrderLine::join(rows);
@@ -149,7 +149,7 @@ pub fn new_order<'a>(
         tax: f64,
     }
 
-    let district_info: DistrictInfo = txn.query_one(district.into_trivial());
+    let district_info = txn.query_one(DistrictInfo::from_expr(district));
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
@@ -168,7 +168,7 @@ pub fn new_order<'a>(
         last: String,
         credit: String,
     }
-    let customer_info: CustomerInfo = txn.query_one(input.customer.into_trivial());
+    let customer_info = txn.query_one(CustomerInfo::from_expr(input.customer));
 
     let local = input
         .items
@@ -206,7 +206,7 @@ pub fn new_order<'a>(
             data: String,
         }
 
-        let item_info: ItemInfo = txn.query_one(item.into_trivial());
+        let item_info = txn.query_one(ItemInfo::from_expr(item));
 
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();
@@ -375,7 +375,7 @@ struct CustomerInfo {
 fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> PaymentOutput<'a> {
     let district = input.disctrict;
     let warehouse = district.warehouse();
-    let warehouse_info: LocationYtd = txn.query_one(warehouse.into_trivial());
+    let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
 
     txn.update(
         &warehouse,
@@ -385,7 +385,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         },
     );
 
-    let district_info: LocationYtd = txn.query_one(district.into_trivial());
+    let district_info = txn.query_one(LocationYtd::from_expr(district));
 
     txn.update(
         district,
@@ -396,13 +396,13 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     );
 
     let (customer, customer_info) = match input.customer {
-        CustomerIdent::Id(row) => (row, txn.query_one(row.into_trivial())),
+        CustomerIdent::Id(row) => (row, txn.query_one(CustomerInfo::from_expr(row))),
         CustomerIdent::Name(name) => {
             let mut customers = txn.query(|rows| {
                 let customer = Customer::join(rows);
                 rows.filter(customer.district().eq(district));
                 rows.filter(customer.last().eq(name));
-                rows.into_vec((&customer, customer.into_trivial::<CustomerInfo>()))
+                rows.into_vec((&customer, CustomerInfo::from_expr(&customer)))
             });
 
             let count = customers.len();

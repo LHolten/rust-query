@@ -34,7 +34,7 @@ use rows::Rows;
 pub use rust_query_macros::{Dummy, FromExpr};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromExpr;
-pub use value::{Expr, IntoExpr, IntoExprExt, UnixEpoch, optional::optional};
+pub use value::{Expr, IntoExpr, UnixEpoch, optional::optional};
 pub use writable::Update;
 
 /// Types that are used as closure arguments.

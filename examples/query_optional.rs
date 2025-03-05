@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromExpr, IntoExprExt, LocalClient,
+    Database, FromExpr, LocalClient,
     migration::{Config, schema},
     optional,
 };
@@ -50,16 +50,16 @@ fn main() {
 
     // old pattern, requires two queries
     let player = txn.query_one(Player::unique(pub_id));
-    let _info: Option<PlayerInfo> = player.map(|player| txn.query_one(player.into_trivial()));
+    let _info = player.map(|player| txn.query_one(PlayerInfo::from_expr(player)));
 
     // most powerful pattern, can retrieve optional data in one query
-    let _info: Option<PlayerInfo> = txn.query_one(optional(|row| {
+    let _info = txn.query_one(optional(|row| {
         let player = row.and(Player::unique(pub_id));
-        row.then_dummy(player.into_trivial())
+        row.then_dummy(PlayerInfo::from_expr(player))
     }));
 
     // for simple queries, use the trivial mapping
-    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).into_trivial());
+    let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player::unique(pub_id)));
 
     assert!(info.is_none());
 
@@ -72,7 +72,7 @@ fn main() {
     })
     .expect("there is no player with this pub_id yet");
 
-    let info: Option<PlayerInfo> = txn.query_one(Player::unique(pub_id).into_trivial());
+    let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player::unique(pub_id)));
     assert!(info.is_some())
 }
 
