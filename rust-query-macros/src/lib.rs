@@ -362,7 +362,7 @@ impl Table {
 fn define_table_migration(
     prev_columns: &BTreeMap<usize, Column>,
     table: &Table,
-) -> Option<TokenStream> {
+) -> syn::Result<Option<TokenStream>> {
     let mut col_new = vec![];
     let mut col_str = vec![];
     let mut alter_ident = vec![];
@@ -373,6 +373,11 @@ fn define_table_migration(
         if prev_columns.contains_key(i) {
             col_new.push(quote! {prev.#name()});
         } else {
+            let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
+            if unique_columns.any(|c| c == name) {
+                return Err(syn::Error::new_spanned(name, "It is not possible to modify unique constraints with a column migration.
+Please re-create the table with the new unique constraints and use the migration transaction to copy over all the data."));
+            }
             col_new.push(quote! {self.#name});
 
             alter_ident.push(name);
@@ -384,11 +389,11 @@ fn define_table_migration(
     // check that nothing was added or removed
     // we don't need input if only stuff was removed, but it still needs migrating
     if alter_ident.is_empty() && table.columns.len() == prev_columns.len() {
-        return None;
+        return Ok(None);
     }
 
     if alter_ident.is_empty() {
-        panic!("Migrations that only remove rows are not supported yet")
+        panic!("Migrations that only remove columns are not supported yet")
     }
 
     let table_name = &table.name;
@@ -413,7 +418,7 @@ fn define_table_migration(
             )*}
         }
     };
-    Some(migration)
+    Ok(Some(migration))
 }
 
 fn define_table_creation(table: &Table) -> TokenStream {
@@ -582,7 +587,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             if let Some(prev_table) = prev_tables.remove(i) {
                 // a table already existed, so we need to define a migration
 
-                let Some(migration) = define_table_migration(&prev_table.columns, table) else {
+                let Some(migration) = define_table_migration(&prev_table.columns, table)? else {
                     continue;
                 };
                 table_migrations.extend(migration);

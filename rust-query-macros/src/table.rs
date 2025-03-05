@@ -71,7 +71,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         let typ = &col.typ;
         let ident = &col.name;
 
-        let mut unique_columns = table.uniques.iter().flat_map(|x| &x.columns);
+        let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#typ>()));
             update_columns_safe.push(quote! {()});

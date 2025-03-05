@@ -1,0 +1,6 @@
+error: It is not possible to modify unique constraints with a column migration.
+       Please re-create the table with the new unique constraints and use the migration transaction to copy over all the data.
+  --> tests/compile/unique_migration.rs:11:9
+   |
+11 |         col: String,
+   |         ^^^
