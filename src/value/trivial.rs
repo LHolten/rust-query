@@ -11,15 +11,13 @@ use super::{Expr, MyTyp};
 /// adding the `#[rust_query(From = Thing)]` helper attribute.
 pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
     /// How to turn a column reference into a [Dummy].
-    fn from_column<'columns>(
-        col: Expr<'columns, S, From>,
-    ) -> Dummy<'columns, 'transaction, S, Self>;
+    fn from_expr<'columns>(col: Expr<'columns, S, From>) -> Dummy<'columns, 'transaction, S, Self>;
 }
 
-macro_rules! from_column {
+macro_rules! from_expr {
     ($typ:ty) => {
         impl<'transaction, S> FromExpr<'transaction, S, $typ> for $typ {
-            fn from_column<'columns>(
+            fn from_expr<'columns>(
                 col: Expr<'columns, S, $typ>,
             ) -> Dummy<'columns, 'transaction, S, Self> {
                 col.into_dummy()
@@ -28,14 +26,14 @@ macro_rules! from_column {
     };
 }
 
-from_column! {String}
-from_column! {Vec<u8>}
-from_column! {i64}
-from_column! {f64}
-from_column! {bool}
+from_expr! {String}
+from_expr! {Vec<u8>}
+from_expr! {i64}
+from_expr! {f64}
+from_expr! {bool}
 
 impl<'transaction, T: Table> FromExpr<'transaction, T::Schema, T> for TableRow<'transaction, T> {
-    fn from_column<'columns>(
+    fn from_expr<'columns>(
         col: Expr<'columns, T::Schema, T>,
     ) -> Dummy<'columns, 'transaction, T::Schema, Self> {
         col.into_dummy()
@@ -46,18 +44,18 @@ impl<'transaction, S, T, From: MyTyp> FromExpr<'transaction, S, Option<From>> fo
 where
     T: FromExpr<'transaction, S, From>,
 {
-    fn from_column<'columns>(
+    fn from_expr<'columns>(
         col: Expr<'columns, S, Option<From>>,
     ) -> Dummy<'columns, 'transaction, S, Self> {
         optional(|row| {
             let col = row.and(col);
-            row.then_dummy(T::from_column(col))
+            row.then_dummy(T::from_expr(col))
         })
     }
 }
 
 impl<'transaction, S, From> FromExpr<'transaction, S, From> for () {
-    fn from_column<'columns>(
+    fn from_expr<'columns>(
         _col: Expr<'columns, S, From>,
     ) -> Dummy<'columns, 'transaction, S, Self> {
         ().into_dummy()

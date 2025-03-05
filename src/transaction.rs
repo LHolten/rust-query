@@ -9,7 +9,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    IntoExpr, IntoDummy, Table, TableRow, ast::MySelect, client::LocalClient,
+    IntoDummy, IntoExpr, Table, TableRow, ast::MySelect, client::LocalClient,
     migrate::schema_version, query::Query, rows::Rows, value::SecretFromSql, writable::TableInsert,
 };
 
@@ -206,7 +206,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         id.reader().col(T::ID, &row);
         let id = id.build_select(false);
 
-        let val = T::apply_try_update(val, row.into_column());
+        let val = T::apply_try_update(val, row.into_expr());
         let ast = MySelect::default();
         val.read(ast.reader());
 

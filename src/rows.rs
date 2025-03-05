@@ -49,7 +49,7 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
-        let prop = prop.into_column().inner;
+        let prop = prop.into_expr().inner;
         self.filter_private(prop.build_expr(self.ast.builder()));
     }
 
@@ -64,7 +64,7 @@ impl<'inner, S> Rows<'inner, S> {
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
-        let val = val.into_column().inner;
+        let val = val.into_expr().inner;
         self.filter_private(
             sea_query::Expr::expr(val.build_expr(self.ast.builder())).is_not_null(),
         );

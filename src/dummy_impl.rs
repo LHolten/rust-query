@@ -262,7 +262,7 @@ where
 
     fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out> {
         Dummy::new(ColumnImpl {
-            expr: self.into_column().inner,
+            expr: self.into_expr().inner,
         })
     }
 }

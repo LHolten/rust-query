@@ -64,8 +64,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = T>,
         on: impl IntoExpr<'outer, S, Typ = T>,
     ) {
-        let on = on.into_column().inner;
-        let val = val.into_column().inner;
+        let on = on.into_expr().inner;
+        let val = val.into_expr().inner;
         let alias = self.ast.scope.new_alias();
         self.conds
             .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
@@ -76,7 +76,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
     /// Return the average value in a column, this is [None] if there are zero rows.
     pub fn avg(&self, val: impl IntoExpr<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
-        let val = val.into_column().inner;
+        let val = val.into_expr().inner;
         let expr = Func::avg(val.build_expr(self.ast.builder()));
         Expr::new(self.select(expr))
     }
@@ -86,7 +86,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     where
         T: NumTyp,
     {
-        let val = val.into_column().inner;
+        let val = val.into_expr().inner;
         let expr = Func::max(val.build_expr(self.ast.builder()));
         Expr::new(self.select(expr))
     }
@@ -96,7 +96,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     where
         T: NumTyp,
     {
-        let val = val.into_column().inner;
+        let val = val.into_expr().inner;
         let expr = Func::sum(val.build_expr(self.ast.builder()));
         Expr::new(UnwrapOr(self.select::<T>(expr), Const(T::ZERO)))
     }
@@ -109,7 +109,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     where
         T: EqTyp,
     {
-        let val = val.into_column().inner;
+        let val = val.into_expr().inner;
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
         Expr::new(UnwrapOr(self.select::<i64>(expr), Const(0)))
     }

@@ -77,7 +77,7 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
         val: impl IntoDummy<'t, 'a, S, Out = O>,
     ) {
         let mut p = val.into_dummy().inner.prepare(&mut self.cacher);
-        let p = DynPrepared::new(move |row| p.call(row).into_column().inner.erase());
+        let p = DynPrepared::new(move |row| p.call(row).into_expr().inner.erase());
         self.columns.push((name, p));
     }
 }

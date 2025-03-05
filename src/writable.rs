@@ -21,7 +21,7 @@ impl<'t, S, Typ> Default for Update<'t, S, Typ> {
 
 impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
     pub fn set(val: impl IntoExpr<'t, S, Typ = Typ>) -> Self {
-        let val = val.into_column();
+        let val = val.into_expr();
         Self {
             inner: Box::new(move |_| val.clone()),
         }
@@ -29,13 +29,13 @@ impl<'t, S: 't, Typ: 't> Update<'t, S, Typ> {
 
     #[doc(hidden)]
     pub fn apply(&self, val: impl IntoExpr<'t, S, Typ = Typ>) -> Expr<'t, S, Typ> {
-        (self.inner)(val.into_column())
+        (self.inner)(val.into_expr())
     }
 }
 
 impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
     pub fn add(val: impl IntoExpr<'t, S, Typ = Typ>) -> Self {
-        let val = val.into_column();
+        let val = val.into_expr();
         Self {
             inner: Box::new(move |old| old.add(&val)),
         }
@@ -61,7 +61,7 @@ pub struct Reader<'x, 't, S> {
 impl<'t, S> Reader<'_, 't, S> {
     pub fn col(&self, name: &'static str, val: impl IntoExpr<'t, S>) {
         let field = Field::Str(name);
-        let val = val.into_column().inner;
+        let val = val.into_expr().inner;
         let expr = val.build_expr(self.ast.builder());
         self.ast.select.push(Box::new((expr, field)))
     }

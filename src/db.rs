@@ -150,7 +150,7 @@ impl<T: Table> Typed for TableRowInner<T> {
 impl<'t, T> Private for TableRow<'t, T> {}
 impl<'t, S, T: Table> IntoExpr<'t, S> for TableRow<'t, T> {
     type Typ = T;
-    fn into_column(self) -> Expr<'t, S, Self::Typ> {
+    fn into_expr(self) -> Expr<'t, S, Self::Typ> {
         Expr::new(self.inner)
     }
 }

@@ -45,8 +45,8 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         &mut self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
-        let column = col.into_column();
-        self.nulls.push(column.is_some().not().into_column().inner);
+        let column = col.into_expr();
+        self.nulls.push(column.is_some().not().into_expr().inner);
         Expr::new(Assume(column.inner))
     }
 
@@ -66,7 +66,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {
-        let res = Expr::new(Some(col.into_column().inner));
+        let res = Expr::new(Some(col.into_expr().inner));
         self.nulls
             .iter()
             .rfold(res, |accum, e| Expr::new(NullIf(e.clone(), accum.inner)))
@@ -80,7 +80,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Dummy::new(OptionalImpl {
             inner: d.into_dummy().inner,
             is_some: ColumnImpl {
-                expr: self.is_some().into_column().inner,
+                expr: self.is_some().into_expr().inner,
             },
         })
     }

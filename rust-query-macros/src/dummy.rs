@@ -107,7 +107,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     })
 }
 
-pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
+pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
     let mut trivial = vec![];
     let mut transaction_lt = None;
     for attr in &item.attrs {
@@ -157,7 +157,7 @@ pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
         let mut trivial_prepared = vec![];
         for (name, typ) in &fields {
             trivial_prepared
-                .push(quote! {<#typ as ::rust_query::FromExpr<_, _>>::from_column(col.#name())});
+                .push(quote! {<#typ as ::rust_query::FromExpr<_, _>>::from_expr(col.#name())});
         }
         let parts_dummies = wrap(&trivial_prepared);
         let parts_name = wrap(&names);
@@ -165,7 +165,7 @@ pub fn from_column(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::FromExpr<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_column<'_t>(col: ::rust_query::Expr<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
+                fn from_expr<'_t>(col: ::rust_query::Expr<'_t, #schema, #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
                     ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {
                         #(#names,)*
                     })

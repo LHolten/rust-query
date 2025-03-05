@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, ops::Not};
 
-use dummy::{dummy_impl, from_column};
+use dummy::{dummy_impl, from_expr};
 use heck::{ToSnekCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -214,9 +214,9 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///   Can be used to specify the transaction lifetime for structs that contain `TableRow` fields.
 ///   This is only necessary when using `#[rust_query(From = Thing)]`.
 #[proc_macro_derive(FromExpr, attributes(rust_query))]
-pub fn from_column_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
-    match from_column(item) {
+    match from_expr(item) {
         Ok(x) => x,
         Err(e) => e.into_compile_error(),
     }

@@ -232,7 +232,7 @@ impl Table {
             [] => (
                 quote! {::std::convert::Infallible},
                 quote! {{
-                    let x = ::rust_query::IntoExpr::into_column(&0i64);
+                    let x = ::rust_query::IntoExpr::into_expr(&0i64);
                     ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
                 }},
             ),
@@ -257,7 +257,7 @@ impl Table {
             _ => (
                 quote! {()},
                 quote! {{
-                    let x = ::rust_query::IntoExpr::into_column(&0i64);
+                    let x = ::rust_query::IntoExpr::into_expr(&0i64);
                     ::rust_query::IntoDummyExt::map_dummy(x, |_| Some(()))
                 }},
             ),

@@ -14,7 +14,7 @@ fn test(db: Database<Schema>) {
         let item = MyTable::join(rows);
         rows.into_vec(item)
     });
-    let items: Vec<_> = items.into_iter().map(|x| x.into_column()).collect();
+    let items: Vec<_> = items.into_iter().map(|x| x.into_expr()).collect();
     drop(txn);
 
     let txn = client.transaction(&db);

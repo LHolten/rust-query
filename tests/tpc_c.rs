@@ -113,7 +113,7 @@ use v0::*;
 pub struct OrderLineCnt(i64);
 
 impl<'transaction> FromExpr<'transaction, Schema, Order> for OrderLineCnt {
-    fn from_column<'columns>(
+    fn from_expr<'columns>(
         order: rust_query::Expr<'columns, Schema, Order>,
     ) -> Dummy<'columns, 'transaction, Schema, Self> {
         aggregate(|rows| {
