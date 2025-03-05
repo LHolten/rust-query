@@ -37,7 +37,7 @@ impl<'outer, 'inner, S> DerefMut for Query<'outer, 'inner, S> {
 impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Turn a database query into a rust [Vec] of results.
     ///
-    /// Types that implement [crate::IntoColumn], will also implement [IntoDummy].
+    /// Types that implement [crate::IntoExpr], will also implement [IntoDummy].
     /// Tuples of two values also implement [IntoDummy]. If you want to return more
     /// than two values, then you should use a struct that derives [rust_query_macros::Dummy].
     ///

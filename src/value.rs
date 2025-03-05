@@ -109,7 +109,7 @@ pub(crate) trait Private {}
 /// Trait for all values that can be used as columns in queries.
 ///
 /// You can not (yet) implement this trait yourself!
-pub trait IntoColumn<'column, S>: Private + Clone {
+pub trait IntoExpr<'column, S>: Private + Clone {
     /// The type of the column.
     type Typ: MyTyp;
 
@@ -117,20 +117,20 @@ pub trait IntoColumn<'column, S>: Private + Clone {
     fn into_column(self) -> Expr<'column, S, Self::Typ>;
 }
 
-/// Methods that only require `IntoColumn`.
+/// Methods that only require `IntoExpr`.
 ///
-/// These are not default methods on `IntoColumn`, because they never need to
+/// These are not default methods on `IntoExpr`, because they never need to
 /// be implemented manually.
-pub trait IntoColumnExt<'column, S>: IntoColumn<'column, S> {
+pub trait IntoExprExt<'column, S>: IntoExpr<'column, S> {
     /// Convert the column to a dummy using the [FromColumn] implementation.
     fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
         &self,
     ) -> Dummy<'column, 'transaction, S, X>;
 }
 
-impl<'column, S, T> IntoColumnExt<'column, S> for T
+impl<'column, S, T> IntoExprExt<'column, S> for T
 where
-    T: IntoColumn<'column, S>,
+    T: IntoExpr<'column, S>,
 {
     fn into_trivial<'transaction, X: FromColumn<'transaction, S, Self::Typ>>(
         &self,
@@ -141,19 +141,19 @@ where
 
 impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// Add two columns together.
-    pub fn add(&self, rhs: impl IntoColumn<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
         Expr::new(Add(self.inner.clone(), rhs.into_column().inner))
     }
 
     /// Compute the less than operator of two columns.
-    pub fn lt(&self, rhs: impl IntoColumn<'column, S, Typ = T>) -> Expr<'column, S, bool> {
+    pub fn lt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         Expr::new(Lt(self.inner.clone(), rhs.into_column().inner))
     }
 }
 
 impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     /// Check whether two columns are equal.
-    pub fn eq(&self, rhs: impl IntoColumn<'column, S, Typ = T>) -> Expr<'column, S, bool> {
+    pub fn eq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         Expr::new(Eq(self.inner.clone(), rhs.into_column().inner))
     }
 }
@@ -165,21 +165,21 @@ impl<'column, S> Expr<'column, S, bool> {
     }
 
     /// Check if two columns are both true.
-    pub fn and(&self, rhs: impl IntoColumn<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
+    pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
         Expr::new(And(self.inner.clone(), rhs.into_column().inner))
     }
 
     /// Check if one of two columns is true.
-    pub fn or(&self, rhs: impl IntoColumn<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
+    pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
         Expr::new(Or(self.inner.clone(), rhs.into_column().inner))
     }
 }
 
 impl<'column, S, Typ: 'static> Expr<'column, S, Option<Typ>> {
     /// Use the first column if it is [Some], otherwise use the second column.
-    pub fn unwrap_or(&self, rhs: impl IntoColumn<'column, S, Typ = Typ>) -> Expr<'column, S, Typ>
+    pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ>
     where
-        Self: IntoColumn<'column, S, Typ = Option<Typ>>,
+        Self: IntoExpr<'column, S, Typ = Option<Typ>>,
     {
         Expr::new(UnwrapOr(self.inner.clone(), rhs.into_column().inner))
     }
@@ -242,7 +242,7 @@ impl<'column, S> Expr<'column, S, String> {
     /// This is a case-sensitive version of [like](Self::like). It uses Unix file globbing syntax for wild
     /// cards. `*` matches any sequence of characters and `?` matches any single character. `[0-9]` matches
     /// any single digit and `[a-z]` matches any single lowercase letter. `^` negates the pattern.
-    pub fn glob(&self, rhs: impl IntoColumn<'column, S, Typ = String>) -> Expr<'column, S, bool> {
+    pub fn glob(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
         Expr::new(Glob(self.inner.clone(), rhs.into_column().inner))
     }
 }
@@ -258,7 +258,7 @@ impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
 }
 
 impl<T> Private for Option<T> {}
-impl<'column, S, T: IntoColumn<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoColumn<'column, S>
+impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoExpr<'column, S>
     for Option<T>
 {
     type Typ = Option<X>;
@@ -275,7 +275,7 @@ impl Typed for String {
 }
 
 impl Private for String {}
-impl<'column, S> IntoColumn<'column, S> for String {
+impl<'column, S> IntoExpr<'column, S> for String {
     type Typ = String;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self)
@@ -283,7 +283,7 @@ impl<'column, S> IntoColumn<'column, S> for String {
 }
 
 impl Private for &str {}
-impl<'column, S> IntoColumn<'column, S> for &str {
+impl<'column, S> IntoExpr<'column, S> for &str {
     type Typ = String;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self.to_owned())
@@ -298,7 +298,7 @@ impl Typed for Vec<u8> {
 }
 
 impl Private for Vec<u8> {}
-impl<'column, S> IntoColumn<'column, S> for Vec<u8> {
+impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     type Typ = Vec<u8>;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self)
@@ -306,7 +306,7 @@ impl<'column, S> IntoColumn<'column, S> for Vec<u8> {
 }
 
 impl Private for &[u8] {}
-impl<'column, S> IntoColumn<'column, S> for &[u8] {
+impl<'column, S> IntoExpr<'column, S> for &[u8] {
     type Typ = Vec<u8>;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self.to_owned())
@@ -321,7 +321,7 @@ impl Typed for bool {
 }
 
 impl Private for bool {}
-impl<'column, S> IntoColumn<'column, S> for bool {
+impl<'column, S> IntoExpr<'column, S> for bool {
     type Typ = bool;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self)
@@ -336,7 +336,7 @@ impl Typed for i64 {
 }
 
 impl Private for i64 {}
-impl<'column, S> IntoColumn<'column, S> for i64 {
+impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self)
@@ -351,7 +351,7 @@ impl Typed for f64 {
 }
 
 impl Private for f64 {}
-impl<'column, S> IntoColumn<'column, S> for f64 {
+impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self)
@@ -375,9 +375,9 @@ where
 }
 
 impl<T> Private for &T {}
-impl<'column, S, T> IntoColumn<'column, S> for &T
+impl<'column, S, T> IntoExpr<'column, S> for &T
 where
-    T: IntoColumn<'column, S>,
+    T: IntoExpr<'column, S>,
 {
     type Typ = T::Typ;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
@@ -397,7 +397,7 @@ impl Typed for UnixEpoch {
 }
 
 impl Private for UnixEpoch {}
-impl<'column, S> IntoColumn<'column, S> for UnixEpoch {
+impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
     type Typ = i64;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self)
@@ -544,7 +544,7 @@ pub fn new_dummy<'x, S, T: MyTyp>(
     IntoDummy::into_dummy(Expr::new(val))
 }
 
-pub fn into_owned<'x, S, T>(val: impl IntoColumn<'x, S, Typ = T>) -> DynTyped<T> {
+pub fn into_owned<'x, S, T>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {
     val.into_column().inner
 }
 
@@ -616,7 +616,7 @@ impl<Typ: 'static> Typed for DynTyped<Typ> {
 }
 
 impl<'column, S, T> Private for Expr<'column, S, T> {}
-impl<'column, S, T: MyTyp> IntoColumn<'column, S> for Expr<'column, S, T> {
+impl<'column, S, T: MyTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
     type Typ = T;
     fn into_column(self) -> Expr<'column, S, Self::Typ> {
         self

@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromColumn, IntoColumnExt, LocalClient,
+    Database, FromColumn, IntoExprExt, LocalClient,
     migration::{Config, schema},
     optional,
 };

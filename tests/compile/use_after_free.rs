@@ -1,4 +1,4 @@
-use rust_query::{Database, IntoColumn, LocalClient, Table};
+use rust_query::{Database, IntoExpr, LocalClient, Table};
 use rust_query_macros::schema;
 
 #[schema]

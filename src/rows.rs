@@ -6,7 +6,7 @@ use crate::{
     Expr, Table,
     ast::MySelect,
     db::Join,
-    value::{IntoColumn, Typed, operations::Assume},
+    value::{IntoExpr, Typed, operations::Assume},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -43,12 +43,12 @@ impl<'inner, S> Rows<'inner, S> {
     }
 
     // Join a vector of values.
-    // pub fn vec<V: IntoColumn<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
+    // pub fn vec<V: IntoExpr<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
     //     todo!()
     // }
 
     /// Filter rows based on a column.
-    pub fn filter(&mut self, prop: impl IntoColumn<'inner, S, Typ = bool>) {
+    pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
         let prop = prop.into_column().inner;
         self.filter_private(prop.build_expr(self.ast.builder()));
     }
@@ -62,7 +62,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// Returns a new column with the unwrapped type.
     pub fn filter_some<Typ: 'static>(
         &mut self,
-        val: impl IntoColumn<'inner, S, Typ = Option<Typ>>,
+        val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
         let val = val.into_column().inner;
         self.filter_private(

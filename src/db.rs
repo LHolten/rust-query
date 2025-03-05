@@ -4,7 +4,7 @@ use ref_cast::RefCast;
 use sea_query::{Alias, SimpleExpr};
 
 use crate::{
-    Expr, IntoColumn, LocalClient, Table,
+    Expr, IntoExpr, LocalClient, Table,
     alias::{Field, MyAlias},
     value::{MyTyp, Private, Typed, ValueBuilder},
 };
@@ -148,7 +148,7 @@ impl<T: Table> Typed for TableRowInner<T> {
 }
 
 impl<'t, T> Private for TableRow<'t, T> {}
-impl<'t, S, T: Table> IntoColumn<'t, S> for TableRow<'t, T> {
+impl<'t, S, T: Table> IntoExpr<'t, S> for TableRow<'t, T> {
     type Typ = T;
     fn into_column(self) -> Expr<'t, S, Self::Typ> {
         Expr::new(self.inner)

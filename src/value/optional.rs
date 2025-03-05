@@ -8,7 +8,7 @@ use crate::{
 };
 
 use super::{
-    DynTyped, Expr, IntoColumn, MyTyp,
+    DynTyped, Expr, IntoExpr, MyTyp,
     operations::{Assume, NullIf, Or},
 };
 
@@ -43,7 +43,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     #[doc(alias = "join")]
     pub fn and<T: 'static>(
         &mut self,
-        col: impl IntoColumn<'inner, S, Typ = Option<T>>,
+        col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
         let column = col.into_column();
         self.nulls.push(column.is_some().not().into_column().inner);
@@ -64,7 +64,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// Return [Some] column if the current row exists and [None] column otherwise.
     pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
         &self,
-        col: impl IntoColumn<'inner, S, Typ = T>,
+        col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {
         let res = Expr::new(Some(col.into_column().inner));
         self.nulls

@@ -363,25 +363,32 @@ fn define_table_migration(
     prev_columns: &BTreeMap<usize, Column>,
     table: &Table,
 ) -> Option<TokenStream> {
-    let mut defs = vec![];
-    let mut into_new = vec![];
+    let mut col_new = vec![];
+    let mut col_str = vec![];
+    let mut alter_ident = vec![];
+    let mut alter_typ = vec![];
 
     for (i, col) in &table.columns {
         let name = &col.name;
-        let name_str = col.name.to_string();
-        let typ = &col.typ;
         if prev_columns.contains_key(i) {
-            into_new.push(quote! {cacher.col(#name_str, prev.#name())});
+            col_new.push(quote! {prev.#name()});
         } else {
-            defs.push(quote! {pub #name: ::rust_query::Dummy<'t, 'a, _PrevSchema, <#typ as ::rust_query::private::MyTyp>::Out<'a>>});
-            into_new.push(quote! {cacher.col(#name_str, self.#name)});
+            col_new.push(quote! {self.#name});
+
+            alter_ident.push(name);
+            alter_typ.push(&col.typ);
         }
+        col_str.push(name.to_string());
     }
 
     // check that nothing was added or removed
     // we don't need input if only stuff was removed, but it still needs migrating
-    if defs.is_empty() && table.columns.len() == prev_columns.len() {
+    if alter_ident.is_empty() && table.columns.len() == prev_columns.len() {
         return None;
+    }
+
+    if alter_ident.is_empty() {
+        panic!("Migrations that only remove rows are not supported yet")
     }
 
     let table_name = &table.name;
@@ -389,9 +396,9 @@ fn define_table_migration(
     let prev_typ = quote! {#table_name};
 
     let migration = quote! {
-        pub struct #migration_name<'t, 'a> {
-            #(#defs,)*
-        }
+        pub struct #migration_name<'column, 't> {#(
+            pub #alter_ident: ::rust_query::Dummy<'column, 't, _PrevSchema, <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>>,
+        )*}
 
         impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
             type From = #prev_typ;
@@ -399,11 +406,11 @@ fn define_table_migration(
 
             fn prepare(
                 self,
-                prev: ::rust_query::Expr<'t, <Self::From as ::rust_query::Table>::Schema, Self::From>,
-                cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, <Self::From as ::rust_query::Table>::Schema>,
-            ) {
-                #(#into_new;)*
-            }
+                prev: ::rust_query::Expr<'t, _PrevSchema, Self::From>,
+                cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, _PrevSchema>,
+            ) {#(
+                cacher.col(#col_str, #col_new);
+            )*}
         }
     };
     Some(migration)

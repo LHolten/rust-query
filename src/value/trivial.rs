@@ -5,7 +5,7 @@ use super::{Expr, MyTyp};
 /// Trait for values that can be retrieved from the database using one reference column.
 ///
 /// This is most likely the trait that you want to implement for your custom datatype.
-/// Together with the [crate::IntoColumn] trait.
+/// Together with the [crate::IntoExpr] trait.
 ///
 /// Note that this trait can also be implemented using [rust_query_macros::Dummy] by
 /// adding the `#[rust_query(From = Thing)]` helper attribute.

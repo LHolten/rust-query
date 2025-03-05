@@ -34,7 +34,7 @@ use rows::Rows;
 pub use rust_query_macros::{Dummy, FromColumn};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 pub use value::trivial::FromColumn;
-pub use value::{Expr, IntoColumn, IntoColumnExt, UnixEpoch, optional::optional};
+pub use value::{Expr, IntoExpr, IntoExprExt, UnixEpoch, optional::optional};
 pub use writable::Update;
 
 /// Types that are used as closure arguments.
@@ -79,7 +79,7 @@ pub mod private {
 ///
 /// **You can not implement this trait yourself!**
 pub trait Table: Sized + 'static {
-    /// The associated type [Table::Ext] is used as the deref target by several types that implement [IntoColumn].
+    /// The associated type [Table::Ext] is used as the deref target by several types that implement [IntoExpr].
     /// This adds convenient methods to access related tables that have a foreign key constraint.
     #[doc(hidden)]
     type Ext<T>: RefCast<From = T>;

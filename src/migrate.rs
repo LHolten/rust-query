@@ -10,7 +10,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Dummy, Expr, IntoColumn, IntoDummy, Table, TableRow, Transaction,
+    Dummy, Expr, IntoDummy, IntoExpr, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -71,7 +71,7 @@ impl<'a> DynPrepared<'a> {
 }
 
 impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
-    pub fn col<O: 'a + IntoColumn<'a, S>>(
+    pub fn col<O: 'a + IntoExpr<'a, S>>(
         &mut self,
         name: &'static str,
         val: impl IntoDummy<'t, 'a, S, Out = O>,

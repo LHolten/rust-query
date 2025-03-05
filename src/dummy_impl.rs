@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use sea_query::Iden;
 
 use crate::{
-    IntoColumn,
+    IntoExpr,
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
 };
@@ -256,7 +256,7 @@ impl<'transaction, T: MyTyp> DummyImpl<'transaction> for ColumnImpl<T> {
 
 impl<'columns, 'transaction, S, T> IntoDummy<'columns, 'transaction, S> for T
 where
-    T: IntoColumn<'columns, S>,
+    T: IntoExpr<'columns, S>,
 {
     type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
@@ -323,8 +323,8 @@ mod tests {
 
     impl<'columns, 'transaction, S, A, B> IntoDummy<'columns, 'transaction, S> for UserDummy<A, B>
     where
-        A: IntoColumn<'columns, S, Typ = i64>,
-        B: IntoColumn<'columns, S, Typ = String>,
+        A: IntoExpr<'columns, S, Typ = i64>,
+        B: IntoExpr<'columns, S, Typ = String>,
     {
         type Out = User;
 

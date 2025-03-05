@@ -47,7 +47,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         unique_funcs.push(quote! {
             pub fn #unique_name<'a #(,#generic)*>(#(#col: #generic),*) -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
             where
-                #(#generic: ::rust_query::IntoColumn<'a, #schema, Typ = #col_typ>,)*
+                #(#generic: ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>,)*
             {
                 ::rust_query::private::new_column(#table_mod::#unique_type {#(
                     #col: ::rust_query::private::into_owned(#col),
@@ -113,7 +113,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         ::rust_query::unsafe_impl_ref_cast! {#ext_ident}
 
         impl<'t, T> #ext_ident<T>
-            where T: ::rust_query::IntoColumn<'t, #schema, Typ = #table_ident>
+            where T: ::rust_query::IntoExpr<'t, #schema, Typ = #table_ident>
         {#(
             pub fn #col_ident(&self) -> ::rust_query::Expr<'t, #schema, #col_typ> {
                 ::rust_query::private::new_column(::rust_query::private::Col::new(#col_str, ::rust_query::private::into_owned(&self.0)))
@@ -173,7 +173,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
         }
         impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(#generic),*>
         where
-            #(#generic: ::rust_query::IntoColumn<'t, #schema, Typ = #col_typ>,)*
+            #(#generic: ::rust_query::IntoExpr<'t, #schema, Typ = #col_typ>,)*
         {
             type Schema = #schema;
             type T = #table_ident;
@@ -232,7 +232,7 @@ impl Table {
             [] => (
                 quote! {::std::convert::Infallible},
                 quote! {{
-                    let x = ::rust_query::IntoColumn::into_column(&0i64);
+                    let x = ::rust_query::IntoExpr::into_column(&0i64);
                     ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
                 }},
             ),
@@ -257,7 +257,7 @@ impl Table {
             _ => (
                 quote! {()},
                 quote! {{
-                    let x = ::rust_query::IntoColumn::into_column(&0i64);
+                    let x = ::rust_query::IntoExpr::into_column(&0i64);
                     ::rust_query::IntoDummyExt::map_dummy(x, |_| Some(()))
                 }},
             ),

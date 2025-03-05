@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use chinook_schema::*;
 use expect_test::expect_file;
 use rust_query::{
-    Dummy, Expr, IntoColumn, IntoDummyExt, LocalClient, Table, TableRow, Transaction, Update,
+    Dummy, Expr, IntoExpr, IntoDummyExt, LocalClient, Table, TableRow, Transaction, Update,
     aggregate,
 };
 
@@ -221,7 +221,7 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
 }
 
 fn customer_spending<'t>(
-    customer: impl IntoColumn<'t, Schema, Typ = Customer>,
+    customer: impl IntoExpr<'t, Schema, Typ = Customer>,
 ) -> Expr<'t, Schema, f64> {
     aggregate(|rows| {
         let invoice = Invoice::join(rows);

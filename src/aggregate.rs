@@ -13,7 +13,7 @@ use crate::{
     ast::MySelect,
     rows::Rows,
     value::{
-        EqTyp, IntoColumn, MyTyp, NumTyp, Typed, ValueBuilder,
+        EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder,
         operations::{Const, IsNotNull, UnwrapOr},
     },
 };
@@ -61,8 +61,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Filter the rows of this sub-query based on a value from the outer query.
     pub fn filter_on<T: EqTyp + 'static>(
         &mut self,
-        val: impl IntoColumn<'inner, S, Typ = T>,
-        on: impl IntoColumn<'outer, S, Typ = T>,
+        val: impl IntoExpr<'inner, S, Typ = T>,
+        on: impl IntoExpr<'outer, S, Typ = T>,
     ) {
         let on = on.into_column().inner;
         let val = val.into_column().inner;
@@ -75,14 +75,14 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
-    pub fn avg(&self, val: impl IntoColumn<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
+    pub fn avg(&self, val: impl IntoExpr<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
         let val = val.into_column().inner;
         let expr = Func::avg(val.build_expr(self.ast.builder()));
         Expr::new(self.select(expr))
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
-    pub fn max<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
+    pub fn max<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
     where
         T: NumTyp,
     {
@@ -92,7 +92,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the sum of a column.
-    pub fn sum<T>(&self, val: impl IntoColumn<'inner, S, Typ = T>) -> Expr<'outer, S, T>
+    pub fn sum<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, T>
     where
         T: NumTyp,
     {
@@ -104,7 +104,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the number of distinct values in a column.
     pub fn count_distinct<T: 'static>(
         &self,
-        val: impl IntoColumn<'inner, S, Typ = T>,
+        val: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, i64>
     where
         T: EqTyp,

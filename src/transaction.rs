@@ -9,7 +9,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    IntoColumn, IntoDummy, Table, TableRow, ast::MySelect, client::LocalClient,
+    IntoExpr, IntoDummy, Table, TableRow, ast::MySelect, client::LocalClient,
     migrate::schema_version, query::Query, rows::Rows, value::SecretFromSql, writable::TableInsert,
 };
 
@@ -199,7 +199,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 2+ unique constraints => `()` no further information is provided.
     pub fn try_update<T: Table<Schema = S>>(
         &mut self,
-        row: impl IntoColumn<'t, S, Typ = T>,
+        row: impl IntoExpr<'t, S, Typ = T>,
         val: T::TryUpdate<'t>,
     ) -> Result<(), T::Conflict<'t>> {
         let id = MySelect::default();
@@ -256,7 +256,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// that can not cause unique constraint violations.
     pub fn update<T: Table<Schema = S>>(
         &mut self,
-        row: impl IntoColumn<'t, S, Typ = T>,
+        row: impl IntoExpr<'t, S, Typ = T>,
         val: T::Update<'t>,
     ) {
         match self.try_update(row, T::update_into_try_update(val)) {
