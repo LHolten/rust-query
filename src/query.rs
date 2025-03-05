@@ -8,7 +8,7 @@ use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    dummy_impl::{Cacher, SelectImpl, IntoSelect, Prepared, Row},
+    dummy_impl::{Cacher, IntoSelect, Prepared, Row, SelectImpl},
     rows::Rows,
 };
 
@@ -52,7 +52,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
         D: IntoSelect<'x, 'outer, S>,
     {
         let mut cacher = Cacher::new();
-        let mut prepared = dummy.into_dummy().inner.prepare(&mut cacher);
+        let mut prepared = dummy.into_select().inner.prepare(&mut cacher);
 
         let cached = self.ast.cache(cacher.columns);
 

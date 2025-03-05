@@ -119,7 +119,7 @@ mod table;
 ///         .expect("database version is before supported versions");
 ///     let m = m.migrate(|_| v1::update::Schema {
 ///         user: Box::new(|user| v1::update::UserMigration {
-///             score: user.email().map_dummy(|x| x.len() as i64) // use the email length as the new score
+///             score: user.email().map_select(|x| x.len() as i64) // use the email length as the new score
 ///         }),
 ///     });
 ///     m.finish().expect("database version is after supported versions")

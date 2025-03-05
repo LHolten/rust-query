@@ -233,7 +233,7 @@ impl Table {
                 quote! {::std::convert::Infallible},
                 quote! {{
                     let x = ::rust_query::IntoExpr::into_expr(&0i64);
-                    ::rust_query::IntoSelectExt::map_dummy(x, |_| unreachable!())
+                    ::rust_query::IntoSelectExt::map_select(x, |_| unreachable!())
                 }},
             ),
             [unique] => {
@@ -258,7 +258,7 @@ impl Table {
                 quote! {()},
                 quote! {{
                     let x = ::rust_query::IntoExpr::into_expr(&0i64);
-                    ::rust_query::IntoSelectExt::map_dummy(x, |_| Some(()))
+                    ::rust_query::IntoSelectExt::map_select(x, |_| Some(()))
                 }},
             ),
         }

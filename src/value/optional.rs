@@ -78,7 +78,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         d: impl IntoSelect<'inner, 'transaction, S, Out = Out>,
     ) -> Select<'outer, 'transaction, S, Option<Out>> {
         Select::new(OptionalImpl {
-            inner: d.into_dummy().inner,
+            inner: d.into_select().inner,
             is_some: ColumnImpl {
                 expr: self.is_some().into_expr().inner,
             },

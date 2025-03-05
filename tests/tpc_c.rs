@@ -1,7 +1,7 @@
 use std::time::UNIX_EPOCH;
 
 use rust_query::{
-    Select, FromExpr, IntoSelectExt, Table, TableRow, TransactionMut, Update, aggregate,
+    FromExpr, IntoSelectExt, Select, Table, TableRow, TransactionMut, Update, aggregate,
     migration::schema,
 };
 
@@ -119,7 +119,7 @@ impl<'transaction> FromExpr<'transaction, Schema, Order> for OrderLineCnt {
         aggregate(|rows| {
             let order_line = OrderLine::join(rows);
             rows.filter_on(order_line.order(), order);
-            rows.count_distinct(order_line).map_dummy(Self)
+            rows.count_distinct(order_line).map_select(Self)
         })
     }
 }

@@ -77,7 +77,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
         user: Box::new(|old_user| v1::update::UserMigration {
             email: old_user
                 .name()
-                .map_dummy(|name| format!("{name}@example.com")),
+                .map_select(|name| format!("{name}@example.com")),
         }),
     });
     m.finish()

@@ -65,7 +65,7 @@ impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
 
     fn get_conflict_unchecked(&self) -> crate::Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
         let x = ::rust_query::IntoExpr::into_expr(&0i64);
-        ::rust_query::IntoSelectExt::map_dummy(x, |_| unreachable!())
+        ::rust_query::IntoSelectExt::map_select(x, |_| unreachable!())
     }
 }
 

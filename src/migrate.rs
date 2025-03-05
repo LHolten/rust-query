@@ -10,11 +10,11 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Select, Expr, IntoSelect, IntoExpr, Table, TableRow, Transaction,
+    Expr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
-    dummy_impl::{Cacher, SelectImpl, Prepared, Row},
+    dummy_impl::{Cacher, Prepared, Row, SelectImpl},
     hash,
     private::TableInsert,
     rows::Rows,
@@ -76,7 +76,7 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
         name: &'static str,
         val: impl IntoSelect<'t, 'a, S, Out = O>,
     ) {
-        let mut p = val.into_dummy().inner.prepare(&mut self.cacher);
+        let mut p = val.into_select().inner.prepare(&mut self.cacher);
         let p = DynPrepared::new(move |row| p.call(row).into_expr().inner.erase());
         self.columns.push((name, p));
     }

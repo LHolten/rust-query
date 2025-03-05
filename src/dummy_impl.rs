@@ -119,7 +119,7 @@ impl<'columns, 'transaction, S, Out: 'transaction> IntoSelect<'columns, 'transac
 {
     type Out = Out;
 
-    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
         self
     }
 }
@@ -142,18 +142,18 @@ pub trait IntoSelect<'columns, 'transaction, S>: Sized {
     /// This method is what tells rust-query how to turn the value into a [Select].
     ///
     /// The only way to implement this method is by constructing a different value
-    /// that implements [IntoSelect] and then calling the [IntoSelect::into_dummy] method
-    /// on that other dummy.
-    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out>;
+    /// that implements [IntoSelect] and then calling the [IntoSelect::into_select] method
+    /// on that other value.
+    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out>;
 }
 
-/// [IntoSelectExt] adds extra methods to types that implement [IntoSelect].
+/// [IntoSelectExt] adds extra methods to values that implement [IntoSelect].
 pub trait IntoSelectExt<'columns, 'transaction, S>: IntoSelect<'columns, 'transaction, S> {
-    /// Map a dummy to another dummy using native rust.
+    /// Map the result of a [Select] using native rust.
     ///
-    /// This is useful when retrieving a struct from the database that contains types not supported by the database.
+    /// This is useful when retrieving structs from the database that contain types not supported by the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
-    fn map_dummy<T>(
+    fn map_select<T>(
         self,
         f: impl 'transaction + FnMut(Self::Out) -> T,
     ) -> Select<'columns, 'transaction, S, T>;
@@ -163,18 +163,18 @@ impl<'columns, 'transaction, S, X> IntoSelectExt<'columns, 'transaction, S> for 
 where
     X: IntoSelect<'columns, 'transaction, S>,
 {
-    fn map_dummy<T>(
+    fn map_select<T>(
         self,
         f: impl 'transaction + FnMut(Self::Out) -> T,
     ) -> Select<'columns, 'transaction, S, T> {
         Select::new(MapImpl {
-            dummy: self.into_dummy().inner,
+            dummy: self.into_select().inner,
             func: f,
         })
     }
 }
 
-/// This is the result of the [Select::map_dummy] method.
+/// This is the result of the [Select::map_select] method.
 ///
 /// [MapImpl] retrieves the same columns as the dummy that it wraps,
 /// but then it processes those columns using a rust closure.
@@ -232,7 +232,7 @@ impl SelectImpl<'_> for () {
 impl<'columns, 'transaction, S> IntoSelect<'columns, 'transaction, S> for () {
     type Out = ();
 
-    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
         Select::new(())
     }
 }
@@ -267,7 +267,7 @@ where
 {
     type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
-    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
         Select::new(ColumnImpl {
             expr: self.into_expr().inner,
         })
@@ -308,8 +308,8 @@ where
 {
     type Out = (A::Out, B::Out);
 
-    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
-        Select::new((self.0.into_dummy().inner, self.1.into_dummy().inner))
+    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        Select::new((self.0.into_select().inner, self.1.into_select().inner))
     }
 }
 
@@ -335,10 +335,10 @@ mod tests {
     {
         type Out = User;
 
-        fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
             (self.a, self.b)
-                .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
-                .into_dummy()
+                .map_select((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
+                .into_select()
         }
     }
 }
