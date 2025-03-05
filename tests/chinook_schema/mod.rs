@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database, IntoDummy, IntoDummyExt, LocalClient, Table, TableRow,
+    Database, IntoSelect, IntoSelectExt, LocalClient, Table, TableRow,
     migration::{Config, schema},
 };
 

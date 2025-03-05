@@ -1,7 +1,7 @@
 use std::time::UNIX_EPOCH;
 
 use rust_query::{
-    Dummy, FromExpr, IntoDummyExt, Table, TableRow, TransactionMut, Update, aggregate,
+    Select, FromExpr, IntoSelectExt, Table, TableRow, TransactionMut, Update, aggregate,
     migration::schema,
 };
 
@@ -115,7 +115,7 @@ pub struct OrderLineCnt(i64);
 impl<'transaction> FromExpr<'transaction, Schema, Order> for OrderLineCnt {
     fn from_expr<'columns>(
         order: impl rust_query::IntoExpr<'columns, Schema, Typ = Order>,
-    ) -> Dummy<'columns, 'transaction, Schema, Self> {
+    ) -> Select<'columns, 'transaction, Schema, Self> {
         aggregate(|rows| {
             let order_line = OrderLine::join(rows);
             rows.filter_on(order_line.order(), order);
@@ -211,13 +211,13 @@ pub fn new_order<'a>(
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();
 
-        #[derive(Dummy)]
+        #[derive(Select)]
         struct StockInfo {
             quantity: i64,
             dist_xx: String,
             data: String,
         }
-        let stock_info = txn.query_one(StockInfoDummy {
+        let stock_info = txn.query_one(StockInfoSelect {
             quantity: stock.quantity(),
             dist_xx: &[
                 stock.dist_00(),

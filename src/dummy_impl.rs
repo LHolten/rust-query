@@ -8,7 +8,7 @@ use crate::{
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
 };
 
-/// Opaque type used to implement [crate::Dummy].
+/// Opaque type used to implement [crate::Select].
 pub(crate) struct Cacher {
     pub(crate) columns: Vec<DynTypedExpr>,
 }
@@ -65,22 +65,22 @@ pub(crate) trait Prepared {
     fn call(&mut self, row: Row<'_>) -> Self::Out;
 }
 
-/// [Dummy] values are used to define what to query from the database for each row.
+/// [Select] is used to define what to query from the database for each row.
 ///
-/// They define a set of expressions to evaluate in the database, and then how to turn the results into rust values.
+/// It defines a set of expressions to evaluate in the database, and then how to turn the results into rust values.
 ///
-/// For this reason many [rust_query] APIs accept values that implement [IntoDummy].
-pub struct Dummy<'columns, 'transaction, S, Out> {
-    pub(crate) inner: DynDummyImpl<'transaction, Out>,
+/// For this reason many [rust_query] APIs accept values that implement [IntoSelect].
+pub struct Select<'columns, 'transaction, S, Out> {
+    pub(crate) inner: DynSelectImpl<'transaction, Out>,
     pub(crate) _p: PhantomData<&'columns ()>,
     pub(crate) _p2: PhantomData<S>,
 }
 
-pub struct DynDummyImpl<'transaction, Out> {
+pub struct DynSelectImpl<'transaction, Out> {
     inner: Box<dyn 'transaction + FnOnce(&mut Cacher) -> DynPrepared<'transaction, Out>>,
 }
 
-impl<'transaction, Out> DummyImpl<'transaction> for DynDummyImpl<'transaction, Out> {
+impl<'transaction, Out> SelectImpl<'transaction> for DynSelectImpl<'transaction, Out> {
     type Out = Out;
     type Prepared = DynPrepared<'transaction, Out>;
 
@@ -100,10 +100,10 @@ impl<Out> Prepared for DynPrepared<'_, Out> {
     }
 }
 
-impl<'transaction, S, Out> Dummy<'_, 'transaction, S, Out> {
-    pub(crate) fn new(val: impl 'transaction + DummyImpl<'transaction, Out = Out>) -> Self {
+impl<'transaction, S, Out> Select<'_, 'transaction, S, Out> {
+    pub(crate) fn new(val: impl 'transaction + SelectImpl<'transaction, Out = Out>) -> Self {
         Self {
-            inner: DynDummyImpl {
+            inner: DynSelectImpl {
                 inner: Box::new(|cacher| DynPrepared {
                     inner: Box::new(val.prepare(cacher)),
                 }),
@@ -114,17 +114,17 @@ impl<'transaction, S, Out> Dummy<'_, 'transaction, S, Out> {
     }
 }
 
-impl<'columns, 'transaction, S, Out: 'transaction> IntoDummy<'columns, 'transaction, S>
-    for Dummy<'columns, 'transaction, S, Out>
+impl<'columns, 'transaction, S, Out: 'transaction> IntoSelect<'columns, 'transaction, S>
+    for Select<'columns, 'transaction, S, Out>
 {
     type Out = Out;
 
-    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out> {
+    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
         self
     }
 }
 
-pub trait DummyImpl<'transaction> {
+pub trait SelectImpl<'transaction> {
     type Out;
     #[doc(hidden)]
     type Prepared: Prepared<Out = Self::Out>;
@@ -134,21 +134,21 @@ pub trait DummyImpl<'transaction> {
 
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
-/// Instead of implementing it yourself you probably want to use the [derive@rust_query::Dummy] macro.
-pub trait IntoDummy<'columns, 'transaction, S>: Sized {
+/// Instead of implementing it yourself you probably want to use the [derive@rust_query::Select] macro.
+pub trait IntoSelect<'columns, 'transaction, S>: Sized {
     /// The type that results from querying this dummy.
     type Out: 'transaction;
 
-    /// This method is what tells rust-query how to turn the value into a [Dummy].
+    /// This method is what tells rust-query how to turn the value into a [Select].
     ///
     /// The only way to implement this method is by constructing a different value
-    /// that implements [IntoDummy] and then calling the [IntoDummy::into_dummy] method
+    /// that implements [IntoSelect] and then calling the [IntoSelect::into_dummy] method
     /// on that other dummy.
-    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out>;
+    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out>;
 }
 
-/// [IntoDummyExt] adds extra methods to types that implement [IntoDummy].
-pub trait IntoDummyExt<'columns, 'transaction, S>: IntoDummy<'columns, 'transaction, S> {
+/// [IntoSelectExt] adds extra methods to types that implement [IntoSelect].
+pub trait IntoSelectExt<'columns, 'transaction, S>: IntoSelect<'columns, 'transaction, S> {
     /// Map a dummy to another dummy using native rust.
     ///
     /// This is useful when retrieving a struct from the database that contains types not supported by the database.
@@ -156,25 +156,25 @@ pub trait IntoDummyExt<'columns, 'transaction, S>: IntoDummy<'columns, 'transact
     fn map_dummy<T>(
         self,
         f: impl 'transaction + FnMut(Self::Out) -> T,
-    ) -> Dummy<'columns, 'transaction, S, T>;
+    ) -> Select<'columns, 'transaction, S, T>;
 }
 
-impl<'columns, 'transaction, S, X> IntoDummyExt<'columns, 'transaction, S> for X
+impl<'columns, 'transaction, S, X> IntoSelectExt<'columns, 'transaction, S> for X
 where
-    X: IntoDummy<'columns, 'transaction, S>,
+    X: IntoSelect<'columns, 'transaction, S>,
 {
     fn map_dummy<T>(
         self,
         f: impl 'transaction + FnMut(Self::Out) -> T,
-    ) -> Dummy<'columns, 'transaction, S, T> {
-        Dummy::new(MapImpl {
+    ) -> Select<'columns, 'transaction, S, T> {
+        Select::new(MapImpl {
             dummy: self.into_dummy().inner,
             func: f,
         })
     }
 }
 
-/// This is the result of the [Dummy::map_dummy] method.
+/// This is the result of the [Select::map_dummy] method.
 ///
 /// [MapImpl] retrieves the same columns as the dummy that it wraps,
 /// but then it processes those columns using a rust closure.
@@ -183,9 +183,9 @@ pub struct MapImpl<D, F> {
     func: F,
 }
 
-impl<'transaction, D, F, O> DummyImpl<'transaction> for MapImpl<D, F>
+impl<'transaction, D, F, O> SelectImpl<'transaction> for MapImpl<D, F>
 where
-    D: DummyImpl<'transaction>,
+    D: SelectImpl<'transaction>,
     F: FnMut(D::Out) -> O,
 {
     type Out = O;
@@ -222,18 +222,18 @@ impl Prepared for () {
     fn call(&mut self, _row: Row<'_>) -> Self::Out {}
 }
 
-impl DummyImpl<'_> for () {
+impl SelectImpl<'_> for () {
     type Out = ();
     type Prepared = ();
 
     fn prepare(self, _cacher: &mut Cacher) -> Self::Prepared {}
 }
 
-impl<'columns, 'transaction, S> IntoDummy<'columns, 'transaction, S> for () {
+impl<'columns, 'transaction, S> IntoSelect<'columns, 'transaction, S> for () {
     type Out = ();
 
-    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out> {
-        Dummy::new(())
+    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        Select::new(())
     }
 }
 
@@ -249,7 +249,7 @@ pub struct ColumnImpl<T> {
     pub(crate) expr: DynTyped<T>,
 }
 
-impl<'transaction, T: MyTyp> DummyImpl<'transaction> for ColumnImpl<T> {
+impl<'transaction, T: MyTyp> SelectImpl<'transaction> for ColumnImpl<T> {
     type Out = T::Out<'transaction>;
     type Prepared = Cached<Self::Out>;
 
@@ -261,14 +261,14 @@ impl<'transaction, T: MyTyp> DummyImpl<'transaction> for ColumnImpl<T> {
     }
 }
 
-impl<'columns, 'transaction, S, T> IntoDummy<'columns, 'transaction, S> for T
+impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for T
 where
     T: IntoExpr<'columns, S>,
 {
     type Out = <T::Typ as MyTyp>::Out<'transaction>;
 
-    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out> {
-        Dummy::new(ColumnImpl {
+    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        Select::new(ColumnImpl {
             expr: self.into_expr().inner,
         })
     }
@@ -286,10 +286,10 @@ where
     }
 }
 
-impl<'transaction, A, B> DummyImpl<'transaction> for (A, B)
+impl<'transaction, A, B> SelectImpl<'transaction> for (A, B)
 where
-    A: DummyImpl<'transaction>,
-    B: DummyImpl<'transaction>,
+    A: SelectImpl<'transaction>,
+    B: SelectImpl<'transaction>,
 {
     type Out = (A::Out, B::Out);
     type Prepared = (A::Prepared, B::Prepared);
@@ -301,15 +301,15 @@ where
     }
 }
 
-impl<'columns, 'transaction, S, A, B> IntoDummy<'columns, 'transaction, S> for (A, B)
+impl<'columns, 'transaction, S, A, B> IntoSelect<'columns, 'transaction, S> for (A, B)
 where
-    A: IntoDummy<'columns, 'transaction, S>,
-    B: IntoDummy<'columns, 'transaction, S>,
+    A: IntoSelect<'columns, 'transaction, S>,
+    B: IntoSelect<'columns, 'transaction, S>,
 {
     type Out = (A::Out, B::Out);
 
-    fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out> {
-        Dummy::new((self.0.into_dummy().inner, self.1.into_dummy().inner))
+    fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        Select::new((self.0.into_dummy().inner, self.1.into_dummy().inner))
     }
 }
 
@@ -323,19 +323,19 @@ mod tests {
         b: String,
     }
 
-    struct UserDummy<A, B> {
+    struct UserSelect<A, B> {
         a: A,
         b: B,
     }
 
-    impl<'columns, 'transaction, S, A, B> IntoDummy<'columns, 'transaction, S> for UserDummy<A, B>
+    impl<'columns, 'transaction, S, A, B> IntoSelect<'columns, 'transaction, S> for UserSelect<A, B>
     where
         A: IntoExpr<'columns, S, Typ = i64>,
         B: IntoExpr<'columns, S, Typ = String>,
     {
         type Out = User;
 
-        fn into_dummy(self) -> Dummy<'columns, 'transaction, S, Self::Out> {
+        fn into_dummy(self) -> Select<'columns, 'transaction, S, Self::Out> {
             (self.a, self.b)
                 .map_dummy((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
                 .into_dummy()

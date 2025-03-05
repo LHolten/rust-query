@@ -99,7 +99,7 @@ mod table;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// use rust_query::migration::{schema, Config};
-/// use rust_query::{IntoDummyExt, LocalClient, Database};
+/// use rust_query::{IntoSelectExt, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
 /// enum Schema {
@@ -143,9 +143,9 @@ pub fn schema(
     .into()
 }
 
-/// Derive [Dummy] to create a new `*Dummy` struct.
+/// Derive [Select] to create a new `*Select` struct.
 ///
-/// This `*Dummy` struct will implement the `IntoDummy` trait and can be used with `Query::into_vec`
+/// This `*Select` struct will implement the `IntoSelect` trait and can be used with `Query::into_vec`
 /// or `Transaction::query_one`.
 ///
 /// Usage can also be nested.
@@ -164,9 +164,9 @@ pub fn schema(
 ///     },
 /// }
 /// use v0::*;
-/// use rust_query::{Table, Dummy, Transaction};
+/// use rust_query::{Table, Select, Transaction};
 ///
-/// #[derive(Dummy)]
+/// #[derive(Select)]
 /// struct MyData {
 ///     seconds: i64,
 ///     is_it_real: bool,
@@ -174,7 +174,7 @@ pub fn schema(
 ///     other: OtherData
 /// }
 ///
-/// #[derive(Dummy)]
+/// #[derive(Select)]
 /// struct OtherData {
 ///     alpha: f64,
 ///     beta: f64,
@@ -184,11 +184,11 @@ pub fn schema(
 ///     db.query(|rows| {
 ///         let thing = Thing::join(rows);
 ///
-///         rows.into_vec(MyDataDummy {
+///         rows.into_vec(MyDataSelect {
 ///             seconds: thing.seconds(),
 ///             is_it_real: true,
 ///             name: thing.details().name(),
-///             other: OtherDataDummy {
+///             other: OtherDataSelect {
 ///                 alpha: 0.5,
 ///                 beta: thing.beta(),
 ///             },
@@ -196,7 +196,7 @@ pub fn schema(
 ///     })
 /// }
 /// ```
-#[proc_macro_derive(Dummy)]
+#[proc_macro_derive(Select)]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
     match dummy_impl(item) {
@@ -388,7 +388,7 @@ Please re-create the table with the new unique constraints and use the migration
 
     let migration = quote! {
         pub struct #migration_name<'column, 't> {#(
-            pub #alter_ident: ::rust_query::Dummy<'column, 't, _PrevSchema, <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>>,
+            pub #alter_ident: ::rust_query::Select<'column, 't, _PrevSchema, <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>>,
         )*}
 
         impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
@@ -435,7 +435,7 @@ fn define_table_creation(table: &Table) -> TokenStream {
             fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::FromSchema>) {
                 #(f.col(#col_str, &self.#col_ident);)*
             }
-            fn get_conflict_unchecked(&self) -> ::rust_query::Dummy<'t, 't, Self::FromSchema, Option<Self::Conflict>> {
+            fn get_conflict_unchecked(&self) -> ::rust_query::Select<'t, 't, Self::FromSchema, Option<Self::Conflict>> {
                 #conflict_expr
             }
         }

@@ -1,4 +1,4 @@
-use crate::{IntoDummy, IntoExpr, Table, TableRow, dummy_impl::Dummy, optional};
+use crate::{IntoSelect, IntoExpr, Table, TableRow, dummy_impl::Select, optional};
 
 use super::MyTyp;
 
@@ -9,10 +9,10 @@ use super::MyTyp;
 ///
 /// Note that this trait can also be implemented using [derive@rust_query::FromExpr].
 pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
-    /// How to turn a column reference into a [Dummy].
+    /// How to turn a column reference into a [Select].
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = From>,
-    ) -> Dummy<'columns, 'transaction, S, Self>;
+    ) -> Select<'columns, 'transaction, S, Self>;
 }
 
 macro_rules! from_expr {
@@ -20,7 +20,7 @@ macro_rules! from_expr {
         impl<'transaction, S> FromExpr<'transaction, S, $typ> for $typ {
             fn from_expr<'columns>(
                 col: impl IntoExpr<'columns, S, Typ = $typ>,
-            ) -> Dummy<'columns, 'transaction, S, Self> {
+            ) -> Select<'columns, 'transaction, S, Self> {
                 col.into_dummy()
             }
         }
@@ -36,7 +36,7 @@ from_expr! {bool}
 impl<'transaction, T: Table> FromExpr<'transaction, T::Schema, T> for TableRow<'transaction, T> {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, T::Schema, Typ = T>,
-    ) -> Dummy<'columns, 'transaction, T::Schema, Self> {
+    ) -> Select<'columns, 'transaction, T::Schema, Self> {
         col.into_dummy()
     }
 }
@@ -47,7 +47,7 @@ where
 {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = Option<From>>,
-    ) -> Dummy<'columns, 'transaction, S, Self> {
+    ) -> Select<'columns, 'transaction, S, Self> {
         let col = col.into_expr();
         optional(|row| {
             let col = row.and(col);
@@ -59,7 +59,7 @@ where
 impl<'transaction, S, From> FromExpr<'transaction, S, From> for () {
     fn from_expr<'columns>(
         _col: impl IntoExpr<'columns, S, Typ = From>,
-    ) -> Dummy<'columns, 'transaction, S, Self> {
+    ) -> Select<'columns, 'transaction, S, Self> {
         ().into_dummy()
     }
 }

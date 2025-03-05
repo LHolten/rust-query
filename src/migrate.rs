@@ -10,11 +10,11 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Dummy, Expr, IntoDummy, IntoExpr, Table, TableRow, Transaction,
+    Select, Expr, IntoSelect, IntoExpr, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
-    dummy_impl::{Cacher, DummyImpl, Prepared, Row},
+    dummy_impl::{Cacher, SelectImpl, Prepared, Row},
     hash,
     private::TableInsert,
     rows::Rows,
@@ -74,7 +74,7 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
     pub fn col<O: 'a + IntoExpr<'a, S>>(
         &mut self,
         name: &'static str,
-        val: impl IntoDummy<'t, 'a, S, Out = O>,
+        val: impl IntoSelect<'t, 'a, S, Out = O>,
     ) {
         let mut p = val.into_dummy().inner.prepare(&mut self.cacher);
         let p = DynPrepared::new(move |row| p.call(row).into_expr().inner.erase());
@@ -101,7 +101,7 @@ pub trait TableCreation<'t> {
     #[doc(hidden)]
     fn read(&self, f: Reader<'_, 't, Self::FromSchema>);
     #[doc(hidden)]
-    fn get_conflict_unchecked(&self) -> Dummy<'t, 't, Self::FromSchema, Option<Self::Conflict>>;
+    fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict>>;
 }
 
 pub struct Wrapper<X>(X);
@@ -121,9 +121,9 @@ where
         });
     }
 
-    fn get_conflict_unchecked(&self) -> Dummy<'t, 't, Self::Schema, Option<Self::Conflict>> {
+    fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
         let dummy = self.0.get_conflict_unchecked();
-        Dummy {
+        Select {
             inner: dummy.inner,
             _p: PhantomData,
             _p2: PhantomData,

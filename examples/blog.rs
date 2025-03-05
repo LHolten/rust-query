@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, IntoDummyExt, LocalClient, Table, Transaction, TransactionMut, aggregate,
+    Database, IntoSelectExt, LocalClient, Table, Transaction, TransactionMut, aggregate,
     migration::{Config, schema},
 };
 

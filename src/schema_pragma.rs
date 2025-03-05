@@ -63,9 +63,9 @@ impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
         todo!()
     }
 
-    fn get_conflict_unchecked(&self) -> crate::Dummy<'t, 't, Self::Schema, Option<Self::Conflict>> {
+    fn get_conflict_unchecked(&self) -> crate::Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
         let x = ::rust_query::IntoExpr::into_expr(&0i64);
-        ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
+        ::rust_query::IntoSelectExt::map_dummy(x, |_| unreachable!())
     }
 }
 
@@ -75,10 +75,10 @@ struct TableList;
 
 #[repr(transparent)]
 #[derive(RefCast)]
-struct TableListDummy<T>(T);
+struct TableListSelect<T>(T);
 
 #[allow(unused)]
-impl TableListDummy<Expr<'_, Pragma, TableList>> {
+impl TableListSelect<Expr<'_, Pragma, TableList>> {
     field! {schema: String}
     field! {name: String}
     field! {r#type("type"): String}
@@ -87,64 +87,64 @@ impl TableListDummy<Expr<'_, Pragma, TableList>> {
     field! {strict: i64}
 }
 
-table! {TableList, TableListDummy, _ => "pragma_table_list".to_owned()}
+table! {TableList, TableListSelect, _ => "pragma_table_list".to_owned()}
 
 struct TableInfo(pub String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-struct TableInfoDummy<T>(T);
+struct TableInfoSelect<T>(T);
 
-impl TableInfoDummy<Expr<'_, Pragma, TableInfo>> {
+impl TableInfoSelect<Expr<'_, Pragma, TableInfo>> {
     field! {name: String}
     field! {r#type("type"): String}
     field! {notnull: i64}
     field! {pk: i64}
 }
 
-table! {TableInfo, TableInfoDummy, val => format!("pragma_table_info('{}', 'main')", val.0)}
+table! {TableInfo, TableInfoSelect, val => format!("pragma_table_info('{}', 'main')", val.0)}
 
 struct ForeignKeyList(pub String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-struct ForeignKeyListDummy<T>(T);
+struct ForeignKeyListSelect<T>(T);
 
 #[allow(unused)]
-impl ForeignKeyListDummy<Expr<'_, Pragma, ForeignKeyList>> {
+impl ForeignKeyListSelect<Expr<'_, Pragma, ForeignKeyList>> {
     field! {table: String}
     field! {from: String}
     field! {to: String}
 }
 
-table! {ForeignKeyList, ForeignKeyListDummy, val => format!("pragma_foreign_key_list('{}', 'main')", val.0)}
+table! {ForeignKeyList, ForeignKeyListSelect, val => format!("pragma_foreign_key_list('{}', 'main')", val.0)}
 
 struct IndexList(String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-struct IndexListDummy<T>(T);
+struct IndexListSelect<T>(T);
 
-impl IndexListDummy<Expr<'_, Pragma, IndexList>> {
+impl IndexListSelect<Expr<'_, Pragma, IndexList>> {
     field! {name: String}
     field! {unique: bool}
     field! {origin: String}
     field! {partial: bool}
 }
 
-table! {IndexList, IndexListDummy, val => format!("pragma_index_list('{}', 'main')", val.0)}
+table! {IndexList, IndexListSelect, val => format!("pragma_index_list('{}', 'main')", val.0)}
 
 struct IndexInfo(String);
 
 #[repr(transparent)]
 #[derive(RefCast)]
-struct IndexInfoDummy<T>(T);
+struct IndexInfoSelect<T>(T);
 
-impl IndexInfoDummy<Expr<'_, Pragma, IndexInfo>> {
+impl IndexInfoSelect<Expr<'_, Pragma, IndexInfo>> {
     field! {name: Option<String>}
 }
 
-table! {IndexInfo, IndexInfoDummy, val => format!("pragma_index_info('{}', 'main')", val.0)}
+table! {IndexInfo, IndexInfoSelect, val => format!("pragma_index_info('{}', 'main')", val.0)}
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     #[derive(Clone, FromExpr)]

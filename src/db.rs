@@ -174,7 +174,7 @@ mod tests {
     struct Admin;
 
     impl Table for Admin {
-        type Ext<T> = AdminDummy<T>;
+        type Ext<T> = AdminSelect<T>;
 
         type Schema = ();
         type Referer = ();
@@ -208,9 +208,9 @@ mod tests {
 
     #[repr(transparent)]
     #[derive(RefCast)]
-    struct AdminDummy<X>(X);
+    struct AdminSelect<X>(X);
 
-    impl<X: Clone> AdminDummy<X> {
+    impl<X: Clone> AdminSelect<X> {
         fn a(&self) -> Col<Admin, X> {
             Col::new("a", self.0.clone())
         }

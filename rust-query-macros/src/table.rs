@@ -181,7 +181,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
                 #(f.col(#col_str, &self.#col_ident);)*
             }
-            fn get_conflict_unchecked(&self) -> ::rust_query::Dummy<'t, 't, Self::Schema, Option<Self::Conflict>>
+            fn get_conflict_unchecked(&self) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict>>
             {
                 #conflict_dummy_insert
             }
@@ -233,7 +233,7 @@ impl Table {
                 quote! {::std::convert::Infallible},
                 quote! {{
                     let x = ::rust_query::IntoExpr::into_expr(&0i64);
-                    ::rust_query::IntoDummyExt::map_dummy(x, |_| unreachable!())
+                    ::rust_query::IntoSelectExt::map_dummy(x, |_| unreachable!())
                 }},
             ),
             [unique] => {
@@ -258,7 +258,7 @@ impl Table {
                 quote! {()},
                 quote! {{
                     let x = ::rust_query::IntoExpr::into_expr(&0i64);
-                    ::rust_query::IntoDummyExt::map_dummy(x, |_| Some(()))
+                    ::rust_query::IntoSelectExt::map_dummy(x, |_| Some(()))
                 }},
             ),
         }

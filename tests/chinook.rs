@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use chinook_schema::*;
 use expect_test::expect_file;
 use rust_query::{
-    Dummy, Expr, IntoExpr, IntoDummyExt, LocalClient, Table, TableRow, Transaction, Update,
+    Select, Expr, IntoExpr, IntoSelectExt, LocalClient, Table, TableRow, Transaction, Update,
     aggregate,
 };
 
@@ -68,7 +68,7 @@ fn test_queries() {
     assert!(db.try_delete(id).unwrap());
 }
 
-#[derive(Debug, Dummy, PartialEq)]
+#[derive(Debug, Select, PartialEq)]
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
@@ -78,7 +78,7 @@ struct InvoiceInfo<'a> {
 fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
     db.query(|rows| {
         let ivl = InvoiceLine::join(rows);
-        rows.into_vec(InvoiceInfoDummy {
+        rows.into_vec(InvoiceInfoSelect {
             track: ivl.track().name(),
             artist: ivl.track().album().artist().name(),
             ivl_id: ivl,
@@ -86,7 +86,7 @@ fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
     })
 }
 
-#[derive(Debug, Dummy, PartialEq)]
+#[derive(Debug, Select, PartialEq)]
 struct PlaylistTrackCount {
     playlist: String,
     track_count: i64,
@@ -101,7 +101,7 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
             rows.count_distinct(plt)
         });
 
-        rows.into_vec(PlaylistTrackCountDummy {
+        rows.into_vec(PlaylistTrackCountSelect {
             playlist: pl.name(),
             track_count,
         })
@@ -149,14 +149,14 @@ fn list_all_genres(db: &Transaction<Schema>) -> Vec<String> {
     })
 }
 
-#[derive(Debug, Dummy, PartialEq)]
+#[derive(Debug, Select, PartialEq)]
 struct FilteredTrack {
     track_name: String,
     album_name: String,
     stats: Stats,
 }
 
-#[derive(Debug, Dummy, PartialEq)]
+#[derive(Debug, Select, PartialEq)]
 struct Stats {
     milis: i64,
 }
@@ -166,17 +166,17 @@ fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<
         let track = Track::join(rows);
         rows.filter(track.genre().name().eq(genre));
         rows.filter(track.milliseconds().lt(max_milis));
-        rows.into_vec(FilteredTrackDummy {
+        rows.into_vec(FilteredTrackSelect {
             track_name: track.name(),
             album_name: track.album().title(),
-            stats: StatsDummy {
+            stats: StatsSelect {
                 milis: track.milliseconds(),
             },
         })
     })
 }
 
-#[derive(Debug, Dummy, PartialEq)]
+#[derive(Debug, Select, PartialEq)]
 struct GenreStats {
     genre_name: String,
     byte_average: f64,
@@ -194,7 +194,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
                 rows.avg(track.milliseconds().as_float()),
             )
         });
-        rows.into_vec(GenreStatsDummy {
+        rows.into_vec(GenreStatsSelect {
             genre_name: genre.name(),
             byte_average: bytes.map_dummy(|x| x.unwrap()),
             milis_average: milis.map_dummy(|x| x.unwrap()),
@@ -202,7 +202,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
     })
 }
 
-#[derive(Debug, Dummy, PartialEq)]
+#[derive(Debug, Select, PartialEq)]
 struct CustomerSpending {
     customer_name: String,
     total_spending: f64,
@@ -213,7 +213,7 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
         let customer = Customer::join(rows);
         let total = customer_spending(&customer);
 
-        rows.into_vec(CustomerSpendingDummy {
+        rows.into_vec(CustomerSpendingSelect {
             customer_name: customer.last_name(),
             total_spending: total,
         })
@@ -246,14 +246,14 @@ fn free_reference(db: &Transaction<Schema>) {
     }
 }
 
-#[derive(Dummy)]
+#[derive(Select)]
 struct TrackStats {
     avg_len_milis: Option<f64>,
     max_len_milis: Option<i64>,
     genre_count: i64,
 }
 
-#[derive(Dummy)]
+#[derive(Select)]
 struct ArtistDetails {
     name: String,
     album_count: i64,
@@ -261,7 +261,7 @@ struct ArtistDetails {
 }
 
 fn artist_details<'a>(db: &Transaction<'a, Schema>, artist: TableRow<'a, Artist>) -> ArtistDetails {
-    db.query_one(ArtistDetailsDummy {
+    db.query_one(ArtistDetailsSelect {
         name: artist.name(),
         album_count: aggregate(|rows| {
             let album = Album::join(rows);
@@ -271,7 +271,7 @@ fn artist_details<'a>(db: &Transaction<'a, Schema>, artist: TableRow<'a, Artist>
         track_stats: aggregate(|rows| {
             let track = Track::join(rows);
             rows.filter_on(track.album().artist(), artist);
-            TrackStatsDummy {
+            TrackStatsSelect {
                 avg_len_milis: rows.avg(track.milliseconds().as_float()),
                 max_len_milis: rows.max(track.milliseconds()),
                 genre_count: rows.count_distinct(track.genre()),

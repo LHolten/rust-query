@@ -9,7 +9,7 @@ use ref_cast::RefCast;
 use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
 
 use crate::{
-    Dummy, IntoDummy, Table,
+    IntoSelect, Select, Table,
     alias::{Field, MyAlias, RawAlias},
     ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
@@ -518,8 +518,8 @@ pub fn new_column<'x, S, T>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T
 
 pub fn new_dummy<'x, S, T: MyTyp>(
     val: impl Typed<Typ = T> + 'static,
-) -> Dummy<'x, 'x, S, T::Out<'x>> {
-    IntoDummy::into_dummy(Expr::new(val))
+) -> Select<'x, 'x, S, T::Out<'x>> {
+    IntoSelect::into_dummy(Expr::new(val))
 }
 
 pub fn into_owned<'x, S, T>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {

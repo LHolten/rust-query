@@ -58,7 +58,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         original_generics,
         fields,
     } = CommonInfo::from_item(item)?;
-    let dummy_name = format_ident!("{name}Dummy");
+    let dummy_name = format_ident!("{name}Select");
 
     let mut original_plus_transaction = original_generics.clone();
     let builtin_lt = syn::Lifetime::new("'_a", Span::mixed_site());
@@ -78,7 +78,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
         defs.push(quote! {#name: #generic});
         constraints
-            .push(quote! {#generic: ::rust_query::IntoDummy<'_t, #transaction_lt, S, Out = #typ>});
+            .push(quote! {#generic: ::rust_query::IntoSelect<'_t, #transaction_lt, S, Out = #typ>});
         generics.push(quote! {#generic});
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
@@ -93,12 +93,12 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             #(#defs),*
         }
 
-        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoDummy<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*>
+        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoSelect<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*>
         where #name<#(#original_generics),*>: #transaction_lt {
             type Out = (#name<#(#original_generics),*>);
 
-            fn into_dummy(self) -> ::rust_query::Dummy<'_t, #transaction_lt, S, Self::Out> {
-                ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {
+            fn into_dummy(self) -> ::rust_query::Select<'_t, #transaction_lt, S, Self::Out> {
+                ::rust_query::IntoSelectExt::map_dummy(#parts_dummies, |#parts_name| #name {
                     #(#names,)*
                 })
             }
@@ -165,9 +165,9 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_plus_transaction),*> ::rust_query::FromExpr<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Dummy<'_t, #transaction_lt, #schema, Self> {
+                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, #transaction_lt, #schema, Self> {
                     let col = ::rust_query::IntoExpr::into_expr(col);
-                    ::rust_query::IntoDummyExt::map_dummy(#parts_dummies, |#parts_name| #name {
+                    ::rust_query::IntoSelectExt::map_dummy(#parts_dummies, |#parts_name| #name {
                         #(#names,)*
                     })
                 }
