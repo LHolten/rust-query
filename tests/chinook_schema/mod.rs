@@ -131,19 +131,19 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(|txn| {
-        for name in txn.query(|rows| {
+    let m = m.migrate(|old, new| {
+        for name in old.query(|rows| {
             let genre = v0::Genre::join(rows);
             rows.into_vec(genre.name())
         }) {
-            txn.try_insert_migrated(v1::update::GenreNewMigration { name })
+            old.try_insert_migrated(v1::update::GenreNewMigration { name })
                 .unwrap();
         }
 
         v1::update::Schema {}
     });
 
-    let m = m.migrate(|_| v2::update::Schema {
+    let m = m.migrate(|old, new| v2::update::Schema {
         customer: Box::new(|customer| {
             v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D

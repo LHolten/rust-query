@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap, marker::PhantomData, ops::Deref, path::Path, sync::atomic::AtomicBool,
+    collections::HashMap, convert::Infallible, marker::PhantomData, ops::Deref, path::Path, rc::Rc,
+    sync::atomic::AtomicBool,
 };
 
 use rusqlite::{Connection, config::DbConfig};
@@ -10,7 +11,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Expr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction,
+    Expr, IntoExpr, IntoSelect, IntoSelectExt, Select, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -134,10 +135,10 @@ where
 pub struct SchemaBuilder<'t> {
     // this is used to create temporary table names
     scope: Scope,
-    create: HashMap<&'static str, TmpTable>,
-    conn: rusqlite::Transaction<'t>,
+    conn: Rc<rusqlite::Transaction<'t>>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
+    foreign_key: HashMap<&'static str, Box<dyn FnOnce() -> Infallible>>,
     _p: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
@@ -148,7 +149,7 @@ impl<'t> SchemaBuilder<'t> {
     ) where
         M: TableMigration<'t, 't, To: Table>,
     {
-        let new_table_name = self.create_inner::<M::To>();
+        let new_table_name = self.create_empty::<M::To>();
 
         let mut q = Rows::<<M::From as Table>::Schema> {
             phantom: PhantomData,
@@ -213,12 +214,25 @@ impl<'t> SchemaBuilder<'t> {
         );
     }
 
-    pub fn create_empty<To: Table>(&mut self) {
-        let new_table_name = self.create_inner::<To>();
-        self.create.insert(To::NAME, new_table_name);
+    pub fn get_migrate_list<'x, From: Table, To: Table>(&mut self) -> Vec<Entry<'x, 't, From, To>> {
+        let name = self.create_empty::<To>();
+        let raw_txn = self.conn.clone();
+        Transaction::new(self.conn.clone()).query(move |rows| {
+            let x = From::join(rows);
+            rows.into_vec(x.map_select(move |row| Entry {
+                _p: PhantomData,
+                row,
+                txn: raw_txn.clone(),
+                table: name,
+            }))
+        })
     }
 
-    fn create_inner<To: Table>(&mut self) -> TmpTable {
+    pub fn foreign_key<To: Table>(&mut self, err: Box<dyn FnOnce() -> Infallible>) {
+        self.foreign_key.insert(To::NAME, err);
+    }
+
+    fn create_empty<To: Table>(&mut self) -> TmpTable {
         let new_table_name = self.scope.tmp_table();
         new_table::<To>(&self.conn, new_table_name);
 
@@ -256,9 +270,10 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
 pub trait Migration<'a> {
     type From: Schema;
     type To: Schema;
+    type Args<'x>;
 
     fn tables(self, b: &mut SchemaBuilder<'a>);
-    fn new_tables(b: &mut SchemaBuilder<'a>);
+    fn new_tables<'x>(b: &mut SchemaBuilder<'a>) -> Self::Args<'x>;
 }
 
 /// [Config] is used to open a database from a file or in memory.
@@ -336,6 +351,7 @@ impl LocalClient {
         let conn = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
             .unwrap();
+        let conn = Rc::new(conn);
 
         // check if this database is newly created
         if schema_version(&conn) == 0 {
@@ -354,7 +370,11 @@ impl LocalClient {
         if user_version < S::VERSION {
             return None;
         } else if user_version == S::VERSION {
-            foreign_key_check::<S>(&conn);
+            assert_eq!(
+                foreign_key_check::<S>(&conn),
+                None,
+                "foreign key constraint violated"
+            );
         }
 
         Some(Migrator {
@@ -373,7 +393,7 @@ impl LocalClient {
 /// [Migrator::finish].
 pub struct Migrator<'t, S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    transaction: rusqlite::Transaction<'t>,
+    transaction: Rc<rusqlite::Transaction<'t>>,
     _p0: PhantomData<fn(&'t ()) -> &'t ()>,
     _p: PhantomData<S>,
     // We want to make sure that Migrator is always used with the same LocalClient
@@ -382,29 +402,28 @@ pub struct Migrator<'t, S> {
     _local: PhantomData<LocalClient>,
 }
 
-// DO NOT allow deletes in migrations, as foreign key checks are disabled!
-pub struct TransactionMigrate<'t, Old, New> {
-    inner: Transaction<'t, Old>,
-    create: HashMap<&'static str, TmpTable>,
-
-    _p0: PhantomData<New>,
+pub struct Entry<'x, 't, OldT, T> {
+    _p: PhantomData<(fn(&'t ()) -> &'t (), T, &'x ())>,
+    row: TableRow<'t, OldT>,
+    txn: Rc<rusqlite::Transaction<'t>>,
+    table: TmpTable,
 }
 
-impl<'t, Old, New> Deref for TransactionMigrate<'t, Old, New> {
-    type Target = Transaction<'t, Old>;
+impl<'t, OldT, T> Deref for Entry<'_, 't, OldT, T> {
+    type Target = TableRow<'t, OldT>;
 
     fn deref(&self) -> &Self::Target {
-        Transaction::ref_cast(&self.inner.transaction)
+        &self.row
     }
 }
 
-impl<'t, Old: Schema, New: Schema> TransactionMigrate<'t, Old, New> {
-    pub fn try_insert_migrated<T: Table<Schema = New>>(
-        &mut self,
-        val: impl TableCreation<'t, FromSchema = Old, T = T, Conflict = T::Conflict<'t>>,
+impl<'t, OldT: Table, T: Table> Entry<'_, 't, OldT, T> {
+    pub fn try_insert(
+        self,
+        val: impl TableCreation<'t, FromSchema = OldT::Schema, T = T, Conflict = T::Conflict<'t>>,
     ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-        let table = self.create[T::NAME];
-        try_insert_private(&self.transaction, table.into_table_ref(), Wrapper(val))
+        // TODO: preserve the row id here
+        try_insert_private(&self.txn, self.table.into_table_ref(), Wrapper(val))
     }
 }
 
@@ -413,8 +432,8 @@ impl<'t, S: Schema> Migrator<'t, S> {
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<New: Schema, M>(
-        mut self,
-        m: impl FnOnce(&mut TransactionMigrate<'t, S, New>) -> M,
+        self,
+        m: impl FnOnce(&Transaction<'t, S>, M::Args<'_>) -> M,
     ) -> Migrator<'t, New>
     where
         M: Migration<'t, From = S, To = New>,
@@ -422,32 +441,18 @@ impl<'t, S: Schema> Migrator<'t, S> {
         if user_version(&self.transaction).unwrap() == S::VERSION {
             let mut builder = SchemaBuilder {
                 scope: Default::default(),
-                create: HashMap::new(),
-                conn: self.transaction,
+                conn: self.transaction.clone(),
                 drop: vec![],
                 rename: vec![],
+                foreign_key: HashMap::new(),
                 _p: PhantomData,
             };
 
-            M::new_tables(&mut builder);
+            let args = M::new_tables(&mut builder);
 
-            let mut migrate = TransactionMigrate {
-                inner: Transaction {
-                    transaction: builder.conn,
-                    _p: PhantomData,
-                    _p2: PhantomData,
-                    _local: PhantomData,
-                },
-                create: builder.create,
-                _p0: PhantomData,
-            };
+            let m = m(&Transaction::new(self.transaction.clone()), args);
 
-            let m = m(&mut migrate);
-
-            builder.conn = migrate.inner.transaction;
-            builder.create = migrate.create;
             m.tables(&mut builder);
-            self.transaction = builder.conn;
 
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
@@ -457,7 +462,9 @@ impl<'t, S: Schema> Migrator<'t, S> {
                 let sql = rename.to_string(SqliteQueryBuilder);
                 self.transaction.execute(&sql, []).unwrap();
             }
-            foreign_key_check::<New>(&self.transaction);
+            if let Some(fk) = foreign_key_check::<New>(&self.transaction) {
+                (builder.foreign_key.remove(&*fk).unwrap())();
+            }
             set_user_version(&self.transaction, New::VERSION).unwrap();
         }
 
@@ -480,7 +487,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
         }
 
         let schema_version = schema_version(conn);
-        self.transaction.commit().unwrap();
+        Rc::into_inner(self.transaction).unwrap().commit().unwrap();
 
         Some(Database {
             manager: self.manager,
@@ -505,22 +512,23 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-fn foreign_key_check<S: Schema>(conn: &rusqlite::Transaction) {
-    let errors = conn
+fn foreign_key_check<S: Schema>(conn: &Rc<rusqlite::Transaction>) -> Option<String> {
+    let error = conn
         .prepare("PRAGMA foreign_key_check")
         .unwrap()
-        .query_map([], |_| Ok(()))
+        .query_map([], |row| row.get(2))
         .unwrap()
-        .count();
-    if errors != 0 {
-        panic!("migration violated foreign key constraint")
+        .next();
+    if let Some(error) = error {
+        return Some(error.unwrap());
     }
 
     let mut b = TableTypBuilder::default();
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
         b.ast,
-        read_schema(crate::Transaction::ref_cast(conn)),
+        read_schema(&crate::Transaction::new(conn.clone())),
         "schema is different (expected left, but got right)",
     );
+    return None;
 }

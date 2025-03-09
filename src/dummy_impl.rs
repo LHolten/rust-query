@@ -151,7 +151,7 @@ pub trait IntoSelect<'columns, 'transaction, S>: Sized {
 pub trait IntoSelectExt<'columns, 'transaction, S>: IntoSelect<'columns, 'transaction, S> {
     /// Map the result of a [Select] using native rust.
     ///
-    /// This is useful when retrieving structs from the database that contain types not supported by the database.
+    /// This is useful when retrieving custom types from the database.
     /// It is also useful in migrations to process rows using arbitrary rust.
     fn map_select<T>(
         self,
@@ -176,7 +176,7 @@ where
 
 /// This is the result of the [Select::map_select] method.
 ///
-/// [MapImpl] retrieves the same columns as the dummy that it wraps,
+/// [MapImpl] retrieves the same columns as the [Select] that it wraps,
 /// but then it processes those columns using a rust closure.
 pub struct MapImpl<D, F> {
     dummy: D,

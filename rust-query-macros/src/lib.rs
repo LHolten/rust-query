@@ -539,7 +539,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let mut table_defs = vec![];
         let mut tables = vec![];
-        let mut create_tables = vec![];
+        let mut create_table_name = vec![];
+        let mut create_table_lower = vec![];
 
         let mut table_migrations = TokenStream::new();
 
@@ -569,8 +570,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
             } else {
-                create_tables.push(quote! {b.create_empty::<super::#table_name>()});
                 table_migrations.extend(define_table_creation(table));
+                create_table_name.push(table_name);
+                create_table_lower.push(table_lower);
             }
         }
         for prev_table in prev_tables.into_values() {
@@ -598,6 +600,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             let prelude = prelude(&new_tables, &prev_mod, schema);
 
             let lifetime = table_defs.is_empty().not().then_some(quote! {'t,});
+            let create_lt = create_table_name.is_empty().not().then_some(quote! {'x, 't,});
             quote! {
                 pub mod update {
                     #prelude
@@ -606,18 +609,27 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                     pub struct #schema<#lifetime> {
                         #(#table_defs,)*
+                        #(pub #create_table_lower: Box<dyn FnOnce() -> ::std::convert::Infallible>,)*
+                    }
+                    pub struct Args<#create_lt> {
+                        #(pub #create_table_lower: Vec<::rust_query::migration::Entry<'x, 't, #create_table_name, super::#create_table_name>>,)*
                     }
 
                     impl<'t> ::rust_query::private::Migration<'t> for #schema<#lifetime> {
                         type From = _PrevSchema;
                         type To = super::#schema;
+                        type Args<'x> = Args<#create_lt>;
 
                         fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#tables;)*
+                            #(b.foreign_key::<super::#create_table_name>(self.#create_table_lower);)*
                         }
 
-                        fn new_tables(b: &mut ::rust_query::private::SchemaBuilder<'t>) {
-                            #(#create_tables;)*
+                        fn new_tables<'x>(_b: &mut ::rust_query::private::SchemaBuilder<'t>) -> Self::Args<'x> {
+                            #(let #create_table_lower = _b.get_migrate_list::<#create_table_name, super::#create_table_name>();)*
+                            Args {
+                                #(#create_table_lower,)*
+                            }
                         }
                     }
                 }

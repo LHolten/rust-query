@@ -1,6 +1,5 @@
-use std::{convert::Infallible, marker::PhantomData, ops::Deref};
+use std::{convert::Infallible, marker::PhantomData, ops::Deref, rc::Rc};
 
-use ref_cast::{RefCastCustom, ref_cast_custom};
 use rusqlite::ErrorCode;
 use sea_query::{
     Alias, CommonTableExpression, DeleteStatement, Expr, InsertStatement, IntoTableRef,
@@ -9,7 +8,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    IntoSelect, IntoExpr, Table, TableRow, ast::MySelect, client::LocalClient,
+    IntoExpr, IntoSelect, Table, TableRow, ast::MySelect, client::LocalClient,
     migrate::schema_version, query::Query, rows::Rows, value::SecretFromSql, writable::TableInsert,
 };
 
@@ -57,18 +56,22 @@ impl<S> Database<S> {
 ///
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
-#[derive(RefCastCustom)]
-#[repr(transparent)]
 pub struct Transaction<'t, S> {
-    pub(crate) transaction: rusqlite::Transaction<'t>,
+    pub(crate) transaction: Rc<rusqlite::Transaction<'t>>,
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
 
 impl<'t, S> Transaction<'t, S> {
-    #[ref_cast_custom]
-    pub(crate) fn ref_cast<'x>(raw: &'x rusqlite::Transaction<'t>) -> &'x Self;
+    pub(crate) fn new(raw: Rc<rusqlite::Transaction<'t>>) -> Self {
+        Self {
+            transaction: raw,
+            _p: PhantomData,
+            _p2: PhantomData,
+            _local: PhantomData,
+        }
+    }
 }
 
 /// Same as [Transaction], but allows inserting new rows.
@@ -96,12 +99,7 @@ impl<'t, S> Transaction<'t, S> {
             panic!("The database schema was updated unexpectedly")
         }
 
-        Transaction {
-            transaction: txn,
-            _p: PhantomData,
-            _p2: PhantomData,
-            _local: PhantomData,
-        }
+        Self::new(Rc::new(txn))
     }
 
     /// Execute a query with multiple results.
@@ -274,7 +272,10 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
     pub fn commit(self) {
-        self.inner.transaction.commit().unwrap();
+        Rc::into_inner(self.inner.transaction)
+            .unwrap()
+            .commit()
+            .unwrap();
     }
 
     pub fn downgrade(self) -> TransactionWeak<'t, S> {
@@ -356,7 +357,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
 }
 
 pub fn try_insert_private<'t, T: Table>(
-    transaction: &rusqlite::Transaction<'t>,
+    transaction: &Rc<rusqlite::Transaction<'t>>,
     table: sea_query::TableRef,
     val: impl TableInsert<'t, T = T, Conflict = T::Conflict<'t>>,
 ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
@@ -388,7 +389,7 @@ pub fn try_insert_private<'t, T: Table>(
         {
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
             let conflict =
-                Transaction::ref_cast(transaction).query_one(val.get_conflict_unchecked());
+                Transaction::new(transaction.clone()).query_one(val.get_conflict_unchecked());
             Err(conflict.unwrap())
         }
         Err(err) => Err(err).unwrap(),
