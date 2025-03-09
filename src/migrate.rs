@@ -105,7 +105,7 @@ pub trait TableCreation<'t> {
     fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict>>;
 }
 
-pub struct Wrapper<X>(X);
+pub struct Wrapper<X>(X, i64);
 impl<'t, X> TableInsert<'t> for Wrapper<X>
 where
     X: TableCreation<'t>,
@@ -120,6 +120,7 @@ where
             _p: PhantomData,
             _p2: PhantomData,
         });
+        f.col(Self::T::ID, self.1);
     }
 
     fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
@@ -426,8 +427,11 @@ impl<'t, OldT: Table, T: Table> Entry<'_, 't, OldT, T> {
         self,
         val: impl TableCreation<'t, FromSchema = OldT::Schema, T = T, Conflict = T::Conflict<'t>>,
     ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-        // TODO: preserve the row id here
-        try_insert_private(&self.txn, self.table.into_table_ref(), Wrapper(val))
+        try_insert_private(
+            &self.txn,
+            self.table.into_table_ref(),
+            Wrapper(val, self.row.inner.idx),
+        )
     }
 }
 
