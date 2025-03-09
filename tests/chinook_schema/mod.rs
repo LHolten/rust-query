@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database, IntoSelect, IntoSelectExt, LocalClient, Table, TableRow,
+    Database, IntoSelect, IntoSelectExt, LocalClient, TableRow,
     migration::{Config, schema},
 };
 
@@ -62,6 +62,7 @@ enum Schema {
         name: String,
     },
     #[version(1..)]
+    #[from(Genre)]
     GenreNew {
         name: String,
         #[version(2..)]
@@ -131,19 +132,19 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(|old, new| {
-        for name in old.query(|rows| {
-            let genre = v0::Genre::join(rows);
-            rows.into_vec(genre.name())
-        }) {
-            old.try_insert_migrated(v1::update::GenreNewMigration { name })
+    let m = m.migrate(|old, new: v1::update::Args| {
+        for item in new.genre_new {
+            let name = old.query_one(item.name());
+            item.try_insert(v1::update::GenreNewMigration { name })
                 .unwrap();
         }
 
-        v1::update::Schema {}
+        v1::update::Schema {
+            genre_new: Box::new(|| panic!()),
+        }
     });
 
-    let m = m.migrate(|old, new| v2::update::Schema {
+    let m = m.migrate(|_old, _new| v2::update::Schema {
         customer: Box::new(|customer| {
             v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D

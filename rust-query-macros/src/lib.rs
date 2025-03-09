@@ -467,6 +467,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             let mut other_attrs = vec![];
             let mut uniques = vec![];
             let mut referer = true;
+            let mut prev = None;
+
             for attr in &table.attrs {
                 if let Some(unique) = is_unique(attr.path()) {
                     let idents = attr.parse_args_with(
@@ -477,20 +479,25 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         columns: idents.into_iter().collect(),
                     })
                 } else if attr.path().is_ident("no_reference") {
-                    // `no_reference` only applies to the last version of the schema.
-                    if version + 1 == range_end {
-                        referer = false;
-                    }
+                    referer = false;
+                } else if attr.path().is_ident("from") {
+                    prev = Some(attr.parse_args()?)
                 } else {
                     other_attrs.push(attr.clone());
                 }
+            }
+
+            if !referer && prev.is_some() {
+                return Err(syn::Error::new_spanned(
+                    prev,
+                    "can not use `no_reference` and `prev` together",
+                ));
             }
 
             let range = parse_version(&other_attrs)?;
             if !range.includes(version) {
                 continue;
             }
-            let mut prev = None;
             // if this is not the first schema version where this table exists
             if version != range.start {
                 // the previous name of this table is the current name
@@ -569,10 +576,12 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     >
                 });
                 tables.push(quote! {b.migrate_table(self.#table_lower)});
-            } else {
+            } else if table.prev.is_some() {
                 table_migrations.extend(define_table_creation(table));
                 create_table_name.push(table_name);
                 create_table_lower.push(table_lower);
+            } else {
+                tables.push(quote! {b.create_empty::<super::#table_name>()})
             }
         }
         for prev_table in prev_tables.into_values() {

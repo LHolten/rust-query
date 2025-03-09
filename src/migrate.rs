@@ -149,7 +149,7 @@ impl<'t> SchemaBuilder<'t> {
     ) where
         M: TableMigration<'t, 't, To: Table>,
     {
-        let new_table_name = self.create_empty::<M::To>();
+        let new_table_name = self.create_empty_inner::<M::To>();
 
         let mut q = Rows::<<M::From as Table>::Schema> {
             phantom: PhantomData,
@@ -215,7 +215,7 @@ impl<'t> SchemaBuilder<'t> {
     }
 
     pub fn get_migrate_list<'x, From: Table, To: Table>(&mut self) -> Vec<Entry<'x, 't, From, To>> {
-        let name = self.create_empty::<To>();
+        let name = self.create_empty_inner::<To>();
         let raw_txn = self.conn.clone();
         Transaction::new(self.conn.clone()).query(move |rows| {
             let x = From::join(rows);
@@ -232,7 +232,11 @@ impl<'t> SchemaBuilder<'t> {
         self.foreign_key.insert(To::NAME, err);
     }
 
-    fn create_empty<To: Table>(&mut self) -> TmpTable {
+    pub fn create_empty<To: Table>(&mut self) {
+        self.create_empty_inner::<To>();
+    }
+
+    fn create_empty_inner<To: Table>(&mut self) -> TmpTable {
         let new_table_name = self.scope.tmp_table();
         new_table::<To>(&self.conn, new_table_name);
 

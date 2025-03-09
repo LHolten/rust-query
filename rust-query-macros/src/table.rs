@@ -89,7 +89,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
     let mut safe_default = None;
     if !table.uniques.is_empty() {
         safe_default = Some(quote! {
-            impl<'t> Default for <#table_ident as ::rust_query::Table>::Update<'t> {
+            impl<'t> Default for #table_ident<#(#update_columns_safe),*> {
                 fn default() -> Self {
                     Self {#(
                         #col_ident: Default::default(),
@@ -124,7 +124,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
             pub #col_ident: #generic,
         )*}
 
-        impl<'t> Default for <#table_ident as ::rust_query::Table>::TryUpdate<'t> {
+        impl<'t> Default for #table_ident<#(::rust_query::Update<'t, #schema, #col_typ>),*> {
             fn default() -> Self {
                 Self {#(
                     #col_ident: Default::default(),
