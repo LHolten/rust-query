@@ -3,7 +3,7 @@ error[E0521]: borrowed data escapes outside of closure
    |
 18 |     let mut sneaky = None;
    |         ---------- `sneaky` declared here, outside of the closure body
-19 |     m.migrate(|_| v1::update::Schema {
+19 |     m.migrate(|_, _| v1::update::Schema {
 20 |         my_table: Box::new(|prev| {
    |                             ---- `prev` is a reference that is only valid in the closure body
 21 |             sneaky = Some(prev);

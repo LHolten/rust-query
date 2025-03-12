@@ -2,11 +2,15 @@ use std::{collections::BTreeMap, ops::Not};
 
 use dummy::{dummy_impl, from_expr};
 use heck::{ToSnekCase, ToUpperCamelCase};
+use multi::{SingleVersionColumn, SingleVersionTable, VersionedSchema};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, Attribute, Ident, ItemEnum, ItemStruct, Path, Token, Type};
+use syn::{Ident, ItemEnum, ItemStruct};
+use table::define_table;
 
 mod dummy;
+pub(crate) mod multi;
+mod parse;
 mod table;
 
 /// Use this macro to define your schema.
@@ -117,7 +121,7 @@ mod table;
 /// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
-///     let m = m.migrate(|_| v1::update::Schema {
+///     let m = m.migrate(|_, _| v1::update::Schema {
 ///         user: Box::new(|user| v1::update::UserMigration {
 ///             score: user.email().map_select(|x| x.len() as i64) // use the email length as the new score
 ///         }),
@@ -222,111 +226,6 @@ pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     .into()
 }
 
-#[derive(Clone)]
-struct Table {
-    referer: bool,
-    uniques: Vec<Unique>,
-    prev: Option<Ident>,
-    name: Ident,
-    columns: BTreeMap<usize, Column>,
-}
-
-#[derive(Clone)]
-struct Unique {
-    name: Ident,
-    columns: Vec<Ident>,
-}
-
-#[derive(Clone)]
-struct Column {
-    name: Ident,
-    typ: Type,
-}
-
-#[derive(Clone)]
-struct Range {
-    start: u32,
-    end: Option<RangeEnd>,
-}
-
-#[derive(Clone)]
-struct RangeEnd {
-    inclusive: bool,
-    num: u32,
-}
-
-impl RangeEnd {
-    pub fn end_exclusive(&self) -> u32 {
-        match self.inclusive {
-            true => self.num + 1,
-            false => self.num,
-        }
-    }
-}
-
-impl Range {
-    pub fn includes(&self, idx: u32) -> bool {
-        if idx < self.start {
-            return false;
-        }
-        if let Some(end) = &self.end {
-            return idx < end.end_exclusive();
-        }
-        true
-    }
-}
-
-impl syn::parse::Parse for Range {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let start: Option<syn::LitInt> = input.parse()?;
-        let _: Token![..] = input.parse()?;
-        let end: Option<RangeEnd> = input.is_empty().not().then(|| input.parse()).transpose()?;
-
-        let res = Range {
-            start: start
-                .map(|x| x.base10_parse())
-                .transpose()?
-                .unwrap_or_default(),
-            end,
-        };
-        Ok(res)
-    }
-}
-
-impl syn::parse::Parse for RangeEnd {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let equals: Option<Token![=]> = input.parse()?;
-        let end: syn::LitInt = input.parse()?;
-
-        let res = RangeEnd {
-            inclusive: equals.is_some(),
-            num: end.base10_parse()?,
-        };
-        Ok(res)
-    }
-}
-
-fn parse_version(attrs: &[Attribute]) -> syn::Result<Range> {
-    let mut version = None;
-    for attr in attrs {
-        if attr.path().is_ident("version") {
-            if version.is_some() {
-                return Err(syn::Error::new_spanned(
-                    attr,
-                    "There should be only one version attribute.",
-                ));
-            }
-            version = Some(attr.parse_args()?);
-        } else {
-            return Err(syn::Error::new_spanned(attr, "unexpected attribute"));
-        }
-    }
-    Ok(version.unwrap_or(Range {
-        start: 0,
-        end: None,
-    }))
-}
-
 fn make_generic(name: &Ident) -> Ident {
     let normalized = name.to_string().to_upper_camel_case();
     format_ident!("_{normalized}")
@@ -337,7 +236,7 @@ fn to_lower(name: &Ident) -> Ident {
     format_ident!("{normalized}")
 }
 
-impl Table {
+impl SingleVersionTable {
     pub fn migration_name(&self) -> Ident {
         let table_name = &self.name;
         format_ident!("{table_name}Migration")
@@ -346,8 +245,8 @@ impl Table {
 
 // prev_table is only used for the columns
 fn define_table_migration(
-    prev_columns: &BTreeMap<usize, Column>,
-    table: &Table,
+    prev_columns: &BTreeMap<usize, SingleVersionColumn>,
+    table: &SingleVersionTable,
 ) -> syn::Result<Option<TokenStream>> {
     let mut col_new = vec![];
     let mut col_str = vec![];
@@ -407,7 +306,7 @@ Please re-create the table with the new unique constraints and use the migration
     Ok(Some(migration))
 }
 
-fn define_table_creation(table: &Table) -> TokenStream {
+fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
     let mut col_str = vec![];
     let mut col_ident = vec![];
     let mut col_typ = vec![];
@@ -442,108 +341,22 @@ fn define_table_creation(table: &Table) -> TokenStream {
     }
 }
 
-fn is_unique(path: &Path) -> Option<Ident> {
-    path.get_ident().and_then(|ident| {
-        ident
-            .to_string()
-            .starts_with("unique")
-            .then(|| ident.clone())
-    })
-}
-
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
-    let range = parse_version(&item.attrs)?;
-    let schema = &item.ident;
+    let schema_name = item.ident.clone();
+    let schema = VersionedSchema::parse(item)?;
 
     let mut output = TokenStream::new();
-    let mut prev_tables: BTreeMap<usize, Table> = BTreeMap::new();
+    let mut prev_tables: BTreeMap<usize, SingleVersionTable> = BTreeMap::new();
     let mut prev_mod = None;
-    let range_end = range.end.map(|x| x.end_exclusive()).unwrap_or(1);
-    for version in range.start..range_end {
-        let mut new_tables: BTreeMap<usize, Table> = BTreeMap::new();
+    for version in schema.versions.clone() {
+        let new_tables = schema.get(version)?;
 
         let mut mod_output = TokenStream::new();
-        for (i, table) in item.variants.iter().enumerate() {
-            let mut other_attrs = vec![];
-            let mut uniques = vec![];
-            let mut referer = true;
-            let mut prev = None;
-
-            for attr in &table.attrs {
-                if let Some(unique) = is_unique(attr.path()) {
-                    let idents = attr.parse_args_with(
-                        Punctuated::<Ident, Token![,]>::parse_separated_nonempty,
-                    )?;
-                    uniques.push(Unique {
-                        name: unique,
-                        columns: idents.into_iter().collect(),
-                    })
-                } else if attr.path().is_ident("no_reference") {
-                    referer = false;
-                } else if attr.path().is_ident("from") {
-                    prev = Some(attr.parse_args()?)
-                } else {
-                    other_attrs.push(attr.clone());
-                }
-            }
-
-            if !referer && prev.is_some() {
-                return Err(syn::Error::new_spanned(
-                    prev,
-                    "can not use `no_reference` and `prev` together",
-                ));
-            }
-
-            let range = parse_version(&other_attrs)?;
-            if !range.includes(version) {
-                continue;
-            }
-            // if this is not the first schema version where this table exists
-            if version != range.start {
-                // the previous name of this table is the current name
-                prev = Some(table.ident.clone());
-            }
-
-            let mut columns = BTreeMap::new();
-            for (i, field) in table.fields.iter().enumerate() {
-                let Some(name) = field.ident.clone() else {
-                    return Err(syn::Error::new_spanned(
-                        field,
-                        "Expected table columns to be named.",
-                    ));
-                };
-                // not sure if case matters here
-                if name.to_string().to_lowercase() == "id" {
-                    return Err(syn::Error::new_spanned(
-                        name,
-                        "The `id` column is reserved to be used by rust-query internally.",
-                    ));
-                }
-                let range = parse_version(&field.attrs)?;
-                if !range.includes(version) {
-                    continue;
-                }
-                let col = Column {
-                    name,
-                    typ: field.ty.clone(),
-                };
-                columns.insert(i, col);
-            }
-
-            let table = Table {
-                referer,
-                prev,
-                name: table.ident.clone(),
-                columns,
-                uniques,
-            };
-
-            mod_output.extend(table::define_table(&table, schema)?);
-            new_tables.insert(i, table);
+        for table in new_tables.values() {
+            mod_output.extend(define_table(table, &schema_name));
         }
 
         let mut schema_table_typs = vec![];
-
         let mut table_defs = vec![];
         let mut tables = vec![];
         let mut create_table_name = vec![];
@@ -593,8 +406,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let version_i64 = version as i64;
         mod_output.extend(quote! {
-            pub struct #schema;
-            impl ::rust_query::private::Schema for #schema {
+            pub struct #schema_name;
+            impl ::rust_query::private::Schema for #schema_name {
                 const VERSION: i64 = #version_i64;
 
                 fn typs(b: &mut ::rust_query::private::TableTypBuilder<Self>) {
@@ -606,7 +419,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let new_mod = format_ident!("v{version}");
 
         let migrations = prev_mod.map(|prev_mod| {
-            let prelude = prelude(&new_tables, &prev_mod, schema);
+            let prelude = prelude(&new_tables, &prev_mod, &schema_name);
 
             let lifetime = table_defs.is_empty().not().then_some(quote! {'t,});
             let create_lt = create_table_name.is_empty().not().then_some(quote! {'x, 't,});
@@ -616,7 +429,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                     #table_migrations
 
-                    pub struct #schema<#lifetime> {
+                    pub struct #schema_name<#lifetime> {
                         #(#table_defs,)*
                         #(pub #create_table_lower: Box<dyn FnOnce() -> ::std::convert::Infallible>,)*
                     }
@@ -624,9 +437,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         #(pub #create_table_lower: Vec<::rust_query::migration::Entry<'x, 't, #create_table_name, super::#create_table_name>>,)*
                     }
 
-                    impl<'t> ::rust_query::private::Migration<'t> for #schema<#lifetime> {
+                    impl<'t> ::rust_query::private::Migration<'t> for #schema_name<#lifetime> {
                         type From = _PrevSchema;
-                        type To = super::#schema;
+                        type To = super::#schema_name;
                         type Args<'x> = Args<#create_lt>;
 
                         fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
@@ -660,7 +473,11 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     Ok(output)
 }
 
-fn prelude(new_tables: &BTreeMap<usize, Table>, prev_mod: &Ident, schema: &Ident) -> TokenStream {
+fn prelude(
+    new_tables: &BTreeMap<usize, SingleVersionTable>,
+    prev_mod: &Ident,
+    schema: &Ident,
+) -> TokenStream {
     let mut prelude = vec![];
     for table in new_tables.values() {
         let Some(old_name) = &table.prev else {

@@ -1,4 +1,4 @@
-use crate::Unique;
+use crate::{multi::Unique, SingleVersionTable};
 
 use super::make_generic;
 use heck::ToSnekCase;
@@ -8,9 +8,7 @@ use proc_macro2::TokenStream;
 
 use syn::Ident;
 
-use super::Table;
-
-pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenStream> {
+pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::Result<TokenStream> {
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_mod = format_ident!("{table_name}");
@@ -101,7 +99,7 @@ pub(crate) fn define_table(table: &Table, schema: &Ident) -> syn::Result<TokenSt
 
     let ext_ident = format_ident!("{}Ext", table_ident);
 
-    let (referer, referer_expr) = if table.referer {
+    let (referer, referer_expr) = if table.referenceable {
         (quote! {()}, quote! {()})
     } else {
         (quote! {::std::convert::Infallible}, quote! {unreachable!()})
@@ -226,7 +224,7 @@ fn define_unique(unique: &Unique, table_typ: &Ident) -> TokenStream {
     }
 }
 
-impl Table {
+impl SingleVersionTable {
     pub fn conflict(&self, prefix: TokenStream, schema: TokenStream) -> (TokenStream, TokenStream) {
         match &*self.uniques {
             [] => (

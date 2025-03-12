@@ -16,7 +16,7 @@ fn migrate<'t>(client: &mut LocalClient) {
     let m = client.migrator(Config::open_in_memory()).unwrap();
 
     let mut sneaky = None;
-    m.migrate(|_| v1::update::Schema {
+    m.migrate(|_, _| v1::update::Schema {
         my_table: Box::new(|prev| {
             sneaky = Some(prev);
             todo!()
