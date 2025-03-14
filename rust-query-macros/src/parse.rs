@@ -26,10 +26,10 @@ impl VersionedColumn {
         }
 
         let mut other_field_attr = vec![];
-        let mut is_reference = false;
+        let mut follow_rename = false;
         for attr in field.attrs.clone() {
-            if attr.path().is_ident("reference") {
-                is_reference = true;
+            if attr.path().is_ident("follow") {
+                follow_rename = true;
             } else {
                 other_field_attr.push(attr);
             }
@@ -41,7 +41,7 @@ impl VersionedColumn {
         Ok(VersionedColumn {
             versions,
             name,
-            typ: if is_reference {
+            typ: if follow_rename {
                 ColumnTyp::Reference(parse2(field.ty.clone().into_token_stream())?)
             } else {
                 ColumnTyp::Normal(field.ty.into_token_stream())
