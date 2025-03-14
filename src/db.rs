@@ -95,7 +95,21 @@ pub struct TableRow<'t, T> {
     pub(crate) inner: TableRowInner<T>,
 }
 
-pub struct TableRowInner<T> {
+impl<'t, T> Eq for TableRow<'t, T> {}
+
+impl<'t, T> PartialOrd for TableRow<'t, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.inner.idx.partial_cmp(&other.inner.idx)
+    }
+}
+
+impl<'t, T> Ord for TableRow<'t, T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.idx.cmp(&other.inner.idx)
+    }
+}
+
+pub(crate) struct TableRowInner<T> {
     pub(crate) _p: PhantomData<T>,
     pub(crate) idx: i64,
 }
