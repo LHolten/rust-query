@@ -1,5 +1,9 @@
 use std::{
-    collections::HashMap, convert::Infallible, marker::PhantomData, ops::Deref, path::Path, rc::Rc,
+    collections::{BTreeMap, HashMap},
+    convert::Infallible,
+    marker::PhantomData,
+    path::Path,
+    rc::Rc,
     sync::atomic::AtomicBool,
 };
 
@@ -83,12 +87,22 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
     }
 }
 
-pub trait TableMigration<'column, 't> {
+pub trait EasyMigratable: Table {
     type From: Table;
-    type To;
+    type Migration<'column, 't>;
 
-    fn prepare(
-        self,
+    fn migrate<'t>(
+        f: impl 't
+        + FnOnce(Expr<'_, <Self::From as Table>::Schema, Self::From>) -> Self::Migration<'_, 't>,
+    ) -> Migrate<'t, Self> {
+        Migrate {
+            _p: PhantomData,
+            f: Box::new(|x| x.migrate_table::<Self>(f)),
+        }
+    }
+
+    fn prepare<'column, 't>(
+        val: Self::Migration<'column, 't>,
         prev: Expr<'column, <Self::From as Table>::Schema, Self::From>,
         cacher: &mut CacheAndRead<'column, 't, <Self::From as Table>::Schema>,
     );
@@ -139,18 +153,18 @@ pub struct SchemaBuilder<'t> {
     conn: Rc<rusqlite::Transaction<'t>>,
     drop: Vec<TableDropStatement>,
     rename: Vec<TableRenameStatement>,
-    foreign_key: HashMap<&'static str, Box<dyn FnOnce() -> Infallible>>,
+    foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
     _p: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
 impl<'t> SchemaBuilder<'t> {
-    pub fn migrate_table<M>(
+    pub fn migrate_table<M: EasyMigratable>(
         &mut self,
-        m: Box<dyn 't + FnOnce(::rust_query::Expr<'t, <M::From as Table>::Schema, M::From>) -> M>,
-    ) where
-        M: TableMigration<'t, 't, To: Table>,
-    {
-        let new_table_name = self.create_empty_inner::<M::To>();
+        m: impl FnOnce(
+            ::rust_query::Expr<'t, <M::From as Table>::Schema, M::From>,
+        ) -> M::Migration<'t, 't>,
+    ) {
+        let new_table_name = self.create_empty_inner::<M>();
 
         let mut q = Rows::<<M::From as Table>::Schema> {
             phantom: PhantomData,
@@ -170,7 +184,7 @@ impl<'t> SchemaBuilder<'t> {
 
         // keep the ID the same
         cache_and_read.col(M::From::ID, db_id.clone());
-        migration.prepare(db_id, &mut cache_and_read);
+        M::prepare(migration, db_id, &mut cache_and_read);
 
         let cached = q.ast.cache(cache_and_read.cacher.columns);
 
@@ -215,22 +229,31 @@ impl<'t> SchemaBuilder<'t> {
         );
     }
 
-    pub fn get_migrate_list<'x, From: Table, To: Table>(&mut self) -> Vec<Entry<'x, 't, From, To>> {
+    pub fn get_migrate_list<'x, From: Table, To: Table>(
+        &mut self,
+    ) -> BTreeMap<TableRow<'t, From>, MigrateRow<'x, 't, From::Schema, To>> {
         let name = self.create_empty_inner::<To>();
         let raw_txn = self.conn.clone();
         Transaction::new(self.conn.clone()).query(move |rows| {
             let x = From::join(rows);
-            rows.into_vec(x.map_select(move |row| Entry {
-                _p: PhantomData,
-                row,
-                txn: raw_txn.clone(),
-                table: name,
+            rows.into_vec(x.map_select(move |row| {
+                (
+                    row,
+                    MigrateRow {
+                        _p: PhantomData,
+                        row: row.inner.idx,
+                        txn: raw_txn.clone(),
+                        table: name,
+                    },
+                )
             }))
+            .into_iter()
+            .collect()
         })
     }
 
-    pub fn foreign_key<To: Table>(&mut self, err: Box<dyn FnOnce() -> Infallible>) {
-        self.foreign_key.insert(To::NAME, err);
+    pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
+        self.foreign_key.insert(To::NAME, Box::new(err));
     }
 
     pub fn create_empty<To: Table>(&mut self) {
@@ -407,31 +430,58 @@ pub struct Migrator<'t, S> {
     _local: PhantomData<LocalClient>,
 }
 
-pub struct Entry<'x, 't, OldT, T> {
-    _p: PhantomData<(fn(&'t ()) -> &'t (), T, &'x ())>,
-    row: TableRow<'t, OldT>,
+pub struct Migrate<'t, T> {
+    _p: PhantomData<(fn(&'t ()) -> &'t (), T)>,
+    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t>)>,
+}
+
+impl<'t, T: EasyMigratable> Migrate<'t, T> {
+    /// Migrate everything that was not yet migrated.
+    pub fn all(
+        f: impl 't + FnOnce(Expr<'_, <T::From as Table>::Schema, T::From>) -> T::Migration<'_, 't>,
+    ) -> Self {
+        Self {
+            _p: PhantomData,
+            f: Box::new(|x| x.migrate_table::<T>(f)),
+        }
+    }
+}
+
+impl<'t, T: Table> Migrate<'t, T> {
+    /// Don't migrate the remaining rows.
+    ///
+    /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
+    pub fn none(err: impl 't + FnOnce() -> Infallible) -> Self {
+        Self {
+            _p: PhantomData,
+            f: Box::new(|x| x.foreign_key::<T>(err)),
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn apply(self, b: &mut SchemaBuilder<'t>) {
+        (self.f)(b)
+    }
+}
+
+pub struct MigrateRow<'x, 't, FromSchema, T> {
+    _p: PhantomData<(&'x (), fn(&'t ()) -> &'t (), FromSchema, T)>,
+    row: i64,
     txn: Rc<rusqlite::Transaction<'t>>,
     table: TmpTable,
 }
 
-impl<'t, OldT, T> Deref for Entry<'_, 't, OldT, T> {
-    type Target = TableRow<'t, OldT>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.row
-    }
-}
-
-impl<'t, OldT: Table, T: Table> Entry<'_, 't, OldT, T> {
-    pub fn try_insert(
+impl<'t, FromSchema, T: Table> MigrateRow<'_, 't, FromSchema, T> {
+    pub fn try_migrate(
         self,
-        val: impl TableCreation<'t, FromSchema = OldT::Schema, T = T, Conflict = T::Conflict<'t>>,
-    ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
+        val: impl TableCreation<'t, FromSchema = FromSchema, T = T, Conflict = T::Conflict<'t>>,
+    ) -> Result<(), T::Conflict<'t>> {
         try_insert_private(
             &self.txn,
             self.table.into_table_ref(),
-            Wrapper(val, self.row.inner.idx),
-        )
+            Wrapper(val, self.row),
+        )?;
+        Ok(())
     }
 }
 

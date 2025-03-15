@@ -263,7 +263,7 @@ fn define_table_migration(
                 return Err(syn::Error::new_spanned(name, "It is not possible to modify unique constraints with a column migration.
 Please re-create the table with the new unique constraints and use the migration transaction to copy over all the data."));
             }
-            col_new.push(quote! {self.#name});
+            col_new.push(quote! {val.#name});
 
             alter_ident.push(name);
             alter_typ.push(&col.typ);
@@ -290,14 +290,14 @@ Please re-create the table with the new unique constraints and use the migration
             pub #alter_ident: ::rust_query::Select<'column, 't, _PrevSchema, <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>>,
         )*}
 
-        impl<'t, 'a> ::rust_query::private::TableMigration<'t, 'a> for #migration_name<'t, 'a> {
+        impl ::rust_query::private::EasyMigratable for super::#table_name {
             type From = #prev_typ;
-            type To = super::#table_name;
+            type Migration<'column, 't> = #migration_name<'column, 't>;
 
-            fn prepare(
-                self,
-                prev: ::rust_query::Expr<'t, _PrevSchema, Self::From>,
-                cacher: &mut ::rust_query::private::CacheAndRead<'t, 'a, _PrevSchema>,
+            fn prepare<'column, 't>(
+                val: Self::Migration<'column, 't>,
+                prev: ::rust_query::Expr<'column, _PrevSchema, Self::From>,
+                cacher: &mut ::rust_query::private::CacheAndRead<'column, 't, _PrevSchema>,
             ) {#(
                 cacher.col(#col_str, #col_new);
             )*}
@@ -318,15 +318,10 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
     }
 
     let table_name = &table.name;
-    let migration_name = table.migration_name();
     let (conflict_type, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
 
     quote! {
-        pub struct #migration_name<'t> {
-            #(pub #col_ident: <#col_typ as ::rust_query::private::MyTyp>::Out<'t>,)*
-        }
-
-        impl<'t> ::rust_query::private::TableCreation<'t> for #migration_name<'t> {
+        impl<'t> ::rust_query::private::TableCreation<'t> for super::#table_name<#(<#col_typ as ::rust_query::private::MyTyp>::Out<'t>),*> {
             type FromSchema = _PrevSchema;
             type Conflict = #conflict_type;
             type T = super::#table_name;
@@ -357,7 +352,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         }
 
         let mut schema_table_typs = vec![];
-        let mut table_defs = vec![];
         let mut tables = vec![];
         let mut create_table_name = vec![];
         let mut create_table_lower = vec![];
@@ -379,20 +373,14 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     continue;
                 };
                 table_migrations.extend(migration);
-                let migration_name = table.migration_name();
 
-                table_defs.push(quote! {
-                    pub #table_lower: Box<
-                        dyn 't + for<'column> FnOnce(
-                            ::rust_query::Expr<'column, _PrevSchema, #table_name>,
-                        ) -> #migration_name<'column, 't>,
-                    >
-                });
-                tables.push(quote! {b.migrate_table(self.#table_lower)});
+                table_migrations.extend(define_table_creation(table));
+                create_table_lower.push(table_lower);
+                create_table_name.push(table_name);
             } else if table.prev.is_some() {
                 table_migrations.extend(define_table_creation(table));
-                create_table_name.push(table_name);
                 create_table_lower.push(table_lower);
+                create_table_name.push(table_name);
             } else {
                 tables.push(quote! {b.create_empty::<super::#table_name>()})
             }
@@ -421,7 +409,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         let migrations = prev_mod.map(|prev_mod| {
             let prelude = prelude(&new_tables, &prev_mod, &schema_name);
 
-            let lifetime = table_defs.is_empty().not().then_some(quote! {'t,});
+            let lifetime = create_table_name.is_empty().not().then_some(quote! {'t,});
             let create_lt = create_table_name.is_empty().not().then_some(quote! {'x, 't,});
             quote! {
                 pub mod update {
@@ -430,11 +418,13 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #table_migrations
 
                     pub struct #schema_name<#lifetime> {
-                        #(#table_defs,)*
-                        #(pub #create_table_lower: Box<dyn FnOnce() -> ::std::convert::Infallible>,)*
+                        #(pub #create_table_lower: ::rust_query::migration::Migrate<'t, super::#create_table_name>,)*
                     }
                     pub struct Args<#create_lt> {
-                        #(pub #create_table_lower: Vec<::rust_query::migration::Entry<'x, 't, #create_table_name, super::#create_table_name>>,)*
+                        #(pub #create_table_lower: ::std::collections::BTreeMap<
+                            ::rust_query::TableRow<'t, #create_table_name>,
+                            ::rust_query::migration::MigrateRow<'x, 't, _PrevSchema, super::#create_table_name>
+                        >,)*
                     }
 
                     impl<'t> ::rust_query::private::Migration<'t> for #schema_name<#lifetime> {
@@ -444,7 +434,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                         fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
                             #(#tables;)*
-                            #(b.foreign_key::<super::#create_table_name>(self.#create_table_lower);)*
+                            #(self.#create_table_lower.apply(b);)*
                         }
 
                         fn new_tables<'x>(_b: &mut ::rust_query::private::SchemaBuilder<'t>) -> Self::Args<'x> {
