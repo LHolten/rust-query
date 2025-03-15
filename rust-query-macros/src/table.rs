@@ -181,6 +181,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
             }
             fn get_conflict_unchecked(&self) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict>>
             {
+                let val = self;
                 #conflict_dummy_insert
             }
         }
@@ -247,7 +248,7 @@ impl SingleVersionTable {
                     quote! {::rust_query::TableRow<'t, #prefix #table_ident>},
                     quote! {
                         ::rust_query::private::new_dummy(#prefix #table_mod::#unique_type {#(
-                            #col: ::rust_query::private::into_owned::<#schema, _>(&self.#col),
+                            #col: ::rust_query::private::into_owned::<#schema, _>(&val.#col),
                         )*})
                     },
                 )

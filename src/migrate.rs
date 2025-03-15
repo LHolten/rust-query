@@ -10,7 +10,6 @@ use std::{
 use rusqlite::{Connection, config::DbConfig};
 use sea_query::{
     Alias, ColumnDef, InsertStatement, IntoTableRef, SqliteQueryBuilder, TableDropStatement,
-    TableRenameStatement,
 };
 use sea_query_rusqlite::RusqliteBinder;
 
@@ -87,8 +86,19 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
     }
 }
 
-pub trait EasyMigratable: Table {
+pub trait Migratable: Table {
     type From: Table;
+    type FullMigration<'t>;
+
+    #[doc(hidden)]
+    fn read<'t>(val: &Self::FullMigration<'t>, f: Reader<'_, 't, <Self::From as Table>::Schema>);
+    #[doc(hidden)]
+    fn get_conflict_unchecked<'t>(
+        val: &Self::FullMigration<'t>,
+    ) -> Select<'t, 't, <Self::From as Table>::Schema, Option<Self::Conflict<'t>>>;
+}
+
+pub trait EasyMigratable: Migratable {
     type Migration<'column, 't>;
 
     fn migrate<'t>(
@@ -119,26 +129,29 @@ pub trait TableCreation<'t> {
     fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict>>;
 }
 
-pub struct Wrapper<X>(X, i64);
-impl<'t, X> TableInsert<'t> for Wrapper<X>
+pub struct Wrapper<'t, X: Migratable>(X::FullMigration<'t>, i64);
+impl<'t, X> TableInsert<'t> for Wrapper<'t, X>
 where
-    X: TableCreation<'t>,
+    X: Migratable,
 {
-    type Schema = <X::T as Table>::Schema;
-    type Conflict = X::Conflict;
-    type T = X::T;
+    type Schema = X::Schema;
+    type Conflict = X::Conflict<'t>;
+    type T = X;
 
     fn read(&self, f: Reader<'_, 't, Self::Schema>) {
-        self.0.read(Reader {
-            ast: f.ast,
-            _p: PhantomData,
-            _p2: PhantomData,
-        });
+        X::read(
+            &self.0,
+            Reader {
+                ast: f.ast,
+                _p: PhantomData,
+                _p2: PhantomData,
+            },
+        );
         f.col(Self::T::ID, self.1);
     }
 
     fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
-        let dummy = self.0.get_conflict_unchecked();
+        let dummy = X::get_conflict_unchecked(&self.0);
         Select {
             inner: dummy.inner,
             _p: PhantomData,
@@ -231,7 +244,7 @@ impl<'t> SchemaBuilder<'t> {
 
     pub fn get_migrate_list<'x, From: Table, To: Table>(
         &mut self,
-    ) -> BTreeMap<TableRow<'t, From>, MigrateRow<'x, 't, From::Schema, To>> {
+    ) -> BTreeMap<TableRow<'t, From>, MigrateRow<'x, 't, To>> {
         let name = self.create_empty_inner::<To>();
         let raw_txn = self.conn.clone();
         Transaction::new(self.conn.clone()).query(move |rows| {
@@ -461,22 +474,19 @@ impl<'t, T: Table> Migrate<'t, T> {
     }
 }
 
-pub struct MigrateRow<'x, 't, FromSchema, T> {
-    _p: PhantomData<(&'x (), fn(&'t ()) -> &'t (), FromSchema, T)>,
+pub struct MigrateRow<'x, 't, T> {
+    _p: PhantomData<(&'x (), fn(&'t ()) -> &'t (), T)>,
     row: i64,
     txn: Rc<rusqlite::Transaction<'t>>,
     table: TmpTable,
 }
 
-impl<'t, FromSchema, T: Table> MigrateRow<'_, 't, FromSchema, T> {
-    pub fn try_migrate(
-        self,
-        val: impl TableCreation<'t, FromSchema = FromSchema, T = T, Conflict = T::Conflict<'t>>,
-    ) -> Result<(), T::Conflict<'t>> {
+impl<'t, T: Migratable> MigrateRow<'_, 't, T> {
+    pub fn try_migrate(self, val: T::FullMigration<'t>) -> Result<(), T::Conflict<'t>> {
         try_insert_private(
             &self.txn,
             self.table.into_table_ref(),
-            Wrapper(val, self.row),
+            Wrapper::<T>(val, self.row),
         )?;
         Ok(())
     }

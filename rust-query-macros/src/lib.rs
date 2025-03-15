@@ -283,7 +283,6 @@ Please re-create the table with the new unique constraints and use the migration
 
     let table_name = &table.name;
     let migration_name = table.migration_name();
-    let prev_typ = quote! {#table_name};
 
     let migration = quote! {
         pub struct #migration_name<'column, 't> {#(
@@ -291,7 +290,6 @@ Please re-create the table with the new unique constraints and use the migration
         )*}
 
         impl ::rust_query::private::EasyMigratable for super::#table_name {
-            type From = #prev_typ;
             type Migration<'column, 't> = #migration_name<'column, 't>;
 
             fn prepare<'column, 't>(
@@ -318,18 +316,20 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
     }
 
     let table_name = &table.name;
-    let (conflict_type, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
+    let (_, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
 
     quote! {
-        impl<'t> ::rust_query::private::TableCreation<'t> for super::#table_name<#(<#col_typ as ::rust_query::private::MyTyp>::Out<'t>),*> {
-            type FromSchema = _PrevSchema;
-            type Conflict = #conflict_type;
-            type T = super::#table_name;
+        impl ::rust_query::migration::Migratable for super::#table_name {
+            type From = #table_name;
+            type FullMigration<'t> = (super::#table_name<#(<#col_typ as ::rust_query::private::MyTyp>::Out<'t>),*>);
 
-            fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::FromSchema>) {
-                #(f.col(#col_str, &self.#col_ident);)*
+            fn read<'t>(val: &Self::FullMigration<'t>, f: ::rust_query::private::Reader<'_, 't, <Self::From as ::rust_query::Table>::Schema>) {
+                #(f.col(#col_str, &val.#col_ident);)*
             }
-            fn get_conflict_unchecked(&self) -> ::rust_query::Select<'t, 't, Self::FromSchema, Option<Self::Conflict>> {
+            #[doc(hidden)]
+            fn get_conflict_unchecked<'t>(
+                val: &Self::FullMigration<'t>,
+            ) -> ::rust_query::Select<'t, 't, <Self::From as ::rust_query::Table>::Schema, Option<Self::Conflict<'t>>> {
                 #conflict_expr
             }
         }
@@ -423,7 +423,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub struct Args<#create_lt> {
                         #(pub #create_table_lower: ::std::collections::BTreeMap<
                             ::rust_query::TableRow<'t, #create_table_name>,
-                            ::rust_query::migration::MigrateRow<'x, 't, _PrevSchema, super::#create_table_name>
+                            ::rust_query::migration::MigrateRow<'x, 't, super::#create_table_name>
                         >,)*
                     }
 
