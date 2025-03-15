@@ -111,22 +111,12 @@ pub trait EasyMigratable: Migratable {
         }
     }
 
+    #[doc(hidden)]
     fn prepare<'column, 't>(
         val: Self::Migration<'column, 't>,
         prev: Expr<'column, <Self::From as Table>::Schema, Self::From>,
         cacher: &mut CacheAndRead<'column, 't, <Self::From as Table>::Schema>,
     );
-}
-
-pub trait TableCreation<'t> {
-    type FromSchema;
-    type Conflict;
-    type T: Table<Conflict<'t> = Self::Conflict>;
-
-    #[doc(hidden)]
-    fn read(&self, f: Reader<'_, 't, Self::FromSchema>);
-    #[doc(hidden)]
-    fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict>>;
 }
 
 pub struct Wrapper<'t, X: Migratable>(X::FullMigration<'t>, i64);
