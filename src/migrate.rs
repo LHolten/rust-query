@@ -152,7 +152,7 @@ pub struct SchemaBuilder<'t> {
     scope: Scope,
     conn: Rc<rusqlite::Transaction<'t>>,
     drop: Vec<TableDropStatement>,
-    rename: Vec<TableRenameStatement>,
+    rename_map: HashMap<&'static str, TmpTable>,
     foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
     _p: PhantomData<fn(&'t ()) -> &'t ()>,
 }
@@ -164,7 +164,7 @@ impl<'t> SchemaBuilder<'t> {
             ::rust_query::Expr<'t, <M::From as Table>::Schema, M::From>,
         ) -> M::Migration<'t, 't>,
     ) {
-        let new_table_name = self.create_empty_inner::<M>();
+        let new_table_name = self.rename_map[M::NAME];
 
         let mut q = Rows::<<M::From as Table>::Schema> {
             phantom: PhantomData,
@@ -262,13 +262,10 @@ impl<'t> SchemaBuilder<'t> {
 
     fn create_empty_inner<To: Table>(&mut self) -> TmpTable {
         let new_table_name = self.scope.tmp_table();
+        assert!(self.rename_map.insert(To::NAME, new_table_name).is_none());
+
         new_table::<To>(&self.conn, new_table_name);
 
-        self.rename.push(
-            sea_query::Table::rename()
-                .table(new_table_name, Alias::new(To::NAME))
-                .take(),
-        );
         new_table_name
     }
 
@@ -501,7 +498,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
                 scope: Default::default(),
                 conn: self.transaction.clone(),
                 drop: vec![],
-                rename: vec![],
+                rename_map: HashMap::new(),
                 foreign_key: HashMap::new(),
                 _p: PhantomData,
             };
@@ -516,7 +513,8 @@ impl<'t, S: Schema> Migrator<'t, S> {
                 let sql = drop.to_string(SqliteQueryBuilder);
                 self.transaction.execute(&sql, []).unwrap();
             }
-            for rename in builder.rename {
+            for (to, tmp) in builder.rename_map {
+                let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
                 let sql = rename.to_string(SqliteQueryBuilder);
                 self.transaction.execute(&sql, []).unwrap();
             }

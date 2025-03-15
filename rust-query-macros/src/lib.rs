@@ -102,7 +102,7 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
-/// use rust_query::migration::{schema, Config};
+/// use rust_query::migration::{schema, Config, EasyMigratable};
 /// use rust_query::{IntoSelectExt, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
@@ -122,7 +122,7 @@ mod table;
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
 ///     let m = m.migrate(|_, _| v1::update::Schema {
-///         user: Box::new(|user| v1::update::UserMigration {
+///         user: v1::User::migrate(|user| v1::update::UserMigration {
 ///             score: user.email().map_select(|x| x.len() as i64) // use the email length as the new score
 ///         }),
 ///     });
