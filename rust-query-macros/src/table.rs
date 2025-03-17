@@ -64,6 +64,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
     let mut col_str = vec![];
     let mut col_ident = vec![];
     let mut col_typ = vec![];
+    let mut empty = vec![];
 
     for col in table.columns.values() {
         let typ = &col.typ;
@@ -72,16 +73,17 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
         let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#typ>()));
-            update_columns_safe.push(quote! {()});
+            update_columns_safe.push(quote! {::rust_query::private::Ignore});
             try_from_update.push(quote! {Default::default()});
         } else {
-            update_columns_safe.push(quote! {::rust_query::Update<'t, #schema, #typ>});
+            update_columns_safe.push(quote! {::rust_query::private::Update<'t>});
             try_from_update.push(quote! {val.#ident});
         }
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
         col_typ.push(typ);
+        empty.push(quote! {})
     }
 
     let mut safe_default = None;
@@ -98,6 +100,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
     }
 
     let ext_ident = format_ident!("{}Ext", table_ident);
+    let macro_ident = format_ident!("{}Macro", table_ident);
 
     let (referer, referer_expr) = if table.referenceable {
         (quote! {()}, quote! {()})
@@ -118,11 +121,20 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
             }
         )*}
 
-        pub struct #table_ident<#(#generic = ()),*> {#(
-            pub #col_ident: #generic,
+        pub struct #table_ident<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
+            pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
 
-        impl<'t> Default for #table_ident<#(::rust_query::Update<'t, #schema, #col_typ>),*> {
+        #[allow(unused_macros)]
+        macro_rules! #macro_ident {
+            ($name:path {$($spec:tt)*}) => {
+                ::rust_query::private::fields!{$name {$($spec)*} {#(#col_ident),*}}
+            };
+        }
+        #[allow(unused_imports)]
+        pub(crate) use #macro_ident as #table_ident;
+
+        impl<'t> Default for #table_ident<#(#empty ::rust_query::private::Update<'t>),*> {
             fn default() -> Self {
                 Self {#(
                     #col_ident: Default::default(),
@@ -147,7 +159,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
 
             type Conflict<'t> = #conflict_type;
             type Update<'t> = (#table_ident<#(#update_columns_safe),*>);
-            type TryUpdate<'t> = (#table_ident<#(::rust_query::Update<'t, #schema, #col_typ>),*>);
+            type TryUpdate<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
 
             fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
                 #table_ident {#(
@@ -169,7 +181,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
                 #referer_expr
             }
         }
-        impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(#generic),*>
+        impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(::rust_query::private::Custom<#generic>),*>
         where
             #(#generic: ::rust_query::IntoExpr<'t, #schema, Typ = #col_typ>,)*
         {
@@ -197,7 +209,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
     })
 }
 
-fn define_unique(unique: &Unique, table_typ: &Ident) -> TokenStream {
+fn define_unique(unique: &Unique, table_ident: &Ident) -> TokenStream {
     let name = &unique.name;
     let typ_name = make_generic(name);
 
@@ -215,9 +227,9 @@ fn define_unique(unique: &Unique, table_typ: &Ident) -> TokenStream {
         )*}
 
         impl<#(#generic: ::rust_query::private::Typed),*> ::rust_query::private::Typed for #typ_name<#(#generic),*> {
-            type Typ = Option<super::#table_typ>;
+            type Typ = Option<super::#table_ident>;
             fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
-                b.get_unique::<super::#table_typ>(vec![#(
+                b.get_unique::<super::#table_ident>(vec![#(
                     (#col_str, self.#col.build_expr(b)),
                 )*])
             }

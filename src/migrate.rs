@@ -15,7 +15,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Expr, IntoExpr, IntoSelect, Select, Table, Transaction,
+    Expr, FromExpr, IntoExpr, IntoSelect, Select, Table, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -92,13 +92,13 @@ pub trait Migratable: Table {
     type From: Table<Schema = Self::FromSchema>;
     type FullMigration<'t>;
 
-    /// Please refer to [TransactionMigrate::unmigrated].
-    fn unmigrated<'x, 't, Out: 't>(
-        txn: &'x mut TransactionMigrate<'t, Self::FromSchema, Self::Schema>,
-        f: impl FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Select<'_, 't, Self::FromSchema, Out>,
-    ) -> impl Iterator<Item = (MigrateRow<'x, 't, Self>, Out)> {
-        txn.unmigrated(f)
-    }
+    // /// Please refer to [TransactionMigrate::unmigrated].
+    // fn unmigrated<'x, 't, Out: 't>(
+    //     txn: &'x mut TransactionMigrate<'t, Self::FromSchema, Self::Schema>,
+    //     f: impl FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Select<'_, 't, Self::FromSchema, Out>,
+    // ) -> impl Iterator<Item = (MigrateRow<'x, 't, Self>, Out)> {
+    //     txn.unmigrated(f)
+    // }
 
     #[doc(hidden)]
     fn read<'t>(val: &Self::FullMigration<'t>, f: Reader<'_, 't, Self::FromSchema>);
@@ -141,13 +141,15 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     /// You can use [Migratable::unmigrated] to make type annotation easier.
     pub fn unmigrated<T: Migratable<Schema = Schema, FromSchema = FromSchema>, Out: 't>(
         &mut self,
-        f: impl FnOnce(Expr<'_, FromSchema, T::From>) -> Select<'_, 't, FromSchema, Out>,
-    ) -> impl Iterator<Item = (MigrateRow<'_, 't, T>, Out)> {
+    ) -> impl Iterator<Item = (MigrateRow<'_, 't, T>, Out)>
+    where
+        Out: FromExpr<'t, FromSchema, T::From>,
+    {
         let new_name = self.new_table_name::<T>();
 
         let data = self.inner.query(|rows| {
             let old = rows.join::<T::From>();
-            rows.into_vec((&old, f(old.clone())))
+            rows.into_vec((&old, Out::from_expr(&old)))
         });
 
         let migrated = Transaction::new(self.inner.transaction.clone()).query(|rows| {
@@ -168,6 +170,10 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
             ))
         })
     }
+
+    // pub fn migrate_all(&mut self, name: impl Fn(_, _) -> _) -> _ {
+    //     todo!()
+    // }
 }
 
 pub trait EasyMigratable: Migratable {

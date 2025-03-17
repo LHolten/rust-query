@@ -2,7 +2,7 @@ use std::time::UNIX_EPOCH;
 
 use rust_query::{
     FromExpr, IntoSelectExt, Select, Table, TableRow, TransactionMut, Update, aggregate,
-    migration::schema,
+    migration::schema, select,
 };
 
 #[schema]
@@ -148,6 +148,8 @@ pub fn new_order<'a>(
         number: i64,
         tax: f64,
     }
+
+    // type DistrictInfo<'t> = v0::District!(warehouse<'t>, number, tax);
 
     let district_info = txn.query_one(DistrictInfo::from_expr(district));
 

@@ -1,8 +1,9 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database, IntoSelect, IntoSelectExt, LocalClient, TableRow,
+    Database, FromExpr, IntoSelect, IntoSelectExt, LocalClient, TableRow,
     migration::{Config, Migrate, schema},
+    select,
 };
 
 pub use v2::*;
@@ -133,7 +134,16 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
     let m = m.migrate(|txn| {
-        for (new, name) in txn.unmigrated::<v1::GenreNew, _>(|x| x.name().into_select()) {
+        // #[derive(FromExpr)]
+        // #[rust_query(From = v0::Genre)]
+        // struct GenreName {
+        //     name: String,
+        // }
+
+        txn.try_migrate_all(|new, select!(name)| new.try_migrate(v1::GenreNew { name }))
+            .expect("name is unique");
+
+        for (new, v0::Genre!(name)) in txn.unmigrated() {
             new.try_migrate(v1::GenreNew { name })
                 .expect("name is unique");
         }
@@ -143,26 +153,27 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         }
     });
 
-    let m = m.migrate(|_| v2::update::Schema {
-        customer: Migrate::<v2::Customer>::all(|customer| {
+    let m = m.migrate(|txn| v2::update::Schema {
+        customer: txn.migrate(|old: v1::Customer!(phone)| {
             v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
-                phone: customer
-                    .phone()
-                    .map_select(|x| x.and_then(|x| x.parse().ok())),
+                phone: old.phone.and_then(|x| x.parse().ok()),
             }
         }),
-        track: Migrate::<v2::Track>::all(|track| v2::update::TrackMigration {
-            media_type: track.media_type().name().into_select(),
-            composer_table: None::<TableRow<'_, v2::Composer>>.into_select(),
-            byte_price: (track.unit_price(), track.bytes())
-                .map_select(|(price, bytes)| price as f64 / bytes as f64),
-        }),
-        genre_new: Migrate::<v2::GenreNew>::all(|genre| v2::update::GenreNewMigration {
-            extra: genre
-                .name()
-                .map_select(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
-        }),
+        track: txn.migrate(
+            |old: v1::Track!(media_type as v1::MediaType!(name), unit_price, bytes)| {
+                v2::update::TrackMigration {
+                    media_type: old.name,
+                    composer_table: None,
+                    byte_price: old.unit_price as f64 / old.bytes as f64,
+                }
+            },
+        ),
+        genre_new: txn.migrate(
+            |old: select![v1::Genre { name }]| v2::update::GenreNewMigration {
+                extra: genre_extra.get(&*name).copied().unwrap_or(0),
+            },
+        ),
     });
 
     m.finish().unwrap()

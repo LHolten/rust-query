@@ -9,6 +9,7 @@ use syn::{Ident, ItemEnum, ItemStruct};
 use table::define_table;
 
 mod dummy;
+mod fields;
 pub(crate) mod multi;
 mod parse;
 mod table;
@@ -226,6 +227,17 @@ pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     .into()
 }
 
+#[doc(hidden)]
+#[proc_macro]
+pub fn fields(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let item = syn::parse_macro_input!(item as fields::Spec);
+    match fields::generate(item) {
+        Ok(x) => x,
+        Err(e) => e.into_compile_error(),
+    }
+    .into()
+}
+
 fn make_generic(name: &Ident) -> Ident {
     let normalized = name.to_string().to_upper_camel_case();
     format_ident!("_{normalized}")
@@ -281,7 +293,7 @@ Please re-create the table with the new unique constraints and use the migration
         panic!("Migrations that only remove columns are not supported yet")
     }
 
-    let table_name = &table.name;
+    let table_ident = &table.name;
     let migration_name = table.migration_name();
 
     let migration = quote! {
@@ -289,7 +301,7 @@ Please re-create the table with the new unique constraints and use the migration
             pub #alter_ident: ::rust_query::Select<'column, 't, _PrevSchema, <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>>,
         )*}
 
-        impl ::rust_query::private::EasyMigratable for super::#table_name {
+        impl ::rust_query::private::EasyMigratable for super::#table_ident {
             type Migration<'column, 't> = #migration_name<'column, 't>;
 
             fn prepare<'column, 't>(
@@ -307,22 +319,22 @@ Please re-create the table with the new unique constraints and use the migration
 fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
     let mut col_str = vec![];
     let mut col_ident = vec![];
-    let mut col_typ = vec![];
+    let mut empty = vec![];
 
     for col in table.columns.values() {
         col_str.push(col.name.to_string());
         col_ident.push(&col.name);
-        col_typ.push(&col.typ);
+        empty.push(quote! {});
     }
 
-    let table_name = &table.name;
+    let table_ident = &table.name;
     let (_, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
 
     quote! {
-        impl ::rust_query::migration::Migratable for super::#table_name {
+        impl ::rust_query::migration::Migratable for super::#table_ident {
             type FromSchema = _PrevSchema;
-            type From = #table_name;
-            type FullMigration<'t> = (super::#table_name<#(<#col_typ as ::rust_query::private::MyTyp>::Out<'t>),*>);
+            type From = #table_ident;
+            type FullMigration<'t> = (super::#table_ident<#(#empty ::rust_query::private::Native<'t>),*>);
 
             fn read<'t>(val: &Self::FullMigration<'t>, f: ::rust_query::private::Reader<'_, 't, <Self::From as ::rust_query::Table>::Schema>) {
                 #(f.col(#col_str, &val.#col_ident);)*
