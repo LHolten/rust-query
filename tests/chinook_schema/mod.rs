@@ -139,7 +139,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         }
 
         v1::update::Schema {
-            genre_new: Migrate::none(|| unreachable!("all rows are migrated")),
+            genre_new: Migrate::map_fk_err(|| unreachable!("all rows are migrated")),
         }
     });
 

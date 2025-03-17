@@ -92,10 +92,13 @@ pub trait Migratable: Table {
     type From: Table<Schema = Self::FromSchema>;
     type FullMigration<'t>;
 
-    // fn unmigrated<'x, 't, Out>(
-    //     txn: &'x mut TransactionMigrate<'t, Self::FromSchema, Self::Schema>,
-    //     f: impl FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Select<'_, 't, Self::FromSchema, Out>,
-    // ) -> Vec<(MigrateRow<'x, 't, Self>, Out)>;
+    /// Please refer to [TransactionMigrate::unmigrated].
+    fn unmigrated<'x, 't, Out: 't>(
+        txn: &'x mut TransactionMigrate<'t, Self::FromSchema, Self::Schema>,
+        f: impl FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Select<'_, 't, Self::FromSchema, Out>,
+    ) -> impl Iterator<Item = (MigrateRow<'x, 't, Self>, Out)> {
+        txn.unmigrated(f)
+    }
 
     #[doc(hidden)]
     fn read<'t>(val: &Self::FullMigration<'t>, f: Reader<'_, 't, Self::FromSchema>);
@@ -105,6 +108,7 @@ pub trait Migratable: Table {
     ) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict<'t>>>;
 }
 
+/// Transaction type for use in migrations.
 pub struct TransactionMigrate<'t, FromSchema, Schema> {
     _p: PhantomData<Schema>,
     inner: Transaction<'t, FromSchema>,
@@ -129,14 +133,20 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
         })
     }
 
+    /// Retrieve unmigrated rows with enough data to migrate them.
+    ///
+    /// This method takes a closure that allows you to select data for each row that needs to be migrated.
+    /// This method then return an iterator of [MigrateRow] in combination with the specified data.
+    ///
+    /// You can use [Migratable::unmigrated] to make type annotation easier.
     pub fn unmigrated<T: Migratable<Schema = Schema, FromSchema = FromSchema>, Out: 't>(
         &mut self,
         f: impl FnOnce(Expr<'_, FromSchema, T::From>) -> Select<'_, 't, FromSchema, Out>,
-    ) -> Vec<(MigrateRow<'_, 't, T>, Out)> {
+    ) -> impl Iterator<Item = (MigrateRow<'_, 't, T>, Out)> {
         let new_name = self.new_table_name::<T>();
 
         let data = self.inner.query(|rows| {
-            let old = T::From::join(rows);
+            let old = rows.join::<T::From>();
             rows.into_vec((&old, f(old.clone())))
         });
 
@@ -146,39 +156,35 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
         });
         let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
 
-        data.into_iter()
-            .filter_map(|(row, data)| {
-                migrated.contains(&row.inner.idx).then_some((
-                    MigrateRow {
-                        _p: PhantomData,
-                        row: row.inner.idx,
-                        txn: self.inner.transaction.clone(),
-                        table: new_name,
-                    },
-                    data,
-                ))
-            })
-            .collect()
+        data.into_iter().filter_map(move |(row, data)| {
+            migrated.contains(&row.inner.idx).then_some((
+                MigrateRow {
+                    _p: PhantomData,
+                    row: row.inner.idx,
+                    txn: self.inner.transaction.clone(),
+                    table: new_name,
+                },
+                data,
+            ))
+        })
     }
 }
 
 pub trait EasyMigratable: Migratable {
     type Migration<'column, 't>;
 
-    // fn migrate<'t>(
-    //     f: impl 't + FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Self::Migration<'_, 't>,
-    // ) -> Migrate<'t, Self> {
-    //     Migrate {
-    //         _p: PhantomData,
-    //         f: Box::new(|x| x.migrate_table::<Self>(f)),
-    //     }
-    // }
+    /// Please refer to [Migrate::all].
+    fn migrate_all<'t>(
+        f: impl 't + FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Self::Migration<'_, 't>,
+    ) -> Migrate<'t, Self> {
+        Migrate::all(f)
+    }
 
     #[doc(hidden)]
     fn prepare<'column, 't>(
         val: Self::Migration<'column, 't>,
         prev: Expr<'column, Self::FromSchema, Self::From>,
-        cacher: &mut CacheAndRead<'column, 't, <Self::From as Table>::Schema>,
+        cacher: &mut CacheAndRead<'column, 't, Self::FromSchema>,
     );
 }
 
@@ -226,13 +232,13 @@ impl<'t, FromSchema: 'static, Schema> SchemaBuilder<'t, FromSchema, Schema> {
     ) {
         let new_table_name = self.inner.new_table_name::<T>();
 
-        let mut q = Rows::<<T::From as Table>::Schema> {
+        let mut q = Rows::<T::FromSchema> {
             phantom: PhantomData,
             ast: MySelect::default(),
             _p: PhantomData,
         };
 
-        let db_id = T::From::join(&mut q);
+        let db_id = q.join::<T::From>();
         let migration = m(db_id.clone());
 
         let mut cache_and_read = CacheAndRead {
@@ -262,7 +268,7 @@ impl<'t, FromSchema: 'static, Schema> SchemaBuilder<'t, FromSchema, Schema> {
             };
 
             let new_ast = MySelect::default();
-            let reader = Reader::<<T::From as Table>::Schema> {
+            let reader = Reader::<T::FromSchema> {
                 ast: &new_ast,
                 _p: PhantomData,
                 _p2: PhantomData,
@@ -455,6 +461,9 @@ pub struct Migrator<'t, S> {
     _local: PhantomData<LocalClient>,
 }
 
+/// [Migrate] provides a migration strategy.
+///
+/// This only needs to be provided for tables that are migrated from a previous table.
 pub struct Migrate<'t, T: Migratable> {
     _p: PhantomData<(fn(&'t ()) -> &'t (), T)>,
     f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, T::FromSchema, T::Schema>)>,
@@ -462,8 +471,10 @@ pub struct Migrate<'t, T: Migratable> {
 
 impl<'t, T: EasyMigratable> Migrate<'t, T> {
     /// Migrate everything that was not yet migrated.
+    ///
+    /// You can use [EasyMigratable::migrate_all] to make type annotation easier.
     pub fn all(
-        f: impl 't + FnOnce(Expr<'_, <T::From as Table>::Schema, T::From>) -> T::Migration<'_, 't>,
+        f: impl 't + FnOnce(Expr<'_, T::FromSchema, T::From>) -> T::Migration<'_, 't>,
     ) -> Self {
         Self {
             _p: PhantomData,
@@ -476,7 +487,7 @@ impl<'t, T: Migratable> Migrate<'t, T> {
     /// Don't migrate the remaining rows.
     ///
     /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
-    pub fn none(err: impl 't + FnOnce() -> Infallible) -> Self {
+    pub fn map_fk_err(err: impl 't + FnOnce() -> Infallible) -> Self {
         Self {
             _p: PhantomData,
             f: Box::new(|x| x.foreign_key::<T>(err)),
@@ -489,6 +500,10 @@ impl<'t, T: Migratable> Migrate<'t, T> {
     }
 }
 
+/// This is a reservation of a specific row in the new schema.
+///
+/// It can be used to insert a row in the new schema with the same row_id as some row in the old schema.
+/// This makes it so that foreign key references to the table are preserved with the migration.
 pub struct MigrateRow<'x, 't, T> {
     _p: PhantomData<(&'x (), fn(&'t ()) -> &'t (), T)>,
     row: i64,
@@ -497,6 +512,9 @@ pub struct MigrateRow<'x, 't, T> {
 }
 
 impl<'t, T: Migratable> MigrateRow<'_, 't, T> {
+    /// Try to insert the migrated row in the new schema.
+    ///
+    /// This can result in conflicts if there are unique constraints on the table.
     pub fn try_migrate(self, val: T::FullMigration<'t>) -> Result<(), T::Conflict<'t>> {
         try_insert_private(
             &self.txn,
