@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
-use sea_query::SimpleExpr;
+use sea_query::{Iden, SimpleExpr};
 
 use crate::{
     Expr, Table,
+    alias::TmpTable,
     ast::MySelect,
     db::Join,
     value::{IntoExpr, Typed, operations::Assume},
@@ -36,9 +37,17 @@ impl<'inner, S> Rows<'inner, S> {
         Expr::new(Join::new(alias))
     }
 
-    pub(crate) fn join_custom<T: Table>(&mut self, t: T) -> Expr<'inner, S, T> {
+    pub(crate) fn join_custom<T: Table<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
         let alias = self.ast.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
+        Expr::new(Join::new(alias))
+    }
+
+    pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
+        let mut tmp_string = String::new();
+        tmp.unquoted(&mut tmp_string);
+        let alias = self.ast.scope.new_alias();
+        self.ast.tables.push((tmp_string, alias));
         Expr::new(Join::new(alias))
     }
 

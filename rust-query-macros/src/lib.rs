@@ -320,6 +320,7 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
 
     quote! {
         impl ::rust_query::migration::Migratable for super::#table_name {
+            type FromSchema = _PrevSchema;
             type From = #table_name;
             type FullMigration<'t> = (super::#table_name<#(<#col_typ as ::rust_query::private::MyTyp>::Out<'t>),*>);
 
@@ -410,7 +411,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             let prelude = prelude(&new_tables, &prev_mod, &schema_name);
 
             let lifetime = create_table_name.is_empty().not().then_some(quote! {'t,});
-            let create_lt = create_table_name.is_empty().not().then_some(quote! {'x, 't,});
             quote! {
                 pub mod update {
                     #prelude
@@ -420,28 +420,14 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     pub struct #schema_name<#lifetime> {
                         #(pub #create_table_lower: ::rust_query::migration::Migrate<'t, super::#create_table_name>,)*
                     }
-                    pub struct Args<#create_lt> {
-                        #(pub #create_table_lower: ::std::collections::BTreeMap<
-                            ::rust_query::TableRow<'t, #create_table_name>,
-                            ::rust_query::migration::MigrateRow<'x, 't, super::#create_table_name>
-                        >,)*
-                    }
 
                     impl<'t> ::rust_query::private::Migration<'t> for #schema_name<#lifetime> {
                         type From = _PrevSchema;
                         type To = super::#schema_name;
-                        type Args<'x> = Args<#create_lt>;
 
-                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t>) {
+                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t, Self::From, Self::To>) {
                             #(#tables;)*
                             #(self.#create_table_lower.apply(b);)*
-                        }
-
-                        fn new_tables<'x>(_b: &mut ::rust_query::private::SchemaBuilder<'t>) -> Self::Args<'x> {
-                            #(let #create_table_lower = _b.get_migrate_list::<#create_table_name, super::#create_table_name>();)*
-                            Args {
-                                #(#create_table_lower,)*
-                            }
                         }
                     }
                 }

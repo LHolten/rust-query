@@ -1,6 +1,6 @@
 use rust_query::{
     LocalClient,
-    migration::{Config, EasyMigratable, schema},
+    migration::{Config, Migrate, schema},
 };
 
 #[schema]
@@ -16,8 +16,8 @@ fn migrate<'t>(client: &mut LocalClient) {
     let m = client.migrator(Config::open_in_memory()).unwrap();
 
     let mut sneaky = None;
-    m.migrate(|_, _| v1::update::Schema {
-        my_table: v1::MyTable::migrate(|prev| {
+    m.migrate(|_| v1::update::Schema {
+        my_table: Migrate::<v1::MyTable>::all(|prev| {
             sneaky = Some(prev);
             todo!()
         }),

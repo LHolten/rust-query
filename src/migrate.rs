@@ -1,7 +1,8 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{HashMap, HashSet},
     convert::Infallible,
     marker::PhantomData,
+    ops::Deref,
     path::Path,
     rc::Rc,
     sync::atomic::AtomicBool,
@@ -14,7 +15,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Expr, IntoExpr, IntoSelect, IntoSelectExt, Select, Table, TableRow, Transaction,
+    Expr, IntoExpr, IntoSelect, Select, Table, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -87,34 +88,96 @@ impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
 }
 
 pub trait Migratable: Table {
-    type From: Table;
+    type FromSchema;
+    type From: Table<Schema = Self::FromSchema>;
     type FullMigration<'t>;
 
+    // fn unmigrated<'x, 't, Out>(
+    //     txn: &'x mut TransactionMigrate<'t, Self::FromSchema, Self::Schema>,
+    //     f: impl FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Select<'_, 't, Self::FromSchema, Out>,
+    // ) -> Vec<(MigrateRow<'x, 't, Self>, Out)>;
+
     #[doc(hidden)]
-    fn read<'t>(val: &Self::FullMigration<'t>, f: Reader<'_, 't, <Self::From as Table>::Schema>);
+    fn read<'t>(val: &Self::FullMigration<'t>, f: Reader<'_, 't, Self::FromSchema>);
     #[doc(hidden)]
     fn get_conflict_unchecked<'t>(
         val: &Self::FullMigration<'t>,
-    ) -> Select<'t, 't, <Self::From as Table>::Schema, Option<Self::Conflict<'t>>>;
+    ) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict<'t>>>;
+}
+
+pub struct TransactionMigrate<'t, FromSchema, Schema> {
+    _p: PhantomData<Schema>,
+    inner: Transaction<'t, FromSchema>,
+    scope: Scope,
+    rename_map: HashMap<&'static str, TmpTable>,
+}
+
+impl<'t, FromSchema, Schema> Deref for TransactionMigrate<'t, FromSchema, Schema> {
+    type Target = Transaction<'t, FromSchema>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
+    fn new_table_name<T: Table>(&mut self) -> TmpTable {
+        *self.rename_map.entry(T::NAME).or_insert_with(|| {
+            let new_table_name = self.scope.tmp_table();
+            new_table::<T>(&self.inner.transaction, new_table_name);
+            new_table_name
+        })
+    }
+
+    pub fn unmigrated<T: Migratable<Schema = Schema, FromSchema = FromSchema>, Out: 't>(
+        &mut self,
+        f: impl FnOnce(Expr<'_, FromSchema, T::From>) -> Select<'_, 't, FromSchema, Out>,
+    ) -> Vec<(MigrateRow<'_, 't, T>, Out)> {
+        let new_name = self.new_table_name::<T>();
+
+        let data = self.inner.query(|rows| {
+            let old = T::From::join(rows);
+            rows.into_vec((&old, f(old.clone())))
+        });
+
+        let migrated = Transaction::new(self.inner.transaction.clone()).query(|rows| {
+            let new = rows.join_tmp::<T>(new_name);
+            rows.into_vec(new)
+        });
+        let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
+
+        data.into_iter()
+            .filter_map(|(row, data)| {
+                migrated.contains(&row.inner.idx).then_some((
+                    MigrateRow {
+                        _p: PhantomData,
+                        row: row.inner.idx,
+                        txn: self.inner.transaction.clone(),
+                        table: new_name,
+                    },
+                    data,
+                ))
+            })
+            .collect()
+    }
 }
 
 pub trait EasyMigratable: Migratable {
     type Migration<'column, 't>;
 
-    fn migrate<'t>(
-        f: impl 't
-        + FnOnce(Expr<'_, <Self::From as Table>::Schema, Self::From>) -> Self::Migration<'_, 't>,
-    ) -> Migrate<'t, Self> {
-        Migrate {
-            _p: PhantomData,
-            f: Box::new(|x| x.migrate_table::<Self>(f)),
-        }
-    }
+    // fn migrate<'t>(
+    //     f: impl 't + FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Self::Migration<'_, 't>,
+    // ) -> Migrate<'t, Self> {
+    //     Migrate {
+    //         _p: PhantomData,
+    //         f: Box::new(|x| x.migrate_table::<Self>(f)),
+    //     }
+    // }
 
     #[doc(hidden)]
     fn prepare<'column, 't>(
         val: Self::Migration<'column, 't>,
-        prev: Expr<'column, <Self::From as Table>::Schema, Self::From>,
+        prev: Expr<'column, Self::FromSchema, Self::From>,
         cacher: &mut CacheAndRead<'column, 't, <Self::From as Table>::Schema>,
     );
 }
@@ -150,32 +213,26 @@ where
     }
 }
 
-pub struct SchemaBuilder<'t> {
-    // this is used to create temporary table names
-    scope: Scope,
-    conn: Rc<rusqlite::Transaction<'t>>,
+pub struct SchemaBuilder<'t, FromSchema, Schema> {
+    inner: TransactionMigrate<'t, FromSchema, Schema>,
     drop: Vec<TableDropStatement>,
-    rename_map: HashMap<&'static str, TmpTable>,
     foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
-    _p: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
-impl<'t> SchemaBuilder<'t> {
-    pub fn migrate_table<M: EasyMigratable>(
+impl<'t, FromSchema: 'static, Schema> SchemaBuilder<'t, FromSchema, Schema> {
+    pub fn migrate_table<T: EasyMigratable<FromSchema = FromSchema, Schema = Schema>>(
         &mut self,
-        m: impl FnOnce(
-            ::rust_query::Expr<'t, <M::From as Table>::Schema, M::From>,
-        ) -> M::Migration<'t, 't>,
+        m: impl FnOnce(::rust_query::Expr<'t, FromSchema, T::From>) -> T::Migration<'t, 't>,
     ) {
-        let new_table_name = self.rename_map[M::NAME];
+        let new_table_name = self.inner.new_table_name::<T>();
 
-        let mut q = Rows::<<M::From as Table>::Schema> {
+        let mut q = Rows::<<T::From as Table>::Schema> {
             phantom: PhantomData,
             ast: MySelect::default(),
             _p: PhantomData,
         };
 
-        let db_id = M::From::join(&mut q);
+        let db_id = T::From::join(&mut q);
         let migration = m(db_id.clone());
 
         let mut cache_and_read = CacheAndRead {
@@ -186,8 +243,8 @@ impl<'t> SchemaBuilder<'t> {
         };
 
         // keep the ID the same
-        cache_and_read.col(M::From::ID, db_id.clone());
-        M::prepare(migration, db_id, &mut cache_and_read);
+        cache_and_read.col(T::From::ID, db_id.clone());
+        T::prepare(migration, db_id, &mut cache_and_read);
 
         let cached = q.ast.cache(cache_and_read.cacher.columns);
 
@@ -195,7 +252,7 @@ impl<'t> SchemaBuilder<'t> {
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
 
         // no caching here, migration is only executed once
-        let mut statement = self.conn.prepare(&sql).unwrap();
+        let mut statement = self.inner.transaction.prepare(&sql).unwrap();
         let mut rows = statement.query(&*values.as_params()).unwrap();
 
         while let Some(row) = rows.next().unwrap() {
@@ -205,7 +262,7 @@ impl<'t> SchemaBuilder<'t> {
             };
 
             let new_ast = MySelect::default();
-            let reader = Reader::<<M::From as Table>::Schema> {
+            let reader = Reader::<<T::From as Table>::Schema> {
                 ast: &new_ast,
                 _p: PhantomData,
                 _p2: PhantomData,
@@ -221,55 +278,25 @@ impl<'t> SchemaBuilder<'t> {
             insert.select_from(new_ast.simple()).unwrap();
 
             let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
-            let mut statement = self.conn.prepare_cached(&sql).unwrap();
+            let mut statement = self.inner.transaction.prepare_cached(&sql).unwrap();
             statement.execute(&*values.as_params()).unwrap();
         }
 
         self.drop.push(
             sea_query::Table::drop()
-                .table(Alias::new(M::From::NAME))
+                .table(Alias::new(T::From::NAME))
                 .take(),
         );
     }
 
-    pub fn get_migrate_list<'x, From: Table, To: Table>(
-        &mut self,
-    ) -> BTreeMap<TableRow<'t, From>, MigrateRow<'x, 't, To>> {
-        let name = self.create_empty_inner::<To>();
-        let raw_txn = self.conn.clone();
-        Transaction::new(self.conn.clone()).query(move |rows| {
-            let x = From::join(rows);
-            rows.into_vec(x.map_select(move |row| {
-                (
-                    row,
-                    MigrateRow {
-                        _p: PhantomData,
-                        row: row.inner.idx,
-                        txn: raw_txn.clone(),
-                        table: name,
-                    },
-                )
-            }))
-            .into_iter()
-            .collect()
-        })
-    }
-
     pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
+        self.inner.new_table_name::<To>();
+
         self.foreign_key.insert(To::NAME, Box::new(err));
     }
 
     pub fn create_empty<To: Table>(&mut self) {
-        self.create_empty_inner::<To>();
-    }
-
-    fn create_empty_inner<To: Table>(&mut self) -> TmpTable {
-        let new_table_name = self.scope.tmp_table();
-        assert!(self.rename_map.insert(To::NAME, new_table_name).is_none());
-
-        new_table::<To>(&self.conn, new_table_name);
-
-        new_table_name
+        self.inner.new_table_name::<To>();
     }
 
     pub fn drop_table<T: Table>(&mut self) {
@@ -298,10 +325,8 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
 pub trait Migration<'a> {
     type From: Schema;
     type To: Schema;
-    type Args<'x>;
 
-    fn tables(self, b: &mut SchemaBuilder<'a>);
-    fn new_tables<'x>(b: &mut SchemaBuilder<'a>) -> Self::Args<'x>;
+    fn tables(self, b: &mut SchemaBuilder<'a, Self::From, Self::To>);
 }
 
 /// [Config] is used to open a database from a file or in memory.
@@ -430,9 +455,9 @@ pub struct Migrator<'t, S> {
     _local: PhantomData<LocalClient>,
 }
 
-pub struct Migrate<'t, T> {
+pub struct Migrate<'t, T: Migratable> {
     _p: PhantomData<(fn(&'t ()) -> &'t (), T)>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t>)>,
+    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, T::FromSchema, T::Schema>)>,
 }
 
 impl<'t, T: EasyMigratable> Migrate<'t, T> {
@@ -447,7 +472,7 @@ impl<'t, T: EasyMigratable> Migrate<'t, T> {
     }
 }
 
-impl<'t, T: Table> Migrate<'t, T> {
+impl<'t, T: Migratable> Migrate<'t, T> {
     /// Don't migrate the remaining rows.
     ///
     /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
@@ -459,7 +484,7 @@ impl<'t, T: Table> Migrate<'t, T> {
     }
 
     #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t>) {
+    pub fn apply(self, b: &mut SchemaBuilder<'t, T::FromSchema, T::Schema>) {
         (self.f)(b)
     }
 }
@@ -488,32 +513,32 @@ impl<'t, S: Schema> Migrator<'t, S> {
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<New: Schema, M>(
         self,
-        m: impl FnOnce(&Transaction<'t, S>, M::Args<'_>) -> M,
+        m: impl FnOnce(&mut TransactionMigrate<'t, S, New>) -> M,
     ) -> Migrator<'t, New>
     where
         M: Migration<'t, From = S, To = New>,
     {
         if user_version(&self.transaction).unwrap() == S::VERSION {
-            let mut builder = SchemaBuilder {
-                scope: Default::default(),
-                conn: self.transaction.clone(),
-                drop: vec![],
-                rename_map: HashMap::new(),
-                foreign_key: HashMap::new(),
+            let mut txn = TransactionMigrate {
                 _p: PhantomData,
+                inner: Transaction::new(self.transaction.clone()),
+                scope: Default::default(),
+                rename_map: HashMap::new(),
             };
+            let m = m(&mut txn);
 
-            let args = M::new_tables(&mut builder);
-
-            let m = m(&Transaction::new(self.transaction.clone()), args);
-
+            let mut builder = SchemaBuilder {
+                drop: vec![],
+                foreign_key: HashMap::new(),
+                inner: txn,
+            };
             m.tables(&mut builder);
 
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
                 self.transaction.execute(&sql, []).unwrap();
             }
-            for (to, tmp) in builder.rename_map {
+            for (to, tmp) in builder.inner.rename_map {
                 let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
                 let sql = rename.to_string(SqliteQueryBuilder);
                 self.transaction.execute(&sql, []).unwrap();
@@ -522,6 +547,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
                 (builder.foreign_key.remove(&*fk).unwrap())();
             }
             set_user_version(&self.transaction, New::VERSION).unwrap();
+            todo!()
         }
 
         Migrator {

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     Database, IntoSelect, IntoSelectExt, LocalClient, TableRow,
-    migration::{Config, EasyMigratable, Migrate, schema},
+    migration::{Config, Migrate, schema},
 };
 
 pub use v2::*;
@@ -132,19 +132,19 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(|old, new: v1::update::Args| {
-        for (item, new) in new.genre_new {
-            let name = old.query_one(item.name());
-            new.try_migrate(v1::GenreNew { name }).unwrap();
+    let m = m.migrate(|txn| {
+        for (new, name) in txn.unmigrated::<v1::GenreNew, _>(|x| x.name().into_select()) {
+            new.try_migrate(v1::GenreNew { name })
+                .expect("name is unique");
         }
 
         v1::update::Schema {
-            genre_new: Migrate::none(|| panic!()),
+            genre_new: Migrate::none(|| unreachable!("all rows are migrated")),
         }
     });
 
-    let m = m.migrate(|_old, _new| v2::update::Schema {
-        customer: v2::Customer::migrate(|customer| {
+    let m = m.migrate(|_| v2::update::Schema {
+        customer: Migrate::<v2::Customer>::all(|customer| {
             v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
                 phone: customer
@@ -152,13 +152,13 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
                     .map_select(|x| x.and_then(|x| x.parse().ok())),
             }
         }),
-        track: v2::Track::migrate(|track| v2::update::TrackMigration {
+        track: Migrate::<v2::Track>::all(|track| v2::update::TrackMigration {
             media_type: track.media_type().name().into_select(),
             composer_table: None::<TableRow<'_, v2::Composer>>.into_select(),
             byte_price: (track.unit_price(), track.bytes())
                 .map_select(|(price, bytes)| price as f64 / bytes as f64),
         }),
-        genre_new: v2::GenreNew::migrate(|genre| v2::update::GenreNewMigration {
+        genre_new: Migrate::<v2::GenreNew>::all(|genre| v2::update::GenreNewMigration {
             extra: genre
                 .name()
                 .map_select(|name| genre_extra.get(&*name).copied().unwrap_or(0)),
