@@ -15,7 +15,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    Expr, FromExpr, IntoExpr, IntoSelect, Select, Table, Transaction,
+    Expr, FromExpr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     ast::MySelect,
     client::LocalClient,
@@ -56,33 +56,15 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-pub struct CacheAndRead<'column, 'transaction, S> {
-    cacher: Cacher,
-    _p: PhantomData<fn(&'column ())>,
+pub struct CacheAndRead<'transaction, S> {
+    _p: PhantomData<fn(&'transaction ())>,
     _p3: PhantomData<S>,
-    columns: Vec<(&'static str, DynPrepared<'transaction>)>,
+    columns: Vec<(&'static str, DynTypedExpr)>,
 }
 
-struct DynPrepared<'a> {
-    inner: Box<dyn 'a + FnMut(Row<'_>) -> DynTypedExpr>,
-}
-
-impl<'a> DynPrepared<'a> {
-    pub fn new(val: impl 'a + FnMut(Row<'_>) -> DynTypedExpr) -> Self {
-        Self {
-            inner: Box::new(val),
-        }
-    }
-}
-
-impl<'t, 'a, S: 'static> CacheAndRead<'t, 'a, S> {
-    pub fn col<O: 'a + IntoExpr<'a, S>>(
-        &mut self,
-        name: &'static str,
-        val: impl IntoSelect<'t, 'a, S, Out = O>,
-    ) {
-        let mut p = val.into_select().inner.prepare(&mut self.cacher);
-        let p = DynPrepared::new(move |row| p.call(row).into_expr().inner.erase());
+impl<'t, S: 'static> CacheAndRead<'t, S> {
+    pub fn col(&mut self, name: &'static str, val: impl IntoExpr<'t, S>) {
+        let p = val.into_expr().inner.erase();
         self.columns.push((name, p));
     }
 }
@@ -171,26 +153,36 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
         })
     }
 
+    pub fn migrate<
+        T: EasyMigratable<FromSchema = FromSchema, Schema = Schema>,
+        X: FromExpr<'t, FromSchema, T::From>,
+    >(
+        &mut self,
+        f: impl FnMut(X) -> T::Migration<'t>,
+    ) -> Migrate<'t, T> {
+        todo!()
+    }
+
     // pub fn migrate_all(&mut self, name: impl Fn(_, _) -> _) -> _ {
     //     todo!()
     // }
 }
 
 pub trait EasyMigratable: Migratable {
-    type Migration<'column, 't>;
+    type Migration<'t>;
 
-    /// Please refer to [Migrate::all].
-    fn migrate_all<'t>(
-        f: impl 't + FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Self::Migration<'_, 't>,
-    ) -> Migrate<'t, Self> {
-        Migrate::all(f)
-    }
+    // /// Please refer to [Migrate::all].
+    // fn migrate_all<'t>(
+    //     f: impl 't + FnOnce(Expr<'_, Self::FromSchema, Self::From>) -> Self::Migration<'_, 't>,
+    // ) -> Migrate<'t, Self> {
+    //     Migrate::all(f)
+    // }
 
     #[doc(hidden)]
-    fn prepare<'column, 't>(
-        val: Self::Migration<'column, 't>,
-        prev: Expr<'column, Self::FromSchema, Self::From>,
-        cacher: &mut CacheAndRead<'column, 't, Self::FromSchema>,
+    fn prepare<'t>(
+        val: Self::Migration<'t>,
+        prev: TableRow<'t, Self::From>,
+        cacher: &mut CacheAndRead<'t, Self::FromSchema>,
     );
 }
 
@@ -232,74 +224,74 @@ pub struct SchemaBuilder<'t, FromSchema, Schema> {
 }
 
 impl<'t, FromSchema: 'static, Schema> SchemaBuilder<'t, FromSchema, Schema> {
-    pub fn migrate_table<T: EasyMigratable<FromSchema = FromSchema, Schema = Schema>>(
-        &mut self,
-        m: impl FnOnce(::rust_query::Expr<'t, FromSchema, T::From>) -> T::Migration<'t, 't>,
-    ) {
-        let new_table_name = self.inner.new_table_name::<T>();
+    // pub fn migrate_table<T: EasyMigratable<FromSchema = FromSchema, Schema = Schema>>(
+    //     &mut self,
+    //     m: impl FnOnce(::rust_query::Expr<'t, FromSchema, T::From>) -> T::Migration<'t, 't>,
+    // ) {
+    //     let new_table_name = self.inner.new_table_name::<T>();
 
-        let mut q = Rows::<T::FromSchema> {
-            phantom: PhantomData,
-            ast: MySelect::default(),
-            _p: PhantomData,
-        };
+    //     let mut q = Rows::<T::FromSchema> {
+    //         phantom: PhantomData,
+    //         ast: MySelect::default(),
+    //         _p: PhantomData,
+    //     };
 
-        let db_id = q.join::<T::From>();
-        let migration = m(db_id.clone());
+    //     let db_id = q.join::<T::From>();
+    //     let migration = m(db_id.clone());
 
-        let mut cache_and_read = CacheAndRead {
-            columns: Vec::new(),
-            cacher: Cacher::new(),
-            _p: PhantomData,
-            _p3: PhantomData,
-        };
+    //     let mut cache_and_read = CacheAndRead {
+    //         columns: Vec::new(),
+    //         cacher: Cacher::new(),
+    //         _p: PhantomData,
+    //         _p3: PhantomData,
+    //     };
 
-        // keep the ID the same
-        cache_and_read.col(T::From::ID, db_id.clone());
-        T::prepare(migration, db_id, &mut cache_and_read);
+    //     // keep the ID the same
+    //     cache_and_read.col(T::From::ID, db_id.clone());
+    //     T::prepare(migration, db_id, &mut cache_and_read);
 
-        let cached = q.ast.cache(cache_and_read.cacher.columns);
+    //     let cached = q.ast.cache(cache_and_read.cacher.columns);
 
-        let select = q.ast.simple();
-        let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
+    //     let select = q.ast.simple();
+    //     let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
 
-        // no caching here, migration is only executed once
-        let mut statement = self.inner.transaction.prepare(&sql).unwrap();
-        let mut rows = statement.query(&*values.as_params()).unwrap();
+    //     // no caching here, migration is only executed once
+    //     let mut statement = self.inner.transaction.prepare(&sql).unwrap();
+    //     let mut rows = statement.query(&*values.as_params()).unwrap();
 
-        while let Some(row) = rows.next().unwrap() {
-            let row = Row {
-                row,
-                fields: &cached,
-            };
+    //     while let Some(row) = rows.next().unwrap() {
+    //         let row = Row {
+    //             row,
+    //             fields: &cached,
+    //         };
 
-            let new_ast = MySelect::default();
-            let reader = Reader::<T::FromSchema> {
-                ast: &new_ast,
-                _p: PhantomData,
-                _p2: PhantomData,
-            };
-            for (name, prepared) in &mut cache_and_read.columns {
-                reader.col_erased(name, (prepared.inner)(row));
-            }
+    //         let new_ast = MySelect::default();
+    //         let reader = Reader::<T::FromSchema> {
+    //             ast: &new_ast,
+    //             _p: PhantomData,
+    //             _p2: PhantomData,
+    //         };
+    //         for (name, prepared) in &mut cache_and_read.columns {
+    //             reader.col_erased(name, (prepared.inner)(row));
+    //         }
 
-            let mut insert = InsertStatement::new();
-            let names = new_ast.select.iter().map(|(_field, name)| *name);
-            insert.into_table(new_table_name);
-            insert.columns(names);
-            insert.select_from(new_ast.simple()).unwrap();
+    //         let mut insert = InsertStatement::new();
+    //         let names = new_ast.select.iter().map(|(_field, name)| *name);
+    //         insert.into_table(new_table_name);
+    //         insert.columns(names);
+    //         insert.select_from(new_ast.simple()).unwrap();
 
-            let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
-            let mut statement = self.inner.transaction.prepare_cached(&sql).unwrap();
-            statement.execute(&*values.as_params()).unwrap();
-        }
+    //         let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+    //         let mut statement = self.inner.transaction.prepare_cached(&sql).unwrap();
+    //         statement.execute(&*values.as_params()).unwrap();
+    //     }
 
-        self.drop.push(
-            sea_query::Table::drop()
-                .table(Alias::new(T::From::NAME))
-                .take(),
-        );
-    }
+    //     self.drop.push(
+    //         sea_query::Table::drop()
+    //             .table(Alias::new(T::From::NAME))
+    //             .take(),
+    //     );
+    // }
 
     pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
         self.inner.new_table_name::<To>();
@@ -476,17 +468,17 @@ pub struct Migrate<'t, T: Migratable> {
 }
 
 impl<'t, T: EasyMigratable> Migrate<'t, T> {
-    /// Migrate everything that was not yet migrated.
-    ///
-    /// You can use [EasyMigratable::migrate_all] to make type annotation easier.
-    pub fn all(
-        f: impl 't + FnOnce(Expr<'_, T::FromSchema, T::From>) -> T::Migration<'_, 't>,
-    ) -> Self {
-        Self {
-            _p: PhantomData,
-            f: Box::new(|x| x.migrate_table::<T>(f)),
-        }
-    }
+    // /// Migrate everything that was not yet migrated.
+    // ///
+    // /// You can use [EasyMigratable::migrate_all] to make type annotation easier.
+    // pub fn all(
+    //     f: impl 't + FnOnce(Expr<'_, T::FromSchema, T::From>) -> T::Migration<'_, 't>,
+    // ) -> Self {
+    //     Self {
+    //         _p: PhantomData,
+    //         f: Box::new(|x| x.migrate_table::<T>(f)),
+    //     }
+    // }
 }
 
 impl<'t, T: Migratable> Migrate<'t, T> {

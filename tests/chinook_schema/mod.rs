@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database, FromExpr, IntoSelect, IntoSelectExt, LocalClient, TableRow,
+    Database, LocalClient,
     migration::{Config, Migrate, schema},
 };
 
@@ -133,12 +133,6 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
     let m = m.migrate(|txn| {
-        // #[derive(FromExpr)]
-        // #[rust_query(From = v0::Genre)]
-        // struct GenreName {
-        //     name: String,
-        // }
-
         txn.try_migrate_all(|new, select!(name)| new.try_migrate(v1::GenreNew { name }))
             .expect("name is unique");
 
@@ -162,17 +156,15 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         track: txn.migrate(
             |old: v1::Track!(media_type as v1::MediaType!(name), unit_price, bytes)| {
                 v2::update::TrackMigration {
-                    media_type: old.name,
+                    media_type: old.media_type.name,
                     composer_table: None,
                     byte_price: old.unit_price as f64 / old.bytes as f64,
                 }
             },
         ),
-        genre_new: txn.migrate(
-            |old: select![v1::Genre { name }]| v2::update::GenreNewMigration {
-                extra: genre_extra.get(&*name).copied().unwrap_or(0),
-            },
-        ),
+        genre_new: txn.migrate(|old: v1::GenreNew!(name)| v2::update::GenreNewMigration {
+            extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
+        }),
     });
 
     m.finish().unwrap()

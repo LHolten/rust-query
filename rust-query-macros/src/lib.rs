@@ -297,17 +297,17 @@ Please re-create the table with the new unique constraints and use the migration
     let migration_name = table.migration_name();
 
     let migration = quote! {
-        pub struct #migration_name<'column, 't> {#(
-            pub #alter_ident: ::rust_query::Select<'column, 't, _PrevSchema, <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>>,
+        pub struct #migration_name<'t> {#(
+            pub #alter_ident: <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>,
         )*}
 
         impl ::rust_query::private::EasyMigratable for super::#table_ident {
-            type Migration<'column, 't> = #migration_name<'column, 't>;
+            type Migration<'t> = #migration_name<'t>;
 
-            fn prepare<'column, 't>(
-                val: Self::Migration<'column, 't>,
-                prev: ::rust_query::Expr<'column, _PrevSchema, Self::From>,
-                cacher: &mut ::rust_query::private::CacheAndRead<'column, 't, _PrevSchema>,
+            fn prepare<'t>(
+                val: Self::Migration<'t>,
+                prev: ::rust_query::TableRow<'t, Self::From>,
+                cacher: &mut ::rust_query::private::CacheAndRead<'t, _PrevSchema>,
             ) {#(
                 cacher.col(#col_str, #col_new);
             )*}

@@ -1,6 +1,6 @@
 use rust_query::{
-    Database, IntoSelectExt, LocalClient, Table, Transaction, TransactionMut, aggregate,
-    migration::{Config, Migrate, schema},
+    Database, LocalClient, Table, Transaction, TransactionMut, aggregate,
+    migration::{Config, schema},
 };
 
 #[schema]
@@ -73,11 +73,9 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
     let m = client
         .migrator(Config::open_in_memory())
         .expect("database is older than supported versions");
-    let m = m.migrate(|_| v1::update::Schema {
-        user: Migrate::<v1::User>::all(|old_user| v1::update::UserMigration {
-            email: old_user
-                .name()
-                .map_select(|name| format!("{name}@example.com")),
+    let m = m.migrate(|txn| v1::update::Schema {
+        user: txn.migrate(|old_user: v0::User!(name)| v1::update::UserMigration {
+            email: format!("{}@example.com", old_user.name),
         }),
     });
     m.finish()

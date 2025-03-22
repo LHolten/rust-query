@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{parse::Parse, punctuated::Punctuated, Ident, LitInt, Token};
 
 struct Field {
     name: Ident,
-    typ: Option<(Token![as], TokenStream)>,
+    typ: Option<(Token![as], syn::Type)>,
 }
 
 impl Parse for Field {
@@ -24,6 +24,7 @@ impl Parse for Field {
 pub struct Spec {
     struct_id: LitInt,
     _brace_token1: syn::token::Brace,
+    required_span: Span,
     required: Punctuated<Field, Token![,]>,
     _brace_token2: syn::token::Brace,
     all: Punctuated<Ident, Token![,]>,
@@ -36,6 +37,7 @@ impl Parse for Spec {
         Ok(Spec {
             struct_id: input.parse()?,
             _brace_token1: syn::braced!(content1 in input),
+            required_span: content1.span(),
             required: content1.parse_terminated(Field::parse, Token![,])?,
             _brace_token2: syn::braced!(content2 in input),
             all: content2.parse_terminated(Ident::parse, Token![,])?,
@@ -50,8 +52,6 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
             return Err(syn::Error::new_spanned(&r.name, "duplicate name"));
         }
     }
-
-    let struct_id = spec.struct_id;
 
     let mut out_typs = vec![];
     for x in spec.all {
@@ -70,13 +70,13 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
         return Err(syn::Error::new_spanned(name, "unknown field name"));
     }
 
-    if let Some(first) = spec.required.first() {
-        let span = first.name.span();
-        let macro_root = quote_spanned! {span=> MacroRoot};
-        Ok(
-            quote! {<#macro_root as ::rust_query::private::Instantiate<#struct_id, (#(#out_typs),*)>>::Out},
-        )
-    } else {
-        Ok(quote! {()})
+    if spec.required.is_empty() {
+        return Ok(quote! {()});
     }
+    let struct_id = spec.struct_id;
+    let span = spec.required_span;
+    let typ = quote! {(#(#out_typs),*)};
+    Ok(
+        quote_spanned! {span=> <MacroRoot as ::rust_query::private::Instantiate<#struct_id, #typ>>::Out},
+    )
 }
