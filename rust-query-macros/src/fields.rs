@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
 use syn::{parse::Parse, punctuated::Punctuated, Ident, LitInt, Token};
 
 struct Field {
@@ -45,9 +45,9 @@ impl Parse for Spec {
 
 pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
     let mut m = HashMap::new();
-    for r in spec.required {
-        if m.insert(r.name.clone(), r.typ).is_some() {
-            return Err(syn::Error::new_spanned(r.name, "duplicate name"));
+    for r in &spec.required {
+        if m.insert(r.name.clone(), r.typ.clone()).is_some() {
+            return Err(syn::Error::new_spanned(&r.name, "duplicate name"));
         }
     }
 
@@ -70,7 +70,13 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
         return Err(syn::Error::new_spanned(name, "unknown field name"));
     }
 
-    Ok(
-        quote! {<MacroRoot as ::rust_query::private::Instantiate<#struct_id, (#(#out_typs),*)>>::Out},
-    )
+    if let Some(first) = spec.required.first() {
+        let span = first.name.span();
+        let macro_root = quote_spanned! {span=> MacroRoot};
+        Ok(
+            quote! {<#macro_root as ::rust_query::private::Instantiate<#struct_id, (#(#out_typs),*)>>::Out},
+        )
+    } else {
+        Ok(quote! {()})
+    }
 }
