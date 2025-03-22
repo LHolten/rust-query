@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse::Parse, punctuated::Punctuated, Ident, Token};
+use syn::{parse::Parse, punctuated::Punctuated, Ident, LitInt, Token};
 
 struct Field {
     name: Ident,
-    typ: Option<(Token![:], TokenStream)>,
+    typ: Option<(Token![as], TokenStream)>,
 }
 
 impl Parse for Field {
@@ -14,7 +14,7 @@ impl Parse for Field {
         Ok(Self {
             name: input.parse()?,
             typ: input
-                .peek(Token![:])
+                .peek(Token![as])
                 .then(|| Ok::<_, syn::Error>((input.parse()?, input.parse()?)))
                 .transpose()?,
         })
@@ -22,7 +22,7 @@ impl Parse for Field {
 }
 
 pub struct Spec {
-    path: syn::Path,
+    struct_id: LitInt,
     _brace_token1: syn::token::Brace,
     required: Punctuated<Field, Token![,]>,
     _brace_token2: syn::token::Brace,
@@ -34,7 +34,7 @@ impl Parse for Spec {
         let content1;
         let content2;
         Ok(Spec {
-            path: input.parse()?,
+            struct_id: input.parse()?,
             _brace_token1: syn::braced!(content1 in input),
             required: content1.parse_terminated(Field::parse, Token![,])?,
             _brace_token2: syn::braced!(content2 in input),
@@ -51,33 +51,7 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
         }
     }
 
-    let path = spec.path;
-    // let last = path
-    //     .segments
-    //     .last_mut()
-    //     .expect("thenere should be at least one path segment");
-    // let lt = match &mut last.arguments {
-    //     syn::PathArguments::None => None,
-    //     syn::PathArguments::AngleBracketed(args) => {
-    //         if let Some(arg) = args.args.pop() {
-    //             match arg.into_value() {
-    //                 GenericArgument::Lifetime(lt) => {
-    //                     if !args.args.is_empty() {
-    //                         return Err(syn::Error::new_spanned(args, "only one argument allowed"));
-    //                     }
-    //                     Some(lt)
-    //                 }
-    //                 e @ _ => return Err(syn::Error::new_spanned(e, "only lifetime is allowed")),
-    //             }
-    //         } else {
-    //             None
-    //         }
-    //     }
-    //     syn::PathArguments::Parenthesized(args) => {
-    //         return Err(syn::Error::new_spanned(args, "only lifetime is allowed"))
-    //     }
-    // };
-    // last.arguments = syn::PathArguments::None;
+    let struct_id = spec.struct_id;
 
     let mut out_typs = vec![];
     for x in spec.all {
@@ -85,7 +59,7 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
             if let Some((_, custom)) = typ {
                 out_typs.push(quote! {::rust_query::private::Custom<#custom>});
             } else {
-                out_typs.push(quote! {::rust_query::private::Native<'t>});
+                out_typs.push(quote! {::rust_query::private::Native<'_>});
             }
         } else {
             out_typs.push(quote! {::rust_query::private::Ignore});
@@ -96,5 +70,7 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
         return Err(syn::Error::new_spanned(name, "unknown field name"));
     }
 
-    Ok(quote! {#path<#(#out_typs),*>})
+    Ok(
+        quote! {<MacroRoot as ::rust_query::private::Instantiate<#struct_id, (#(#out_typs),*)>>::Out},
+    )
 }

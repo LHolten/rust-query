@@ -352,8 +352,16 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
     let schema_name = item.ident.clone();
     let schema = VersionedSchema::parse(item)?;
+    let mut struct_id = 0;
+    let mut new_struct_id = || {
+        let val = struct_id;
+        struct_id += 1;
+        val
+    };
 
-    let mut output = TokenStream::new();
+    let mut output = quote! {
+        pub struct MacroRoot;
+    };
     let mut prev_tables: BTreeMap<usize, SingleVersionTable> = BTreeMap::new();
     let mut prev_mod = None;
     for version in schema.versions.clone() {
@@ -361,7 +369,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
         let mut mod_output = TokenStream::new();
         for table in new_tables.values() {
-            mod_output.extend(define_table(table, &schema_name));
+            mod_output.extend(define_table(table, &schema_name, new_struct_id()));
         }
 
         let mut schema_table_typs = vec![];

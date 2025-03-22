@@ -2,7 +2,7 @@ use std::time::UNIX_EPOCH;
 
 use rust_query::{
     FromExpr, IntoSelectExt, Select, Table, TableRow, TransactionMut, Update, aggregate,
-    migration::schema, select,
+    migration::schema,
 };
 
 #[schema]
@@ -141,17 +141,8 @@ pub fn new_order<'a>(
 ) -> OutputData<'a> {
     let district = txn.query_one(input.customer.district());
 
-    #[derive(FromExpr)]
-    #[rust_query(From = District, lt = 't)]
-    struct DistrictInfo<'t> {
-        warehouse: TableRow<'t, Warehouse>,
-        number: i64,
-        tax: f64,
-    }
-
-    // type DistrictInfo<'t> = v0::District!(warehouse<'t>, number, tax);
-
-    let district_info = txn.query_one(DistrictInfo::from_expr(district));
+    let district_info: v0::District!(warehouse, number, tax) =
+        txn.query_one(FromExpr::from_expr(district));
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
@@ -163,14 +154,8 @@ pub fn new_order<'a>(
         },
     );
 
-    #[derive(FromExpr)]
-    #[rust_query(From = Customer)]
-    struct CustomerInfo {
-        discount: f64,
-        last: String,
-        credit: String,
-    }
-    let customer_info = txn.query_one(CustomerInfo::from_expr(input.customer));
+    let customer_info: Customer!(discount, last, credit) =
+        txn.query_one(FromExpr::from_expr(input.customer));
 
     let local = input
         .items
@@ -199,16 +184,7 @@ pub fn new_order<'a>(
     ) in input.items.into_iter().enumerate()
     {
         // TODO: make this a lookup by external item id
-
-        #[derive(FromExpr)]
-        #[rust_query(From = Item)]
-        struct ItemInfo {
-            price: i64,
-            name: String,
-            data: String,
-        }
-
-        let item_info = txn.query_one(ItemInfo::from_expr(item));
+        let item_info: Item!(price, name, data) = txn.query_one(FromExpr::from_expr(item));
 
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();

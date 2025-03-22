@@ -3,7 +3,6 @@ use std::{collections::HashMap, fs};
 use rust_query::{
     Database, FromExpr, IntoSelect, IntoSelectExt, LocalClient, TableRow,
     migration::{Config, Migrate, schema},
-    select,
 };
 
 pub use v2::*;

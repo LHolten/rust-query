@@ -79,7 +79,6 @@ pub mod private {
     pub use sea_query::SimpleExpr;
 
     pub struct Native<'t>(PhantomData<&'t ()>);
-    pub struct NativeNoLt;
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
     pub struct Update<'t>(PhantomData<&'t ()>);
@@ -104,7 +103,7 @@ pub mod private {
         type Out<T: MyTyp, S> = crate::Update<'t, S, T>;
     }
 
-    pub trait Instantiate<StructId, Params> {
+    pub trait Instantiate<const STRUCT_ID: usize, Params> {
         type Out;
     }
 }
@@ -163,11 +162,4 @@ pub trait Table: Sized + 'static {
 fn compile_tests() {
     let t = trybuild::TestCases::new();
     t.compile_fail("tests/compile/*.rs");
-}
-
-#[macro_export]
-macro_rules! select {
-    [$name:path {$($spec:tt)*}] => {
-        $name! {$name {$($spec)*}}
-    };
 }

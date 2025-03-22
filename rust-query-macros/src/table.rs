@@ -1,4 +1,4 @@
-use crate::{multi::Unique, SingleVersionTable};
+use crate::{dummy::wrap, multi::Unique, SingleVersionTable};
 
 use super::make_generic;
 use heck::ToSnekCase;
@@ -8,7 +8,11 @@ use proc_macro2::TokenStream;
 
 use syn::Ident;
 
-pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::Result<TokenStream> {
+pub(crate) fn define_table(
+    table: &SingleVersionTable,
+    schema: &Ident,
+    struct_id: usize,
+) -> syn::Result<TokenStream> {
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_mod = format_ident!("{table_name}");
@@ -65,6 +69,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
     let mut col_ident = vec![];
     let mut col_typ = vec![];
     let mut empty = vec![];
+    let mut parts = vec![];
 
     for col in table.columns.values() {
         let typ = &col.typ;
@@ -79,6 +84,7 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
             update_columns_safe.push(quote! {::rust_query::private::Update<'t>});
             try_from_update.push(quote! {val.#ident});
         }
+        parts.push(quote! {::rust_query::FromExpr::from_expr(col.#ident())});
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
@@ -108,6 +114,9 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
         (quote! {::std::convert::Infallible}, quote! {unreachable!()})
     };
 
+    let wrap_parts = wrap(&parts);
+    let wrap_ident = wrap(&col_ident);
+
     Ok(quote! {
         #[repr(transparent)]
         pub struct #ext_ident<T>(T);
@@ -125,10 +134,29 @@ pub(crate) fn define_table(table: &SingleVersionTable, schema: &Ident) -> syn::R
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
 
+        impl<#(#generic: ::rust_query::private::Apply),*> ::rust_query::private::Instantiate<#struct_id, (#(#generic),*)> for super::MacroRoot {
+            type Out = (#table_ident<#(#generic),*>);
+        }
+
+        impl<'transaction, #(#generic: ::rust_query::private::Apply + 'transaction),*> ::rust_query::FromExpr<'transaction, #schema, #table_ident>
+            for #table_ident<#(#generic),*>
+        where #(#generic::Out<#col_typ, #schema>: ::rust_query::FromExpr<'transaction, #schema, #col_typ>,)*
+        {
+            /// How to turn a column reference into a [Select].
+            fn from_expr<'columns>(
+                col: impl ::rust_query::IntoExpr<'columns, #schema, Typ = #table_ident>,
+            ) -> ::rust_query::Select<'columns, 'transaction, #schema, Self> {
+                let col = ::rust_query::IntoExpr::into_expr(col);
+                ::rust_query::IntoSelectExt::map_select(#wrap_parts, |#wrap_ident| #table_ident {
+                    #(#col_ident,)*
+                })
+            }
+        }
+
         #[allow(unused_macros)]
         macro_rules! #macro_ident {
-            ($name:path {$($spec:tt)*}) => {
-                ::rust_query::private::fields!{$name {$($spec)*} {#(#col_ident),*}}
+            ($($spec:tt)*) => {
+                ::rust_query::private::fields!{#struct_id {$($spec)*} {#(#col_ident),*}}
             };
         }
         #[allow(unused_imports)]

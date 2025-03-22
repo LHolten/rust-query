@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{GenericParam, ItemStruct, Lifetime};
 
 use crate::make_generic;
@@ -39,10 +39,10 @@ impl CommonInfo {
     }
 }
 
-pub fn wrap(parts: &[TokenStream]) -> TokenStream {
+pub fn wrap(parts: &[impl ToTokens]) -> TokenStream {
     match parts {
         [] => quote! {()},
-        [typ] => typ.clone(),
+        [typ] => typ.to_token_stream(),
         [a, b @ ..] => {
             let rest = wrap(b);
             quote! {(#a, #rest)}
