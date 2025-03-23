@@ -356,11 +356,11 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     }
 }
 
-pub fn try_insert_private<'t, T: Table>(
+pub fn try_insert_private<'t, T: Table, C: 't>(
     transaction: &Rc<rusqlite::Transaction<'t>>,
     table: sea_query::TableRef,
-    val: impl TableInsert<'t, T = T, Conflict = T::Conflict<'t>>,
-) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
+    val: impl TableInsert<'t, T = T, Conflict = C>,
+) -> Result<TableRow<'t, T>, C> {
     let ast = MySelect::default();
     val.read(ast.reader());
 

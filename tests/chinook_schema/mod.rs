@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     Database, LocalClient,
-    migration::{Config, Migrate, schema},
+    migration::{Config, Migrated, schema},
 };
 
 pub use v2::*;
@@ -142,7 +142,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         }
 
         v1::update::Schema {
-            genre_new: Migrate::map_fk_err(|| unreachable!("all rows are migrated")),
+            genre_new: Migrated::map_fk_err(|| unreachable!("all rows are migrated")),
         }
     });
 

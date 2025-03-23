@@ -295,22 +295,34 @@ Please re-create the table with the new unique constraints and use the migration
 
     let table_ident = &table.name;
     let migration_name = table.migration_name();
+    let (_, conflict_expr) = table.conflict(quote! {super::}, quote! {_PrevSchema});
 
     let migration = quote! {
         pub struct #migration_name<'t> {#(
             pub #alter_ident: <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>,
         )*}
 
-        impl ::rust_query::private::EasyMigratable for super::#table_ident {
+        impl ::rust_query::private::EasyMigratable for super::#table_ident {}
+
+        impl ::rust_query::migration::Migratable for super::#table_ident {
+            type FromSchema = _PrevSchema;
+            type From = #table_ident;
             type Migration<'t> = #migration_name<'t>;
 
             fn prepare<'t>(
-                val: Self::Migration<'t>,
+                val: &Self::Migration<'t>,
                 prev: ::rust_query::TableRow<'t, Self::From>,
-                cacher: &mut ::rust_query::private::CacheAndRead<'t, _PrevSchema>,
+                f: ::rust_query::private::Reader<'_, 't, Self::FromSchema>,
             ) {#(
                 cacher.col(#col_str, #col_new);
             )*}
+
+            #[doc(hidden)]
+            fn get_conflict_unchecked<'t>(
+                val: &Self::Migration<'t>,
+            ) -> ::rust_query::Select<'t, 't, Self::FromSchema, Option<Self::Conflict<'t>>> {
+                #conflict_expr
+            }
         }
     };
     Ok(Some(migration))
@@ -334,11 +346,16 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
         impl ::rust_query::migration::Migratable for super::#table_ident {
             type FromSchema = _PrevSchema;
             type From = #table_ident;
-            type FullMigration<'t> = (super::#table_ident<#(#empty ::rust_query::private::Native<'t>),*>);
+            type Migration<'t> = (super::#table_ident<#(#empty ::rust_query::private::Native<'t>),*>);
 
-            fn read<'t>(val: &Self::FullMigration<'t>, f: ::rust_query::private::Reader<'_, 't, <Self::From as ::rust_query::Table>::Schema>) {
+            fn prepare<'t>(
+                val: &Self::Migration<'t>,
+                prev: ::rust_query::TableRow<'t, Self::From>,
+                f: ::rust_query::private::Reader<'_, 't, Self::FromSchema>,
+            ) {
                 #(f.col(#col_str, &val.#col_ident);)*
             }
+
             #[doc(hidden)]
             fn get_conflict_unchecked<'t>(
                 val: &Self::FullMigration<'t>,

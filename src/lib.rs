@@ -54,7 +54,7 @@ pub mod migration {
     #[cfg(feature = "dev")]
     pub use crate::hash::dev::hash_schema;
     pub use crate::migrate::{
-        Config, EasyMigratable, Migratable, Migrate, MigrateRow, Migrator, TransactionMigrate,
+        Config, Migratable, MigrateRow, Migrated, Migrator, TransactionMigrate,
     };
     pub use rust_query_macros::schema;
 }
@@ -68,7 +68,7 @@ pub mod private {
     pub use crate::db::Col;
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{
-        CacheAndRead, EasyMigratable, Migration, Schema, SchemaBuilder, TableTypBuilder,
+        EasyMigratable, Migratable, Migration, Schema, SchemaBuilder, TableTypBuilder,
     };
     pub use crate::query::show_sql;
     pub use crate::value::{MyTyp, Typed, ValueBuilder, into_owned, new_column, new_dummy};

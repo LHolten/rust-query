@@ -94,6 +94,18 @@ pub struct TableRow<'t, T> {
     pub(crate) _local: PhantomData<LocalClient>,
     pub(crate) inner: TableRowInner<T>,
 }
+impl<'t, T> TableRow<'t, T> {
+    pub(crate) fn new(idx: i64) -> Self {
+        Self {
+            _p: PhantomData,
+            _local: PhantomData,
+            inner: TableRowInner {
+                _p: PhantomData,
+                idx,
+            },
+        }
+    }
+}
 
 impl<'t, T> Eq for TableRow<'t, T> {}
 

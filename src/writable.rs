@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    Select, Expr, IntoExpr, Table,
+    Expr, IntoExpr, Select, Table,
     alias::Field,
     ast::MySelect,
     value::{DynTypedExpr, NumTyp, Typed},
