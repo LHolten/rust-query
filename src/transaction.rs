@@ -9,7 +9,8 @@ use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow, ast::MySelect, client::LocalClient,
-    migrate::schema_version, query::Query, rows::Rows, value::SecretFromSql, writable::TableInsert,
+    migrate::schema_version, private::Reader, query::Query, rows::Rows, value::SecretFromSql,
+    writable::TableInsert,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -152,9 +153,14 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 2+ unique constraints => `()` no further information is provided.
     pub fn try_insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl TableInsert<'t, T = T, Schema = S, Conflict = T::Conflict<'t>>,
+        val: impl TableInsert<'t, T = T>,
     ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-        try_insert_private(&self.transaction, Alias::new(T::NAME).into_table_ref(), val)
+        try_insert_private(
+            &self.transaction,
+            Alias::new(T::NAME).into_table_ref(),
+            None,
+            val.into_insert(),
+        )
     }
 
     /// This is a convenience function to make using [TransactionMut::try_insert]
@@ -163,7 +169,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The new row is added to the table and the row reference is returned.
     pub fn insert<T: Table<Schema = S, Conflict<'t> = Infallible>>(
         &mut self,
-        val: impl TableInsert<'t, T = T, Conflict = Infallible, Schema = S>,
+        val: impl TableInsert<'t, T = T>,
     ) -> TableRow<'t, T> {
         let Ok(row) = self.try_insert(val);
         row
@@ -177,7 +183,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// to the conflicting row is returned.
     pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = TableRow<'t, T>>>(
         &mut self,
-        val: impl TableInsert<'t, T = T, Conflict = TableRow<'t, T>, Schema = S>,
+        val: impl TableInsert<'t, T = T>,
     ) -> TableRow<'t, T> {
         match self.try_insert(val) {
             Ok(row) => row,
@@ -201,12 +207,12 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         val: T::TryUpdate<'t>,
     ) -> Result<(), T::Conflict<'t>> {
         let id = MySelect::default();
-        id.reader().col(T::ID, &row);
+        Reader::new(&id).col(T::ID, &row);
         let id = id.build_select(false);
 
         let val = T::apply_try_update(val, row.into_expr());
         let ast = MySelect::default();
-        val.read(ast.reader());
+        T::read(&val, Reader::new(&ast));
 
         let select = ast.build_select(false);
         let cte = CommonTableExpression::new()
@@ -243,7 +249,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                let conflict = self.query_one(val.get_conflict_unchecked());
+                let conflict = self.query_one(T::get_conflict_unchecked(&val));
                 Err(conflict.unwrap())
             }
             Err(err) => Err(err).unwrap(),
@@ -356,13 +362,18 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     }
 }
 
-pub fn try_insert_private<'t, T: Table, C: 't>(
+pub fn try_insert_private<'t, T: Table>(
     transaction: &Rc<rusqlite::Transaction<'t>>,
     table: sea_query::TableRef,
-    val: impl TableInsert<'t, T = T, Conflict = C>,
-) -> Result<TableRow<'t, T>, C> {
+    idx: Option<i64>,
+    val: T::Insert<'t>,
+) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
     let ast = MySelect::default();
-    val.read(ast.reader());
+    let reader = Reader::new(&ast);
+    T::read(&val, reader);
+    if let Some(idx) = idx {
+        reader.col(T::ID, idx);
+    }
 
     let select = ast.simple();
 
@@ -389,7 +400,7 @@ pub fn try_insert_private<'t, T: Table, C: 't>(
         {
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
             let conflict =
-                Transaction::new(transaction.clone()).query_one(val.get_conflict_unchecked());
+                Transaction::new(transaction.clone()).query_one(T::get_conflict_unchecked(&val));
             Err(conflict.unwrap())
         }
         Err(err) => Err(err).unwrap(),

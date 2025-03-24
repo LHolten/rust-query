@@ -28,7 +28,7 @@ pub use client::LocalClient;
 pub use db::TableRow;
 pub use dummy_impl::{IntoSelect, IntoSelectExt, Select};
 use hash::TypBuilder;
-use private::TableInsert;
+use private::Reader;
 use ref_cast::RefCast;
 use rows::Rows;
 pub use rust_query_macros::{FromExpr, Select};
@@ -82,6 +82,7 @@ pub mod private {
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
     pub struct Update<'t>(PhantomData<&'t ()>);
+    pub struct AsExpr<'t>(PhantomData<&'t ()>);
 
     pub trait Apply {
         type Out<T: MyTyp, S>;
@@ -101,6 +102,10 @@ pub mod private {
 
     impl<'t> Apply for Update<'t> {
         type Out<T: MyTyp, S> = crate::Update<'t, S, T>;
+    }
+
+    impl<'t> Apply for AsExpr<'t> {
+        type Out<T: MyTyp, S> = crate::Expr<'t, S, T>;
     }
 
     pub trait Instantiate<const STRUCT_ID: usize, Params> {
@@ -130,13 +135,24 @@ pub trait Table: Sized + 'static {
     type TryUpdate<'t>;
 
     #[doc(hidden)]
+    type Insert<'t>;
+
+    #[doc(hidden)]
+    fn read<'t>(val: &Self::Insert<'t>, f: &Reader<'t, Self::Schema>);
+
+    #[doc(hidden)]
+    fn get_conflict_unchecked<'t>(
+        val: &Self::Insert<'t>,
+    ) -> Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>>;
+
+    #[doc(hidden)]
     fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t>;
 
     #[doc(hidden)]
     fn apply_try_update<'t>(
         val: Self::TryUpdate<'t>,
         old: Expr<'t, Self::Schema, Self>,
-    ) -> impl TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>>;
+    ) -> Self::Insert<'t>;
 
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;

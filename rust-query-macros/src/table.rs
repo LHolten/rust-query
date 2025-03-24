@@ -188,6 +188,16 @@ pub(crate) fn define_table(
             type Conflict<'t> = #conflict_type;
             type Update<'t> = (#table_ident<#(#update_columns_safe),*>);
             type TryUpdate<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
+            type Insert<'t> = (#table_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
+
+            fn read<'t>(val: &Self::Insert<'t>, f: &::rust_query::private::Reader<'t, Self::Schema>) {
+                #(f.col(#col_str, &val.#col_ident);)*
+            }
+
+            fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>>
+            {
+                #conflict_dummy_insert
+            }
 
             fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
                 #table_ident {#(
@@ -198,7 +208,7 @@ pub(crate) fn define_table(
             fn apply_try_update<'t>(
                 val: Self::TryUpdate<'t>,
                 old: ::rust_query::Expr<'t, Self::Schema, Self>,
-            ) -> impl ::rust_query::private::TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>> {
+            ) -> Self::Insert<'t> {
                 #table_ident {#(
                     #col_ident: val.#col_ident.apply(old.#col_ident()),
                 )*}
@@ -213,16 +223,11 @@ pub(crate) fn define_table(
         where
             #(#generic: ::rust_query::IntoExpr<'t, #schema, Typ = #col_typ>,)*
         {
-            type Schema = #schema;
             type T = #table_ident;
-            type Conflict = #conflict_type;
-            fn read(&self, f: ::rust_query::private::Reader<'_, 't, Self::Schema>) {
-                #(f.col(#col_str, &self.#col_ident);)*
-            }
-            fn get_conflict_unchecked(&self) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict>>
-            {
-                let val = self;
-                #conflict_dummy_insert
+            fn into_insert(self) -> <Self::T as ::rust_query::Table>::Insert<'t> {
+                #table_ident {#(
+                    #col_ident: ::rust_query::IntoExpr::into_expr(self.#col_ident),
+                )*}
             }
         }
 

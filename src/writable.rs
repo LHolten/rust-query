@@ -1,10 +1,12 @@
 use std::marker::PhantomData;
 
+use ref_cast::{RefCastCustom, ref_cast_custom};
+
 use crate::{
-    Expr, IntoExpr, Select, Table,
+    Expr, IntoExpr, Table,
     alias::Field,
     ast::MySelect,
-    value::{DynTypedExpr, NumTyp, Typed},
+    value::{DynTypedExpr, NumTyp},
 };
 
 /// Defines a column update.
@@ -47,26 +49,26 @@ impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
 
 /// this trait has to be implemented by the `schema` macro.
 pub trait TableInsert<'t> {
-    type Schema;
-    type Conflict;
-    type T: Table<Schema = Self::Schema, Conflict<'t> = Self::Conflict>;
-
-    fn read(&self, f: Reader<'_, 't, Self::Schema>);
-    fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::Schema, Option<Self::Conflict>>;
+    type T: Table;
+    fn into_insert(self) -> <Self::T as Table>::Insert<'t>;
 }
 
-pub struct Reader<'x, 't, S> {
-    pub(crate) ast: &'x MySelect,
+#[derive(RefCastCustom)]
+#[repr(transparent)]
+pub struct Reader<'t, S> {
+    pub(crate) ast: MySelect,
     pub(crate) _p: PhantomData<S>,
     pub(crate) _p2: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
-impl<'t, S> Reader<'_, 't, S> {
+impl<'t, S> Reader<'t, S> {
+    #[ref_cast_custom]
+    pub(crate) fn new(select: &MySelect) -> &Self;
+}
+
+impl<'t, S> Reader<'t, S> {
     pub fn col(&self, name: &'static str, val: impl IntoExpr<'t, S>) {
-        let field = Field::Str(name);
-        let val = val.into_expr().inner;
-        let expr = val.build_expr(self.ast.builder());
-        self.ast.select.push(Box::new((expr, field)))
+        self.col_erased(name, val.into_expr().inner.erase());
     }
 
     pub(crate) fn col_erased(&self, name: &'static str, val: DynTypedExpr) {

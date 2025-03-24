@@ -512,6 +512,17 @@ pub struct Expr<'column, S, T> {
     pub(crate) _p2: PhantomData<S>,
 }
 
+impl<'column, S, T: 'static> Expr<'column, S, T> {
+    /// Extremely easy to use API. Should only be used by the macro to implement migrations.
+    #[doc(hidden)]
+    pub fn _migrate<OldS>(prev: impl IntoExpr<'column, OldS>) -> Self {
+        Self::new(MigratedExpr {
+            prev: prev.into_expr().inner.erase(),
+            _p: PhantomData,
+        })
+    }
+}
+
 pub fn new_column<'x, S, T>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T> {
     Expr::new(val)
 }
@@ -567,6 +578,18 @@ pub struct DynTypedExpr(pub(crate) Box<dyn Fn(ValueBuilder) -> SimpleExpr>);
 impl<Typ: 'static> DynTyped<Typ> {
     pub fn erase(self) -> DynTypedExpr {
         DynTypedExpr(Box::new(move |b| self.build_expr(b)))
+    }
+}
+
+pub struct MigratedExpr<Typ> {
+    prev: DynTypedExpr,
+    _p: PhantomData<Typ>,
+}
+
+impl<Typ> Typed for MigratedExpr<Typ> {
+    type Typ = Typ;
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        self.prev.0(b)
     }
 }
 

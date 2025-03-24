@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     Database, LocalClient,
-    migration::{Config, Migrated, schema},
+    migration::{Config, schema},
 };
 
 pub use v2::*;
@@ -132,18 +132,10 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(|txn| {
-        txn.try_migrate_all(|new, select!(name)| new.try_migrate(v1::GenreNew { name }))
-            .expect("name is unique");
-
-        for (new, v0::Genre!(name)) in txn.unmigrated() {
-            new.try_migrate(v1::GenreNew { name })
-                .expect("name is unique");
-        }
-
-        v1::update::Schema {
-            genre_new: Migrated::map_fk_err(|| unreachable!("all rows are migrated")),
-        }
+    let m = m.migrate(|txn| v1::update::Schema {
+        genre_new: txn
+            .try_migrate(|old: v0::Genre!(name)| v1::GenreNew { name: old.name })
+            .expect("name is unique"),
     });
 
     let m = m.migrate(|txn| v2::update::Schema {

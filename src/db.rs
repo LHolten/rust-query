@@ -194,7 +194,7 @@ impl<T> rusqlite::ToSql for TableRow<'_, T> {
 mod tests {
     use std::convert::Infallible;
 
-    use crate::schema_pragma::FakeInsert;
+    use crate::{IntoSelectExt, Select, private::Reader};
 
     use super::*;
     struct Admin;
@@ -211,6 +211,17 @@ mod tests {
         type Conflict<'t> = Infallible;
         type Update<'t> = ();
         type TryUpdate<'t> = ();
+        type Insert<'t> = ();
+
+        fn read<'t>(val: &Self::Insert<'t>, f: &Reader<'t, Self::Schema>) {
+            todo!()
+        }
+
+        fn get_conflict_unchecked<'t>(
+            val: &Self::Insert<'t>,
+        ) -> Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>> {
+            todo!()
+        }
 
         fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
             todo!()
@@ -219,13 +230,8 @@ mod tests {
         fn apply_try_update<'t>(
             val: Self::TryUpdate<'t>,
             old: Expr<'t, Self::Schema, Self>,
-        ) -> impl crate::private::TableInsert<
-            't,
-            T = Self,
-            Schema = Self::Schema,
-            Conflict = Self::Conflict<'t>,
-        > {
-            FakeInsert(PhantomData)
+        ) -> Self::Insert<'t> {
+            todo!()
         }
 
         const ID: &'static str = "";

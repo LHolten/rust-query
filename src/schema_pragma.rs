@@ -1,8 +1,8 @@
-use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
+use std::{collections::HashMap, convert::Infallible};
 
 use ref_cast::RefCast;
 
-use crate::{Expr, FromExpr, Table, Transaction, db::Col, hash, private::TableInsert};
+use crate::{Expr, FromExpr, Select, Table, Transaction, db::Col, hash, private::Reader};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -35,38 +35,33 @@ macro_rules! table {
             type Conflict<'t> = Infallible;
             type Update<'t> = ();
             type TryUpdate<'t> = ();
+            type Insert<'t> = ();
 
-            fn update_into_try_update<'t>(_val: Self::Update<'t>) -> Self::TryUpdate<'t> {}
+            fn read<'t>(_val: &Self::Insert<'t>, _f: &Reader<'t, Self::Schema>) {
+                unreachable!()
+            }
+
+            fn get_conflict_unchecked<'t>(
+                _val: &Self::Insert<'t>,
+            ) -> Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>> {
+                unreachable!()
+            }
+
+            fn update_into_try_update<'t>(_val: Self::Update<'t>) -> Self::TryUpdate<'t> {
+                unreachable!()
+            }
 
             fn apply_try_update<'t>(
                 _val: Self::TryUpdate<'t>,
                 _old: Expr<'t, Self::Schema, Self>,
-            ) -> impl TableInsert<'t, T = Self, Schema = Self::Schema, Conflict = Self::Conflict<'t>>
-            {
-                FakeInsert(PhantomData)
+            ) -> Self::Insert<'t> {
+                unreachable!()
             }
 
             const ID: &'static str = "";
             const NAME: &'static str = "";
         }
     };
-}
-
-pub struct FakeInsert<T>(pub PhantomData<T>);
-
-impl<'t, T: Table> TableInsert<'t> for FakeInsert<T> {
-    type Schema = T::Schema;
-    type Conflict = T::Conflict<'t>;
-    type T = T;
-
-    fn read(&self, _f: crate::private::Reader<'_, 't, Self::Schema>) {
-        todo!()
-    }
-
-    fn get_conflict_unchecked(&self) -> crate::Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
-        let x = ::rust_query::IntoExpr::into_expr(&0i64);
-        ::rust_query::IntoSelectExt::map_select(x, |_| unreachable!())
-    }
 }
 
 pub struct Pragma;

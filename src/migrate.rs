@@ -9,17 +9,15 @@ use std::{
 };
 
 use rusqlite::{Connection, config::DbConfig};
-use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder, TableDropStatement, value};
+use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder, TableDropStatement};
 
 use crate::{
-    FromExpr, Select, Table, TableRow, Transaction,
+    FromExpr, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     client::LocalClient,
     hash,
-    private::TableInsert,
     schema_pragma::read_schema,
     transaction::{Database, try_insert_private},
-    writable::Reader,
 };
 
 pub struct TableTypBuilder<S> {
@@ -56,16 +54,7 @@ pub trait Migratable: Table {
     type Migration<'t>;
 
     #[doc(hidden)]
-    fn get_conflict_unchecked<'t>(
-        val: &Self::Migration<'t>,
-    ) -> Select<'t, 't, Self::FromSchema, Option<Self::Conflict<'t>>>;
-
-    #[doc(hidden)]
-    fn prepare<'t>(
-        val: &Self::Migration<'t>,
-        prev: TableRow<'t, Self::From>,
-        f: Reader<'_, 't, Self::FromSchema>,
-    );
+    fn prepare<'t>(val: Self::Migration<'t>, prev: TableRow<'t, Self::From>) -> Self::Insert<'t>;
 }
 
 pub trait EasyMigratable: Migratable {}
@@ -166,38 +155,6 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     }
 }
 
-pub struct Wrapper<'t, X: Migratable>(X::Migration<'t>, i64);
-impl<'t, X> TableInsert<'t> for Wrapper<'t, X>
-where
-    X: Migratable,
-{
-    type Schema = X::Schema;
-    type Conflict = X::Conflict<'t>;
-    type T = X;
-
-    fn read(&self, f: Reader<'_, 't, Self::Schema>) {
-        X::prepare(
-            &self.0,
-            TableRow::new(self.1),
-            Reader {
-                ast: f.ast,
-                _p: PhantomData,
-                _p2: PhantomData,
-            },
-        );
-        f.col(Self::T::ID, self.1);
-    }
-
-    fn get_conflict_unchecked(&self) -> Select<'t, 't, Self::Schema, Option<Self::Conflict>> {
-        let dummy = X::get_conflict_unchecked(&self.0);
-        Select {
-            inner: dummy.inner,
-            _p: PhantomData,
-            _p2: PhantomData,
-        }
-    }
-}
-
 pub struct SchemaBuilder<'t, FromSchema, Schema> {
     inner: TransactionMigrate<'t, FromSchema, Schema>,
     drop: Vec<TableDropStatement>,
@@ -205,13 +162,6 @@ pub struct SchemaBuilder<'t, FromSchema, Schema> {
 }
 
 impl<'t, FromSchema: 'static, Schema> SchemaBuilder<'t, FromSchema, Schema> {
-    // pub fn migrate_table<T: EasyMigratable<FromSchema = FromSchema, Schema = Schema>>(
-    //     &mut self,
-    //     m: impl FnOnce(::rust_query::Expr<'t, FromSchema, T::From>) -> T::Migration<'t, 't>,
-    // ) {
-
-    // }
-
     pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
         self.inner.new_table_name::<To>();
 
@@ -317,8 +267,6 @@ impl LocalClient {
     /// Create a [Migrator] to migrate a database.
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.
-    ///
-    /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrator<'t, S: Schema>(&'t mut self, config: Config) -> Option<Migrator<'t, S>> {
         use r2d2::ManageConnection;
         let conn = self.conn.insert(config.manager.connect().unwrap());
@@ -345,13 +293,12 @@ impl LocalClient {
         // We can not migrate databases older than `S`
         if user_version < S::VERSION {
             return None;
-        } else if user_version == S::VERSION {
-            assert_eq!(
-                foreign_key_check::<S>(&conn),
-                None,
-                "foreign key constraint violated"
-            );
         }
+        assert_eq!(
+            foreign_key_check(&conn),
+            None,
+            "foreign key constraint violated"
+        );
 
         Some(Migrator {
             manager: config.manager,
@@ -378,7 +325,7 @@ pub struct Migrator<'t, S> {
     _local: PhantomData<LocalClient>,
 }
 
-/// [Migrate] provides a migration strategy.
+/// [Migrated] provides a migration strategy.
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
 pub struct Migrated<'t, T: Migratable> {
@@ -419,10 +366,11 @@ impl<'t, T: Migratable> MigrateRow<'_, 't, T> {
     ///
     /// This can result in conflicts if there are unique constraints on the table.
     pub fn try_migrate(self, val: T::Migration<'t>) -> Result<(), T::Conflict<'t>> {
-        try_insert_private(
+        try_insert_private::<T>(
             &self.txn,
             self.table.into_table_ref(),
-            Wrapper::<T>(val, self.row),
+            Some(self.row),
+            T::prepare(val, TableRow::new(self.row)),
         )?;
         Ok(())
     }
@@ -454,6 +402,8 @@ impl<'t, S: Schema> Migrator<'t, S> {
         M: Migration<'t, From = S, To = New>,
     {
         if user_version(&self.transaction).unwrap() == S::VERSION {
+            check_schema::<S>(&self.transaction);
+
             let mut txn = TransactionMigrate {
                 _p: PhantomData,
                 inner: Transaction::new(self.transaction.clone()),
@@ -478,11 +428,10 @@ impl<'t, S: Schema> Migrator<'t, S> {
                 let sql = rename.to_string(SqliteQueryBuilder);
                 self.transaction.execute(&sql, []).unwrap();
             }
-            if let Some(fk) = foreign_key_check::<New>(&self.transaction) {
+            if let Some(fk) = foreign_key_check(&self.transaction) {
                 (builder.foreign_key.remove(&*fk).unwrap())();
             }
             set_user_version(&self.transaction, New::VERSION).unwrap();
-            todo!()
         }
 
         Migrator {
@@ -497,11 +446,14 @@ impl<'t, S: Schema> Migrator<'t, S> {
     /// Commit the migration transaction and return a [Database].
     ///
     /// Returns [None] if the database schema version is newer than `S`.
+    ///
+    /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn finish(self) -> Option<Database<S>> {
         let conn = &self.transaction;
         if user_version(conn).unwrap() != S::VERSION {
             return None;
         }
+        check_schema::<S>(&self.transaction);
 
         let schema_version = schema_version(conn);
         Rc::into_inner(self.transaction).unwrap().commit().unwrap();
@@ -529,17 +481,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-fn foreign_key_check<S: Schema>(conn: &Rc<rusqlite::Transaction>) -> Option<String> {
-    let error = conn
-        .prepare("PRAGMA foreign_key_check")
-        .unwrap()
-        .query_map([], |row| row.get(2))
-        .unwrap()
-        .next();
-    if let Some(error) = error {
-        return Some(error.unwrap());
-    }
-
+fn check_schema<S: Schema>(conn: &Rc<rusqlite::Transaction>) {
     let mut b = TableTypBuilder::default();
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
@@ -547,5 +489,14 @@ fn foreign_key_check<S: Schema>(conn: &Rc<rusqlite::Transaction>) -> Option<Stri
         read_schema(&crate::Transaction::new(conn.clone())),
         "schema is different (expected left, but got right)",
     );
-    return None;
+}
+
+fn foreign_key_check(conn: &Rc<rusqlite::Transaction>) -> Option<String> {
+    let error = conn
+        .prepare("PRAGMA foreign_key_check")
+        .unwrap()
+        .query_map([], |row| row.get(2))
+        .unwrap()
+        .next();
+    error.transpose().unwrap()
 }
