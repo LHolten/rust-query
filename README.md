@@ -44,6 +44,7 @@ Despite these limitations, I am dogfooding this query builder and using it in my
 
 Define a schema using `enum` syntax:
 ```rust
+# fn main() {}
 use rust_query::migration::schema;
 
 #[schema]

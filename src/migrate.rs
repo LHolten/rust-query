@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     convert::Infallible,
     marker::PhantomData,
-    ops::Deref,
+    ops::{Deref, Not},
     path::Path,
     rc::Rc,
     sync::atomic::AtomicBool,
@@ -110,7 +110,7 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
         let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
 
         data.into_iter().filter_map(move |(row, data)| {
-            migrated.contains(&row.inner.idx).then_some((
+            migrated.contains(&row.inner.idx).not().then_some((
                 MigrateRow {
                     _p: PhantomData,
                     row: row.inner.idx,
