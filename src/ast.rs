@@ -61,11 +61,7 @@ impl MySelect {
     }
 
     pub fn simple(&self) -> SelectStatement {
-        let mut select = self.build_select(false);
-        for (aggr, _alias) in self.select.iter() {
-            select.order_by_expr(aggr.clone(), sea_query::Order::Asc);
-        }
-        select
+        self.build_select(false)
     }
 
     pub fn build_select(&self, is_group: bool) -> SelectStatement {

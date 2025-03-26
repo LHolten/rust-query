@@ -9,8 +9,11 @@ use rust_query::{
     aggregate,
 };
 
-/// requires [PartialEq] to get rid of unused warnings.
-fn assert_dbg(val: impl Debug + PartialEq, file_name: &str) {
+fn assert_dbg(mut val: &mut [impl Debug + PartialOrd], count: Option<usize>, file_name: &str) {
+    val.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    if let Some(count) = count {
+        val = &mut val[..count];
+    }
     let path = format!("chinook_tests/{file_name}.dbg");
     expect_file![path].assert_debug_eq(&val);
 }
@@ -21,26 +24,26 @@ fn test_queries() {
     let db = migrate(&mut client);
     let mut db = client.transaction_mut(&db);
 
-    let res = invoice_info(&db);
-    assert_dbg(&res[..20], "invoice_info");
-    let res = playlist_track_count(&db);
-    assert_dbg(&res[..], "playlist_track_count");
-    let res = avg_album_track_count_for_artist(&db);
-    assert_dbg(&res[..20], "avg_album_track_count_for_artist");
-    let res = count_reporting(&db);
-    assert_dbg(&res[..], "count_reporting");
-    let res = list_all_genres(&db);
-    assert_dbg(&res[..20], "list_all_genres");
-    let res = filtered_track(&db, "Metal", 1000 * 60);
-    assert_dbg(&res[..], "filtered_track");
-    let res = genre_statistics(&db);
-    assert_dbg(&res[..20], "genre_statistics");
-    let res = all_customer_spending(&db);
-    assert_dbg(&res[..20], "customer_spending");
-    let res = get_the_artists(&db);
-    assert_dbg(&res[..], "the_artists");
-    let res = ten_space_tracks(&db);
-    assert_dbg(&res[..], "ten_space_tracks");
+    let mut res = invoice_info(&db);
+    assert_dbg(&mut res, Some(20), "invoice_info");
+    let mut res = playlist_track_count(&db);
+    assert_dbg(&mut res, None, "playlist_track_count");
+    let mut res = avg_album_track_count_for_artist(&db);
+    assert_dbg(&mut res, Some(20), "avg_album_track_count_for_artist");
+    let mut res = count_reporting(&db);
+    assert_dbg(&mut res, None, "count_reporting");
+    let mut res = list_all_genres(&db);
+    assert_dbg(&mut res, Some(20), "list_all_genres");
+    let mut res = filtered_track(&db, "Metal", 1000 * 60);
+    assert_dbg(&mut res, None, "filtered_track");
+    let mut res = genre_statistics(&db);
+    assert_dbg(&mut res, Some(20), "genre_statistics");
+    let mut res = all_customer_spending(&db);
+    assert_dbg(&mut res, Some(20), "customer_spending");
+    let mut res = get_the_artists(&db);
+    assert_dbg(&mut res, None, "the_artists");
+    let mut res = ten_space_tracks(&db);
+    assert_dbg(&mut res, None, "ten_space_tracks");
 
     free_reference(&db);
 
@@ -68,7 +71,7 @@ fn test_queries() {
     assert!(db.try_delete(id).unwrap());
 }
 
-#[derive(Debug, Select, PartialEq)]
+#[derive(Debug, Select, PartialEq, PartialOrd)]
 struct InvoiceInfo<'a> {
     track: String,
     artist: String,
@@ -86,7 +89,7 @@ fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
     })
 }
 
-#[derive(Debug, Select, PartialEq)]
+#[derive(Debug, Select, PartialEq, PartialOrd)]
 struct PlaylistTrackCount {
     playlist: String,
     track_count: i64,
@@ -149,14 +152,14 @@ fn list_all_genres(db: &Transaction<Schema>) -> Vec<String> {
     })
 }
 
-#[derive(Debug, Select, PartialEq)]
+#[derive(Debug, Select, PartialEq, PartialOrd)]
 struct FilteredTrack {
     track_name: String,
     album_name: String,
     stats: Stats,
 }
 
-#[derive(Debug, Select, PartialEq)]
+#[derive(Debug, Select, PartialEq, PartialOrd)]
 struct Stats {
     milis: i64,
 }
@@ -176,7 +179,7 @@ fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<
     })
 }
 
-#[derive(Debug, Select, PartialEq)]
+#[derive(Debug, Select, PartialEq, PartialOrd)]
 struct GenreStats {
     genre_name: String,
     byte_average: f64,
@@ -202,7 +205,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
     })
 }
 
-#[derive(Debug, Select, PartialEq)]
+#[derive(Debug, Select, PartialEq, PartialOrd)]
 struct CustomerSpending {
     customer_name: String,
     total_spending: f64,
