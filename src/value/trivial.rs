@@ -21,7 +21,7 @@ macro_rules! from_expr {
             fn from_expr<'columns>(
                 col: impl IntoExpr<'columns, S, Typ = $typ>,
             ) -> Select<'columns, 'transaction, S, Self> {
-                col.into_select()
+                col.into_expr().into_select()
             }
         }
     };
@@ -37,7 +37,7 @@ impl<'transaction, T: Table> FromExpr<'transaction, T::Schema, T> for TableRow<'
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, T::Schema, Typ = T>,
     ) -> Select<'columns, 'transaction, T::Schema, Self> {
-        col.into_select()
+        col.into_expr().into_select()
     }
 }
 

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use sea_query::Iden;
 
 use crate::{
-    IntoExpr,
+    Expr, IntoExpr,
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
 };
@@ -261,16 +261,25 @@ impl<'transaction, T: MyTyp> SelectImpl<'transaction> for ColumnImpl<T> {
     }
 }
 
-impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for T
+impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for Expr<'columns, S, T>
 where
-    T: IntoExpr<'columns, S>,
+    T: MyTyp,
 {
-    type Out = <T::Typ as MyTyp>::Out<'transaction>;
+    type Out = T::Out<'transaction>;
 
     fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
-        Select::new(ColumnImpl {
-            expr: self.into_expr().inner,
-        })
+        Select::new(ColumnImpl { expr: self.inner })
+    }
+}
+
+impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for &T
+where
+    T: IntoSelect<'columns, 'transaction, S> + Clone,
+{
+    type Out = T::Out;
+
+    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        T::clone(self).into_select()
     }
 }
 
@@ -336,7 +345,7 @@ mod tests {
         type Out = User;
 
         fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
-            (self.a, self.b)
+            (self.a.into_expr(), self.b.into_expr())
                 .map_select((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
                 .into_select()
         }
