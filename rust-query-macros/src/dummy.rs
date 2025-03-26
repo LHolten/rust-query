@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
-use syn::{GenericParam, ItemStruct, Lifetime};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
+use syn::{spanned::Spanned, GenericParam, ItemStruct, Lifetime};
 
 use crate::make_generic;
 
@@ -108,8 +108,19 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 }
 
 pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
-    let mut trivial = vec![];
     let mut transaction_lt = None;
+    match *item.generics.lifetimes().collect::<Vec<_>>() {
+        [] => {}
+        [lt] => transaction_lt = Some(lt.lifetime.clone()),
+        _ => {
+            return Err(syn::Error::new_spanned(
+                item.generics,
+                "can have at most one lifetime generic",
+            ))
+        }
+    }
+
+    let mut trivial = vec![];
     for attr in &item.attrs {
         if attr.path().is_ident("rust_query") {
             attr.parse_nested_meta(|meta| {
@@ -118,20 +129,9 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
                     trivial.push(path);
                     return Ok(());
                 }
-                if meta.path.is_ident("lt") {
-                    let lt: syn::Lifetime = meta.value()?.parse()?;
-                    if transaction_lt.replace(lt).is_some() {
-                        return Err(syn::Error::new_spanned(
-                            attr,
-                            "Can not have multiple transaction lifetimes",
-                        ));
-                    }
-                    return Ok(());
-                }
                 Err(meta.error("unrecognized rust-query attribute"))
             })?;
         }
-        if attr.path().is_ident("trivial") {}
     }
 
     let CommonInfo {
@@ -156,8 +156,9 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         let schema = quote! {<#trivial as ::rust_query::Table>::Schema};
         let mut trivial_prepared = vec![];
         for (name, typ) in &fields {
+            let span = typ.span();
             trivial_prepared
-                .push(quote! {<#typ as ::rust_query::FromExpr<_, _>>::from_expr(col.#name())});
+                .push(quote_spanned! {span=> <#typ as ::rust_query::FromExpr<_, _>>::from_expr(col.#name())});
         }
         let parts_dummies = wrap(&trivial_prepared);
         let parts_name = wrap(&names);

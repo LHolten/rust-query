@@ -53,13 +53,16 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
         }
     }
 
+    let span = spec.required_span;
+    let lt = quote_spanned! {span=> '_};
+
     let mut out_typs = vec![];
     for x in spec.all {
         if let Some(typ) = m.remove(&x) {
             if let Some((_, custom)) = typ {
                 out_typs.push(quote! {::rust_query::private::Custom<#custom>});
             } else {
-                out_typs.push(quote! {::rust_query::private::Native<'_>});
+                out_typs.push(quote! {::rust_query::private::Native<#lt>});
             }
         } else {
             out_typs.push(quote! {::rust_query::private::Ignore});
@@ -74,7 +77,6 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
         return Ok(quote! {()});
     }
     let struct_id = spec.struct_id;
-    let span = spec.required_span;
     let typ = quote! {(#(#out_typs),*)};
     Ok(
         quote_spanned! {span=> <MacroRoot as ::rust_query::private::Instantiate<#struct_id, #typ>>::Out},

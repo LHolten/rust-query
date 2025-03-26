@@ -15,6 +15,7 @@
 - `TransactionWeak::unchecked_transaction` is no longer behind a feature flag.
 - `hash_schema` method was moved behind `dev` feature.
 - Updated dependencies.
+- Added support for `Vec<u8>` data type (sqlite `BLOB`).
 
 # 0.3.1
 

@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromExpr, LocalClient,
+    Database, FromExpr, LocalClient, TableRow,
     migration::{Config, schema},
     optional,
 };
@@ -46,6 +46,13 @@ fn main() {
         name: String,
         score: i64,
         home: NameInfo,
+    }
+
+    #[derive(FromExpr)]
+    #[rust_query(From = Player)]
+    struct PlayerInfo2<'t> {
+        score: i64,
+        home: TableRow<'t, World>,
     }
 
     // old pattern, requires two queries

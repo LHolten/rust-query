@@ -211,12 +211,8 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     .into()
 }
 
-/// This macro also supports some helper attributes on the struct.
-///
-/// - `#[rust_query(From = Thing)]`
-///   This will automatically derive `FromExpr` for the specified column type.
-/// - `#[rust_query(lt = 't)]`
-///   Can be used to specify the transaction lifetime for structs that contain `TableRow` fields.
+/// Use in combination with `#[rust_query(From = Thing)]` to specify which tables
+/// this struct should implement `FromExpr` for.
 #[proc_macro_derive(FromExpr, attributes(rust_query))]
 pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
