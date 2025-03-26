@@ -1,5 +1,21 @@
 # Unreleased
 
+- Added `optional` combinator.
+- Renamed `Dummy` to `Select`.
+- Renamed `Column` to `Expr`.
+- Changed `Expr` to be co-variant in its lifetime.
+- `Rows::into_vec` is no longer sorted automatically.
+- Added safe updates of a subset of columns for each table.
+- Update statements now use the `Update` type for each column.
+- Migrations now allow renaming tables and splitting tables.
+- Migrations now require explicit handling of potential unique constraint violations.
+- Migrations now require explicit handling of foreign key violations.
+- Added a macro for each table to create ad-hoc column selection types.
+- Added the `FromExpr` trait to allow custom column selection and conversion.
+- `TransactionWeak::unchecked_transaction` is no longer behind a feature flag.
+- `hash_schema` method was moved behind `dev` feature.
+- Updated dependencies.
+
 # 0.3.1
 
 - Added error message when defining an `id` column.
