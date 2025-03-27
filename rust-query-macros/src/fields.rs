@@ -6,6 +6,7 @@ use syn::{parse::Parse, punctuated::Punctuated, Ident, LitInt, Token};
 
 struct Field {
     name: Ident,
+    lt: Option<(Token![<], syn::Lifetime, Token![>])>,
     typ: Option<(Token![as], syn::Type)>,
 }
 
@@ -13,6 +14,10 @@ impl Parse for Field {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         Ok(Self {
             name: input.parse()?,
+            lt: input
+                .peek(Token![<])
+                .then(|| Ok::<_, syn::Error>((input.parse()?, input.parse()?, input.parse()?)))
+                .transpose()?,
             typ: input
                 .peek(Token![as])
                 .then(|| Ok::<_, syn::Error>((input.parse()?, input.parse()?)))
@@ -48,20 +53,23 @@ impl Parse for Spec {
 pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
     let mut m = HashMap::new();
     for r in &spec.required {
-        if m.insert(r.name.clone(), r.typ.clone()).is_some() {
+        if m.insert(r.name.clone(), (r.lt.clone().map(|x| x.1), r.typ.clone()))
+            .is_some()
+        {
             return Err(syn::Error::new_spanned(&r.name, "duplicate name"));
         }
     }
 
     let span = spec.required_span;
-    let lt = quote_spanned! {span=> '_};
+    let static_lt = syn::Lifetime::new("'static", span);
 
     let mut out_typs = vec![];
     for x in spec.all {
-        if let Some(typ) = m.remove(&x) {
+        if let Some((lt, typ)) = m.remove(&x) {
             if let Some((_, custom)) = typ {
                 out_typs.push(quote! {::rust_query::private::Custom<#custom>});
             } else {
+                let lt = lt.unwrap_or(static_lt.clone());
                 out_typs.push(quote! {::rust_query::private::Native<#lt>});
             }
         } else {
@@ -78,7 +86,7 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
     }
     let struct_id = spec.struct_id;
     let typ = quote! {(#(#out_typs),*)};
-    Ok(
-        quote_spanned! {span=> <MacroRoot as ::rust_query::private::Instantiate<#struct_id, #typ>>::Out},
-    )
+    Ok(quote_spanned! {span=>
+
+    <MacroRoot as ::rust_query::private::Instantiate<#struct_id, #typ>>::Out})
 }

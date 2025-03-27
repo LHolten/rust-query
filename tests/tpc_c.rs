@@ -141,7 +141,7 @@ pub fn new_order<'a>(
 ) -> OutputData<'a> {
     let district = txn.query_one(input.customer.district());
 
-    let district_info: v0::District!(warehouse, number, tax) =
+    let district_info: District!(warehouse<'_>, number, tax) =
         txn.query_one(FromExpr::from_expr(district));
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
