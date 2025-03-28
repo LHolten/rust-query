@@ -105,6 +105,7 @@ pub fn generate(spec: Spec) -> syn::Result<TokenStream> {
                 }
             }
 
+            #[allow(non_local_definitions)]
             impl<#(#generic),*> ::rust_query::private::Sneak<MacroRoot, (#(#generic),*)> for [(); IMPL_ID] {
                 type Out = (Tmp<#(#generic),*>);
             }
