@@ -68,10 +68,10 @@ pub(crate) fn define_table(
     let mut col_str = vec![];
     let mut col_ident = vec![];
     let mut col_typ = vec![];
+    let mut field_id = vec![];
     let mut empty = vec![];
-    let mut parts = vec![];
 
-    for col in table.columns.values() {
+    for (id, col) in table.columns.values().enumerate() {
         let typ = &col.typ;
         let ident = &col.name;
 
@@ -84,11 +84,11 @@ pub(crate) fn define_table(
             update_columns_safe.push(quote! {::rust_query::private::Update<'t>});
             try_from_update.push(quote! {val.#ident});
         }
-        parts.push(quote! {::rust_query::FromExpr::from_expr(col.#ident())});
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
         col_typ.push(typ);
+        field_id.push(id);
         empty.push(quote! {})
     }
 
@@ -114,9 +114,6 @@ pub(crate) fn define_table(
         (quote! {::std::convert::Infallible}, quote! {unreachable!()})
     };
 
-    let wrap_parts = wrap(&parts);
-    let wrap_ident = wrap(&col_ident);
-
     Ok(quote! {
         #[repr(transparent)]
         pub struct #ext_ident<T>(T);
@@ -134,24 +131,15 @@ pub(crate) fn define_table(
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
 
-        impl<#(#generic: ::rust_query::private::Apply),*> ::rust_query::private::Instantiate<#struct_id, (#(#generic),*)> for super::MacroRoot {
-            type Out = (#table_ident<#(#generic),*>);
+        impl ::rust_query::private::Instantiate<#struct_id> for super::MacroRoot {
+            type Out = #table_ident;
         }
 
-        impl<'transaction, #(#generic: ::rust_query::private::Apply + 'transaction),*> ::rust_query::FromExpr<'transaction, #schema, #table_ident>
-            for #table_ident<#(#generic),*>
-        where #(#generic::Out<#col_typ, #schema>: ::rust_query::FromExpr<'transaction, #schema, #col_typ>,)*
-        {
-            /// How to turn a column reference into a [Select].
-            fn from_expr<'columns>(
-                col: impl ::rust_query::IntoExpr<'columns, #schema, Typ = #table_ident>,
-            ) -> ::rust_query::Select<'columns, 'transaction, #schema, Self> {
-                let col = ::rust_query::IntoExpr::into_expr(col);
-                ::rust_query::IntoSelectExt::map_select(#wrap_parts, |#wrap_ident| #table_ident {
-                    #(#col_ident,)*
-                })
+        #(
+            impl ::rust_query::private::Field<#struct_id, #field_id> for super::MacroRoot {
+                type Out = #col_typ;
             }
-        }
+        )*
 
         #[allow(unused_macros)]
         macro_rules! #macro_ident {

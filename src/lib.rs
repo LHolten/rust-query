@@ -108,8 +108,20 @@ pub mod private {
         type Out<T: MyTyp, S> = crate::Expr<'t, S, T>;
     }
 
-    pub trait Instantiate<const STRUCT_ID: usize, Params> {
+    pub trait Instantiate<const STRUCT_ID: usize> {
         type Out;
+    }
+
+    pub trait Field<const STRUCT_ID: usize, const FIELD_ID: usize> {
+        type Out;
+    }
+
+    pub trait Sneak<MacroRoot, Params> {
+        type Out;
+    }
+
+    pub const fn file_line_col(file: &'static str, line: u32, col: u32) -> usize {
+        (line as u64 + (col as u64) << 32) as usize
     }
 }
 
