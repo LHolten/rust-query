@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use sea_query::Iden;
 
 use crate::{
-    Expr, IntoExpr,
+    Expr,
     alias::Field,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
 };
@@ -325,6 +325,8 @@ where
 #[cfg(test)]
 #[allow(unused)]
 mod tests {
+    use crate::IntoExpr;
+
     use super::*;
 
     struct User {
