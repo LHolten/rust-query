@@ -47,8 +47,8 @@ fn test_queries() {
 
     free_reference(&db);
 
-    db.try_insert(Artist { name: "first" }).unwrap();
-    let id = db.try_insert(Artist { name: "second" }).unwrap();
+    db.insert(Artist { name: "first" }).unwrap();
+    let id = db.insert(Artist { name: "second" }).unwrap();
 
     let Err(_) = db.try_update(
         id,

@@ -164,13 +164,13 @@ pub fn new_order<'a>(
 
     let entry_d = UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
 
-    let order = txn.insert(Order {
+    let order = txn.insert_ok(Order {
         customer: input.customer,
         entry_d,
         carrier_id: None::<i64>,
         all_local: local as i64,
     });
-    txn.try_insert(NewOrder { order }).unwrap();
+    txn.insert(NewOrder { order }).unwrap();
 
     let mut output_order_lines = vec![];
 
@@ -239,7 +239,7 @@ pub fn new_order<'a>(
                 "G"
             };
 
-        txn.try_insert(OrderLine {
+        txn.insert(OrderLine {
             order,
             number: number as i64,
             stock,
@@ -416,7 +416,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     let date = UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
 
     let data = format!("{}    {}", warehouse_info.name, district_info.name);
-    txn.insert(History {
+    txn.insert_ok(History {
         customer,
         district,
         date,

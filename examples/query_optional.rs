@@ -58,8 +58,8 @@ fn main() {
 
     assert!(info.is_none());
 
-    let home = txn.insert(World { name: "Dune" });
-    txn.try_insert(Player {
+    let home = txn.insert_ok(World { name: "Dune" });
+    txn.insert(Player {
         pub_id,
         name: "Asterix",
         score: 3000,

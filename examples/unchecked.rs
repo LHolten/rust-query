@@ -24,7 +24,7 @@ fn main() {
 
     let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
         .into_iter()
-        .map(|name| txn.insert(Name { name }))
+        .map(|name| txn.insert_ok(Name { name }))
         .collect();
 
     let mut txn = txn.downgrade();

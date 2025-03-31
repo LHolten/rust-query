@@ -134,18 +134,18 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let m = client.migrator(config).unwrap();
     let m = m.migrate(|txn| v1::update::Schema {
         genre_new: txn
-            .try_migrate(|old: v0::Genre!(name)| v1::GenreNew { name: old.name })
+            .migrate_ok(|old: v0::Genre!(name)| v1::GenreNew { name: old.name })
             .expect("name is unique"),
     });
 
     let m = m.migrate(|txn| v2::update::Schema {
-        customer: txn.migrate(|old: v1::Customer!(phone)| {
+        customer: txn.migrate_ok(|old: v1::Customer!(phone)| {
             v2::update::CustomerMigration {
                 // lets do some cursed phone number parsing :D
                 phone: old.phone.and_then(|x| x.parse().ok()),
             }
         }),
-        track: txn.migrate(
+        track: txn.migrate_ok(
             |old: v1::Track!(media_type as v1::MediaType!(name), unit_price, bytes)| {
                 v2::update::TrackMigration {
                     media_type: old.media_type.name,
@@ -154,7 +154,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
                 }
             },
         ),
-        genre_new: txn.migrate(|old: v1::GenreNew!(name)| v2::update::GenreNewMigration {
+        genre_new: txn.migrate_ok(|old: v1::GenreNew!(name)| v2::update::GenreNewMigration {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
     });

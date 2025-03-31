@@ -16,6 +16,7 @@
 - `hash_schema` method was moved behind `dev` feature.
 - Updated dependencies.
 - Added support for `Vec<u8>` data type (sqlite `BLOB`).
+- Renamed `try_insert` to `insert` and `insert` to `insert_ok`.
 
 # 0.3.1
 

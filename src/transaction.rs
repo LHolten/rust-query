@@ -151,7 +151,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
-    pub fn try_insert<T: Table<Schema = S>>(
+    pub fn insert<T: Table<Schema = S>>(
         &mut self,
         val: impl TableInsert<'t, T = T>,
     ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
@@ -163,19 +163,19 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         )
     }
 
-    /// This is a convenience function to make using [TransactionMut::try_insert]
+    /// This is a convenience function to make using [TransactionMut::insert]
     /// easier for tables without unique constraints.
     ///
     /// The new row is added to the table and the row reference is returned.
-    pub fn insert<T: Table<Schema = S, Conflict<'t> = Infallible>>(
+    pub fn insert_ok<T: Table<Schema = S, Conflict<'t> = Infallible>>(
         &mut self,
         val: impl TableInsert<'t, T = T>,
     ) -> TableRow<'t, T> {
-        let Ok(row) = self.try_insert(val);
+        let Ok(row) = self.insert(val);
         row
     }
 
-    /// This is a convenience function to make using [TransactionMut::try_insert]
+    /// This is a convenience function to make using [TransactionMut::insert]
     /// easier for tables with exactly one unique constraints.
     ///
     /// The new row is inserted and the reference to the row is returned OR
@@ -185,7 +185,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         &mut self,
         val: impl TableInsert<'t, T = T>,
     ) -> TableRow<'t, T> {
-        match self.try_insert(val) {
+        match self.insert(val) {
             Ok(row) => row,
             Err(row) => row,
         }

@@ -27,17 +27,17 @@ use v1::*;
 
 fn insert_data(txn: &mut TransactionMut<Schema>) {
     // Insert users
-    let alice = txn.insert(User {
+    let alice = txn.insert_ok(User {
         name: "alice",
         email: "test",
     });
-    let bob = txn.insert(User {
+    let bob = txn.insert_ok(User {
         name: "bob",
         email: "test",
     });
 
     // Insert a story
-    let dream = txn.insert(Story {
+    let dream = txn.insert_ok(Story {
         author: alice,
         title: "My crazy dream",
         content: "A dinosaur and a bird...",
@@ -45,7 +45,7 @@ fn insert_data(txn: &mut TransactionMut<Schema>) {
 
     // Insert a rating - note the try_insert due to the unique constraint
     let _rating = txn
-        .try_insert(Rating {
+        .insert(Rating {
             user: bob,
             story: dream,
             stars: 5,
@@ -74,7 +74,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
         .migrator(Config::open_in_memory())
         .expect("database is older than supported versions");
     let m = m.migrate(|txn| v1::update::Schema {
-        user: txn.migrate(|old_user: v0::User!(name)| v1::update::UserMigration {
+        user: txn.migrate_ok(|old_user: v0::User!(name)| v1::update::UserMigration {
             email: format!("{}@example.com", old_user.name),
         }),
     });
