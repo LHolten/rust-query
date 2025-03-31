@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromExpr, LocalClient, TableRow,
+    Database, FromExpr, LocalClient,
     migration::{Config, schema},
     optional,
 };
@@ -40,20 +40,8 @@ fn main() {
         name: String,
     }
 
-    #[derive(FromExpr)]
-    #[rust_query(From = Player)]
-    struct PlayerInfo {
-        name: String,
-        score: i64,
-        home: NameInfo,
-    }
-
-    #[derive(FromExpr)]
-    #[rust_query(From = Player)]
-    struct PlayerInfo2<'t> {
-        score: i64,
-        home: TableRow<'t, World>,
-    }
+    type PlayerInfo = Player!(name, score, home as NameInfo);
+    type PlayerInfo2<'t> = Player!(score, home<'t>);
 
     // old pattern, requires two queries
     let player = txn.query_one(Player::unique(pub_id));
@@ -66,7 +54,7 @@ fn main() {
     }));
 
     // for simple queries, use the trivial mapping
-    let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player::unique(pub_id)));
+    let info = txn.query_one(Option::<PlayerInfo2>::from_expr(Player::unique(pub_id)));
 
     assert!(info.is_none());
 
