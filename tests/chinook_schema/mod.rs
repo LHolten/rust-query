@@ -146,10 +146,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
             .migrate_ok(|old: v0::Genre!(name)| v1::update::GenreNewMigration { name: old.name }),
         short_genre: {
             let Ok(()) = txn.migrate_optional(|old: v0::Genre!(name)| {
-                old.name
-                    .len()
-                    .le(&10)
-                    .then_some(v1::update::GenreNewMigration { name: old.name })
+                (old.name.len() <= 10).then_some(v1::update::GenreNewMigration { name: old.name })
             });
             Migrated::map_fk_err(|| panic!())
         },

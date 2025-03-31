@@ -299,11 +299,10 @@ fn define_table_migration(
         )*}
 
         impl<'t> ::rust_query::private::Migration<'t> for #migration_name<#migration_lt> {
-            type Schema = <super::#table_ident as ::rust_query::Table>::Schema;
             type To = super::#table_ident;
             type FromSchema = _PrevSchema;
             type From = #table_ident;
-            type MigrationConflict = #migration_conflict;
+            type Conflict = #migration_conflict;
 
             fn prepare(
                 val: Self,
@@ -314,7 +313,7 @@ fn define_table_migration(
                 )*}
             }
 
-            fn map_conflict(val: ::rust_query::TableRow<'t, Self::From>) -> Self::MigrationConflict {
+            fn map_conflict(val: ::rust_query::TableRow<'t, Self::From>) -> Self::Conflict {
                 #conflict_from
             }
         }
@@ -423,7 +422,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                         type From = _PrevSchema;
                         type To = super::#schema_name;
 
-                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t, Self::From, Self::To>) {
+                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t, Self::From>) {
                             #(#tables;)*
                             #(self.#create_table_lower.apply(b);)*
                         }

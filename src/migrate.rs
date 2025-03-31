@@ -50,37 +50,23 @@ pub trait Schema: Sized + 'static {
 pub trait Migration<'t> {
     type FromSchema: 'static;
     type From: Table<Schema = Self::FromSchema>;
-    type Schema;
-    type To: Table<Schema = Self::Schema>;
-    type MigrationConflict;
+    type To: Table;
+    type Conflict;
 
     #[doc(hidden)]
     fn prepare(val: Self, prev: TableRow<'t, Self::From>) -> <Self::To as Table>::Insert<'t>;
     #[doc(hidden)]
-    fn map_conflict(val: TableRow<'t, Self::From>) -> Self::MigrationConflict;
+    fn map_conflict(val: TableRow<'t, Self::From>) -> Self::Conflict;
 }
 
-// pub trait Migratable: Table {
-//     type FromSchema;
-//     type From: Table<Schema = Self::FromSchema>;
-//     type MigrationConflict<'t>;
-//     type Migration<'t>;
-
-//     #[doc(hidden)]
-//     fn prepare<'t>(val: Self::Migration<'t>, prev: TableRow<'t, Self::From>) -> Self::Insert<'t>;
-//     #[doc(hidden)]
-//     fn map_conflict<'t>(val: TableRow<'t, Self::From>) -> Self::MigrationConflict<'t>;
-// }
-
 /// Transaction type for use in migrations.
-pub struct TransactionMigrate<'t, FromSchema, Schema> {
-    _p: PhantomData<Schema>,
+pub struct TransactionMigrate<'t, FromSchema> {
     inner: Transaction<'t, FromSchema>,
     scope: Scope,
     rename_map: HashMap<&'static str, TmpTable>,
 }
 
-impl<'t, FromSchema, Schema> Deref for TransactionMigrate<'t, FromSchema, Schema> {
+impl<'t, FromSchema> Deref for TransactionMigrate<'t, FromSchema> {
     type Target = Transaction<'t, FromSchema>;
 
     fn deref(&self) -> &Self::Target {
@@ -88,7 +74,7 @@ impl<'t, FromSchema, Schema> Deref for TransactionMigrate<'t, FromSchema, Schema
     }
 }
 
-impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
+impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
@@ -103,7 +89,7 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     /// This method then return an iterator of [MigrateRow] in combination with the specified data.
     ///
     /// You can use [Migratable::unmigrated] to make type annotation easier.
-    fn unmigrated<M: Migration<'t, Schema = Schema, FromSchema = FromSchema>, Out: 't>(
+    fn unmigrated<M: Migration<'t, FromSchema = FromSchema>, Out>(
         &self,
         new_name: TmpTable,
     ) -> impl Iterator<Item = (i64, Out)>
@@ -135,12 +121,12 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     /// - 0 => [Infallible]
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<
-        M: Migration<'t, FromSchema = FromSchema, Schema = Schema>,
+        M: Migration<'t, FromSchema = FromSchema>,
         X: FromExpr<'t, FromSchema, M::From>,
     >(
         &mut self,
         mut f: impl FnMut(X) -> Option<M>,
-    ) -> Result<(), M::MigrationConflict> {
+    ) -> Result<(), M::Conflict> {
         let new_name = self.new_table_name::<M::To>();
 
         for (idx, x) in self.unmigrated::<M, X>(new_name) {
@@ -158,12 +144,12 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     }
 
     pub fn migrate<
-        M: Migration<'t, FromSchema = FromSchema, Schema = Schema>,
+        M: Migration<'t, FromSchema = FromSchema>,
         X: FromExpr<'t, FromSchema, M::From>,
     >(
         &mut self,
         mut f: impl FnMut(X) -> M,
-    ) -> Result<Migrated<'t, M>, M::MigrationConflict> {
+    ) -> Result<Migrated<'t, M>, M::Conflict> {
         self.migrate_optional::<M, X>(|x| Some(f(x)))?;
 
         Ok(Migrated {
@@ -174,7 +160,7 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
 
     /// Helper method for [Self::migrate].
     pub fn migrate_ok<
-        M: Migration<'t, FromSchema = FromSchema, Schema = Schema, MigrationConflict = Infallible>,
+        M: Migration<'t, FromSchema = FromSchema, Conflict = Infallible>,
         X: FromExpr<'t, FromSchema, M::From>,
     >(
         &mut self,
@@ -185,13 +171,13 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     }
 }
 
-pub struct SchemaBuilder<'t, FromSchema, Schema> {
-    inner: TransactionMigrate<'t, FromSchema, Schema>,
+pub struct SchemaBuilder<'t, FromSchema> {
+    inner: TransactionMigrate<'t, FromSchema>,
     drop: Vec<TableDropStatement>,
     foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
 }
 
-impl<'t, FromSchema: 'static, Schema> SchemaBuilder<'t, FromSchema, Schema> {
+impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
     pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
         self.inner.new_table_name::<To>();
 
@@ -229,7 +215,7 @@ pub trait SchemaMigration<'a> {
     type From: Schema;
     type To: Schema;
 
-    fn tables(self, b: &mut SchemaBuilder<'a, Self::From, Self::To>);
+    fn tables(self, b: &mut SchemaBuilder<'a, Self::From>);
 }
 
 /// [Config] is used to open a database from a file or in memory.
@@ -358,9 +344,10 @@ pub struct Migrator<'t, S> {
 /// [Migrated] provides a migration strategy.
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
+// TODO: is this lifetime bound good enough, why?
 pub struct Migrated<'t, M: Migration<'t>> {
     _p: PhantomData<(fn(&'t ()) -> &'t (), M)>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, M::FromSchema, M::Schema>)>,
+    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, M::FromSchema>)>,
 }
 
 impl<'t, M: Migration<'t>> Migrated<'t, M> {
@@ -375,7 +362,7 @@ impl<'t, M: Migration<'t>> Migrated<'t, M> {
     }
 
     #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t, M::FromSchema, M::Schema>) {
+    pub fn apply(self, b: &mut SchemaBuilder<'t, M::FromSchema>) {
         (self.f)(b)
     }
 }
@@ -384,18 +371,17 @@ impl<'t, S: Schema> Migrator<'t, S> {
     /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
-    pub fn migrate<New: Schema, M>(
+    pub fn migrate<M>(
         self,
-        m: impl FnOnce(&mut TransactionMigrate<'t, S, New>) -> M,
-    ) -> Migrator<'t, New>
+        m: impl FnOnce(&mut TransactionMigrate<'t, S>) -> M,
+    ) -> Migrator<'t, M::To>
     where
-        M: SchemaMigration<'t, From = S, To = New>,
+        M: SchemaMigration<'t, From = S>,
     {
         if user_version(&self.transaction).unwrap() == S::VERSION {
             check_schema::<S>(&self.transaction);
 
             let mut txn = TransactionMigrate {
-                _p: PhantomData,
                 inner: Transaction::new(self.transaction.clone()),
                 scope: Default::default(),
                 rename_map: HashMap::new(),
@@ -421,7 +407,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
             if let Some(fk) = foreign_key_check(&self.transaction) {
                 (builder.foreign_key.remove(&*fk).unwrap())();
             }
-            set_user_version(&self.transaction, New::VERSION).unwrap();
+            set_user_version(&self.transaction, M::To::VERSION).unwrap();
         }
 
         Migrator {
