@@ -149,7 +149,7 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     >(
         &mut self,
         mut f: impl FnMut(X) -> M,
-    ) -> Result<Migrated<'t, M>, M::Conflict> {
+    ) -> Result<Migrated<'t, FromSchema, M::To>, M::Conflict> {
         self.migrate_optional::<M, X>(|x| Some(f(x)))?;
 
         Ok(Migrated {
@@ -165,7 +165,7 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     >(
         &mut self,
         f: impl FnMut(X) -> M,
-    ) -> Migrated<'t, M> {
+    ) -> Migrated<'t, FromSchema, M::To> {
         let Ok(res) = self.migrate(f);
         res
     }
@@ -345,24 +345,24 @@ pub struct Migrator<'t, S> {
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
 // TODO: is this lifetime bound good enough, why?
-pub struct Migrated<'t, M: Migration<'t>> {
-    _p: PhantomData<(fn(&'t ()) -> &'t (), M)>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, M::FromSchema>)>,
+pub struct Migrated<'t, FromSchema, T> {
+    _p: PhantomData<(fn(&'t ()) -> &'t (), T)>,
+    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, FromSchema>)>,
 }
 
-impl<'t, M: Migration<'t>> Migrated<'t, M> {
+impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
     /// Don't migrate the remaining rows.
     ///
     /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
     pub fn map_fk_err(err: impl 't + FnOnce() -> Infallible) -> Self {
         Self {
             _p: PhantomData,
-            f: Box::new(|x| x.foreign_key::<M::To>(err)),
+            f: Box::new(|x| x.foreign_key::<T>(err)),
         }
     }
 
     #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t, M::FromSchema>) {
+    pub fn apply(self, b: &mut SchemaBuilder<'t, FromSchema>) {
         (self.f)(b)
     }
 }

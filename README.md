@@ -85,13 +85,13 @@ Insert in the database:
 ```rust,ignore
 // Lets make a new user 'mike',
 let mike = User { name: "mike" };
-let mike_id = db.insert(mike);
+let mike_id = db.insert_ok(mike);
 // and also insert a dog picture for 'mike'.
 let dog_picture = Image {
     description: "dog",
     uploaded_by: mike_id,
 };
-let _picture_id = db.insert(dog_picture);
+let _picture_id = db.insert_ok(dog_picture);
 ```
 Query from the database:
 ```rust,ignore

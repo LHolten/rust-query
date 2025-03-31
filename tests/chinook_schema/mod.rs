@@ -194,6 +194,6 @@ mod tests {
         use rust_query::migration::hash_schema;
 
         expect!["a57e97b8c243859a"].assert_eq(&hash_schema::<v0::Schema>());
-        expect!["15e9ff46816e4b45"].assert_eq(&hash_schema::<v1::Schema>());
+        expect!["9b14036757e3cc6b"].assert_eq(&hash_schema::<v1::Schema>());
     }
 }

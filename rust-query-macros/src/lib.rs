@@ -122,9 +122,9 @@ mod table;
 /// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
-///     let m = m.migrate(|_, _| v1::update::Schema {
-///         user: v1::User::migrate(|user| v1::update::UserMigration {
-///             score: user.email().map_select(|x| x.len() as i64) // use the email length as the new score
+///     let m = m.migrate(|txn| v1::update::Schema {
+///         user: txn.migrate_ok(|old: v0::User!(email)| v1::update::UserMigration {
+///             score: old.email.len() as i64 // use the email length as the new score
 ///         }),
 ///     });
 ///     m.finish().expect("database version is after supported versions")
@@ -191,15 +191,16 @@ pub fn schema(
 ///
 ///         rows.into_vec(MyDataSelect {
 ///             seconds: thing.seconds(),
-///             is_it_real: true,
+///             is_it_real: thing.seconds().lt(100),
 ///             name: thing.details().name(),
 ///             other: OtherDataSelect {
-///                 alpha: 0.5,
+///                 alpha: thing.beta().add(2.0),
 ///                 beta: thing.beta(),
 ///             },
 ///         })
 ///     })
 /// }
+/// # fn main() {}
 /// ```
 #[proc_macro_derive(Select)]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -354,7 +355,6 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         // loop over all new table and see what changed
         for (i, table) in &new_tables {
             let table_name = &table.name;
-            let migration_name = table.migration_name();
 
             let table_lower = to_lower(table_name);
 
@@ -370,7 +370,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 create_table_lower.push(table_lower);
-                create_table_name.push(migration_name);
+                create_table_name.push(table_name);
 
                 tables.push(quote! {b.drop_table::<#table_name>()})
             } else if table.prev.is_some() {
@@ -378,7 +378,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                 table_migrations.extend(migration);
                 create_table_lower.push(table_lower);
-                create_table_name.push(migration_name);
+                create_table_name.push(table_name);
             } else {
                 tables.push(quote! {b.create_empty::<super::#table_name>()})
             }
@@ -415,7 +415,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #table_migrations
 
                     pub struct #schema_name<#lifetime> {
-                        #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, #create_table_name<'t>>,)*
+                        #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, _PrevSchema, super::#create_table_name>,)*
                     }
 
                     impl<'t> ::rust_query::private::SchemaMigration<'t> for #schema_name<#lifetime> {
