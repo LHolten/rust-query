@@ -56,7 +56,7 @@ pub trait Migratable: Table {
     #[doc(hidden)]
     fn prepare<'t>(val: Self::Migration<'t>, prev: TableRow<'t, Self::From>) -> Self::Insert<'t>;
     #[doc(hidden)]
-    fn map_conflict<'t>(val: Self::Conflict<'t>) -> Self::MigrationConflict<'t>;
+    fn map_conflict<'t>(val: TableRow<'t, Self::From>) -> Self::MigrationConflict<'t>;
 }
 
 /// Transaction type for use in migrations.
@@ -116,6 +116,11 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
         })
     }
 
+    /// This will return an error when there is a conflict.
+    /// The error type depends on the number of unique constraints that the
+    /// migration can violate:
+    /// - 0 => [Infallible]
+    /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<
         T: Migratable<FromSchema = FromSchema, Schema = Schema>,
         X: FromExpr<'t, FromSchema, T::From>,
@@ -133,13 +138,12 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
                     Some(idx),
                     T::prepare(new, TableRow::new(idx)),
                 )
-                .map_err(T::map_conflict)?;
+                .map_err(|_| T::map_conflict(TableRow::new(idx)))?;
             };
         }
         Ok(())
     }
 
-    // TODO: return old table row id?
     pub fn migrate<
         T: Migratable<FromSchema = FromSchema, Schema = Schema>,
         X: FromExpr<'t, FromSchema, T::From>,

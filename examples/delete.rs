@@ -30,10 +30,10 @@ fn main() {
 
     let mut txn = txn.downgrade();
     for id in ids.clone() {
-        assert!(txn.delete(id));
+        assert!(txn.delete_ok(id));
     }
     for id in ids {
-        assert!(!txn.delete(id));
+        assert!(!txn.delete_ok(id));
     }
 }
 

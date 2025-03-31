@@ -255,11 +255,15 @@ impl SingleVersionTable {
 fn define_table_migration(
     prev_columns: &BTreeMap<usize, SingleVersionColumn>,
     table: &SingleVersionTable,
+    always_migrate: bool,
 ) -> syn::Result<Option<TokenStream>> {
     let mut col_new = vec![];
     let mut col_ident = vec![];
     let mut alter_ident = vec![];
     let mut alter_typ = vec![];
+
+    let mut migration_conflict = quote! {::std::convert::Infallible};
+    let mut conflict_from = quote! {::std::unreachable!()};
 
     for (i, col) in &table.columns {
         let name = &col.name;
@@ -268,8 +272,8 @@ fn define_table_migration(
         } else {
             let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
             if unique_columns.any(|c| c == name) {
-                return Err(syn::Error::new_spanned(name, "It is not possible to modify unique constraints with a column migration.
-Please re-create the table with the new unique constraints and use the migration transaction to copy over all the data."));
+                migration_conflict = quote! {::rust_query::TableRow<'t, Self::From>};
+                conflict_from = quote! {val};
             }
             col_new.push(quote! {val.#name});
 
@@ -281,7 +285,7 @@ Please re-create the table with the new unique constraints and use the migration
 
     // check that nothing was added or removed
     // we don't need input if only stuff was removed, but it still needs migrating
-    if alter_ident.is_empty() && table.columns.len() == prev_columns.len() {
+    if !always_migrate && alter_ident.is_empty() && table.columns.len() == prev_columns.len() {
         return Ok(None);
     }
 
@@ -301,7 +305,7 @@ Please re-create the table with the new unique constraints and use the migration
             type FromSchema = _PrevSchema;
             type From = #table_ident;
             type Migration<'t> = #migration_name<'t>;
-            type MigrationConflict<'t> = ::std::convert::Infallible;
+            type MigrationConflict<'t> = #migration_conflict;
 
             fn prepare<'t>(
                 val: Self::Migration<'t>,
@@ -312,48 +316,12 @@ Please re-create the table with the new unique constraints and use the migration
                 )*}
             }
 
-            fn map_conflict<'t>(val: Self::Conflict<'t>) -> Self::MigrationConflict<'t> {
-                unreachable!()
+            fn map_conflict<'t>(val: ::rust_query::TableRow<'t, Self::From>) -> Self::MigrationConflict<'t> {
+                #conflict_from
             }
         }
     };
     Ok(Some(migration))
-}
-
-fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
-    let mut col_str = vec![];
-    let mut col_ident = vec![];
-    let mut empty = vec![];
-
-    for col in table.columns.values() {
-        col_str.push(col.name.to_string());
-        col_ident.push(&col.name);
-        empty.push(quote! {});
-    }
-
-    let table_ident = &table.name;
-
-    quote! {
-        impl ::rust_query::migration::Migratable for super::#table_ident {
-            type FromSchema = _PrevSchema;
-            type From = #table_ident;
-            type Migration<'t> = (super::#table_ident<#(#empty ::rust_query::private::Native<'t>),*>);
-            type MigrationConflict<'t> = Self::Conflict<'t>;
-
-            fn prepare<'t>(
-                val: Self::Migration<'t>,
-                prev: ::rust_query::TableRow<'t, Self::From>,
-            ) -> Self::Insert<'t> {
-                super::#table_ident {#(
-                    #col_ident: ::rust_query::Expr::_migrate::<_PrevSchema>(val.#col_ident),
-                )*}
-            }
-
-            fn map_conflict<'t>(val: Self::Conflict<'t>) -> Self::MigrationConflict<'t> {
-                val
-            }
-        }
-    }
 }
 
 fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
@@ -397,7 +365,8 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
             if let Some(prev_table) = prev_tables.remove(i) {
                 // a table already existed, so we need to define a migration
 
-                let Some(migration) = define_table_migration(&prev_table.columns, table)? else {
+                let Some(migration) = define_table_migration(&prev_table.columns, table, false)?
+                else {
                     continue;
                 };
                 table_migrations.extend(migration);
@@ -407,7 +376,9 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                 tables.push(quote! {b.drop_table::<#table_name>()})
             } else if table.prev.is_some() {
-                table_migrations.extend(define_table_creation(table));
+                let migration = define_table_migration(&BTreeMap::new(), table, true).unwrap();
+
+                table_migrations.extend(migration);
                 create_table_lower.push(table_lower);
                 create_table_name.push(table_name);
             } else {

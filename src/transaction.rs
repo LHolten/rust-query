@@ -306,7 +306,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     /// When this method returns [Ok] it will contain a [bool] that is either
     /// - `true` if the row was just deleted.
     /// - `false` if the row was deleted previously in this transaction.
-    pub fn try_delete<T: Table<Schema = S>>(
+    pub fn delete<T: Table<Schema = S>>(
         &mut self,
         val: TableRow<'t, T>,
     ) -> Result<bool, T::Referer> {
@@ -336,14 +336,15 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
 
     /// Delete a row from the database.
     ///
-    /// This is the infallible version of [TransactionWeak::try_delete].
+    /// This is the infallible version of [TransactionWeak::delete].
     ///
     /// To be able to use this method you have to mark the table as `#[no_reference]` in the schema.
-    pub fn delete<T: Table<Referer = Infallible, Schema = S>>(
+    pub fn delete_ok<T: Table<Referer = Infallible, Schema = S>>(
         &mut self,
         val: TableRow<'t, T>,
     ) -> bool {
-        self.try_delete(val).unwrap()
+        let Ok(res) = self.delete(val);
+        res
     }
 
     /// This allows you to do anything you want with the internal [rusqlite::Transaction]

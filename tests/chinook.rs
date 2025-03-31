@@ -68,7 +68,7 @@ fn test_queries() {
     assert_eq!(db.query_one(id.name()), "other");
 
     let mut db = db.downgrade();
-    assert!(db.try_delete(id).unwrap());
+    assert!(db.delete(id).unwrap());
 }
 
 #[derive(Debug, Select, PartialEq, PartialOrd)]
