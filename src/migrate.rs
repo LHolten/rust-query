@@ -47,17 +47,30 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-pub trait Migratable: Table {
-    type FromSchema;
+pub trait Migration<'t> {
+    type FromSchema: 'static;
     type From: Table<Schema = Self::FromSchema>;
-    type MigrationConflict<'t>;
-    type Migration<'t>;
+    type Schema;
+    type To: Table<Schema = Self::Schema>;
+    type MigrationConflict;
 
     #[doc(hidden)]
-    fn prepare<'t>(val: Self::Migration<'t>, prev: TableRow<'t, Self::From>) -> Self::Insert<'t>;
+    fn prepare(val: Self, prev: TableRow<'t, Self::From>) -> <Self::To as Table>::Insert<'t>;
     #[doc(hidden)]
-    fn map_conflict<'t>(val: TableRow<'t, Self::From>) -> Self::MigrationConflict<'t>;
+    fn map_conflict(val: TableRow<'t, Self::From>) -> Self::MigrationConflict;
 }
+
+// pub trait Migratable: Table {
+//     type FromSchema;
+//     type From: Table<Schema = Self::FromSchema>;
+//     type MigrationConflict<'t>;
+//     type Migration<'t>;
+
+//     #[doc(hidden)]
+//     fn prepare<'t>(val: Self::Migration<'t>, prev: TableRow<'t, Self::From>) -> Self::Insert<'t>;
+//     #[doc(hidden)]
+//     fn map_conflict<'t>(val: TableRow<'t, Self::From>) -> Self::MigrationConflict<'t>;
+// }
 
 /// Transaction type for use in migrations.
 pub struct TransactionMigrate<'t, FromSchema, Schema> {
@@ -90,20 +103,20 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     /// This method then return an iterator of [MigrateRow] in combination with the specified data.
     ///
     /// You can use [Migratable::unmigrated] to make type annotation easier.
-    fn unmigrated<T: Migratable<Schema = Schema, FromSchema = FromSchema>, Out: 't>(
+    fn unmigrated<M: Migration<'t, Schema = Schema, FromSchema = FromSchema>, Out: 't>(
         &self,
         new_name: TmpTable,
     ) -> impl Iterator<Item = (i64, Out)>
     where
-        Out: FromExpr<'t, FromSchema, T::From>,
+        Out: FromExpr<'t, FromSchema, M::From>,
     {
         let data = self.inner.query(|rows| {
-            let old = rows.join::<T::From>();
+            let old = rows.join::<M::From>();
             rows.into_vec((&old, Out::from_expr(&old)))
         });
 
         let migrated = Transaction::new(self.inner.transaction.clone()).query(|rows| {
-            let new = rows.join_tmp::<T>(new_name);
+            let new = rows.join_tmp::<M::From>(new_name);
             rows.into_vec(new)
         });
         let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
@@ -122,36 +135,36 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
     /// - 0 => [Infallible]
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<
-        T: Migratable<FromSchema = FromSchema, Schema = Schema>,
-        X: FromExpr<'t, FromSchema, T::From>,
+        M: Migration<'t, FromSchema = FromSchema, Schema = Schema>,
+        X: FromExpr<'t, FromSchema, M::From>,
     >(
         &mut self,
-        mut f: impl FnMut(X) -> Option<T::Migration<'t>>,
-    ) -> Result<(), T::MigrationConflict<'t>> {
-        let new_name = self.new_table_name::<T>();
+        mut f: impl FnMut(X) -> Option<M>,
+    ) -> Result<(), M::MigrationConflict> {
+        let new_name = self.new_table_name::<M::To>();
 
-        for (idx, x) in self.unmigrated::<T, X>(new_name) {
+        for (idx, x) in self.unmigrated::<M, X>(new_name) {
             if let Some(new) = f(x) {
-                try_insert_private::<T>(
+                try_insert_private::<M::To>(
                     &self.transaction,
                     new_name.into_table_ref(),
                     Some(idx),
-                    T::prepare(new, TableRow::new(idx)),
+                    M::prepare(new, TableRow::new(idx)),
                 )
-                .map_err(|_| T::map_conflict(TableRow::new(idx)))?;
+                .map_err(|_| M::map_conflict(TableRow::new(idx)))?;
             };
         }
         Ok(())
     }
 
     pub fn migrate<
-        T: Migratable<FromSchema = FromSchema, Schema = Schema>,
-        X: FromExpr<'t, FromSchema, T::From>,
+        M: Migration<'t, FromSchema = FromSchema, Schema = Schema>,
+        X: FromExpr<'t, FromSchema, M::From>,
     >(
         &mut self,
-        mut f: impl FnMut(X) -> T::Migration<'t>,
-    ) -> Result<Migrated<'t, T>, T::MigrationConflict<'t>> {
-        self.migrate_optional::<T, X>(|x| Some(f(x)))?;
+        mut f: impl FnMut(X) -> M,
+    ) -> Result<Migrated<'t, M>, M::MigrationConflict> {
+        self.migrate_optional::<M, X>(|x| Some(f(x)))?;
 
         Ok(Migrated {
             _p: PhantomData,
@@ -161,12 +174,12 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
 
     /// Helper method for [Self::migrate].
     pub fn migrate_ok<
-        T: Migratable<FromSchema = FromSchema, Schema = Schema, MigrationConflict<'t> = Infallible>,
-        X: FromExpr<'t, FromSchema, T::From>,
+        M: Migration<'t, FromSchema = FromSchema, Schema = Schema, MigrationConflict = Infallible>,
+        X: FromExpr<'t, FromSchema, M::From>,
     >(
         &mut self,
-        f: impl FnMut(X) -> T::Migration<'t>,
-    ) -> Migrated<'t, T> {
+        f: impl FnMut(X) -> M,
+    ) -> Migrated<'t, M> {
         let Ok(res) = self.migrate(f);
         res
     }
@@ -212,7 +225,7 @@ fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl In
     conn.execute(&sql, []).unwrap();
 }
 
-pub trait Migration<'a> {
+pub trait SchemaMigration<'a> {
     type From: Schema;
     type To: Schema;
 
@@ -345,24 +358,24 @@ pub struct Migrator<'t, S> {
 /// [Migrated] provides a migration strategy.
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
-pub struct Migrated<'t, T: Migratable> {
-    _p: PhantomData<(fn(&'t ()) -> &'t (), T)>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, T::FromSchema, T::Schema>)>,
+pub struct Migrated<'t, M: Migration<'t>> {
+    _p: PhantomData<(fn(&'t ()) -> &'t (), M)>,
+    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, M::FromSchema, M::Schema>)>,
 }
 
-impl<'t, T: Migratable> Migrated<'t, T> {
+impl<'t, M: Migration<'t>> Migrated<'t, M> {
     /// Don't migrate the remaining rows.
     ///
     /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
     pub fn map_fk_err(err: impl 't + FnOnce() -> Infallible) -> Self {
         Self {
             _p: PhantomData,
-            f: Box::new(|x| x.foreign_key::<T>(err)),
+            f: Box::new(|x| x.foreign_key::<M::To>(err)),
         }
     }
 
     #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t, T::FromSchema, T::Schema>) {
+    pub fn apply(self, b: &mut SchemaBuilder<'t, M::FromSchema, M::Schema>) {
         (self.f)(b)
     }
 }
@@ -376,7 +389,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
         m: impl FnOnce(&mut TransactionMigrate<'t, S, New>) -> M,
     ) -> Migrator<'t, New>
     where
-        M: Migration<'t, From = S, To = New>,
+        M: SchemaMigration<'t, From = S, To = New>,
     {
         if user_version(&self.transaction).unwrap() == S::VERSION {
             check_schema::<S>(&self.transaction);

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     Database, LocalClient,
-    migration::{Config, schema},
+    migration::{Config, Migrated, schema},
 };
 
 pub use v2::*;
@@ -69,6 +69,11 @@ enum Schema {
         #[version(2..)]
         extra: i64,
     },
+    #[version(1..)]
+    #[from(Genre)]
+    ShortGenre {
+        name: String,
+    },
     Invoice {
         customer: Customer,
         invoice_date: String,
@@ -80,7 +85,10 @@ enum Schema {
         total: f64,
     },
     InvoiceLine {
+        #[version(..2)]
         invoice: Invoice,
+        #[version(2..)]
+        invoice_new: Invoice,
         track: Track,
         unit_price: f64,
         quantity: i64,
@@ -135,8 +143,16 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let m = client.migrator(config).unwrap();
     let m = m.migrate(|txn| v1::update::Schema {
         genre_new: txn
-            .migrate(|old: v0::Genre!(name)| v1::update::GenreNewMigration { name: old.name })
-            .expect("name is unique"),
+            .migrate_ok(|old: v0::Genre!(name)| v1::update::GenreNewMigration { name: old.name }),
+        short_genre: {
+            let Ok(()) = txn.migrate_optional(|old: v0::Genre!(name)| {
+                old.name
+                    .len()
+                    .le(&10)
+                    .then_some(v1::update::GenreNewMigration { name: old.name })
+            });
+            Migrated::map_fk_err(|| panic!())
+        },
     });
 
     let m = m.migrate(|txn| v2::update::Schema {
@@ -159,6 +175,11 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
         employee: txn.migrate_ok(|()| v2::update::EmployeeMigration {}),
+        invoice_line: txn.migrate_ok(|old: v1::InvoiceLine!(invoice<'_>)| {
+            v2::update::InvoiceLineMigration {
+                invoice_new: old.invoice,
+            }
+        }),
     });
 
     m.finish().unwrap()

@@ -298,22 +298,23 @@ fn define_table_migration(
             pub #alter_ident: <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>,
         )*}
 
-        impl ::rust_query::migration::Migratable for super::#table_ident {
+        impl<'t> ::rust_query::private::Migration<'t> for #migration_name<#migration_lt> {
+            type Schema = <super::#table_ident as ::rust_query::Table>::Schema;
+            type To = super::#table_ident;
             type FromSchema = _PrevSchema;
             type From = #table_ident;
-            type Migration<'t> = #migration_name<#migration_lt>;
-            type MigrationConflict<'t> = #migration_conflict;
+            type MigrationConflict = #migration_conflict;
 
-            fn prepare<'t>(
-                val: Self::Migration<'t>,
+            fn prepare(
+                val: Self,
                 prev: ::rust_query::TableRow<'t, Self::From>,
-            ) -> Self::Insert<'t> {
+            ) -> <Self::To as ::rust_query::Table>::Insert<'t> {
                 super::#table_ident {#(
                     #col_ident: ::rust_query::Expr::_migrate::<_PrevSchema>(#col_new),
                 )*}
             }
 
-            fn map_conflict<'t>(val: ::rust_query::TableRow<'t, Self::From>) -> Self::MigrationConflict<'t> {
+            fn map_conflict(val: ::rust_query::TableRow<'t, Self::From>) -> Self::MigrationConflict {
                 #conflict_from
             }
         }
@@ -354,6 +355,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
         // loop over all new table and see what changed
         for (i, table) in &new_tables {
             let table_name = &table.name;
+            let migration_name = table.migration_name();
 
             let table_lower = to_lower(table_name);
 
@@ -369,7 +371,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                 table_migrations.extend(migration);
 
                 create_table_lower.push(table_lower);
-                create_table_name.push(table_name);
+                create_table_name.push(migration_name);
 
                 tables.push(quote! {b.drop_table::<#table_name>()})
             } else if table.prev.is_some() {
@@ -377,7 +379,7 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
 
                 table_migrations.extend(migration);
                 create_table_lower.push(table_lower);
-                create_table_name.push(table_name);
+                create_table_name.push(migration_name);
             } else {
                 tables.push(quote! {b.create_empty::<super::#table_name>()})
             }
@@ -414,10 +416,10 @@ fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
                     #table_migrations
 
                     pub struct #schema_name<#lifetime> {
-                        #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, super::#create_table_name>,)*
+                        #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, #create_table_name<'t>>,)*
                     }
 
-                    impl<'t> ::rust_query::private::Migration<'t> for #schema_name<#lifetime> {
+                    impl<'t> ::rust_query::private::SchemaMigration<'t> for #schema_name<#lifetime> {
                         type From = _PrevSchema;
                         type To = super::#schema_name;
 
