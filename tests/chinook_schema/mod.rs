@@ -56,6 +56,7 @@ enum Schema {
         postal_code: Option<String>,
         phone: Option<String>,
         fax: Option<String>,
+        #[version(..2)]
         email: String,
     },
     Genre {
@@ -134,7 +135,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let m = client.migrator(config).unwrap();
     let m = m.migrate(|txn| v1::update::Schema {
         genre_new: txn
-            .migrate(|old: v0::Genre!(name)| v1::GenreNew { name: old.name })
+            .migrate(|old: v0::Genre!(name)| v1::update::GenreNewMigration { name: old.name })
             .expect("name is unique"),
     });
 
@@ -157,6 +158,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         genre_new: txn.migrate_ok(|old: v1::GenreNew!(name)| v2::update::GenreNewMigration {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
+        employee: txn.migrate_ok(|()| v2::update::EmployeeMigration {}),
     });
 
     m.finish().unwrap()

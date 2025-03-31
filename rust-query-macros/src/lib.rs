@@ -289,22 +289,19 @@ fn define_table_migration(
         return Ok(None);
     }
 
-    if alter_ident.is_empty() {
-        panic!("Migrations that only remove columns are not supported yet")
-    }
-
     let table_ident = &table.name;
     let migration_name = table.migration_name();
+    let migration_lt = alter_ident.is_empty().not().then_some(quote! {'t});
 
     let migration = quote! {
-        pub struct #migration_name<'t> {#(
+        pub struct #migration_name<#migration_lt> {#(
             pub #alter_ident: <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>,
         )*}
 
         impl ::rust_query::migration::Migratable for super::#table_ident {
             type FromSchema = _PrevSchema;
             type From = #table_ident;
-            type Migration<'t> = #migration_name<'t>;
+            type Migration<'t> = #migration_name<#migration_lt>;
             type MigrationConflict<'t> = #migration_conflict;
 
             fn prepare<'t>(
