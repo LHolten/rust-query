@@ -115,6 +115,8 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
         })
     }
 
+    /// Migrate some rows to the new schema.
+    ///
     /// This will return an error when there is a conflict.
     /// The error type depends on the number of unique constraints that the
     /// migration can violate:
@@ -143,6 +145,12 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
         Ok(())
     }
 
+    /// Migrate all rows to the new schema.
+    ///
+    /// Conflict errors work the same as in [Self::migrate_optional].
+    ///
+    /// However, this method will return [Migrated] when all rows are migrated.
+    /// This can then be used as proof that there will be no foreign key violations.
     pub fn migrate<
         M: Migration<'t, FromSchema = FromSchema>,
         X: FromExpr<'t, FromSchema, M::From>,
@@ -159,6 +167,8 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     }
 
     /// Helper method for [Self::migrate].
+    ///
+    /// It can only be used when the migration is known to never cause unique constraint conflicts.
     pub fn migrate_ok<
         M: Migration<'t, FromSchema = FromSchema, Conflict = Infallible>,
         X: FromExpr<'t, FromSchema, M::From>,
@@ -407,6 +417,10 @@ impl<'t, S: Schema> Migrator<'t, S> {
             if let Some(fk) = foreign_key_check(&self.transaction) {
                 (builder.foreign_key.remove(&*fk).unwrap())();
             }
+            #[allow(
+                unreachable_code,
+                reason = "rustc is stupid and thinks this is unreachable"
+            )]
             set_user_version(&self.transaction, M::To::VERSION).unwrap();
         }
 
