@@ -59,8 +59,6 @@ pub trait Migratable: Table {
     fn map_conflict<'t>(val: Self::Conflict<'t>) -> Self::MigrationConflict<'t>;
 }
 
-pub trait EasyMigratable: Migratable {}
-
 /// Transaction type for use in migrations.
 pub struct TransactionMigrate<'t, FromSchema, Schema> {
     _p: PhantomData<Schema>,
@@ -141,6 +139,7 @@ impl<'t, FromSchema, Schema> TransactionMigrate<'t, FromSchema, Schema> {
         Ok(())
     }
 
+    // TODO: return old table row id?
     pub fn migrate<
         T: Migratable<FromSchema = FromSchema, Schema = Schema>,
         X: FromExpr<'t, FromSchema, T::From>,

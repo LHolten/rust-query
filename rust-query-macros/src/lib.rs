@@ -103,7 +103,7 @@ mod table;
 /// # Changing columns
 /// Changing columns is very similar to adding and removing structs.
 /// ```
-/// use rust_query::migration::{schema, Config, EasyMigratable};
+/// use rust_query::migration::{schema, Config};
 /// use rust_query::{IntoSelectExt, LocalClient, Database};
 /// #[schema]
 /// #[version(0..=1)]
@@ -297,12 +297,11 @@ Please re-create the table with the new unique constraints and use the migration
             pub #alter_ident: <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>,
         )*}
 
-        impl ::rust_query::private::EasyMigratable for super::#table_ident {}
-
         impl ::rust_query::migration::Migratable for super::#table_ident {
             type FromSchema = _PrevSchema;
             type From = #table_ident;
             type Migration<'t> = #migration_name<'t>;
+            type MigrationConflict<'t> = ::std::convert::Infallible;
 
             fn prepare<'t>(
                 val: Self::Migration<'t>,
@@ -311,6 +310,10 @@ Please re-create the table with the new unique constraints and use the migration
                 super::#table_ident {#(
                     #col_ident: ::rust_query::Expr::_migrate::<_PrevSchema>(#col_new),
                 )*}
+            }
+
+            fn map_conflict<'t>(val: Self::Conflict<'t>) -> Self::MigrationConflict<'t> {
+                unreachable!()
             }
         }
     };
@@ -335,6 +338,7 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
             type FromSchema = _PrevSchema;
             type From = #table_ident;
             type Migration<'t> = (super::#table_ident<#(#empty ::rust_query::private::Native<'t>),*>);
+            type MigrationConflict<'t> = Self::Conflict<'t>;
 
             fn prepare<'t>(
                 val: Self::Migration<'t>,
@@ -343,6 +347,10 @@ fn define_table_creation(table: &SingleVersionTable) -> TokenStream {
                 super::#table_ident {#(
                     #col_ident: ::rust_query::Expr::_migrate::<_PrevSchema>(val.#col_ident),
                 )*}
+            }
+
+            fn map_conflict<'t>(val: Self::Conflict<'t>) -> Self::MigrationConflict<'t> {
+                val
             }
         }
     }

@@ -134,7 +134,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     let m = client.migrator(config).unwrap();
     let m = m.migrate(|txn| v1::update::Schema {
         genre_new: txn
-            .migrate_ok(|old: v0::Genre!(name)| v1::GenreNew { name: old.name })
+            .migrate(|old: v0::Genre!(name)| v1::GenreNew { name: old.name })
             .expect("name is unique"),
     });
 
