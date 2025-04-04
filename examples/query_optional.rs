@@ -6,17 +6,17 @@ use rust_query::{
 
 // Start by defining your schema.
 #[schema]
-enum Schema {
+pub mod Schema {
     #[unique(pub_id)]
-    Player {
-        pub_id: i64,
-        name: String,
-        score: i64,
-        home: World,
-    },
-    World {
-        name: String,
-    },
+    pub struct Player {
+        pub pub_id: i64,
+        pub name: String,
+        pub score: i64,
+        pub home: World,
+    }
+    pub struct World {
+        pub name: String,
+    }
 }
 // Bring the latest schema version into scope.
 use v0::*;

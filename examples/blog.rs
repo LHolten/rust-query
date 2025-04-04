@@ -5,23 +5,23 @@ use rust_query::{
 
 #[schema]
 #[version(0..=1)]
-enum Schema {
-    User {
-        name: String,
+pub mod Schema {
+    pub struct User {
+        pub name: String,
         #[version(1..)]
-        email: String,
-    },
-    Story {
-        author: User,
-        title: String,
-        content: String,
-    },
+        pub email: String,
+    }
+    pub struct Story {
+        pub author: User,
+        pub title: String,
+        pub content: String,
+    }
     #[unique(user, story)]
-    Rating {
-        user: User,
-        story: Story,
-        stars: i64,
-    },
+    pub struct Rating {
+        pub user: User,
+        pub story: Story,
+        pub stars: i64,
+    }
 }
 use v1::*;
 

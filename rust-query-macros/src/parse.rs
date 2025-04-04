@@ -1,9 +1,7 @@
 use std::ops::{Not, Range};
 
 use quote::ToTokens;
-use syn::{
-    parse2, punctuated::Punctuated, Attribute, Field, Ident, ItemEnum, Path, Token, Variant,
-};
+use syn::{parse2, punctuated::Punctuated, Attribute, Field, Ident, Item, Path, Token, Visibility};
 
 use crate::multi::{
     ColumnTyp, Reference, Unique, VersionedColumn, VersionedSchema, VersionedTable,
@@ -12,16 +10,18 @@ use crate::multi::{
 impl VersionedColumn {
     pub fn parse(field: Field, limit: Range<u32>) -> syn::Result<Self> {
         let Some(name) = field.ident.clone() else {
-            return Err(syn::Error::new_spanned(
-                field,
-                "Expected table columns to be named.",
-            ));
+            return Err(syn::Error::new_spanned(field, "field must be named"));
         };
+
+        let Visibility::Public(_) = field.vis else {
+            return Err(syn::Error::new_spanned(name, "field must be public"));
+        };
+
         // not sure if case matters here
         if name.to_string().to_lowercase() == "id" {
             return Err(syn::Error::new_spanned(
                 name,
-                "The `id` column is reserved to be used by rust-query internally.",
+                "The `id` column is reserved to be used by rust-query internally",
             ));
         }
 
@@ -51,7 +51,11 @@ impl VersionedColumn {
 }
 
 impl VersionedTable {
-    pub fn parse(table: Variant, limit: Range<u32>) -> syn::Result<Self> {
+    pub fn parse(table: syn::ItemStruct, limit: Range<u32>) -> syn::Result<Self> {
+        let Visibility::Public(_) = table.vis else {
+            return Err(syn::Error::new_spanned(table.ident, "table must be public"));
+        };
+
         let mut other_attrs = vec![];
         let mut uniques = vec![];
         let mut prev = None;
@@ -103,15 +107,36 @@ impl VersionedTable {
 }
 
 impl VersionedSchema {
-    pub fn parse(item: ItemEnum) -> syn::Result<Self> {
+    pub fn parse(item: syn::ItemMod) -> syn::Result<Self> {
         let versions = parse_version(&item.attrs)?
             .unwrap_or_default()
             .into_std(0..1, false)?;
 
-        let tables = item
-            .variants
+        let Visibility::Public(_) = item.vis else {
+            return Err(syn::Error::new_spanned(item.ident, "module must be public"));
+        };
+
+        if let Some(unsafety) = item.unsafety {
+            return Err(syn::Error::new_spanned(
+                unsafety,
+                "module can not be unsafe",
+            ));
+        };
+
+        let Some(content) = item.content else {
+            return Err(syn::Error::new_spanned(item.ident, "module must be inline"));
+        };
+
+        let tables = content
+            .1
             .into_iter()
-            .map(|x| VersionedTable::parse(x, versions.clone()))
+            .map(|x| {
+                let Item::Struct(x) = x else {
+                    return Err(syn::Error::new_spanned(x, "only struct items are allowed"));
+                };
+
+                VersionedTable::parse(x, versions.clone())
+            })
             .collect::<Result<_, _>>()?;
 
         Ok(VersionedSchema { versions, tables })

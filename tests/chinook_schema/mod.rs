@@ -9,123 +9,123 @@ pub use v2::*;
 
 #[schema]
 #[version(0..=2)]
-enum Schema {
-    Album {
-        title: String,
-        artist: Artist,
-    },
+pub mod Schema {
+    pub struct Album {
+        pub title: String,
+        pub artist: Artist,
+    }
     #[unique(name)]
-    Artist {
-        name: String,
-    },
+    pub struct Artist {
+        pub name: String,
+    }
     #[unique_by_email(email)]
-    Customer {
+    pub struct Customer {
         #[version(..2)]
-        phone: Option<String>,
+        pub phone: Option<String>,
         #[version(2..)]
-        phone: Option<i64>,
-        first_name: String,
-        last_name: String,
-        company: Option<String>,
-        address: String,
-        city: String,
-        state: Option<String>,
-        country: String,
-        postal_code: Option<String>,
-        fax: Option<String>,
-        email: String,
-        support_rep: Employee,
-    },
+        pub phone: Option<i64>,
+        pub first_name: String,
+        pub last_name: String,
+        pub company: Option<String>,
+        pub address: String,
+        pub city: String,
+        pub state: Option<String>,
+        pub country: String,
+        pub postal_code: Option<String>,
+        pub fax: Option<String>,
+        pub email: String,
+        pub support_rep: Employee,
+    }
     #[version(1..)]
     #[unique(employee, artist)]
-    ListensTo {
-        employee: Employee,
-        artist: Artist,
-    },
-    Employee {
-        last_name: String,
-        first_name: String,
-        title: Option<String>,
-        reports_to: Option<Employee>,
-        birth_date: Option<String>,
-        hire_date: Option<String>,
-        address: Option<String>,
-        city: Option<String>,
-        state: Option<String>,
-        country: Option<String>,
-        postal_code: Option<String>,
-        phone: Option<String>,
-        fax: Option<String>,
+    pub struct ListensTo {
+        pub employee: Employee,
+        pub artist: Artist,
+    }
+    pub struct Employee {
+        pub last_name: String,
+        pub first_name: String,
+        pub title: Option<String>,
+        pub reports_to: Option<Employee>,
+        pub birth_date: Option<String>,
+        pub hire_date: Option<String>,
+        pub address: Option<String>,
+        pub city: Option<String>,
+        pub state: Option<String>,
+        pub country: Option<String>,
+        pub postal_code: Option<String>,
+        pub phone: Option<String>,
+        pub fax: Option<String>,
         #[version(..2)]
-        email: String,
-    },
-    Genre {
-        name: String,
-    },
+        pub email: String,
+    }
+    pub struct Genre {
+        pub name: String,
+    }
     #[version(1..)]
     #[from(Genre)]
-    GenreNew {
-        name: String,
+    pub struct GenreNew {
+        pub name: String,
         #[version(2..)]
-        extra: i64,
-    },
+        pub extra: i64,
+    }
     #[version(1..)]
     #[from(Genre)]
-    ShortGenre {
-        name: String,
-    },
-    Invoice {
-        customer: Customer,
-        invoice_date: String,
-        billing_address: Option<String>,
-        billing_city: Option<String>,
-        billing_state: Option<String>,
-        billing_country: Option<String>,
-        billing_postal_code: Option<String>,
-        total: f64,
-    },
-    InvoiceLine {
+    pub struct ShortGenre {
+        pub name: String,
+    }
+    pub struct Invoice {
+        pub customer: Customer,
+        pub invoice_date: String,
+        pub billing_address: Option<String>,
+        pub billing_city: Option<String>,
+        pub billing_state: Option<String>,
+        pub billing_country: Option<String>,
+        pub billing_postal_code: Option<String>,
+        pub total: f64,
+    }
+    pub struct InvoiceLine {
         #[version(..2)]
-        invoice: Invoice,
+        pub invoice: Invoice,
         #[version(2..)]
-        invoice_new: Invoice,
-        track: Track,
-        unit_price: f64,
-        quantity: i64,
-    },
+        pub invoice_new: Invoice,
+        pub track: Track,
+        pub unit_price: f64,
+        pub quantity: i64,
+    }
     #[version(..2)]
-    MediaType {
-        name: String,
-    },
-    Playlist {
-        name: String,
-    },
+    pub struct MediaType {
+        pub name: String,
+    }
+    pub struct Playlist {
+        pub name: String,
+    }
     #[unique(playlist, track)]
-    PlaylistTrack {
-        playlist: Playlist,
-        track: Track,
-    },
-    Track {
-        name: String,
-        album: Album,
+    pub struct PlaylistTrack {
+        pub playlist: Playlist,
+        pub track: Track,
+    }
+    pub struct Track {
+        pub name: String,
+        pub album: Album,
         #[version(..2)]
-        media_type: MediaType,
+        pub media_type: MediaType,
         #[version(2..)]
-        media_type: String,
-        genre: Genre,
-        composer: Option<String>,
+        pub media_type: String,
+        pub genre: Genre,
+        pub composer: Option<String>,
         #[version(2..)]
-        composer_table: Option<Composer>,
-        milliseconds: i64,
-        bytes: i64,
-        unit_price: f64,
+        pub composer_table: Option<Composer>,
+        pub milliseconds: i64,
+        pub bytes: i64,
+        pub unit_price: f64,
         #[version(2..)]
-        byte_price: f64,
-    },
+        pub byte_price: f64,
+    }
     #[version(2..)]
-    Composer {
-        name: String,
-    },
+    pub struct Composer {
+        pub name: String,
+    }
 }
 
 pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {

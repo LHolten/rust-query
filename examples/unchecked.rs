@@ -4,8 +4,10 @@ use rust_query::{
 };
 
 #[schema]
-enum Schema {
-    Name { name: String },
+pub mod Schema {
+    pub struct Name {
+        pub name: String,
+    }
 }
 use v0::*;
 

@@ -5,14 +5,14 @@ use rust_query::{
 
 // Start by defining your schema.
 #[schema]
-enum MySchema {
-    User {
-        name: String,
-    },
-    Image {
-        description: String,
-        uploaded_by: User,
-    },
+pub mod MySchema {
+    pub struct User {
+        pub name: String,
+    }
+    pub struct Image {
+        pub description: String,
+        pub uploaded_by: User,
+    }
 }
 // Bring the latest schema version into scope.
 use v0::*;

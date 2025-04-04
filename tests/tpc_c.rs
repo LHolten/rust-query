@@ -6,106 +6,108 @@ use rust_query::{
 };
 
 #[schema]
-enum Schema {
-    Warehouse {
-        name: String,
-        street_1: String,
-        street_2: String,
-        city: String,
-        state: String,
-        zip: String,
-        tax: f64,
-        ytd: i64,
-    },
+pub mod Schema {
+    pub struct Warehouse {
+        pub name: String,
+        pub street_1: String,
+        pub street_2: String,
+        pub city: String,
+        pub state: String,
+        pub zip: String,
+        pub tax: f64,
+        pub ytd: i64,
+    }
     #[unique(warehouse, number)]
-    District {
-        warehouse: Warehouse,
-        number: i64,
-        name: String,
-        street_1: String,
-        street_2: String,
-        city: String,
-        state: String,
-        zip: String,
-        tax: f64,
-        ytd: i64,
-        next_order: i64, // next available order id
-    },
-    Customer {
-        district: District,
-        first: String,
-        middle: String,
-        last: String,
-        street_1: String,
-        street_2: String,
-        city: String,
-        state: String,
-        zip: String,
-        phone: String,
-        since: i64,
-        credit: String,
-        credit_lim: i64,
-        discount: f64,
-        balance: i64,
-        ytd_payment: i64,
-        payment_cnt: i64,
-        delivery_cnt: i64,
-        data: String,
-    },
-    History {
-        customer: Customer,
-        district: District,
-        date: i64,
-        amount: i64,
-        data: String,
-    },
+    pub struct District {
+        pub warehouse: Warehouse,
+        pub number: i64,
+        pub name: String,
+        pub street_1: String,
+        pub street_2: String,
+        pub city: String,
+        pub state: String,
+        pub zip: String,
+        pub tax: f64,
+        pub ytd: i64,
+        pub next_order: i64, // next available order id
+    }
+    pub struct Customer {
+        pub district: District,
+        pub first: String,
+        pub middle: String,
+        pub last: String,
+        pub street_1: String,
+        pub street_2: String,
+        pub city: String,
+        pub state: String,
+        pub zip: String,
+        pub phone: String,
+        pub since: i64,
+        pub credit: String,
+        pub credit_lim: i64,
+        pub discount: f64,
+        pub balance: i64,
+        pub ytd_payment: i64,
+        pub payment_cnt: i64,
+        pub delivery_cnt: i64,
+        pub data: String,
+    }
+    pub struct History {
+        pub customer: Customer,
+        pub district: District,
+        pub date: i64,
+        pub amount: i64,
+        pub data: String,
+    }
     #[unique(order)]
     #[no_reference]
-    NewOrder { order: Order },
-    Order {
-        customer: Customer,
-        entry_d: i64,
-        carrier_id: Option<i64>,
+    pub struct NewOrder {
+        pub order: Order,
+    }
+    pub struct Order {
+        pub customer: Customer,
+        pub entry_d: i64,
+        pub carrier_id: Option<i64>,
         // order_line_cnt: OrderLineCnt,
-        all_local: i64,
-    },
+        pub all_local: i64,
+    }
     #[unique(order, number)]
-    OrderLine {
-        order: Order,
-        number: i64,
-        stock: Stock,
-        derlivery_d: Option<i64>,
-        quantity: i64,
-        amount: i64, // total cost of this line
-        dist_info: String,
-    },
-    Item {
-        image_id: i64,
-        name: String,
-        price: i64,
-        data: String,
-    },
+    pub struct OrderLine {
+        pub order: Order,
+        pub number: i64,
+        pub stock: Stock,
+        pub derlivery_d: Option<i64>,
+        pub quantity: i64,
+        pub amount: i64, // total cost of this line
+        pub dist_info: String,
+    }
+    pub struct Item {
+        pub image_id: i64,
+        pub name: String,
+        pub price: i64,
+        pub data: String,
+    }
     #[unique(warehouse, item)]
-    Stock {
-        warehouse: Warehouse,
-        item: Item,
-        quantity: i64,
-        dist_00: String,
-        dist_01: String,
-        dist_02: String,
-        dist_03: String,
-        dist_04: String,
-        dist_05: String,
-        dist_06: String,
-        dist_07: String,
-        dist_08: String,
-        dist_09: String,
-        dist_10: String,
-        ytd: i64,
-        order_cnt: i64,
-        remote_cnt: i64,
-        data: String,
-    },
+    pub struct Stock {
+        pub warehouse: Warehouse,
+        pub item: Item,
+        pub quantity: i64,
+        pub dist_00: String,
+        pub dist_01: String,
+        pub dist_02: String,
+        pub dist_03: String,
+        pub dist_04: String,
+        pub dist_05: String,
+        pub dist_06: String,
+        pub dist_07: String,
+        pub dist_08: String,
+        pub dist_09: String,
+        pub dist_10: String,
+        pub ytd: i64,
+        pub order_cnt: i64,
+        pub remote_cnt: i64,
+        pub data: String,
+    }
 }
 use v0::*;
 

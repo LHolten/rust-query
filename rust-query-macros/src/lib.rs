@@ -5,7 +5,7 @@ use heck::{ToSnekCase, ToUpperCamelCase};
 use multi::{SingleVersionColumn, SingleVersionTable, VersionedSchema};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Ident, ItemEnum, ItemStruct};
+use syn::{Ident, ItemMod, ItemStruct};
 use table::define_table;
 
 mod dummy;
@@ -139,7 +139,7 @@ pub fn schema(
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     assert!(attr.is_empty());
-    let item = syn::parse_macro_input!(item as ItemEnum);
+    let item = syn::parse_macro_input!(item as ItemMod);
 
     match generate(item) {
         Ok(x) => x,
@@ -322,7 +322,7 @@ fn define_table_migration(
     Ok(Some(migration))
 }
 
-fn generate(item: ItemEnum) -> syn::Result<TokenStream> {
+fn generate(item: syn::ItemMod) -> syn::Result<TokenStream> {
     let schema_name = item.ident.clone();
     let schema = VersionedSchema::parse(item)?;
     let mut struct_id = 0;
