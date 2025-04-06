@@ -30,15 +30,15 @@ mod table;
 ///
 /// For example:
 /// ```
-/// #[rust_query::migration::schema]
+/// #[rust_query::migration::schema(Schema)]
 /// #[version(0..=0)]
-/// enum Schema {
+/// pub mod vN {
 ///     #[unique_email(email)]
 ///     #[unique_username(username)]
-///     User {
-///         email: String,
-///         username: String,
-///     },
+///     pub struct User {
+///         pub email: String,
+///         pub username: String,
+///     }
 /// }
 /// # fn main() {}
 /// ```
@@ -67,19 +67,19 @@ mod table;
 /// # Adding tables
 /// At some point you might want to add a new table.
 /// ```
-/// #[rust_query::migration::schema]
+/// #[rust_query::migration::schema(Schema)]
 /// #[version(0..=1)]
-/// enum Schema {
+/// pub mod vN {
 ///     #[unique_email(email)]
 ///     #[unique_username(username)]
-///     User {
-///         email: String,
-///         username: String,
-///     },
+///     pub struct User {
+///         pub email: String,
+///         pub username: String,
+///     }
 ///     #[version(1..)] // <-- note that `Game`` has a version range
-///     Game {
-///         name: String,
-///         size: i64,
+///     pub struct Game {
+///         pub name: String,
+///         pub size: i64,
 ///     }
 /// }
 /// # fn main() {}
@@ -105,17 +105,17 @@ mod table;
 /// ```
 /// use rust_query::migration::{schema, Config};
 /// use rust_query::{IntoSelectExt, LocalClient, Database};
-/// #[schema]
+/// #[schema(Schema)]
 /// #[version(0..=1)]
-/// enum Schema {
+/// pub mod vN {
 ///     #[unique_email(email)]
 ///     #[unique_username(username)]
-///     User {
-///         email: String,
-///         username: String,
+///     pub struct User {
+///         pub email: String,
+///         pub username: String,
 ///         #[version(1..)] // <-- here
-///         score: i64,
-///     },
+///         pub score: i64,
+///     }
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
 /// // This is done with the `v1::update::UserMigration`:
@@ -157,16 +157,16 @@ pub fn schema(
 ///
 /// Example:
 /// ```
-/// #[rust_query::migration::schema]
-/// pub enum Schema {
-///     Thing {
-///         details: Details,
-///         beta: f64,
-///         seconds: i64,
-///     },
-///     Details {
-///         name: String
-///     },
+/// #[rust_query::migration::schema(Schema)]
+/// pub mod vN {
+///     pub struct Thing {
+///         pub details: Details,
+///         pub beta: f64,
+///         pub seconds: i64,
+///     }
+///     pub struct Details {
+///         pub name: String,
+///     }
 /// }
 /// use v0::*;
 /// use rust_query::{Table, Select, Transaction};

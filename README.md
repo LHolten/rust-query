@@ -47,18 +47,18 @@ Define a schema using `enum` syntax:
 # fn main() {}
 use rust_query::migration::schema;
 
-#[schema]
-enum MySchema {
+#[schema(MySchema)]
+pub mod vN {
     // Enum variants are database tables
-    User {
+    pub struct User {
         // This table has one column with String type.
-        name: String,
-    },
-    Image {
-        description: String,
+        pub name: String,
+    }
+    pub struct Image {
+        pub description: String,
         // This column has a foreign key constraint to the User table
-        uploaded_by: User,
-    },
+        pub uploaded_by: User,
+    }
 }
 ```
 Get proof that we are running on a unique thread:
