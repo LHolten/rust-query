@@ -1,14 +1,14 @@
 use rust_query::migration::schema;
 
-#[schema]
-enum Schema {
+#[schema(Schema)]
+pub mod vN {
     #[no_reference]
-    SomeTable {
-        data: String,
-    },
-    NotAllowed {
-        marker: SomeTable,
-    },
+    pub struct SomeTable {
+        pub data: String,
+    }
+    pub struct NotAllowed {
+        pub marker: SomeTable,
+    }
 }
 
 fn main() {}

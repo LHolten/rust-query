@@ -1,8 +1,8 @@
 error[E0277]: Can not use `bool` as a column type in schema `v0::Schema`
- --> tests/compile/schema_types.rs:7:18
+ --> tests/compile/schema_types.rs:7:22
   |
-7 |         my_bool: bool,
-  |                  ^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `bool`
+7 |         pub my_bool: bool,
+  |                      ^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `bool`
   |
   = note: Table names can be used as schema column types as long as they are not #[no_reference]
   = help: the following other types implement trait `rust_query::hash::SchemaType<S>`:
@@ -18,13 +18,13 @@ note: required by a bound in `TypBuilder::<S>::col`
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
 
 error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `v0::Schema`
- --> tests/compile/schema_types.rs:8:17
+ --> tests/compile/schema_types.rs:8:21
   |
-3 | #[schema]
-  | --------- required by a bound introduced by this call
+3 | #[schema(Schema)]
+  | ----------------- required by a bound introduced by this call
 ...
-8 |         nested: Option<Option<i64>>,
-  |                 ^^^^^^^^^^^^^^^^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `Option<Option<i64>>`
+8 |         pub nested: Option<Option<i64>>,
+  |                     ^^^^^^^^^^^^^^^^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `Option<Option<i64>>`
   |
   = note: Table names can be used as schema column types as long as they are not #[no_reference]
   = help: the trait `rust_query::hash::SchemaType<S>` is implemented for `Option<T>`
@@ -35,10 +35,10 @@ note: required by a bound in `TypBuilder::<S>::col`
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
 
 error[E0277]: Columns with type `Option<i64>` can not be checked for equality
- --> tests/compile/schema_types.rs:9:19
+ --> tests/compile/schema_types.rs:9:23
   |
-9 |         optional: Option<i64>,
-  |                   ^^^^^^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+9 |         pub optional: Option<i64>,
+  |                       ^^^^^^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
   |
   = note: `EqTyp` is also implemented for all table types
   = help: the following other types implement trait `rust_query::value::EqTyp`:

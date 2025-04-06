@@ -1,4 +1,4 @@
-use rust_query::{args::Aggregate, Expr};
+use rust_query::{Expr, args::Aggregate};
 
 fn columns<'outer, 'inner, S: 'static>(
     outer: Expr<'outer, S, i64>,

@@ -1,8 +1,10 @@
 use rust_query::migration::schema;
 
-#[schema]
-enum Schema {
-    MyTable { id: i64 },
+#[schema(Schema)]
+pub mod vN {
+    pub struct MyTable {
+        pub id: i64,
+    }
 }
 
 fn main() {}

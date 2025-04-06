@@ -1,8 +1,10 @@
 use rust_query::{Database, LocalClient, Table, migration::schema};
 
-#[schema]
-enum Schema {
-    MyTable { name: String },
+#[schema(Schema)]
+pub mod vN {
+    pub struct MyTable {
+        pub name: String,
+    }
 }
 use v0::*;
 
