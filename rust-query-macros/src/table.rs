@@ -120,18 +120,6 @@ pub(crate) fn define_table(
     let wrap_ident = wrap(&col_ident);
 
     Ok(quote! {
-        #[repr(transparent)]
-        pub struct #ext_ident<T>(T);
-        ::rust_query::unsafe_impl_ref_cast! {#ext_ident}
-
-        impl<'t, T> #ext_ident<T>
-            where T: ::rust_query::IntoExpr<'t, #schema, Typ = #table_ident>
-        {#(
-            pub fn #col_ident(&self) -> ::rust_query::Expr<'t, #schema, #col_typ> {
-                ::rust_query::private::new_column(::rust_query::private::Col::new(#col_str, ::rust_query::private::into_owned(&self.0)))
-            }
-        )*}
-
         pub struct #table_ident_with_span<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
@@ -177,53 +165,68 @@ pub(crate) fn define_table(
 
         #safe_default
 
-        impl ::rust_query::Table for #table_ident {
-            type Ext<T> = #ext_ident<T>;
-            type Schema = #schema;
+        const _: () = {
+            #[repr(transparent)]
+            pub struct #ext_ident<T>(T);
+            ::rust_query::unsafe_impl_ref_cast! {#ext_ident}
 
-            fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
-                #(f.col::<#col_typ>(#col_str);)*
-                #(#def_typs;)*
-                #(#unique_typs;)*
+            impl<'t, T> #ext_ident<T>
+                where T: ::rust_query::IntoExpr<'t, #schema, Typ = #table_ident>
+            {#(
+                pub fn #col_ident(&self) -> ::rust_query::Expr<'t, #schema, #col_typ> {
+                    ::rust_query::private::new_column(::rust_query::private::Col::new(#col_str, ::rust_query::private::into_owned(&self.0)))
+                }
+            )*}
+
+            impl ::rust_query::Table for #table_ident {
+                type Ext<T> = #ext_ident<T>;
+                type Schema = #schema;
+
+                fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
+                    #(f.col::<#col_typ>(#col_str);)*
+                    #(#def_typs;)*
+                    #(#unique_typs;)*
+                }
+
+                const ID: &'static str = "id";
+                const NAME: &'static str = #table_name;
+
+                type Conflict<'t> = #conflict_type;
+                type Update<'t> = (#table_ident<#(#update_columns_safe),*>);
+                type TryUpdate<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
+                type Insert<'t> = (#table_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
+
+                fn read<'t>(val: &Self::Insert<'t>, f: &::rust_query::private::Reader<'t, Self::Schema>) {
+                    #(f.col(#col_str, &val.#col_ident);)*
+                }
+
+                fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>>
+                {
+                    #conflict_dummy_insert
+                }
+
+                fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
+                    #table_ident {#(
+                        #col_ident: #try_from_update,
+                    )*}
+                }
+
+                fn apply_try_update<'t>(
+                    val: Self::TryUpdate<'t>,
+                    old: ::rust_query::Expr<'t, Self::Schema, Self>,
+                ) -> Self::Insert<'t> {
+                    #table_ident {#(
+                        #col_ident: val.#col_ident.apply(old.#col_ident()),
+                    )*}
+                }
+
+                type Referer = #referer;
+                fn get_referer_unchecked() -> Self::Referer {
+                    #referer_expr
+                }
             }
+        };
 
-            const ID: &'static str = "id";
-            const NAME: &'static str = #table_name;
-
-            type Conflict<'t> = #conflict_type;
-            type Update<'t> = (#table_ident<#(#update_columns_safe),*>);
-            type TryUpdate<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
-            type Insert<'t> = (#table_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
-
-            fn read<'t>(val: &Self::Insert<'t>, f: &::rust_query::private::Reader<'t, Self::Schema>) {
-                #(f.col(#col_str, &val.#col_ident);)*
-            }
-
-            fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>>
-            {
-                #conflict_dummy_insert
-            }
-
-            fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
-                #table_ident {#(
-                    #col_ident: #try_from_update,
-                )*}
-            }
-
-            fn apply_try_update<'t>(
-                val: Self::TryUpdate<'t>,
-                old: ::rust_query::Expr<'t, Self::Schema, Self>,
-            ) -> Self::Insert<'t> {
-                #table_ident {#(
-                    #col_ident: val.#col_ident.apply(old.#col_ident()),
-                )*}
-            }
-
-            type Referer = #referer;
-            fn get_referer_unchecked() -> Self::Referer {
-                #referer_expr
-            }
-        }
         impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(::rust_query::private::Custom<#generic>),*>
         where
             #(#generic: ::rust_query::IntoExpr<'t, #schema, Typ = #col_typ>,)*
