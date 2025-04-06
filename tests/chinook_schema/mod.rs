@@ -7,9 +7,9 @@ use rust_query::{
 
 pub use v2::*;
 
-#[schema]
+#[schema(Schema)]
 #[version(0..=2)]
-pub mod Schema {
+pub mod vN {
     pub struct Album {
         pub title: String,
         pub artist: Artist,

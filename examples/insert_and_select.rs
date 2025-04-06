@@ -4,8 +4,8 @@ use rust_query::{
 };
 
 // Start by defining your schema.
-#[schema]
-pub mod MySchema {
+#[schema(MySchema)]
+pub mod vN {
     pub struct User {
         pub name: String,
     }

@@ -138,10 +138,10 @@ pub fn schema(
     attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    assert!(attr.is_empty());
+    let name = syn::parse_macro_input!(attr as syn::Ident);
     let item = syn::parse_macro_input!(item as ItemMod);
 
-    match generate(item) {
+    match generate(name, item) {
         Ok(x) => x,
         Err(e) => e.into_compile_error(),
     }
@@ -322,8 +322,7 @@ fn define_table_migration(
     Ok(Some(migration))
 }
 
-fn generate(item: syn::ItemMod) -> syn::Result<TokenStream> {
-    let schema_name = item.ident.clone();
+fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> {
     let schema = VersionedSchema::parse(item)?;
     let mut struct_id = 0;
     let mut new_struct_id = || {

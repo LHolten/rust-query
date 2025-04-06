@@ -3,9 +3,9 @@ use rust_query::{
     migration::{Config, schema},
 };
 
-#[schema]
+#[schema(Schema)]
 #[version(0..=1)]
-pub mod Schema {
+pub mod vN {
     pub struct User {
         pub name: String,
         #[version(1..)]

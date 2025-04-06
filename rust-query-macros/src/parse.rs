@@ -111,6 +111,13 @@ impl VersionedTable {
 
 impl VersionedSchema {
     pub fn parse(item: syn::ItemMod) -> syn::Result<Self> {
+        if item.ident != "vN" {
+            return Err(syn::Error::new_spanned(
+                item.ident,
+                "module name should be `vN`",
+            ));
+        }
+
         let versions = parse_version(&item.attrs)?
             .unwrap_or_default()
             .into_std(0..1, false)?;

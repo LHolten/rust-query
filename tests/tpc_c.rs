@@ -5,8 +5,8 @@ use rust_query::{
     migration::schema,
 };
 
-#[schema]
-pub mod Schema {
+#[schema(Schema)]
+pub mod vN {
     pub struct Warehouse {
         pub name: String,
         pub street_1: String,

@@ -3,8 +3,8 @@ use rust_query::{
     migration::{Config, schema},
 };
 
-#[schema]
-pub mod Schema {
+#[schema(Schema)]
+pub mod vN {
     pub struct Name {
         pub name: String,
     }

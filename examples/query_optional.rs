@@ -5,8 +5,8 @@ use rust_query::{
 };
 
 // Start by defining your schema.
-#[schema]
-pub mod Schema {
+#[schema(Schema)]
+pub mod vN {
     #[unique(pub_id)]
     pub struct Player {
         pub pub_id: i64,
