@@ -18,6 +18,7 @@
 - Added support for `Vec<u8>` data type (sqlite `BLOB`).
 - Renamed `try_insert` to `insert` and `insert` to `insert_ok`.
 - Renamed `try_delete` to `delete` and `delete` to `delete_ok`.
+- Changed `#[schema]` syntax to be a module of structs.
 
 # 0.3.1
 

@@ -10,7 +10,7 @@ use table::define_table;
 
 mod dummy;
 mod fields;
-pub(crate) mod multi;
+mod multi;
 mod parse;
 mod table;
 
@@ -59,9 +59,10 @@ mod table;
 /// ```rust,ignore
 /// mod v0 {
 ///     pub struct Schema;
-///     pub struct User(..);
+///     pub struct User{..};
 ///     // a bunch of other stuff
 /// }
+/// pub struct MacroRoot;
 /// ```
 ///
 /// # Adding tables
@@ -89,15 +90,16 @@ mod table;
 /// ```rust,ignore
 /// mod v0 {
 ///     pub struct Schema;
-///     pub struct User(..);
+///     pub struct User{..};
 ///     // a bunch of other stuff
 /// }
 /// mod v1 {
 ///     pub struct Schema;
-///     pub struct User(..);
-///     pub struct Game(..);
+///     pub struct User{..};
+///     pub struct Game{..};
 ///     // a bunch of other stuff
 /// }
+/// pub struct MacroRoot;
 /// ```
 ///
 /// # Changing columns

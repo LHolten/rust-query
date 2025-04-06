@@ -6,7 +6,7 @@ use sea_query::{Alias, SimpleExpr};
 use crate::{
     Expr, IntoExpr, LocalClient, Table,
     alias::{Field, MyAlias},
-    value::{MyTyp, Private, Typed, ValueBuilder},
+    value::{MyTyp, Typed, ValueBuilder},
 };
 
 pub struct Col<T, X> {
@@ -173,7 +173,6 @@ impl<T: Table> Typed for TableRowInner<T> {
     }
 }
 
-impl<'t, T> Private for TableRow<'t, T> {}
 impl<'t, S, T: Table> IntoExpr<'t, S> for TableRow<'t, T> {
     type Typ = T;
     fn into_expr(self) -> Expr<'t, S, Self::Typ> {

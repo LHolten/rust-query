@@ -103,12 +103,8 @@ pub trait Typed {
     }
 }
 
-pub(crate) trait Private {}
-
 /// Trait for all values that can be used as expressions in queries.
-///
-/// You can not (yet) implement this trait yourself!
-pub trait IntoExpr<'column, S>: Private + Clone {
+pub trait IntoExpr<'column, S>: Clone {
     /// The type of the expression.
     type Typ: MyTyp;
 
@@ -247,7 +243,6 @@ impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
     }
 }
 
-impl<T> Private for Option<T> {}
 impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoExpr<'column, S>
     for Option<T>
 {
@@ -264,7 +259,6 @@ impl Typed for String {
     }
 }
 
-impl Private for String {}
 impl<'column, S> IntoExpr<'column, S> for String {
     type Typ = String;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -272,7 +266,6 @@ impl<'column, S> IntoExpr<'column, S> for String {
     }
 }
 
-impl Private for &str {}
 impl<'column, S> IntoExpr<'column, S> for &str {
     type Typ = String;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -287,7 +280,6 @@ impl Typed for Vec<u8> {
     }
 }
 
-impl Private for Vec<u8> {}
 impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     type Typ = Vec<u8>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -295,7 +287,6 @@ impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     }
 }
 
-impl Private for &[u8] {}
 impl<'column, S> IntoExpr<'column, S> for &[u8] {
     type Typ = Vec<u8>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -310,7 +301,6 @@ impl Typed for bool {
     }
 }
 
-impl Private for bool {}
 impl<'column, S> IntoExpr<'column, S> for bool {
     type Typ = bool;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -325,7 +315,6 @@ impl Typed for i64 {
     }
 }
 
-impl Private for i64 {}
 impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -340,7 +329,6 @@ impl Typed for f64 {
     }
 }
 
-impl Private for f64 {}
 impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -364,7 +352,6 @@ where
     }
 }
 
-impl<T> Private for &T {}
 impl<'column, S, T> IntoExpr<'column, S> for &T
 where
     T: IntoExpr<'column, S>,
@@ -386,7 +373,6 @@ impl Typed for UnixEpoch {
     }
 }
 
-impl Private for UnixEpoch {}
 impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -642,7 +628,6 @@ impl<Typ: 'static> Typed for DynTyped<Typ> {
     }
 }
 
-impl<'column, S, T> Private for Expr<'column, S, T> {}
 impl<'column, S, T: MyTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
     type Typ = T;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
