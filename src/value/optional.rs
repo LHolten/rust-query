@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
 
 use sea_query::Nullable;
 
@@ -7,10 +7,7 @@ use crate::{
     dummy_impl::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
 };
 
-use super::{
-    DynTyped, Expr, IntoExpr, MyTyp,
-    operations::{Assume, NullIf, Or},
-};
+use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
 
 /// This is a combinator function that allows constructing single row optional queries.
 ///
@@ -47,18 +44,23 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     ) -> Expr<'inner, S, T> {
         let column = col.into_expr();
         self.nulls.push(column.is_some().not().into_expr().inner);
-        Expr::new(Assume(column.inner))
+        Expr::adhoc(move |b| column.inner.build_expr(b))
+    }
+
+    pub fn is_none(&self) -> Expr<'outer, S, bool> {
+        let nulls = self.nulls.clone();
+        Expr::adhoc(move |b| {
+            nulls
+                .iter()
+                .map(|x| x.build_expr(b))
+                .reduce(|a, b| a.or(b))
+                .unwrap_or(false.into())
+        })
     }
 
     /// Return a [bool] column indicating whether the current row exists.
     pub fn is_some(&self) -> Expr<'outer, S, bool> {
-        let any_null = self
-            .nulls
-            .iter()
-            .cloned()
-            .reduce(|a, b| DynTyped(Rc::new(Or(a, b))));
-        // TODO: make this not double wrap the `DynTyped`
-        any_null.map_or(Expr::new(true), |x| Expr::new(x).not())
+        self.is_none().not()
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
@@ -66,10 +68,18 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {
-        let res = Expr::new(Some(col.into_expr().inner));
-        self.nulls
-            .iter()
-            .rfold(res, |accum, e| Expr::new(NullIf(e.clone(), accum.inner)))
+        const NULL: sea_query::SimpleExpr =
+            sea_query::SimpleExpr::Keyword(sea_query::Keyword::Null);
+
+        let col = col.into_expr().inner;
+        let nulls = self.nulls.clone();
+        Expr::adhoc(move |b| {
+            nulls.iter().fold(col.build_expr(b), |accum, e| {
+                sea_query::Expr::case(e.build_expr(b), NULL)
+                    .finally(accum)
+                    .into()
+            })
+        })
     }
 
     /// Returns a [Select] with optional result.

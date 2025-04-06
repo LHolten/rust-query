@@ -12,10 +12,7 @@ use crate::{
     alias::{Field, MyAlias},
     ast::MySelect,
     rows::Rows,
-    value::{
-        EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder,
-        operations::{Const, IsNotNull, UnwrapOr},
-    },
+    value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
 };
 
 /// This is the argument type used for aggregates.
@@ -98,7 +95,11 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     {
         let val = val.into_expr().inner;
         let expr = Func::sum(val.build_expr(self.ast.builder()));
-        Expr::new(UnwrapOr(self.select::<T>(expr), Const(T::ZERO)))
+        let val = self.select::<T>(expr);
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(val.build_expr(b))
+                .if_null(SimpleExpr::Constant(T::ZERO.into_sea_value()))
+        })
     }
 
     /// Return the number of distinct values in a column.
@@ -111,13 +112,18 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     {
         let val = val.into_expr().inner;
         let expr = Func::count_distinct(val.build_expr(self.ast.builder()));
-        Expr::new(UnwrapOr(self.select::<i64>(expr), Const(0)))
+        let val = self.select::<i64>(expr);
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(val.build_expr(b))
+                .if_null(SimpleExpr::Constant(0i64.into_sea_value()))
+        })
     }
 
     /// Return whether there are any rows.
     pub fn exists(&self) -> Expr<'outer, S, bool> {
         let expr = SimpleExpr::Constant(1.into_sea_value());
-        Expr::new(IsNotNull(self.select::<i64>(expr)))
+        let val = self.select::<i64>(expr);
+        Expr::adhoc(move |b| sea_query::Expr::expr(val.build_expr(b)).is_not_null())
     }
 }
 

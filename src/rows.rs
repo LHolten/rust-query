@@ -7,7 +7,7 @@ use crate::{
     alias::TmpTable,
     ast::MySelect,
     db::Join,
-    value::{IntoExpr, Typed, operations::Assume},
+    value::{IntoExpr, Typed},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -77,6 +77,6 @@ impl<'inner, S> Rows<'inner, S> {
         self.filter_private(
             sea_query::Expr::expr(val.build_expr(self.ast.builder())).is_not_null(),
         );
-        Expr::new(Assume(val))
+        Expr::adhoc(move |b| val.build_expr(b))
     }
 }

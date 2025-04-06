@@ -1,12 +1,12 @@
-pub mod operations;
 pub mod optional;
 pub mod trivial;
 
 use std::{marker::PhantomData, ops::Deref, rc::Rc};
 
-use operations::{Add, And, AsFloat, Eq, Glob, IsNotNull, Like, Lt, Not, Or, UnwrapOr};
 use ref_cast::RefCast;
-use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
+use sea_query::{
+    Alias, ExprTrait, Nullable, SelectStatement, SimpleExpr, extension::sqlite::SqliteExpr,
+};
 
 use crate::{
     IntoSelect, Select, Table,
@@ -95,7 +95,7 @@ pub trait Typed {
     #[doc(hidden)]
     fn build_expr(&self, b: ValueBuilder) -> SimpleExpr;
     #[doc(hidden)]
-    fn build_table(&self, b: crate::value::ValueBuilder) -> MyAlias
+    fn build_table(&self, b: ValueBuilder) -> MyAlias
     where
         Self::Typ: Table,
     {
@@ -119,36 +119,47 @@ pub trait IntoExpr<'column, S>: Private + Clone {
 impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// Add two expressions together.
     pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
-        Expr::new(Add(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).add(rhs.build_expr(b)))
     }
 
     /// Compute the less than operator of two expressions.
     pub fn lt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
-        Expr::new(Lt(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).lt(rhs.build_expr(b)))
     }
 }
 
 impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     /// Check whether two expressions are equal.
     pub fn eq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
-        Expr::new(Eq(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).eq(rhs.build_expr(b)))
     }
 }
 
 impl<'column, S> Expr<'column, S, bool> {
     /// Checks whether an expression is false.
     pub fn not(&self) -> Expr<'column, S, bool> {
-        Expr::new(Not(self.inner.clone()))
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| val.build_expr(b).not())
     }
 
     /// Check if two expressions are both true.
     pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
-        Expr::new(And(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).and(rhs.build_expr(b)))
     }
 
     /// Check if one of two expressions is true.
     pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
-        Expr::new(Or(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).or(rhs.build_expr(b)))
     }
 }
 
@@ -158,19 +169,23 @@ impl<'column, S, Typ: 'static> Expr<'column, S, Option<Typ>> {
     where
         Self: IntoExpr<'column, S, Typ = Option<Typ>>,
     {
-        Expr::new(UnwrapOr(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| sea_query::Expr::expr(lhs.build_expr(b)).if_null(rhs.build_expr(b)))
     }
 
     /// Check that the expression is [Some].
     pub fn is_some(&self) -> Expr<'column, S, bool> {
-        Expr::new(IsNotNull(self.inner.clone()))
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| val.build_expr(b).is_not_null())
     }
 }
 
 impl<'column, S> Expr<'column, S, i64> {
     /// Convert the [i64] expression to [f64] type.
     pub fn as_float(&self) -> Expr<'column, S, f64> {
-        Expr::new(AsFloat(self.inner.clone()))
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("real")))
     }
 }
 
@@ -179,30 +194,21 @@ impl<'column, S> Expr<'column, S, String> {
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
     pub fn starts_with(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
-        Expr::new(Glob(
-            self.inner.clone(),
-            format!("{}*", escape_glob(pattern)),
-        ))
+        self.glob(format!("{}*", escape_glob(pattern)))
     }
 
     /// Check if the expression ends with the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
     pub fn ends_with(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
-        Expr::new(Glob(
-            self.inner.clone(),
-            format!("*{}", escape_glob(pattern)),
-        ))
+        self.glob(format!("*{}", escape_glob(pattern)))
     }
 
     /// Check if the expression contains the string pattern.
     ///
     /// Matches case-sensitive. The pattern gets automatically escaped.
     pub fn contains(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
-        Expr::new(Glob(
-            self.inner.clone(),
-            format!("*{}*", escape_glob(pattern)),
-        ))
+        self.glob(format!("*{}*", escape_glob(pattern)))
     }
 
     /// Check if the expression matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
@@ -211,7 +217,12 @@ impl<'column, S> Expr<'column, S, String> {
     /// For creating patterns it uses `%` as a wildcard for any sequence of characters and `_` for any single character.
     /// Special characters should be escaped with `\`.
     pub fn like(&self, pattern: impl Into<String>) -> Expr<'column, S, bool> {
-        Expr::new(Like(self.inner.clone(), pattern.into()))
+        let lhs = self.inner.clone();
+        let rhs = pattern.into();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(lhs.build_expr(b))
+                .like(sea_query::LikeExpr::new(&rhs).escape('\\'))
+        })
     }
 
     /// Check if the expression matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
@@ -220,7 +231,9 @@ impl<'column, S> Expr<'column, S, String> {
     /// cards. `*` matches any sequence of characters and `?` matches any single character. `[0-9]` matches
     /// any single digit and `[a-z]` matches any single lowercase letter. `^` negates the pattern.
     pub fn glob(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
-        Expr::new(Glob(self.inner.clone(), rhs.into_expr().inner))
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| sea_query::Expr::expr(lhs.build_expr(b)).glob(rhs.build_expr(b)))
     }
 }
 
@@ -523,7 +536,7 @@ impl<'column, S, T: 'static> Expr<'column, S, T> {
     }
 }
 
-pub fn new_column<'x, S, T>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T> {
+pub fn new_column<'x, S, T: 'static>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T> {
     Expr::new(val)
 }
 
@@ -537,7 +550,20 @@ pub fn into_owned<'x, S, T>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {
     val.into_expr().inner
 }
 
-impl<S, T> Expr<'_, S, T> {
+struct AdHoc<F, T>(F, PhantomData<T>);
+impl<F: Fn(ValueBuilder) -> SimpleExpr, T> Typed for AdHoc<F, T> {
+    type Typ = T;
+
+    fn build_expr(&self, b: ValueBuilder) -> SimpleExpr {
+        (self.0)(b)
+    }
+}
+
+impl<S, T: 'static> Expr<'_, S, T> {
+    pub(crate) fn adhoc(f: impl 'static + Fn(ValueBuilder) -> SimpleExpr) -> Self {
+        Self::new(AdHoc(f, PhantomData))
+    }
+
     pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
         Self {
             inner: DynTyped(Rc::new(val)),
