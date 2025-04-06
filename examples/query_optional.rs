@@ -7,8 +7,8 @@ use rust_query::{
 // Start by defining your schema.
 #[schema(Schema)]
 pub mod vN {
-    #[unique(pub_id)]
     pub struct Player {
+        #[unique]
         pub pub_id: i64,
         pub name: String,
         pub score: i64,

@@ -14,11 +14,10 @@ pub mod vN {
         pub title: String,
         pub artist: Artist,
     }
-    #[unique(name)]
     pub struct Artist {
+        #[unique]
         pub name: String,
     }
-    #[unique_by_email(email)]
     pub struct Customer {
         #[version(..2)]
         pub phone: Option<String>,
@@ -33,6 +32,7 @@ pub mod vN {
         pub country: String,
         pub postal_code: Option<String>,
         pub fax: Option<String>,
+        #[unique_by_email]
         pub email: String,
         pub support_rep: Employee,
     }

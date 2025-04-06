@@ -8,7 +8,7 @@ use crate::multi::{
 };
 
 impl VersionedColumn {
-    pub fn parse(field: Field, limit: Range<u32>) -> syn::Result<Self> {
+    pub fn parse(field: Field, limit: Range<u32>, uniques: &mut Vec<Unique>) -> syn::Result<Self> {
         let Some(name) = field.ident.clone() else {
             return Err(syn::Error::new_spanned(field, "field must be named"));
         };
@@ -28,7 +28,14 @@ impl VersionedColumn {
         let mut other_field_attr = vec![];
         let mut follow_rename = false;
         for attr in field.attrs.clone() {
-            if attr.path().is_ident("follow") {
+            if let Some(unique) = is_unique(attr.path()) {
+                attr.meta.require_path_only()?;
+                uniques.push(Unique {
+                    name: unique,
+                    columns: vec![name.clone()],
+                })
+            } else if attr.path().is_ident("follow") {
+                attr.meta.require_path_only()?;
                 follow_rename = true;
             } else {
                 other_field_attr.push(attr);
@@ -95,7 +102,7 @@ impl VersionedTable {
         let columns = table
             .fields
             .into_iter()
-            .map(|x| VersionedColumn::parse(x, versions.clone()))
+            .map(|x| VersionedColumn::parse(x, versions.clone(), &mut uniques))
             .collect::<Result<_, _>>()?;
 
         Ok(VersionedTable {

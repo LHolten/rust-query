@@ -59,9 +59,9 @@ pub mod vN {
         pub amount: i64,
         pub data: String,
     }
-    #[unique(order)]
     #[no_reference]
     pub struct NewOrder {
+        #[unique]
         pub order: Order,
     }
     pub struct Order {
