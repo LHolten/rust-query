@@ -338,10 +338,10 @@ fn generate(item: syn::ItemMod) -> syn::Result<TokenStream> {
     let mut prev_tables: BTreeMap<usize, SingleVersionTable> = BTreeMap::new();
     let mut prev_mod = None;
     for version in schema.versions.clone() {
-        let new_tables = schema.get(version)?;
+        let mut new_tables = schema.get(version)?;
 
         let mut mod_output = TokenStream::new();
-        for table in new_tables.values() {
+        for table in new_tables.values_mut() {
             mod_output.extend(define_table(table, &schema_name, new_struct_id()));
         }
 

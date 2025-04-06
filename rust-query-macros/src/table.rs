@@ -4,15 +4,17 @@ use super::make_generic;
 use heck::ToSnekCase;
 use quote::{format_ident, quote};
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 
 use syn::Ident;
 
 pub(crate) fn define_table(
-    table: &SingleVersionTable,
+    table: &mut SingleVersionTable,
     schema: &Ident,
     struct_id: usize,
 ) -> syn::Result<TokenStream> {
+    let table_ident_with_span = table.name.clone();
+    table.name.set_span(Span::call_site());
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_mod = format_ident!("{table_name}");
@@ -56,7 +58,7 @@ pub(crate) fn define_table(
                 )*})
             }
         });
-        unique_defs.push(define_unique(unique, table_ident));
+        unique_defs.push(define_unique(unique, &table_ident));
     }
 
     let (conflict_type, conflict_dummy_insert) = table.conflict(quote! {}, quote! {#schema});
@@ -130,7 +132,7 @@ pub(crate) fn define_table(
             }
         )*}
 
-        pub struct #table_ident<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
+        pub struct #table_ident_with_span<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
 
@@ -160,7 +162,7 @@ pub(crate) fn define_table(
             };
         }
         #[allow(unused_imports)]
-        pub(crate) use #macro_ident as #table_ident;
+        pub(crate) use #macro_ident as #table_ident_with_span;
 
         impl<'t> Default for #table_ident<#(#empty ::rust_query::private::Update<'t>),*> {
             fn default() -> Self {
