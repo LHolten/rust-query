@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro2::{Span, TokenStream};
+use quote::{format_ident, quote};
 use syn::{Ident, Token};
 
 #[derive(Clone)]
@@ -43,6 +43,7 @@ pub(crate) struct VersionedSchema {
 pub(crate) struct VersionedTable {
     pub name: Ident,
     pub versions: std::ops::Range<u32>,
+    // `prev` always has a distinct span from `name`
     pub prev: Option<Ident>,
     pub uniques: Vec<Unique>,
     pub columns: Vec<VersionedColumn>,
@@ -88,14 +89,11 @@ impl VersionedSchema {
                 );
             }
         }
-        let mut prev = Some(table.name.clone());
+        // we don't want to leak the span from table.name into `prev`
+        let mut prev = Some(format_ident!("{}", table.name, span = Span::call_site()));
         if version == table.versions.start {
             prev = table.prev.clone();
         }
-        // let is_referee = self.tables.iter().flat_map(|t| &t.columns).any(|c| {
-        //     c.versions.contains(&version)
-        //         && matches!(&c.typ, ColumnTyp::Reference(x) if x.inner == table.name)
-        // });
 
         Ok(SingleVersionTable {
             prev,
@@ -106,7 +104,7 @@ impl VersionedSchema {
         })
     }
 
-    fn resolve(&self, name: &Ident, version: u32, latest: u32) -> syn::Result<&Ident> {
+    fn resolve<'a>(&'a self, name: &'a Ident, version: u32, latest: u32) -> syn::Result<&'a Ident> {
         assert!(version <= latest);
         let Some(table) = self
             .tables
@@ -120,7 +118,7 @@ impl VersionedSchema {
         };
 
         if table.versions.contains(&version) {
-            Ok(&table.name)
+            Ok(name)
         } else if let Some(prev) = &table.prev {
             self.resolve(prev, version, table.versions.start - 1)
         } else {

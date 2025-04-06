@@ -155,14 +155,17 @@ pub(crate) fn define_table(
             }
         }
 
-        #[allow(unused_macros)]
-        macro_rules! #macro_ident {
-            ($($spec:tt)*) => {
-                ::rust_query::private::fields!{#struct_id {$($spec)*} {#(#col_ident),*}}
-            };
+        mod #macro_ident {
+            #[allow(unused_macros)]
+            macro_rules! #table_ident_with_span {
+                ($($spec:tt)*) => {
+                    ::rust_query::private::fields!{#struct_id {$($spec)*} {#(#col_ident),*}}
+                };
+            }
+            pub(crate) use #table_ident;
         }
         #[allow(unused_imports)]
-        pub(crate) use #macro_ident as #table_ident_with_span;
+        pub(crate) use #macro_ident::#table_ident;
 
         impl<'t> Default for #table_ident<#(#empty ::rust_query::private::Update<'t>),*> {
             fn default() -> Self {

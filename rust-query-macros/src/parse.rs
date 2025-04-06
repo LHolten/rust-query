@@ -72,6 +72,9 @@ impl VersionedTable {
             } else if attr.path().is_ident("no_reference") {
                 referenceable = false;
             } else if attr.path().is_ident("from") {
+                if prev.is_some() {
+                    return Err(syn::Error::new_spanned(attr, "can not have multiple from"));
+                }
                 prev = Some(attr.parse_args()?)
             } else {
                 other_attrs.push(attr.clone());
@@ -98,7 +101,7 @@ impl VersionedTable {
         Ok(VersionedTable {
             versions,
             prev,
-            name: table.ident.clone(),
+            name: table.ident,
             columns,
             uniques,
             referenceable,
