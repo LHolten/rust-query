@@ -29,7 +29,7 @@ Statements:
 - [x] Single row insert, update and delete
 
 Expressions:
-- [x] Eq, Add, Not, And, Lt, UnwrapOr, IsNotNull, AsFloat, Like
+- [x] Some basic math, boolean and string operations
 - [x] Aggregate combinator
 - [x] Optional combinator
 - [ ] Everything else

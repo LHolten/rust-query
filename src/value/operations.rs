@@ -10,11 +10,46 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
         Expr::adhoc(move |b| lhs.build_expr(b).add(rhs.build_expr(b)))
     }
 
-    /// Compute the less than operator of two expressions.
+    /// Subtract one expression from another.
+    pub fn sub(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).sub(rhs.build_expr(b)))
+    }
+
+    /// Multiply two expressions together.
+    pub fn mul(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).mul(rhs.build_expr(b)))
+    }
+
+    /// Compute the less than operator (<) of two expressions.
     pub fn lt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).lt(rhs.build_expr(b)))
+    }
+
+    /// Compute the less than or equal operator (<=) of two expressions.
+    pub fn lte(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).lte(rhs.build_expr(b)))
+    }
+
+    /// Compute the greater than operator (>) of two expressions.
+    pub fn gt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).gt(rhs.build_expr(b)))
+    }
+
+    /// Compute the greater than or equal (>=) operator of two expressions.
+    pub fn gte(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).gte(rhs.build_expr(b)))
     }
 }
 
@@ -64,6 +99,12 @@ impl<'column, S, Typ: 'static> Expr<'column, S, Option<Typ>> {
     pub fn is_some(&self) -> Expr<'column, S, bool> {
         let val = self.inner.clone();
         Expr::adhoc(move |b| val.build_expr(b).is_not_null())
+    }
+
+    /// Check that the expression is [None].
+    pub fn is_none(&self) -> Expr<'column, S, bool> {
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| val.build_expr(b).is_null())
     }
 }
 

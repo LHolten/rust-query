@@ -19,6 +19,7 @@
 - Renamed `try_insert` to `insert` and `insert` to `insert_ok`.
 - Renamed `try_delete` to `delete` and `delete` to `delete_ok`.
 - Changed `#[schema]` syntax to be a module of structs.
+- Added some more basic operations on expressions.
 
 # 0.3.1
 
