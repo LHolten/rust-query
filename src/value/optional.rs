@@ -64,7 +64,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
-    pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
+    pub fn then_expr<T: MyTyp<Sql: Nullable> + 'outer>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {
@@ -83,7 +83,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Returns a [Select] with optional result.
-    pub fn then_select<'transaction, Out: 'transaction>(
+    pub fn then<'transaction, Out: 'transaction>(
         &self,
         d: impl IntoSelect<'inner, 'transaction, S, Out = Out>,
     ) -> Select<'outer, 'transaction, S, Option<Out>> {

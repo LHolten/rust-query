@@ -51,7 +51,7 @@ where
         let col = col.into_expr();
         optional(|row| {
             let col = row.and(col);
-            row.then_select(T::from_expr(col))
+            row.then(T::from_expr(col))
         })
     }
 }

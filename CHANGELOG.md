@@ -10,7 +10,8 @@
 - Migrations now allow renaming tables and splitting tables.
 - Migrations now require explicit handling of potential unique constraint violations.
 - Migrations now require explicit handling of foreign key violations.
-- Added a macro for each table to create ad-hoc column selection types.
+- The generated migration structs have moved from e.g. `v1::update::UserMigration` to `v0::migrate::User`.
+- Added a macro for each table to create ad-hoc column selection types like `User!(name, age)`.
 - Added the `FromExpr` trait to allow custom column selection and conversion.
 - `TransactionWeak::unchecked_transaction` is no longer behind a feature flag.
 - `hash_schema` method was moved behind `dev` feature.
