@@ -124,8 +124,8 @@ mod table;
 /// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
-///     let m = m.migrate(|txn| v1::update::Schema {
-///         user: txn.migrate_ok(|old: v0::User!(email)| v1::update::UserMigration {
+///     let m = m.migrate(|txn| v1::migrate::Schema {
+///         user: txn.migrate_ok(|old: v0::User!(email)| v1::migrate::UserMigration {
 ///             score: old.email.len() as i64 // use the email length as the new score
 ///         }),
 ///     });
@@ -425,7 +425,7 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
 
             let lifetime = create_table_name.is_empty().not().then_some(quote! {'t,});
             quote! {
-                pub mod update {
+                pub mod migrate {
                     use super::super::#prev_mod::#schema_name as _PrevSchema;
 
                     #table_migrations
