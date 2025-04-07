@@ -56,7 +56,7 @@ mod table;
 /// Note that the schema version range is `0..=0` so there is only a version 0.
 /// The generated code will have a structure like this:
 /// ```rust,ignore
-/// mod v0 {
+/// pub mod v0 {
 ///     pub struct Schema;
 ///     pub struct User{..};
 ///     // a bunch of other stuff
@@ -87,12 +87,13 @@ mod table;
 /// We now have two schema versions which generates two modules `v0` and `v1`.
 /// They look something like this:
 /// ```rust,ignore
-/// mod v0 {
+/// pub mod v0 {
 ///     pub struct Schema;
 ///     pub struct User{..};
+///     pub mod migrate {..}
 ///     // a bunch of other stuff
 /// }
-/// mod v1 {
+/// pub mod v1 {
 ///     pub struct Schema;
 ///     pub struct User{..};
 ///     pub struct Game{..};
@@ -119,12 +120,12 @@ mod table;
 ///     }
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
-/// // This is done with the `v1::update::UserMigration`:
+/// // This is done with the `v0::migrate::User` struct:
 /// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 ///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
-///     let m = m.migrate(|txn| v1::migrate::Schema {
-///         user: txn.migrate_ok(|old: v0::User!(email)| v1::migrate::UserMigration {
+///     let m = m.migrate(|txn| v0::migrate::Schema {
+///         user: txn.migrate_ok(|old: v0::User!(email)| v0::migrate::User {
 ///             score: old.email.len() as i64 // use the email length as the new score
 ///         }),
 ///     });

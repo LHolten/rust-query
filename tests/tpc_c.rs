@@ -148,7 +148,7 @@ pub fn new_order<'a>(
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
 
-    txn.update(
+    txn.update_ok(
         district,
         District {
             next_order: Update::add(1),
@@ -222,7 +222,7 @@ pub fn new_order<'a>(
         };
 
         let is_remote = supplying_warehouse != district_info.warehouse;
-        txn.update(
+        txn.update_ok(
             stock,
             Stock {
                 ytd: Update::add(quantity),
@@ -357,7 +357,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     let warehouse = district.warehouse();
     let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
 
-    txn.update(
+    txn.update_ok(
         &warehouse,
         Warehouse {
             ytd: Update::add(input.amount),
@@ -367,7 +367,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
 
     let district_info = txn.query_one(LocationYtd::from_expr(district));
 
-    txn.update(
+    txn.update_ok(
         district,
         District {
             ytd: Update::add(input.amount),
@@ -391,7 +391,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         }
     };
 
-    txn.update(
+    txn.update_ok(
         customer,
         Customer {
             ytd_payment: Update::add(input.amount),
@@ -404,7 +404,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     if customer_info.credit == "BC" {
         let data = txn.query_one(customer.data());
         let mut data = format!("{customer:?},{};{data}", input.amount);
-        txn.update(
+        txn.update_ok(
             customer,
             Customer {
                 data: Update::set(&data[..500]),

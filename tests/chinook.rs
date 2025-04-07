@@ -50,7 +50,7 @@ fn test_queries() {
     db.insert(Artist { name: "first" }).unwrap();
     let id = db.insert(Artist { name: "second" }).unwrap();
 
-    let Err(_) = db.try_update(
+    let Err(_) = db.update(
         id,
         Artist {
             name: Update::set("first"),
@@ -58,7 +58,7 @@ fn test_queries() {
     ) else {
         panic!()
     };
-    db.try_update(
+    db.update(
         id,
         Artist {
             name: Update::set("other"),

@@ -201,7 +201,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
-    pub fn try_update<T: Table<Schema = S>>(
+    pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'t, S, Typ = T>,
         val: T::TryUpdate<'t>,
@@ -256,17 +256,17 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         }
     }
 
-    /// This is a convenience function to use [TransactionMut::try_update] for updates
+    /// This is a convenience function to use [TransactionMut::update] for updates
     /// that can not cause unique constraint violations.
     ///
     /// This method can be used for all tables, it just does not allow modifying
     /// columns that are part of unique constraints.
-    pub fn update<T: Table<Schema = S>>(
+    pub fn update_ok<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'t, S, Typ = T>,
         val: T::Update<'t>,
     ) {
-        match self.try_update(row, T::update_into_try_update(val)) {
+        match self.update(row, T::update_into_try_update(val)) {
             Ok(val) => val,
             Err(_) => {
                 unreachable!("update can not fail")
