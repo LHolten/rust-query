@@ -141,39 +141,38 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = client.migrator(config).unwrap();
-    let m = m.migrate(|txn| v1::migrate::Schema {
-        genre_new: txn
-            .migrate_ok(|old: v0::Genre!(name)| v1::migrate::GenreNewMigration { name: old.name }),
+    let m = m.migrate(|txn| v0::migrate::Schema {
+        genre_new: txn.migrate_ok(|old: v0::Genre!(name)| v0::migrate::GenreNew { name: old.name }),
         short_genre: {
             let Ok(()) = txn.migrate_optional(|old: v0::Genre!(name)| {
-                (old.name.len() <= 10).then_some(v1::migrate::GenreNewMigration { name: old.name })
+                (old.name.len() <= 10).then_some(v0::migrate::GenreNew { name: old.name })
             });
             Migrated::map_fk_err(|| panic!())
         },
     });
 
-    let m = m.migrate(|txn| v2::migrate::Schema {
+    let m = m.migrate(|txn| v1::migrate::Schema {
         customer: txn.migrate_ok(|old: v1::Customer!(phone)| {
-            v2::migrate::CustomerMigration {
+            v1::migrate::Customer {
                 // lets do some cursed phone number parsing :D
                 phone: old.phone.and_then(|x| x.parse().ok()),
             }
         }),
         track: txn.migrate_ok(
             |old: v1::Track!(media_type as v1::MediaType!(name), unit_price, bytes)| {
-                v2::migrate::TrackMigration {
+                v1::migrate::Track {
                     media_type: old.media_type.name,
                     composer_table: None,
                     byte_price: old.unit_price as f64 / old.bytes as f64,
                 }
             },
         ),
-        genre_new: txn.migrate_ok(|old: v1::GenreNew!(name)| v2::migrate::GenreNewMigration {
+        genre_new: txn.migrate_ok(|old: v1::GenreNew!(name)| v1::migrate::GenreNew {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
-        employee: txn.migrate_ok(|()| v2::migrate::EmployeeMigration {}),
+        employee: txn.migrate_ok(|()| v1::migrate::Employee {}),
         invoice_line: txn.migrate_ok(|old: v1::InvoiceLine!(invoice<'_>)| {
-            v2::migrate::InvoiceLineMigration {
+            v1::migrate::InvoiceLine {
                 invoice_new: old.invoice,
             }
         }),

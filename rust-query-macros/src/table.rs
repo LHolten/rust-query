@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::{dummy::wrap, multi::Unique, SingleVersionTable};
 
 use super::make_generic;
@@ -8,7 +10,42 @@ use proc_macro2::{Span, TokenStream};
 
 use syn::Ident;
 
-pub(crate) fn define_table(
+pub fn define_all_tables(
+    schema_name: &Ident,
+    mut new_struct_id: impl FnMut() -> usize,
+    prev_mod: &Option<Ident>,
+    version: u32,
+    new_tables: &mut BTreeMap<usize, SingleVersionTable>,
+) -> TokenStream {
+    let mut mod_output = TokenStream::new();
+    let mut schema_table_typs = vec![];
+    for table in new_tables.values_mut() {
+        mod_output.extend(define_table(
+            table,
+            schema_name,
+            prev_mod.as_ref(),
+            new_struct_id(),
+        ));
+
+        let table_name = &table.name;
+        schema_table_typs.push(quote! {b.table::<#table_name>()});
+    }
+
+    let version_i64 = version as i64;
+    mod_output.extend(quote! {
+        pub struct #schema_name;
+        impl ::rust_query::private::Schema for #schema_name {
+            const VERSION: i64 = #version_i64;
+
+            fn typs(b: &mut ::rust_query::private::TableTypBuilder<Self>) {
+                #(#schema_table_typs;)*
+            }
+        }
+    });
+    mod_output
+}
+
+fn define_table(
     table: &mut SingleVersionTable,
     schema: &Ident,
     prev_mod: Option<&Ident>,

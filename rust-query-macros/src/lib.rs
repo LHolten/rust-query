@@ -1,15 +1,14 @@
-use std::{collections::BTreeMap, ops::Not};
-
 use dummy::{dummy_impl, from_expr};
 use heck::{ToSnekCase, ToUpperCamelCase};
-use multi::{SingleVersionColumn, SingleVersionTable, VersionedSchema};
+use multi::{SingleVersionTable, VersionedSchema};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Ident, ItemMod, ItemStruct};
-use table::define_table;
+use table::define_all_tables;
 
 mod dummy;
 mod fields;
+mod migrations;
 mod multi;
 mod parse;
 mod table;
@@ -247,93 +246,6 @@ fn to_lower(name: &Ident) -> Ident {
     format_ident!("{normalized}")
 }
 
-impl SingleVersionTable {
-    pub fn migration_name(&self) -> Ident {
-        let table_name = &self.name;
-        format_ident!("{table_name}Migration")
-    }
-}
-
-// prev_table is only used for the columns
-fn define_table_migration(
-    prev_columns: &BTreeMap<usize, SingleVersionColumn>,
-    table: &SingleVersionTable,
-    always_migrate: bool,
-) -> syn::Result<Option<TokenStream>> {
-    let mut col_new = vec![];
-    let mut col_ident = vec![];
-    let mut alter_ident = vec![];
-    let mut alter_typ = vec![];
-    let mut alter_tmp = vec![];
-
-    let mut migration_conflict = quote! {::std::convert::Infallible};
-    let mut conflict_from = quote! {::std::unreachable!()};
-
-    for (i, col) in &table.columns {
-        let name = &col.name;
-        if prev_columns.contains_key(i) {
-            col_new.push(quote! {prev.#name()});
-        } else {
-            let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
-            if unique_columns.any(|c| c == name) {
-                migration_conflict = quote! {::rust_query::TableRow<'t, Self::From>};
-                conflict_from = quote! {val};
-            }
-            col_new.push(quote! {val.#name});
-
-            alter_ident.push(name);
-            alter_typ.push(&col.typ);
-            alter_tmp.push(format_ident!("Tmp{i}"))
-        }
-        col_ident.push(name);
-    }
-
-    // check that nothing was added or removed
-    // we don't need input if only stuff was removed, but it still needs migrating
-    if !always_migrate && alter_ident.is_empty() && table.columns.len() == prev_columns.len() {
-        return Ok(None);
-    }
-
-    let table_ident = &table.name;
-    let migration_name = table.migration_name();
-    let typs_mod = format_ident!("_{table_ident}");
-    let migration_lt = alter_ident.is_empty().not().then_some(quote! {'t});
-
-    let migration = quote! {
-        mod #typs_mod {
-            use super::super::*;
-            #(
-                pub type #alter_tmp<'t> = <<#alter_typ as ::rust_query::private::MyTyp>::Prev as ::rust_query::private::MyTyp>::Out<'t>;
-            )*
-        }
-
-        pub struct #migration_name<#migration_lt> {#(
-            pub #alter_ident: #typs_mod::#alter_tmp<'t>,
-        )*}
-
-        impl<'t> ::rust_query::private::Migration<'t> for #migration_name<#migration_lt> {
-            type To = super::#table_ident;
-            type FromSchema = <Self::From as ::rust_query::Table>::Schema;
-            type From = <Self::To as ::rust_query::Table>::MigrateFrom;
-            type Conflict = #migration_conflict;
-
-            fn prepare(
-                val: Self,
-                prev: ::rust_query::TableRow<'t, Self::From>,
-            ) -> <Self::To as ::rust_query::Table>::Insert<'t> {
-                super::#table_ident {#(
-                    #col_ident: ::rust_query::Expr::_migrate::<Self::FromSchema>(#col_new),
-                )*}
-            }
-
-            fn map_conflict(val: ::rust_query::TableRow<'t, Self::From>) -> Self::Conflict {
-                #conflict_from
-            }
-        }
-    };
-    Ok(Some(migration))
-}
-
 fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> {
     let schema = VersionedSchema::parse(item)?;
     let mut struct_id = 0;
@@ -346,116 +258,49 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
     let mut output = quote! {
         pub struct MacroRoot;
     };
-    let mut prev_tables: BTreeMap<usize, SingleVersionTable> = BTreeMap::new();
     let mut prev_mod = None;
-    for version in schema.versions.clone() {
-        let mut new_tables = schema.get(version)?;
 
-        let mut mod_output = TokenStream::new();
-        for table in new_tables.values_mut() {
-            mod_output.extend(define_table(
-                table,
-                &schema_name,
-                prev_mod.as_ref(),
-                new_struct_id(),
-            ));
-        }
+    let mut iter = schema
+        .versions
+        .clone()
+        .map(|version| Ok((version, schema.get(version)?)))
+        .collect::<syn::Result<Vec<_>>>()?
+        .into_iter()
+        .peekable();
 
-        let mut schema_table_typs = vec![];
-        let mut tables = vec![];
-        let mut create_table_name = vec![];
-        let mut create_table_lower = vec![];
-
-        let mut table_migrations = TokenStream::new();
-
-        // loop over all new table and see what changed
-        for (i, table) in &new_tables {
-            let table_name = &table.name;
-
-            let table_lower = to_lower(table_name);
-
-            schema_table_typs.push(quote! {b.table::<#table_name>()});
-
-            if let Some(prev_table) = prev_tables.remove(i) {
-                // a table already existed, so we need to define a migration
-
-                let Some(migration) = define_table_migration(&prev_table.columns, table, false)?
-                else {
-                    continue;
-                };
-                table_migrations.extend(migration);
-
-                create_table_lower.push(table_lower);
-                create_table_name.push(table_name);
-
-                tables.push(quote! {b.drop_table::<super::super::#prev_mod::#table_name>()})
-            } else if table.prev.is_some() {
-                let migration = define_table_migration(&BTreeMap::new(), table, true).unwrap();
-
-                table_migrations.extend(migration);
-                create_table_lower.push(table_lower);
-                create_table_name.push(table_name);
-            } else {
-                tables.push(quote! {b.create_empty::<super::#table_name>()})
-            }
-        }
-        for prev_table in prev_tables.into_values() {
-            // a table was removed, so we drop it
-
-            let table_ident = &prev_table.name;
-            tables.push(quote! {b.drop_table::<super::super::#prev_mod::#table_ident>()})
-        }
-
-        let version_i64 = version as i64;
-        mod_output.extend(quote! {
-            pub struct #schema_name;
-            impl ::rust_query::private::Schema for #schema_name {
-                const VERSION: i64 = #version_i64;
-
-                fn typs(b: &mut ::rust_query::private::TableTypBuilder<Self>) {
-                    #(#schema_table_typs;)*
-                }
-            }
-        });
+    while let Some((version, mut new_tables)) = iter.next() {
+        let mut mod_output = define_all_tables(
+            &schema_name,
+            &mut new_struct_id,
+            &prev_mod,
+            version,
+            &mut new_tables,
+        );
 
         let new_mod = format_ident!("v{version}");
 
-        let migrations = prev_mod.map(|prev_mod| {
-            // let prelude = prelude(&new_tables, &prev_mod, &schema_name);
-
-            let lifetime = create_table_name.is_empty().not().then_some(quote! {'t,});
-            quote! {
+        if let Some((peek_version, peek_tables)) = iter.peek() {
+            let peek_mod = format_ident!("v{peek_version}");
+            let m = migrations::migrations(
+                &schema_name,
+                new_tables,
+                peek_tables,
+                quote! {super},
+                quote! {super::super::#peek_mod},
+            )?;
+            mod_output.extend(quote! {
                 pub mod migrate {
-                    use super::super::#prev_mod::#schema_name as _PrevSchema;
-
-                    #table_migrations
-
-                    pub struct #schema_name<#lifetime> {
-                        #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, _PrevSchema, super::#create_table_name>,)*
-                    }
-
-                    impl<'t> ::rust_query::private::SchemaMigration<'t> for #schema_name<#lifetime> {
-                        type From = _PrevSchema;
-                        type To = super::#schema_name;
-
-                        fn tables(self, b: &mut ::rust_query::private::SchemaBuilder<'t, Self::From>) {
-                            #(#tables;)*
-                            #(self.#create_table_lower.apply(b);)*
-                        }
-                    }
+                    #m
                 }
-            }
-        });
+            });
+        }
 
         output.extend(quote! {
             mod #new_mod {
                 #mod_output
-
-                #migrations
             }
         });
 
-        prev_tables = new_tables;
         prev_mod = Some(new_mod);
     }
 
