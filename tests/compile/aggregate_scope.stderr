@@ -10,6 +10,9 @@ error: lifetime may not live long enough
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'outer` must outlive `'inner`
   |
   = help: consider adding the following bound: `'outer: 'inner`
+  = note: requirement occurs because of a mutable reference to `Aggregate<'_, '_, S>`
+  = note: mutable references are invariant over their type parameter
+  = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
 
 error: lifetime may not live long enough
   --> tests/compile/aggregate_scope.rs:10:5
@@ -23,6 +26,9 @@ error: lifetime may not live long enough
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'inner` must outlive `'outer`
    |
    = help: consider adding the following bound: `'inner: 'outer`
+   = note: requirement occurs because of a mutable reference to `Aggregate<'_, '_, S>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
 
 help: `'outer` and `'inner` must be the same: replace one with the other
 
@@ -38,3 +44,6 @@ error: lifetime may not live long enough
    |     ^^^^^^^^^^^^^^^ argument requires that `'outer` must outlive `'inner`
    |
    = help: consider adding the following bound: `'outer: 'inner`
+   = note: requirement occurs because of the type `Aggregate<'_, '_, S>`, which makes the generic argument `'_` invariant
+   = note: the struct `Aggregate<'outer, 'inner, S>` is invariant over the parameter `'outer`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

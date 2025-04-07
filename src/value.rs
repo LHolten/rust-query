@@ -1,3 +1,4 @@
+pub mod aggregate;
 mod operations;
 pub mod optional;
 pub mod trivial;

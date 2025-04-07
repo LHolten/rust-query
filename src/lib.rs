@@ -6,7 +6,6 @@ extern crate self as rust_query;
 #[macro_use]
 extern crate static_assertions;
 
-mod aggregate;
 mod alias;
 mod ast;
 mod client;
@@ -23,7 +22,6 @@ mod transaction;
 mod value;
 mod writable;
 
-pub use aggregate::aggregate;
 pub use client::LocalClient;
 pub use db::TableRow;
 pub use dummy_impl::{IntoSelect, IntoSelectExt, Select};
@@ -33,6 +31,7 @@ use ref_cast::RefCast;
 use rows::Rows;
 pub use rust_query_macros::{FromExpr, Select};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
+pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
 pub use value::{Expr, IntoExpr, UnixEpoch, optional::optional};
 pub use writable::Update;
@@ -41,9 +40,9 @@ pub use writable::Update;
 ///
 /// You generally don't need to import these types.
 pub mod args {
-    pub use crate::aggregate::Aggregate;
     pub use crate::query::Query;
     pub use crate::rows::Rows;
+    pub use crate::value::aggregate::Aggregate;
     pub use crate::value::optional::Optional;
 }
 
