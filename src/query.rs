@@ -43,7 +43,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     ///
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
-    /// then you have to use something like [std::slice::sort].
+    /// then you have to use something like [slice::sort].
     pub fn into_vec<O>(&self, select: impl IntoSelect<'inner, 'outer, S, Out = O>) -> Vec<O> {
         self.into_vec_private(select)
     }

@@ -193,7 +193,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
     /// Try updating a row in the database to have new column values.
     ///
-    /// Updating can fail just like [TransactionMut::try_insert] because of unique constraint conflicts.
+    /// Updating can fail just like [TransactionMut::insert] because of unique constraint conflicts.
     /// This happens when the new values are in conflict with an existing different row.
     ///
     /// When the update succeeds, this function returns [Ok<()>], when it fails it returns [Err] with one of
