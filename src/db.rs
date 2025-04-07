@@ -199,6 +199,7 @@ mod tests {
     struct Admin;
 
     impl Table for Admin {
+        type MigrateFrom = Self;
         type Ext<T> = AdminSelect<T>;
 
         type Schema = ();

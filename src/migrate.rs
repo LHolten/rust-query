@@ -50,7 +50,7 @@ pub trait Schema: Sized + 'static {
 pub trait Migration<'t> {
     type FromSchema: 'static;
     type From: Table<Schema = Self::FromSchema>;
-    type To: Table;
+    type To: Table<MigrateFrom = Self::From>;
     type Conflict;
 
     #[doc(hidden)]

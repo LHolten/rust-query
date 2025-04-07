@@ -31,6 +31,7 @@ use ref_cast::RefCast;
 use rows::Rows;
 pub use rust_query_macros::{FromExpr, Select};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
+use value::MyTyp;
 pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
 pub use value::{Expr, IntoExpr, UnixEpoch, optional::optional};
@@ -120,6 +121,9 @@ pub trait Table: Sized + 'static {
     /// The schema that this table is a part of.
     type Schema;
 
+    /// The table that this table can be migrated from.
+    type MigrateFrom: MyTyp;
+
     /// Please refer to [Rows::join].
     fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Expr<'inner, Self::Schema, Self> {
         rows.join()
@@ -128,6 +132,8 @@ pub trait Table: Sized + 'static {
     type Conflict<'t>;
     type Update<'t>;
     type TryUpdate<'t>;
+    /// The type of error when a delete fails due to a foreign key constraint.
+    type Referer;
 
     #[doc(hidden)]
     type Insert<'t>;
@@ -148,9 +154,6 @@ pub trait Table: Sized + 'static {
         val: Self::TryUpdate<'t>,
         old: Expr<'t, Self::Schema, Self>,
     ) -> Self::Insert<'t>;
-
-    /// The type of error when a delete fails due to a foreign key constraint.
-    type Referer;
 
     #[doc(hidden)]
     fn get_referer_unchecked() -> Self::Referer;

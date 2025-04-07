@@ -260,15 +260,11 @@ impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
 }
 
 pub trait MyTyp: 'static {
-    #[doc(hidden)]
+    type Prev: MyTyp;
     const NULLABLE: bool = false;
-    #[doc(hidden)]
     const TYP: hash::ColumnType;
-    #[doc(hidden)]
     const FK: Option<(&'static str, &'static str)> = None;
-    #[doc(hidden)]
     type Out<'t>: SecretFromSql<'t>;
-    #[doc(hidden)]
     type Sql;
 }
 
@@ -278,6 +274,7 @@ pub(crate) trait SecretFromSql<'t>: Sized {
 
 #[diagnostic::do_not_recommend]
 impl<T: Table> MyTyp for T {
+    type Prev = T::MigrateFrom;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = TableRow<'t, Self>;
@@ -298,6 +295,7 @@ impl<'t, T> SecretFromSql<'t> for TableRow<'t, T> {
 }
 
 impl MyTyp for i64 {
+    type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = i64;
@@ -310,6 +308,7 @@ impl SecretFromSql<'_> for i64 {
 }
 
 impl MyTyp for f64 {
+    type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
     type Sql = f64;
@@ -322,6 +321,7 @@ impl SecretFromSql<'_> for f64 {
 }
 
 impl MyTyp for bool {
+    type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
     type Sql = bool;
@@ -334,6 +334,7 @@ impl SecretFromSql<'_> for bool {
 }
 
 impl MyTyp for String {
+    type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
     type Sql = String;
@@ -347,6 +348,7 @@ impl SecretFromSql<'_> for String {
 }
 
 impl MyTyp for Vec<u8> {
+    type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Blob;
     type Out<'t> = Self;
     type Sql = Vec<u8>;
@@ -360,6 +362,7 @@ impl SecretFromSql<'_> for Vec<u8> {
 }
 
 impl<T: MyTyp> MyTyp for Option<T> {
+    type Prev = Option<T::Prev>;
     const TYP: hash::ColumnType = T::TYP;
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;

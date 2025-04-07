@@ -264,6 +264,7 @@ fn define_table_migration(
     let mut col_ident = vec![];
     let mut alter_ident = vec![];
     let mut alter_typ = vec![];
+    let mut alter_tmp = vec![];
 
     let mut migration_conflict = quote! {::std::convert::Infallible};
     let mut conflict_from = quote! {::std::unreachable!()};
@@ -282,6 +283,7 @@ fn define_table_migration(
 
             alter_ident.push(name);
             alter_typ.push(&col.typ);
+            alter_tmp.push(format_ident!("Tmp{i}"))
         }
         col_ident.push(name);
     }
@@ -294,17 +296,25 @@ fn define_table_migration(
 
     let table_ident = &table.name;
     let migration_name = table.migration_name();
+    let typs_mod = format_ident!("_{table_ident}");
     let migration_lt = alter_ident.is_empty().not().then_some(quote! {'t});
 
     let migration = quote! {
+        mod #typs_mod {
+            use super::super::*;
+            #(
+                pub type #alter_tmp<'t> = <<#alter_typ as ::rust_query::private::MyTyp>::Prev as ::rust_query::private::MyTyp>::Out<'t>;
+            )*
+        }
+
         pub struct #migration_name<#migration_lt> {#(
-            pub #alter_ident: <#alter_typ as ::rust_query::private::MyTyp>::Out<'t>,
+            pub #alter_ident: #typs_mod::#alter_tmp<'t>,
         )*}
 
         impl<'t> ::rust_query::private::Migration<'t> for #migration_name<#migration_lt> {
             type To = super::#table_ident;
-            type FromSchema = _PrevSchema;
-            type From = #table_ident;
+            type FromSchema = <Self::From as ::rust_query::Table>::Schema;
+            type From = <Self::To as ::rust_query::Table>::MigrateFrom;
             type Conflict = #migration_conflict;
 
             fn prepare(
@@ -312,7 +322,7 @@ fn define_table_migration(
                 prev: ::rust_query::TableRow<'t, Self::From>,
             ) -> <Self::To as ::rust_query::Table>::Insert<'t> {
                 super::#table_ident {#(
-                    #col_ident: ::rust_query::Expr::_migrate::<_PrevSchema>(#col_new),
+                    #col_ident: ::rust_query::Expr::_migrate::<Self::FromSchema>(#col_new),
                 )*}
             }
 
@@ -343,7 +353,12 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
 
         let mut mod_output = TokenStream::new();
         for table in new_tables.values_mut() {
-            mod_output.extend(define_table(table, &schema_name, new_struct_id()));
+            mod_output.extend(define_table(
+                table,
+                &schema_name,
+                prev_mod.as_ref(),
+                new_struct_id(),
+            ));
         }
 
         let mut schema_table_typs = vec![];
@@ -373,7 +388,7 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
                 create_table_lower.push(table_lower);
                 create_table_name.push(table_name);
 
-                tables.push(quote! {b.drop_table::<#table_name>()})
+                tables.push(quote! {b.drop_table::<super::super::#prev_mod::#table_name>()})
             } else if table.prev.is_some() {
                 let migration = define_table_migration(&BTreeMap::new(), table, true).unwrap();
 
@@ -406,12 +421,12 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
         let new_mod = format_ident!("v{version}");
 
         let migrations = prev_mod.map(|prev_mod| {
-            let prelude = prelude(&new_tables, &prev_mod, &schema_name);
+            // let prelude = prelude(&new_tables, &prev_mod, &schema_name);
 
             let lifetime = create_table_name.is_empty().not().then_some(quote! {'t,});
             quote! {
                 pub mod update {
-                    #prelude
+                    use super::super::#prev_mod::#schema_name as _PrevSchema;
 
                     #table_migrations
 
@@ -445,36 +460,4 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
     }
 
     Ok(output)
-}
-
-fn prelude(
-    new_tables: &BTreeMap<usize, SingleVersionTable>,
-    prev_mod: &Ident,
-    schema: &Ident,
-) -> TokenStream {
-    let mut prelude = vec![];
-    for table in new_tables.values() {
-        let Some(old_name) = &table.prev else {
-            continue;
-        };
-        let new_name = &table.name;
-        prelude.push(quote! {
-            #old_name as #new_name
-        });
-    }
-    prelude.push(quote! {#schema as _PrevSchema});
-    let mut prelude = quote! {
-        #[allow(unused_imports)]
-        use super::super::#prev_mod::{#(#prelude,)*};
-    };
-    for table in new_tables.values() {
-        if table.prev.is_none() {
-            let new_name = &table.name;
-            prelude.extend(quote! {
-                #[allow(unused_imports)]
-                use super::#new_name;
-            })
-        }
-    }
-    prelude
 }

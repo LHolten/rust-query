@@ -11,6 +11,7 @@ use syn::Ident;
 pub(crate) fn define_table(
     table: &mut SingleVersionTable,
     schema: &Ident,
+    prev_mod: Option<&Ident>,
     struct_id: usize,
 ) -> syn::Result<TokenStream> {
     let table_ident_with_span = table.name.clone();
@@ -119,6 +120,15 @@ pub(crate) fn define_table(
     let wrap_parts = wrap(&parts);
     let wrap_ident = wrap(&col_ident);
 
+    // Default to the current table if there is no previous table.
+    // This could change to another default type in the future.
+    let migrate_from = if let Some(prev) = &table.prev {
+        let prev_mod = prev_mod.unwrap();
+        quote! {super::#prev_mod::#prev}
+    } else {
+        quote! {Self}
+    };
+
     Ok(quote! {
         pub struct #table_ident_with_span<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
             pub #col_ident: #generic::Out<#col_typ, #schema>,
@@ -179,6 +189,7 @@ pub(crate) fn define_table(
             )*}
 
             impl ::rust_query::Table for #table_ident {
+                type MigrateFrom = #migrate_from;
                 type Ext<T> = #ext_ident<T>;
                 type Schema = #schema;
 

@@ -20,6 +20,7 @@ macro_rules! field {
 macro_rules! table {
     ($typ:ident, $dummy:ident, $var:pat => $name:expr) => {
         impl Table for $typ {
+            type MigrateFrom = Self;
             type Ext<T> = $dummy<T>;
             type Schema = Pragma;
             type Referer = ();
