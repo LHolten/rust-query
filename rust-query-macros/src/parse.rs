@@ -1,11 +1,9 @@
 use std::ops::{Not, Range};
 
 use quote::ToTokens;
-use syn::{parse2, punctuated::Punctuated, Attribute, Field, Ident, Item, Path, Token, Visibility};
+use syn::{punctuated::Punctuated, Attribute, Field, Ident, Item, Path, Token, Visibility};
 
-use crate::multi::{
-    ColumnTyp, Reference, Unique, VersionedColumn, VersionedSchema, VersionedTable,
-};
+use crate::multi::{Unique, VersionedColumn, VersionedSchema, VersionedTable};
 
 impl VersionedColumn {
     pub fn parse(field: Field, limit: Range<u32>, uniques: &mut Vec<Unique>) -> syn::Result<Self> {
@@ -26,7 +24,6 @@ impl VersionedColumn {
         }
 
         let mut other_field_attr = vec![];
-        let mut follow_rename = false;
         for attr in field.attrs.clone() {
             if let Some(unique) = is_unique(attr.path()) {
                 attr.meta.require_path_only()?;
@@ -34,9 +31,6 @@ impl VersionedColumn {
                     name: unique,
                     columns: vec![name.clone()],
                 })
-            } else if attr.path().is_ident("follow") {
-                attr.meta.require_path_only()?;
-                follow_rename = true;
             } else {
                 other_field_attr.push(attr);
             }
@@ -48,11 +42,7 @@ impl VersionedColumn {
         Ok(VersionedColumn {
             versions,
             name,
-            typ: if follow_rename {
-                ColumnTyp::Reference(parse2(field.ty.clone().into_token_stream())?)
-            } else {
-                ColumnTyp::Normal(field.ty.into_token_stream())
-            },
+            typ: field.ty.into_token_stream(),
         })
     }
 }
@@ -157,28 +147,6 @@ impl VersionedSchema {
             .collect::<Result<_, _>>()?;
 
         Ok(VersionedSchema { versions, tables })
-    }
-}
-
-impl syn::parse::Parse for Reference {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let first = input.parse()?;
-        if input.is_empty() {
-            return Ok(Reference {
-                inner: first,
-                wrap: None,
-            });
-        }
-        if first != "Option" {
-            return Err(syn::Error::new_spanned(first, "expected `Option`"));
-        }
-        let open = input.parse()?;
-        let inner = input.parse()?;
-        let close = input.parse()?;
-        Ok(Reference {
-            inner,
-            wrap: Some((first, open, close)),
-        })
     }
 }
 

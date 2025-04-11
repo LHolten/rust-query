@@ -1,37 +1,13 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
-use syn::{Ident, Token};
+use quote::format_ident;
+use syn::Ident;
 
 #[derive(Clone)]
 pub(crate) struct Unique {
     pub name: Ident,
     pub columns: Vec<Ident>,
-}
-
-#[derive(Clone)]
-pub(crate) enum ColumnTyp {
-    Normal(TokenStream),
-    Reference(Reference),
-}
-
-#[derive(Clone)]
-pub(crate) struct Reference {
-    pub inner: Ident,
-    pub wrap: Option<(Ident, Token![<], Token![>])>,
-}
-
-impl Reference {
-    fn wrap(&self, expr: TokenStream) -> TokenStream {
-        if let Some((first, open, close)) = &self.wrap {
-            quote! {
-                #first #open #expr #close
-            }
-        } else {
-            expr
-        }
-    }
 }
 
 pub(crate) struct VersionedSchema {
@@ -53,7 +29,7 @@ pub(crate) struct VersionedTable {
 pub(crate) struct VersionedColumn {
     pub versions: std::ops::Range<u32>,
     pub name: Ident,
-    pub typ: ColumnTyp,
+    pub typ: TokenStream,
 }
 
 impl VersionedSchema {
@@ -73,18 +49,11 @@ impl VersionedSchema {
         let mut columns = BTreeMap::new();
         for (i, c) in table.columns.iter().enumerate() {
             if c.versions.contains(&version) {
-                let typ = match &c.typ {
-                    ColumnTyp::Normal(typ) => typ.clone(),
-                    ColumnTyp::Reference(reference) => {
-                        let table = self.resolve(&reference.inner, version, c.versions.end - 1)?;
-                        reference.wrap(quote! {#table})
-                    }
-                };
                 columns.insert(
                     i,
                     SingleVersionColumn {
                         name: c.name.clone(),
-                        typ,
+                        typ: c.typ.clone(),
                         is_def: version == c.versions.end - 1,
                     },
                 );
@@ -103,33 +72,6 @@ impl VersionedSchema {
             columns,
             referenceable: table.referenceable,
         })
-    }
-
-    fn resolve<'a>(&'a self, name: &'a Ident, version: u32, latest: u32) -> syn::Result<&'a Ident> {
-        assert!(version <= latest);
-        let Some(table) = self
-            .tables
-            .iter()
-            .find(|x| &x.name == name && x.versions.contains(&latest))
-        else {
-            return Err(syn::Error::new_spanned(
-                name,
-                format!("{name} does not exist in version {latest}"),
-            ));
-        };
-
-        if table.versions.contains(&version) {
-            Ok(name)
-        } else if let Some(prev) = &table.prev {
-            self.resolve(prev, version, table.versions.start - 1)
-        } else {
-            Err(syn::Error::new_spanned(
-                name,
-                format!(
-                    "expected {name} to have a `from` attribute with a table that exists in version {version}"
-                ),
-            ))
-        }
     }
 }
 
