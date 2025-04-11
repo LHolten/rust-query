@@ -69,19 +69,20 @@ fn define_table(
         let mut col_str = vec![];
         let mut generic = vec![];
         for col in col {
-            let typ = &table
+            let i = &table
                 .columns
-                .values()
-                .find(|x| &x.name == col)
+                .iter()
+                .find_map(|(i, x)| (&x.name == col).then_some(i))
                 .ok_or_else(|| {
                     syn::Error::new_spanned(
                         col,
                         "Expected a column to exists for every name in the unique constraint.",
                     )
-                })?
-                .typ;
+                })?;
+            let tmp = format_ident!("_{table_ident}{i}");
+
             generic.push(make_generic(col));
-            col_typ.push(typ);
+            col_typ.push(tmp);
             col_str.push(col.to_string());
         }
 
@@ -118,13 +119,12 @@ fn define_table(
     let mut parts = vec![];
 
     for (i, col) in &table.columns {
-        let typ = &col.typ;
         let ident = &col.name;
         let tmp = format_ident!("_{table_ident}{i}");
 
         let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
-            def_typs.push(quote!(f.check_unique_compatible::<#typ>()));
+            def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
             try_from_update.push(quote! {Default::default()});
         } else {
@@ -137,7 +137,7 @@ fn define_table(
         col_ident.push(ident);
 
         if col.is_def {
-            col_typ_original.push(typ.clone());
+            col_typ_original.push(col.typ.clone());
         } else {
             let next_mod = next_mod.unwrap();
             col_typ_original

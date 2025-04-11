@@ -3,7 +3,7 @@ mod operations;
 pub mod optional;
 pub mod trivial;
 
-use std::{marker::PhantomData, ops::Deref, rc::Rc};
+use std::{fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
 use ref_cast::RefCast;
 use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
@@ -391,6 +391,12 @@ pub struct Expr<'column, S, T> {
     pub(crate) inner: DynTyped<T>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
+}
+
+impl<'column, S, T> Debug for Expr<'column, S, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Expr of type {}", std::any::type_name::<T>())
+    }
 }
 
 impl<'column, S, T: 'static> Expr<'column, S, T> {
