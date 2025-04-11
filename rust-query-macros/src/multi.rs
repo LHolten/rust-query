@@ -64,6 +64,12 @@ impl VersionedSchema {
         if version == table.versions.start {
             prev = table.prev.clone();
         }
+        if prev.is_some() && version == self.versions.start {
+            return Err(syn::Error::new_spanned(
+                prev,
+                "the previous schema does not exists",
+            ));
+        }
 
         Ok(SingleVersionTable {
             prev,

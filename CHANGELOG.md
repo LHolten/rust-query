@@ -22,6 +22,7 @@
 - Renamed `try_update` to `update` and `update` to `update_ok`.
 - Changed `#[schema]` syntax to be a module of structs.
 - Added some more basic operations on expressions.
+- Conflict is now an `Expr`.
 
 # 0.3.1
 

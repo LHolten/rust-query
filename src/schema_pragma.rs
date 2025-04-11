@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::Infallible};
 
 use ref_cast::RefCast;
 
-use crate::{Expr, FromExpr, Select, Table, Transaction, db::Col, hash, private::Reader};
+use crate::{Expr, FromExpr, Table, Transaction, db::Col, hash, private::Reader};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
@@ -42,9 +42,7 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn get_conflict_unchecked<'t>(
-                _val: &Self::Insert<'t>,
-            ) -> Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>> {
+            fn get_conflict_unchecked<'t>(_val: &Self::Insert<'t>) -> Self::Conflict<'t> {
                 unreachable!()
             }
 

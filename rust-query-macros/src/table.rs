@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::{dummy::wrap, multi::Unique, SingleVersionTable};
+use crate::{dummy::wrap, SingleVersionTable};
 
 use super::make_generic;
 use heck::ToSnekCase;
@@ -58,18 +58,15 @@ fn define_table(
     table.name.set_span(Span::call_site());
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
-    let table_mod = format_ident!("{table_name}");
 
     let mut unique_typs = vec![];
     let mut unique_funcs = vec![];
-    let mut unique_defs = vec![];
     for unique in &table.uniques {
-        let column_strs = unique.columns.iter().map(|x| x.to_string());
         let unique_name = &unique.name;
-        let unique_type = make_generic(unique_name);
 
         let col = &unique.columns;
         let mut col_typ = vec![];
+        let mut col_str = vec![];
         let mut generic = vec![];
         for col in col {
             let typ = &table
@@ -85,24 +82,29 @@ fn define_table(
                 .typ;
             generic.push(make_generic(col));
             col_typ.push(typ);
+            col_str.push(col.to_string());
         }
 
-        unique_typs.push(quote! {f.unique(&[#(#column_strs),*])});
+        unique_typs.push(quote! {f.unique(&[#(#col_str),*])});
 
         unique_funcs.push(quote! {
             pub fn #unique_name<'a #(,#generic)*>(#(#col: #generic),*) -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
             where
                 #(#generic: ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>,)*
             {
-                ::rust_query::private::new_column(#table_mod::#unique_type {#(
-                    #col: ::rust_query::private::into_owned(#col),
-                )*})
+                #(
+                    let #col = ::rust_query::private::into_owned(#col);
+                )*
+                ::rust_query::private::adhoc_expr(move |b| {
+                    b.get_unique::<#table_ident>(vec![#(
+                        (#col_str, ::rust_query::private::Typed::build_expr(&#col, b)),
+                    )*])
+                })
             }
         });
-        unique_defs.push(define_unique(unique, &table_ident));
     }
 
-    let (conflict_type, conflict_dummy_insert) = table.conflict(quote! {}, quote! {#schema});
+    let (conflict_type, conflict_dummy_insert) = table.conflict(schema);
 
     let mut def_typs = vec![];
     let mut update_columns_safe = vec![];
@@ -266,7 +268,7 @@ fn define_table(
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
 
-                fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> ::rust_query::Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>>
+                fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> Self::Conflict<'t>
                 {
                     #conflict_dummy_insert
                 }
@@ -309,76 +311,26 @@ fn define_table(
         impl #table_ident {
             #(#unique_funcs)*
         }
-
-        mod #table_mod {
-            #(#unique_defs)*
-        }
     })
 }
 
-fn define_unique(unique: &Unique, table_ident: &Ident) -> TokenStream {
-    let name = &unique.name;
-    let typ_name = make_generic(name);
-
-    let col = &unique.columns;
-    let mut generic = vec![];
-    let mut col_str = vec![];
-    for col in col {
-        generic.push(make_generic(col));
-        col_str.push(col.to_string());
-    }
-
-    quote! {
-        pub struct #typ_name<#(#generic),*> {#(
-            pub(super) #col: #generic,
-        )*}
-
-        impl<#(#generic: ::rust_query::private::Typed),*> ::rust_query::private::Typed for #typ_name<#(#generic),*> {
-            type Typ = Option<super::#table_ident>;
-            fn build_expr(&self, b: ::rust_query::private::ValueBuilder) -> ::rust_query::private::SimpleExpr {
-                b.get_unique::<super::#table_ident>(vec![#(
-                    (#col_str, self.#col.build_expr(b)),
-                )*])
-            }
-        }
-    }
-}
-
 impl SingleVersionTable {
-    pub fn conflict(&self, prefix: TokenStream, schema: TokenStream) -> (TokenStream, TokenStream) {
+    pub fn conflict(&self, schema: &Ident) -> (TokenStream, TokenStream) {
         match &*self.uniques {
-            [] => (
-                quote! {::std::convert::Infallible},
-                quote! {{
-                    let x = ::rust_query::IntoExpr::into_expr(&0i64);
-                    ::rust_query::IntoSelectExt::map_select(x, |_| unreachable!())
-                }},
-            ),
+            [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
             [unique] => {
                 let unique_name = &unique.name;
-                let unique_type = make_generic(unique_name);
-
                 let table_ident = &self.name;
-                let table_name: &String = &table_ident.to_string().to_snek_case();
-                let table_mod = format_ident!("{table_name}");
 
                 let col = &unique.columns;
                 (
-                    quote! {::rust_query::TableRow<'t, #prefix #table_ident>},
+                    quote! {::rust_query::Expr<'t, #schema, #table_ident>},
                     quote! {
-                        ::rust_query::private::new_dummy(#prefix #table_mod::#unique_type {#(
-                            #col: ::rust_query::private::into_owned::<#schema, _>(&val.#col),
-                        )*})
+                        ::rust_query::private::assume_expr(#table_ident::#unique_name(#(&val.#col),*))
                     },
                 )
             }
-            _ => (
-                quote! {()},
-                quote! {{
-                    let x = ::rust_query::IntoExpr::into_expr(&0i64);
-                    ::rust_query::IntoSelectExt::map_select(x, |_| Some(()))
-                }},
-            ),
+            _ => (quote! {()}, quote! {()}),
         }
     }
 }

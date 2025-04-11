@@ -217,9 +217,7 @@ mod tests {
             todo!()
         }
 
-        fn get_conflict_unchecked<'t>(
-            val: &Self::Insert<'t>,
-        ) -> Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>> {
+        fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> Self::Conflict<'t> {
             todo!()
         }
 

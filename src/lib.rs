@@ -67,7 +67,9 @@ pub mod private {
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
     pub use crate::query::show_sql;
-    pub use crate::value::{MyTyp, Typed, ValueBuilder, into_owned, new_column, new_dummy};
+    pub use crate::value::{
+        MyTyp, Typed, ValueBuilder, adhoc_expr, assume_expr, into_owned, new_column, new_dummy,
+    };
     pub use crate::writable::{Reader, TableInsert};
 
     pub use ref_cast::RefCast;
@@ -142,9 +144,7 @@ pub trait Table: Sized + 'static {
     fn read<'t>(val: &Self::Insert<'t>, f: &Reader<'t, Self::Schema>);
 
     #[doc(hidden)]
-    fn get_conflict_unchecked<'t>(
-        val: &Self::Insert<'t>,
-    ) -> Select<'t, 't, Self::Schema, Option<Self::Conflict<'t>>>;
+    fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> Self::Conflict<'t>;
 
     #[doc(hidden)]
     fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t>;

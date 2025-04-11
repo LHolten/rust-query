@@ -149,7 +149,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// Returns [Ok] with a reference to the new inserted value or an [Err] with conflict information.
     /// The type of conflict information depends on the number of unique constraints on the table:
     /// - 0 unique constraints => [Infallible]
-    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
+    /// - 1 unique constraint => [Expr] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
@@ -181,12 +181,12 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The new row is inserted and the reference to the row is returned OR
     /// an existing row is found which conflicts with the new row and a reference
     /// to the conflicting row is returned.
-    pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = TableRow<'t, T>>>(
+    pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = crate::Expr<'t, S, T>>>(
         &mut self,
         val: impl TableInsert<'t, T = T>,
-    ) -> TableRow<'t, T> {
+    ) -> crate::Expr<'t, S, T> {
         match self.insert(val) {
-            Ok(row) => row,
+            Ok(row) => row.into_expr(),
             Err(row) => row,
         }
     }
@@ -199,7 +199,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// When the update succeeds, this function returns [Ok<()>], when it fails it returns [Err] with one of
     /// three conflict types:
     /// - 0 unique constraints => [Infallible]
-    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
+    /// - 1 unique constraint => [Expr] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
     pub fn update<T: Table<Schema = S>>(
         &mut self,
@@ -249,8 +249,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                let conflict = self.query_one(T::get_conflict_unchecked(&val));
-                Err(conflict.unwrap())
+                Err(T::get_conflict_unchecked(&val))
             }
             Err(err) => Err(err).unwrap(),
         }
@@ -400,9 +399,7 @@ pub fn try_insert_private<'t, T: Table>(
             if kind.code == ErrorCode::ConstraintViolation =>
         {
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-            let conflict =
-                Transaction::new(transaction.clone()).query_one(T::get_conflict_unchecked(&val));
-            Err(conflict.unwrap())
+            Err(T::get_conflict_unchecked(&val))
         }
         Err(err) => Err(err).unwrap(),
     }

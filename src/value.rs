@@ -404,8 +404,19 @@ impl<'column, S, T: 'static> Expr<'column, S, T> {
     }
 }
 
+pub fn adhoc_expr<S, T: 'static>(
+    f: impl 'static + Fn(ValueBuilder) -> SimpleExpr,
+) -> Expr<'static, S, T> {
+    Expr::adhoc(f)
+}
+
 pub fn new_column<'x, S, T: 'static>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T> {
     Expr::new(val)
+}
+
+pub fn assume_expr<S, T: 'static>(e: Expr<S, Option<T>>) -> Expr<S, T> {
+    let inner = e.inner;
+    Expr::adhoc(move |b| inner.build_expr(b))
 }
 
 pub fn new_dummy<'x, S, T: MyTyp>(
