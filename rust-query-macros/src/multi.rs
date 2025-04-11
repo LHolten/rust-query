@@ -85,6 +85,7 @@ impl VersionedSchema {
                     SingleVersionColumn {
                         name: c.name.clone(),
                         typ,
+                        is_def: version == c.versions.end - 1,
                     },
                 );
             }
@@ -143,4 +144,6 @@ pub(crate) struct SingleVersionTable {
 pub(crate) struct SingleVersionColumn {
     pub name: Ident,
     pub typ: TokenStream,
+    // is this the latest version where the column exists?
+    pub is_def: bool,
 }

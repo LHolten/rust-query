@@ -14,6 +14,7 @@ pub fn define_all_tables(
     schema_name: &Ident,
     mut new_struct_id: impl FnMut() -> usize,
     prev_mod: &Option<Ident>,
+    next_mod: &Option<Ident>,
     version: u32,
     new_tables: &mut BTreeMap<usize, SingleVersionTable>,
 ) -> TokenStream {
@@ -24,6 +25,7 @@ pub fn define_all_tables(
             table,
             schema_name,
             prev_mod.as_ref(),
+            next_mod.as_ref(),
             new_struct_id(),
         ));
 
@@ -49,6 +51,7 @@ fn define_table(
     table: &mut SingleVersionTable,
     schema: &Ident,
     prev_mod: Option<&Ident>,
+    next_mod: Option<&Ident>,
     struct_id: usize,
 ) -> syn::Result<TokenStream> {
     let table_ident_with_span = table.name.clone();
@@ -108,12 +111,14 @@ fn define_table(
     let mut col_str = vec![];
     let mut col_ident = vec![];
     let mut col_typ = vec![];
+    let mut col_typ_original = vec![];
     let mut empty = vec![];
     let mut parts = vec![];
 
-    for col in table.columns.values() {
+    for (i, col) in &table.columns {
         let typ = &col.typ;
         let ident = &col.name;
+        let tmp = format_ident!("_{table_ident}{i}");
 
         let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
@@ -128,8 +133,17 @@ fn define_table(
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
-        col_typ.push(typ);
-        empty.push(quote! {})
+
+        if col.is_def {
+            col_typ_original.push(typ.clone());
+        } else {
+            let next_mod = next_mod.unwrap();
+            col_typ_original
+                .push(quote! {<super::#next_mod::#tmp as ::rust_query::private::MyTyp>::Prev});
+        }
+
+        col_typ.push(tmp);
+        empty.push(quote! {});
     }
 
     let mut safe_default = None;
@@ -189,6 +203,10 @@ fn define_table(
                 })
             }
         }
+
+        #(
+            pub(super) type #col_typ = #col_typ_original;
+        )*
 
         mod #macro_ident {
             #[allow(unused_macros)]

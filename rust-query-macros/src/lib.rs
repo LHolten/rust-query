@@ -270,10 +270,14 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
         .peekable();
 
     while let Some((version, mut new_tables)) = iter.next() {
+        let next_mod = iter
+            .peek()
+            .map(|(peek_version, _)| format_ident!("v{peek_version}"));
         let mut mod_output = define_all_tables(
             &schema_name,
             &mut new_struct_id,
             &prev_mod,
+            &next_mod,
             version,
             &mut new_tables,
         );
