@@ -1,0 +1,26 @@
+error[E0271]: type mismatch resolving `<FooNext as Table>::Schema == Schema`
+ --> tests/compile/table_does_not_exist.rs:9:23
+  |
+3 | #[schema(Schema)]
+  | ----------------- required by a bound introduced by this call
+...
+9 |         pub evolving: FooNext,
+  |                       ^^^^^^^ expected `v0::Schema`, found `v1::Schema`
+  |
+  = note: `v1::Schema` and `v0::Schema` have similar names, but are actually distinct types
+note: `v1::Schema` is defined in module `crate::v1` of the current crate
+ --> tests/compile/table_does_not_exist.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^
+note: `v0::Schema` is defined in module `crate::v0` of the current crate
+ --> tests/compile/table_does_not_exist.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^
+note: required by a bound in `TypBuilder::<S>::col`
+ --> src/hash.rs
+  |
+  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
+  |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)

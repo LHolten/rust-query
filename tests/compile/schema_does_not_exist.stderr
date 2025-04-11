@@ -1,0 +1,5 @@
+error: the previous schema does not exists
+ --> tests/compile/schema_does_not_exist.rs:8:12
+  |
+8 |     #[from(Foo)]
+  |            ^^^

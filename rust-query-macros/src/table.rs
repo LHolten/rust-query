@@ -8,7 +8,7 @@ use quote::{format_ident, quote};
 
 use proc_macro2::{Span, TokenStream};
 
-use syn::Ident;
+use syn::{spanned::Spanned, Ident};
 
 pub fn define_all_tables(
     schema_name: &Ident,
@@ -120,7 +120,7 @@ fn define_table(
 
     for (i, col) in &table.columns {
         let ident = &col.name;
-        let tmp = format_ident!("_{table_ident}{i}");
+        let tmp = format_ident!("_{table_ident}{i}", span = col.typ.span());
 
         let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
