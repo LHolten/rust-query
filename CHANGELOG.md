@@ -11,7 +11,7 @@
 ## Updates, Insert and Query
 - Added safe updates of a subset of columns for each table.
 - Update statements now use the `Update` type for each column.
-- Insert and update conflict is now an `Expr`.
+- Insert and update conflict is now an `Expr` (`find_or_insert` returns an `Expr` now too).
 - `Rows::into_vec` is no longer sorted automatically.
 
 ## Schema and Mirations
@@ -40,7 +40,7 @@
 # 0.3.1
 
 - Added error message when defining an `id` column.
-- Added support for sqlite `LIKE` and `GLOB` operators.
+- Added support for sqlite `LIKE` and `GLOB` operators (Contributed by @teamplayer3).
 - Added support for `DELETE` using `TransactionWeak` and `#[no_reference]`.
 - Added `TransactionWeak::unchecked_transaction` behind feature flag.
 - Added `impl ToSql for TableRow` behind `unchecked_transaction` feature flag.
