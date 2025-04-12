@@ -29,5 +29,6 @@ trybuild = "1.0.97"
 expect-test = "1"
 
 [features]
+default = ["dev"]
 bundled = ["rusqlite/bundled"]
 dev = ["dep:k12"]

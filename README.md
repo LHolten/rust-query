@@ -42,16 +42,16 @@ Despite these limitations, I am dogfooding this query builder and using it in my
 
 ## What it looks like
 
-Define a schema using `enum` syntax:
+Define a schema using the syntax of a module with structs:
 ```rust
 # fn main() {}
 use rust_query::migration::schema;
 
 #[schema(MySchema)]
 pub mod vN {
-    // Enum variants are database tables
+    // Structs are database tables
     pub struct User {
-        // This table has one column with String type.
+        // This table has one column with String (sqlite TEXT) type.
         pub name: String,
     }
     pub struct Image {

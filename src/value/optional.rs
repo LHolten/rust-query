@@ -26,7 +26,7 @@ pub fn optional<'outer, S, R>(
 /// This is the argument type used by the [optional] combinator.
 ///
 /// Joining more optional columns can be done with the [Optional::and] method.
-/// Finally it is possible to return either columns or dummies using [Optional::then] and [Optional::then_select].
+/// Finally it is possible to return selections or expressions using [Optional::then] and [Optional::then_expr].
 pub struct Optional<'outer, 'inner, S> {
     nulls: Vec<DynTyped<bool>>,
     _p: PhantomData<&'inner &'outer ()>,
