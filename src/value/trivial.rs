@@ -5,9 +5,9 @@ use super::MyTyp;
 /// Trait for values that can be retrieved from the database using one expression.
 ///
 /// This is most likely the trait that you want to implement for your custom datatype.
-/// Together with the [crate::IntoExpr] trait (when that is made possible).
+/// Together with the [crate::IntoExpr] trait.
 ///
-/// Note that this trait can also be implemented using [derive@rust_query::FromExpr].
+/// Note that this trait can also be implemented using the [derive@rust_query::FromExpr] derive macro.
 pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
     /// How to turn a column reference into a [Select].
     fn from_expr<'columns>(

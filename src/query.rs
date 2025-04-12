@@ -12,8 +12,7 @@ use crate::{
     rows::Rows,
 };
 
-/// This is the top level query type and dereferences to [Rows].
-/// Most importantly it can turn the query result into a [Vec].
+/// This is the type used by the [crate::Transaction::query] method.
 pub struct Query<'outer, 'inner, S> {
     pub(crate) phantom: PhantomData<&'inner &'outer ()>,
     pub(crate) q: Rows<'inner, S>,

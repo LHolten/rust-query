@@ -11,35 +11,6 @@ Writing queries using this library involves:
 Notably writing queries does not involve any new syntax or macro, while still being completely type safe.
 (There are macros to define the schema and to simplify defining composite types to retrieve from queries)
 
-## Roadmap
-
-This project is under development and there are some things missing.
-Below is a checklist of planned features and implemented features. 
-(Implemented features have a checkmark, planned features do not). 
-
-Schema:
-- [x] Basic types (integer, real, text, blob, null)
-- [x] Basic foreign keys
-- [x] (Multi column) unique constraints
-- [ ] Check constraints
-- [ ] Overlapping foreign keys
-
-Statements:
-- [x] Multi row query + single row query (and optional query)
-- [x] Single row insert, update and delete
-
-Expressions:
-- [x] Some basic math, boolean and string operations
-- [x] Aggregate combinator
-- [x] Optional combinator
-- [ ] Everything else
-
-Advanced operations:
-- [ ] Window
-- [ ] Limit
-
-Despite these limitations, I am dogfooding this query builder and using it in my own project: [advent-of-wasm](https://github.com/LHolten/advent-of-wasm).
-
 ## What it looks like
 
 Define a schema using the syntax of a module with structs:
@@ -62,7 +33,8 @@ pub mod vN {
 }
 ```
 Get proof that we are running on a unique thread:
-```rust,ignore
+```rust
+# use rust_query::LocalClient;
 let mut client = LocalClient::try_new().unwrap();
 ```
 Initialize a database:
@@ -112,3 +84,32 @@ The full example code can be found in [insert_and_select.rs](examples/insert_and
 
 ## Examples
 For more examples you can look at [the examples directory](/examples).
+
+## Roadmap
+
+This project is under development and there are some things missing.
+Below is a checklist of planned features and implemented features. 
+(Implemented features have a checkmark, planned features do not). 
+
+Schema:
+- [x] Basic types (integer, real, text, blob, null)
+- [x] Basic foreign keys
+- [x] (Multi column) unique constraints
+- [ ] Check constraints
+- [ ] Overlapping foreign keys
+
+Statements:
+- [x] Multi row query + single row query (and optional query)
+- [x] Single row insert, update and delete
+
+Expressions:
+- [x] Some basic math, boolean and string operations
+- [x] Aggregate combinator
+- [x] Optional combinator
+- [ ] Everything else
+
+Advanced operations:
+- [ ] Window
+- [ ] Limit
+
+Despite these limitations, I am dogfooding this query builder and using it in my own project: [advent-of-wasm](https://github.com/LHolten/advent-of-wasm).

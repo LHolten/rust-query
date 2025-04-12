@@ -101,7 +101,16 @@ impl<'t, S> Transaction<'t, S> {
 
     /// Execute a query with multiple results.
     ///
-    /// Please take a look at the documentation of [Query] for how to use it.
+    /// ```
+    /// # use rust_query::{private::doctest::*, Table};
+    /// # let mut client = get_client();
+    /// # let txn = get_txn(&mut client);
+    /// let user_names = txn.query(|rows| {
+    ///     let user = User::join(rows);
+    ///     rows.into_vec(user.name())
+    /// });
+    /// assert_eq!(user_names, vec!["Alice".to_owned()]);
+    /// ```
     pub fn query<F, R>(&self, f: F) -> R
     where
         F: for<'inner> FnOnce(&mut Query<'t, 'inner, S>) -> R,
@@ -125,6 +134,14 @@ impl<'t, S> Transaction<'t, S> {
 
     /// Retrieve a single result from the database.
     ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, IntoExpr};
+    /// # let mut client = rust_query::private::doctest::get_client();
+    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// let res = txn.query_one("test".into_expr());
+    /// assert_eq!(res, "test");
+    /// ```
+    ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
     pub fn query_one<'e, O>(&self, val: impl IntoSelect<'t, 't, S, Out = O>) -> O {
@@ -147,6 +164,20 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [Expr] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
+    ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, IntoExpr};
+    /// # let mut client = rust_query::private::doctest::get_client();
+    /// # let mut txn = rust_query::private::doctest::get_txn(&mut client);
+    /// let res = txn.insert(User {
+    ///     name: "Bob",
+    /// });
+    /// assert!(res.is_ok());
+    /// let res = txn.insert(User {
+    ///     name: "Bob",
+    /// });
+    /// assert!(res.is_err(), "there is a unique constraint on the name");
+    /// ```
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
         val: impl TableInsert<'t, T = T>,
@@ -177,6 +208,19 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// The new row is inserted and the reference to the row is returned OR
     /// an existing row is found which conflicts with the new row and a reference
     /// to the conflicting row is returned.
+    ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, IntoExpr};
+    /// # let mut client = rust_query::private::doctest::get_client();
+    /// # let mut txn = rust_query::private::doctest::get_txn(&mut client);
+    /// let bob = txn.insert(User {
+    ///     name: "Bob",
+    /// }).unwrap();
+    /// let bob2 = txn.find_or_insert(User {
+    ///     name: "Bob", // this will conflict with the existing row.
+    /// });
+    /// assert_eq!(bob, txn.query_one(bob2));
+    /// ```
     pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = crate::Expr<'t, S, T>>>(
         &mut self,
         val: impl TableInsert<'t, T = T>,
@@ -197,6 +241,18 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [Expr] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
+    ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, IntoExpr, Update};
+    /// # let mut client = rust_query::private::doctest::get_client();
+    /// # let mut txn = rust_query::private::doctest::get_txn(&mut client);
+    /// let bob = txn.insert(User {
+    ///     name: "Bob",
+    /// }).unwrap();
+    /// txn.update(bob, User {
+    ///     name: Update::set("New Bob"),
+    /// }).unwrap();
+    /// ```
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'t, S, Typ = T>,
@@ -279,6 +335,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             .unwrap();
     }
 
+    /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
     pub fn downgrade(self) -> TransactionWeak<'t, S> {
         TransactionWeak { inner: self }
     }

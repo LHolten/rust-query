@@ -114,7 +114,12 @@ pub mod private {
         use crate::{LocalClient, TransactionMut, migrate::Config, migration};
 
         #[migration::schema(Empty)]
-        pub mod vN {}
+        pub mod vN {
+            pub struct User {
+                #[unique]
+                pub name: String,
+            }
+        }
         pub use v0::*;
 
         pub fn get_client() -> LocalClient {
@@ -126,7 +131,9 @@ pub mod private {
                 .unwrap()
                 .finish()
                 .unwrap();
-            client.transaction_mut(&db)
+            let mut txn = client.transaction_mut(&db);
+            txn.insert(User { name: "Alice" }).unwrap();
+            txn
         }
     }
 }

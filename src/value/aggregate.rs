@@ -15,10 +15,7 @@ use crate::{
     value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
 };
 
-/// This is the argument type used for aggregates.
-///
-/// While it is possible to join many tables in an aggregate, there can be only one result.
-/// (The result can be a tuple or struct with multiple values though).
+/// This is the argument type used for [aggregate].
 pub struct Aggregate<'outer, 'inner, S> {
     // pub(crate) outer_ast: &'inner MySelect,
     pub(crate) conds: Vec<(Field, Rc<dyn Fn(ValueBuilder) -> SimpleExpr>)>,
@@ -171,6 +168,8 @@ impl<S, T: Table> Deref for Aggr<S, T> {
 ///
 /// You can filter the rows in the aggregate based on values from the outer query.
 /// That is the only way to get a different aggregate for each outer row.
+///
+/// Take a look at [the chinook test](src/tests/chinook.rs) for examples.
 pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
     F: for<'inner> FnOnce(&mut Aggregate<'outer, 'inner, S>) -> R,

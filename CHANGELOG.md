@@ -1,28 +1,35 @@
 # Unreleased
 
 - Added `optional` combinator.
-- Renamed `Dummy` to `Select`.
-- Renamed `Column` to `Expr`.
 - Changed `Expr` to be co-variant in its lifetime.
+
+- Added support for `Vec<u8>` data type (sqlite `BLOB`).
+- Added some more basic operations on expressions.
 - `Rows::into_vec` is no longer sorted automatically.
+
 - Added safe updates of a subset of columns for each table.
 - Update statements now use the `Update` type for each column.
-- Migrations now allow renaming tables and splitting tables.
+- Insert and update conflict is now an `Expr`.
+
+- Changed `#[schema]` syntax to be a module of structs.
+- Added `#[from]` attribute to allow renaming tables and splitting tables in the schema.
+- The generated migration structs have moved from e.g. `v1::update::UserMigration` to `v0::migrate::User`.
 - Migrations now require explicit handling of potential unique constraint violations.
 - Migrations now require explicit handling of foreign key violations.
-- The generated migration structs have moved from e.g. `v1::update::UserMigration` to `v0::migrate::User`.
+
 - Added a macro for each table to create ad-hoc column selection types like `User!(name, age)`.
 - Added the `FromExpr` trait to allow custom column selection and conversion.
-- `TransactionWeak::unchecked_transaction` is no longer behind a feature flag.
-- `hash_schema` method was moved behind `dev` feature.
-- Updated dependencies.
-- Added support for `Vec<u8>` data type (sqlite `BLOB`).
+
+- `TransactionWeak::rusqlite_transaction` is renamed and no longer behind a feature flag.
+- `hash_schema` method was moved behind `dev` feature which is enabled by default.
+
+- Renamed `Dummy` to `Select`.
+- Renamed `Column` to `Expr`.
 - Renamed `try_insert` to `insert` and `insert` to `insert_ok`.
 - Renamed `try_delete` to `delete` and `delete` to `delete_ok`.
 - Renamed `try_update` to `update` and `update` to `update_ok`.
-- Changed `#[schema]` syntax to be a module of structs.
-- Added some more basic operations on expressions.
-- Conflict is now an `Expr`.
+
+- Updated dependencies.
 
 # 0.3.1
 
