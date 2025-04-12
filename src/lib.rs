@@ -143,6 +143,7 @@ pub trait Table: Sized + 'static {
     /// The schema that this table is a part of.
     type Schema;
 
+    #[doc(hidden)]
     /// The table that this table can be migrated from.
     type MigrateFrom: MyTyp;
 
@@ -151,9 +152,14 @@ pub trait Table: Sized + 'static {
         rows.join()
     }
 
+    /// The type of conflict that can result from inserting a row in this table.
+    /// This is the same type that is used for row updates too.
     type Conflict<'t>;
+
+    /// The type of updates used by [TransactionMut::update_ok].
+    type UpdateOk<'t>;
+    /// The type of updates used by [TransactionMut::update].
     type Update<'t>;
-    type TryUpdate<'t>;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
 
@@ -167,11 +173,11 @@ pub trait Table: Sized + 'static {
     fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> Self::Conflict<'t>;
 
     #[doc(hidden)]
-    fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t>;
+    fn update_into_try_update<'t>(val: Self::UpdateOk<'t>) -> Self::Update<'t>;
 
     #[doc(hidden)]
     fn apply_try_update<'t>(
-        val: Self::TryUpdate<'t>,
+        val: Self::Update<'t>,
         old: Expr<'t, Self::Schema, Self>,
     ) -> Self::Insert<'t>;
 

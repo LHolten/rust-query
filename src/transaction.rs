@@ -15,27 +15,17 @@ use crate::{
 
 /// [Database] is a proof that the database has been configured.
 ///
-/// For information on how to create transactions, please refer to [LocalClient].
-///
 /// Creating a [Database] requires going through the steps to migrate an existing database to
-/// the required schema, or creating a new database from scratch.
+/// the required schema, or creating a new database from scratch (See also [crate::migration::Config]).
 /// Having done the setup to create a compatible database is sadly not a guarantee that the
-/// database will stay compatible for the lifetime of the [Database].
+/// database will stay compatible for the lifetime of the [Database] struct.
 ///
 /// That is why [Database] also stores the `schema_version`. This allows detecting non-malicious
 /// modifications to the schema and gives us the ability to panic when this is detected.
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
 ///
-/// # Sqlite config
-///
-/// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html).
-/// The effect of this mode is that there can be any number of readers with one concurrent writer.
-/// What is nice about this is that a [Transaction] can always be made immediately.
-/// Making a [TransactionMut] has to wait until all other [TransactionMut]s are finished.
-///
-/// Sqlite is also configured with [`synchronous=NORMAL`](https://www.sqlite.org/pragma.html#pragma_synchronous). This gives better performance by fsyncing less.
-/// The database will not lose transactions due to application crashes, but it might due to system crashes or power loss.
+/// For information on how to create transactions, please refer to [LocalClient].
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema_version: i64,
@@ -43,6 +33,12 @@ pub struct Database<S> {
 }
 
 impl<S> Database<S> {
+    /// Create a new [rusqlite::Connection] to the database.
+    ///
+    /// You can do (almost) anything you want with this connection as it is almost completely isolated from all other
+    /// [rust_query] connections. The only thing you should not do here is changing the schema.
+    /// Schema changes are detected with the `schema_version` pragma and will result in a panic when creating a new
+    /// transaction.
     pub fn rusqlite_connection(&self) -> rusqlite::Connection {
         use r2d2::ManageConnection;
         self.manager.connect().unwrap()
@@ -204,7 +200,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'t, S, Typ = T>,
-        val: T::TryUpdate<'t>,
+        val: T::Update<'t>,
     ) -> Result<(), T::Conflict<'t>> {
         let id = MySelect::default();
         Reader::new(&id).col(T::ID, &row);
@@ -263,7 +259,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn update_ok<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'t, S, Typ = T>,
-        val: T::Update<'t>,
+        val: T::UpdateOk<'t>,
     ) {
         match self.update(row, T::update_into_try_update(val)) {
             Ok(val) => val,
@@ -346,11 +342,15 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
         res
     }
 
-    /// This allows you to do anything you want with the internal [rusqlite::Transaction]
+    /// This allows you to do (almost) anything you want with the internal [rusqlite::Transaction].
     ///
-    /// The specific version of rusqlite used is not stable. This means the [rusqlite]
-    /// version might change as part of a non breaking version update of [rust_query].
-    pub fn unchecked_transaction(&mut self) -> &rusqlite::Transaction {
+    /// Note that there are some things that you should not do with the transaction, such as:
+    /// - Changes to the schema, these will result in a panic as described in [Database].
+    /// - Changes to the connection configuration such as disabling foreign key checks.
+    ///
+    /// **When this method is used to break [rust_query] invariants, all other [rust_query] function calls
+    /// may result in a panic.**
+    pub fn rusqlite_transaction(&mut self) -> &rusqlite::Transaction {
         &self.inner.transaction
     }
 

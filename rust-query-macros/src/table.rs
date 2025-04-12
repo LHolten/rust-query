@@ -260,8 +260,8 @@ fn define_table(
                 const NAME: &'static str = #table_name;
 
                 type Conflict<'t> = #conflict_type;
-                type Update<'t> = (#table_ident<#(#update_columns_safe),*>);
-                type TryUpdate<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
+                type UpdateOk<'t> = (#table_ident<#(#update_columns_safe),*>);
+                type Update<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
                 type Insert<'t> = (#table_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
 
                 fn read<'t>(val: &Self::Insert<'t>, f: &::rust_query::private::Reader<'t, Self::Schema>) {
@@ -273,14 +273,14 @@ fn define_table(
                     #conflict_dummy_insert
                 }
 
-                fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
+                fn update_into_try_update<'t>(val: Self::UpdateOk<'t>) -> Self::Update<'t> {
                     #table_ident {#(
                         #col_ident: #try_from_update,
                     )*}
                 }
 
                 fn apply_try_update<'t>(
-                    val: Self::TryUpdate<'t>,
+                    val: Self::Update<'t>,
                     old: ::rust_query::Expr<'t, Self::Schema, Self>,
                 ) -> Self::Insert<'t> {
                     #table_ident {#(

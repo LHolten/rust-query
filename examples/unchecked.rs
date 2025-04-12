@@ -31,7 +31,7 @@ fn main() {
 
     let mut txn = txn.downgrade();
 
-    let raw_txn = txn.unchecked_transaction();
+    let raw_txn = txn.rusqlite_transaction();
     for id in ids {
         let name: String = raw_txn
             .query_row("select name from Name where id = $1", &[&id], |row| {

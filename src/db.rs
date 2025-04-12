@@ -209,8 +209,8 @@ mod tests {
         fn typs(_: &mut crate::hash::TypBuilder<Self::Schema>) {}
 
         type Conflict<'t> = Infallible;
+        type UpdateOk<'t> = ();
         type Update<'t> = ();
-        type TryUpdate<'t> = ();
         type Insert<'t> = ();
 
         fn read<'t>(val: &Self::Insert<'t>, f: &Reader<'t, Self::Schema>) {
@@ -221,12 +221,12 @@ mod tests {
             todo!()
         }
 
-        fn update_into_try_update<'t>(val: Self::Update<'t>) -> Self::TryUpdate<'t> {
+        fn update_into_try_update<'t>(val: Self::UpdateOk<'t>) -> Self::Update<'t> {
             todo!()
         }
 
         fn apply_try_update<'t>(
-            val: Self::TryUpdate<'t>,
+            val: Self::Update<'t>,
             old: Expr<'t, Self::Schema, Self>,
         ) -> Self::Insert<'t> {
             todo!()

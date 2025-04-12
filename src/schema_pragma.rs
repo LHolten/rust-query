@@ -34,8 +34,8 @@ macro_rules! table {
             fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
             type Conflict<'t> = Infallible;
+            type UpdateOk<'t> = ();
             type Update<'t> = ();
-            type TryUpdate<'t> = ();
             type Insert<'t> = ();
 
             fn read<'t>(_val: &Self::Insert<'t>, _f: &Reader<'t, Self::Schema>) {
@@ -46,12 +46,12 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn update_into_try_update<'t>(_val: Self::Update<'t>) -> Self::TryUpdate<'t> {
+            fn update_into_try_update<'t>(_val: Self::UpdateOk<'t>) -> Self::Update<'t> {
                 unreachable!()
             }
 
             fn apply_try_update<'t>(
-                _val: Self::TryUpdate<'t>,
+                _val: Self::Update<'t>,
                 _old: Expr<'t, Self::Schema, Self>,
             ) -> Self::Insert<'t> {
                 unreachable!()
