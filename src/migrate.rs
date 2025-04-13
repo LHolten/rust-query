@@ -83,12 +83,6 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
         })
     }
 
-    /// Retrieve unmigrated rows with enough data to migrate them.
-    ///
-    /// This method takes a closure that allows you to select data for each row that needs to be migrated.
-    /// This method then return an iterator of [MigrateRow] in combination with the specified data.
-    ///
-    /// You can use [Migratable::unmigrated] to make type annotation easier.
     fn unmigrated<M: Migration<'t, FromSchema = FromSchema>, Out>(
         &self,
         new_name: TmpTable,

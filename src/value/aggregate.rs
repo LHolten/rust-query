@@ -169,7 +169,17 @@ impl<S, T: Table> Deref for Aggr<S, T> {
 /// You can filter the rows in the aggregate based on values from the outer query.
 /// That is the only way to get a different aggregate for each outer row.
 ///
-/// Take a look at [the chinook test](src/tests/chinook.rs) for examples.
+/// ```
+/// # use rust_query::{Table, aggregate};
+/// # use rust_query::private::doctest::*;
+/// # let mut client = get_client();
+/// # let txn = get_txn(&mut client);
+/// let res = txn.query_one(aggregate(|rows| {
+///     let user = User::join(rows);
+///     rows.count_distinct(user)
+/// }));
+/// assert_eq!(res, 1, "there is one user in the database");
+/// ```
 pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
     F: for<'inner> FnOnce(&mut Aggregate<'outer, 'inner, S>) -> R,

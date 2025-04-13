@@ -27,15 +27,19 @@ mod table;
 ///
 /// ## Unique constraints
 ///
+/// To define a unique constraint on a column, you need to add an attribute to the table or field.
+/// The attribute needs to start with `unique` and can have any suffix.
+/// Within a table, the different unique constraints must have different suffixes.
+///
 /// For example:
 /// ```
 /// #[rust_query::migration::schema(Schema)]
 /// #[version(0..=0)]
 /// pub mod vN {
-///     #[unique_email(email)]
-///     #[unique_username(username)]
 ///     pub struct User {
+///         #[unique_email]
 ///         pub email: String,
+///         #[unique_username]
 ///         pub username: String,
 ///     }
 /// }
@@ -43,12 +47,7 @@ mod table;
 /// ```
 /// This will create a single schema with a single table called `user` and two columns.
 /// The table will also have two unique contraints.
-///
-/// To define a unique constraint on a column, you need to add an attribute to the table.
-/// The attribute needs to start with `unique` and can have any suffix.
-/// Within a table, the different unique constraints must have different suffixes.
-///
-/// Optional types are not allowed in unique constraints.
+/// Note that optional types are not allowed in unique constraints.
 ///
 /// ## Multiple versions
 /// The macro uses enum syntax, but it generates multiple modules of types.
@@ -70,10 +69,10 @@ mod table;
 /// #[rust_query::migration::schema(Schema)]
 /// #[version(0..=1)]
 /// pub mod vN {
-///     #[unique_email(email)]
-///     #[unique_username(username)]
 ///     pub struct User {
+///         #[unique_email]
 ///         pub email: String,
+///         #[unique_username]
 ///         pub username: String,
 ///     }
 ///     #[version(1..)] // <-- note that `Game`` has a version range
@@ -110,10 +109,10 @@ mod table;
 /// #[schema(Schema)]
 /// #[version(0..=1)]
 /// pub mod vN {
-///     #[unique_email(email)]
-///     #[unique_username(username)]
 ///     pub struct User {
+///         #[unique_email]
 ///         pub email: String,
+///         #[unique_username]
 ///         pub username: String,
 ///         #[version(1..)] // <-- here
 ///         pub score: i64,
@@ -135,6 +134,77 @@ mod table;
 /// ```
 /// The `migrate` function first creates an empty database if it does not exists.
 /// Then it migrates the database if necessary, where it initializes every user score to the length of their email.
+///
+/// # `#[from]` Attribute
+/// You can use this attribute when renaming or splitting a table.
+/// This will make it clear that data in the table should have the
+/// same row ids as the `from` table.
+///
+/// For example:
+///
+/// ```
+/// # use rust_query::migration::schema;
+/// # fn main() {}
+/// #[schema(Schema)]
+/// #[version(0..=1)]
+/// pub mod vN {
+///     #[version(..1)]
+///     pub struct User {
+///         pub name: String,
+///     }
+///     #[version(1..)]
+///     #[from(User)]
+///     pub struct Author {
+///         pub name: String,
+///     }
+///     pub struct Book {
+///         pub author: Author,
+///     }
+/// }
+/// ```
+/// In this example the `Book` table exists in both `v0` and `v1`,
+/// however `User` only exists in `v0` and `Author` only exist in `v1`.
+/// Note that the `pub author: Author` field only specifies the latest version
+/// of the table, it will use the `#[from]` attribute to find previous versions.
+///
+/// This will work correctly and will let you migrate data from `User` to `Author` with code like this:
+///
+/// ```rust
+/// # use rust_query::migration::{schema, Config};
+/// # use rust_query::{Database, LocalClient};
+/// # fn main() {}
+/// # #[schema(Schema)]
+/// # #[version(0..=1)]
+/// # pub mod vN {
+/// #     #[version(..1)]
+/// #     pub struct User {
+/// #         pub name: String,
+/// #     }
+/// #     #[version(1..)]
+/// #     #[from(User)]
+/// #     pub struct Author {
+/// #         pub name: String,
+/// #     }
+/// #     pub struct Book {
+/// #         pub author: Author,
+/// #     }
+/// # }
+/// # pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
+/// #     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
+/// #         .expect("database version is before supported versions");
+/// let m = m.migrate(|txn| v0::migrate::Schema {
+///     author: txn.migrate_ok(|old: v0::User!(name)| v0::migrate::Author {
+///         name: old.name,
+///     }),
+/// });
+/// #     m.finish().expect("database version is after supported versions")
+/// # }
+/// ```
+///
+/// # `#[no_reference]` Attribute
+/// You can put this attribute on your table definitions and it will make it impossible
+/// to have foreign key references to such table.
+/// This makes it possible to use `TransactionWeak::delete_ok`.
 #[proc_macro_attribute]
 pub fn schema(
     attr: proc_macro::TokenStream,
@@ -216,6 +286,10 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 /// Use in combination with `#[rust_query(From = Thing)]` to specify which tables
 /// this struct should implement `FromExpr` for.
+///
+/// The implementation of `FromExpr` will initialize every field from the column with
+/// the corresponding name. It is also possible to change the type of each field
+/// as long as the type implements `FromExpr`.
 #[proc_macro_derive(FromExpr, attributes(rust_query))]
 pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
