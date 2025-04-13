@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.4.0
+
+Blog post: https://blog.lucasholten.com/rust-query-0-4/
+
 ## Optional Queries
 - Added `optional` combinator.
 - Changed `Expr` to be co-variant in its lifetime.
