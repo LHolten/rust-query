@@ -1,14 +1,14 @@
-# Type safe queries using the Rust type system
-The goal of this library is to allow writing relational database queries using familiar Rust syntax.
-The library should guarantee that a query can not fail if it compiles.
-This already includes preventing use after free for row ids passed between queries and even database migrations!
+# Type safe SQLite using the Rust type system
+The goal of this library is to allow using relational databases (only SQLite right now) using familiar Rust syntax.
+The library should guarantee that queries and migrations can not fail when they compile. While rust-query goes quite far to achieve this, there are still some exceptions that can cause queries to fail, such as integer overflow.
 
 Writing queries using this library involves:
 - Interact with row/column references as Rust values.
 - Lifetimes to check the scopes of row/column references.
 - Procedural mutation of row sets with methods like `filter` and `join`.
+- "Combinators" like `optional` and `aggregate`.
 
-Notably writing queries does not involve any new syntax or macro, while still being completely type safe.
+Notably writing queries itself does not involve any new syntax or macro, while still being completely type safe.
 (There are macros to define the schema and to simplify defining composite types to retrieve from queries)
 
 ## What it looks like
