@@ -1,20 +1,20 @@
-mod chinook_schema;
+mod schema;
 
 use std::fmt::Debug;
 
-use chinook_schema::*;
 use expect_test::expect_file;
 use rust_query::{
     Expr, IntoExpr, IntoSelectExt, LocalClient, Select, Table, TableRow, Transaction, Update,
     aggregate,
 };
+use schema::*;
 
 fn assert_dbg(mut val: &mut [impl Debug + PartialOrd], count: Option<usize>, file_name: &str) {
     val.sort_by(|a, b| a.partial_cmp(b).unwrap());
     if let Some(count) = count {
         val = &mut val[..count];
     }
-    let path = format!("chinook_tests/{file_name}.dbg");
+    let path = format!("expect/{file_name}.dbg");
     expect_file![path].assert_debug_eq(&val);
 }
 
