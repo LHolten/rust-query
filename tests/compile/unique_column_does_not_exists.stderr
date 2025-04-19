@@ -1,0 +1,5 @@
+error: Expected a column to exists for every name in the unique constraint.
+ --> tests/compile/unique_column_does_not_exists.rs:5:14
+  |
+5 |     #[unique(bar)]
+  |              ^^^

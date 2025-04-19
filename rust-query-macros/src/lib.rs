@@ -354,7 +354,7 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
             &next_mod,
             version,
             &mut new_tables,
-        );
+        )?;
 
         let new_mod = format_ident!("v{version}");
 

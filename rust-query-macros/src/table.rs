@@ -17,17 +17,18 @@ pub fn define_all_tables(
     next_mod: &Option<Ident>,
     version: u32,
     new_tables: &mut BTreeMap<usize, SingleVersionTable>,
-) -> TokenStream {
+) -> syn::Result<TokenStream> {
     let mut mod_output = TokenStream::new();
     let mut schema_table_typs = vec![];
     for table in new_tables.values_mut() {
-        mod_output.extend(define_table(
+        let table_def = define_table(
             table,
             schema_name,
             prev_mod.as_ref(),
             next_mod.as_ref(),
             new_struct_id(),
-        ));
+        )?;
+        mod_output.extend(table_def);
 
         let table_name = &table.name;
         schema_table_typs.push(quote! {b.table::<#table_name>()});
@@ -44,7 +45,7 @@ pub fn define_all_tables(
             }
         }
     });
-    mod_output
+    Ok(mod_output)
 }
 
 fn define_table(
