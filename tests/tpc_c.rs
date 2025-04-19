@@ -1,8 +1,9 @@
 use std::time::UNIX_EPOCH;
 
+use rand::{Rng, rngs::ThreadRng};
 use rust_query::{
-    FromExpr, IntoSelectExt, Select, Table, TableRow, TransactionMut, Update, aggregate,
-    migration::schema,
+    FromExpr, Select, Table, TableRow, Transaction, TransactionMut, Update, migration::schema,
+    optional,
 };
 
 #[schema(Schema)]
@@ -31,8 +32,10 @@ pub mod vN {
         pub ytd: i64,
         pub next_order: i64, // next available order id
     }
+    #[unique(district, number)]
     pub struct Customer {
         pub district: District,
+        pub number: i64,
         pub first: String,
         pub middle: String,
         pub last: String,
@@ -68,7 +71,7 @@ pub mod vN {
         pub customer: Customer,
         pub entry_d: i64,
         pub carrier_id: Option<i64>,
-        // order_line_cnt: OrderLineCnt,
+        pub order_line_cnt: i64,
         pub all_local: i64,
     }
     #[unique(order, number)]
@@ -81,7 +84,9 @@ pub mod vN {
         pub amount: i64, // total cost of this line
         pub dist_info: String,
     }
+    #[unique(number)]
     pub struct Item {
+        pub number: i64,
         pub image_id: i64,
         pub name: String,
         pub price: i64,
@@ -111,19 +116,48 @@ pub mod vN {
 }
 use v0::*;
 
-// The number of order lines associated with an order
-pub struct OrderLineCnt(i64);
-
-impl<'transaction> FromExpr<'transaction, Schema, Order> for OrderLineCnt {
-    fn from_expr<'columns>(
-        order: impl rust_query::IntoExpr<'columns, Schema, Typ = Order>,
-    ) -> Select<'columns, 'transaction, Schema, Self> {
-        aggregate(|rows| {
-            let order_line = OrderLine::join(rows);
-            rows.filter_on(order_line.order(), order);
-            rows.count_distinct(order_line).map_select(Self)
-        })
+trait NuRand {
+    fn nurand(&mut self, a: i64, x: i64, y: i64) -> i64;
+}
+impl NuRand for ThreadRng {
+    fn nurand(&mut self, a: i64, x: i64, y: i64) -> i64 {
+        // TODO: select C at runtime?
+        const C: i64 = 5;
+        (((self.random_range(0..=a) | self.random_range(x..=y)) + C) % (y - x + 1)) + x
     }
+}
+
+pub fn generate_new_order<'a>(
+    txn: &Transaction<'a, Schema>,
+    warehouse: TableRow<'a, Warehouse>,
+) -> NewOrderInput<'a> {
+    let mut rng = rand::rng();
+    let district = txn
+        .query_one(District::unique(warehouse, rng.random_range(1..=10)))
+        .unwrap();
+    let customer = txn
+        .query_one(Customer::unique(district, rng.nurand(1023, 1, 3000)))
+        .unwrap();
+    let item_count = rng.random_range(5..=15);
+    let rbk = rng.random_ratio(1, 100);
+
+    let mut items = vec![];
+    for i in 1..=item_count {
+        let mut item_number = rng.nurand(8191, 1, 100000);
+        if rbk && i == item_count {
+            // emulate input error
+            item_number = -1
+        };
+
+        items.push(ItemInput {
+            item_number,
+            // TODO: support remote warehouses in case there are multiple
+            supplying_warehouse: warehouse,
+            quantity: rng.random_range(1..=10),
+        });
+    }
+
+    NewOrderInput { customer, items }
 }
 
 pub struct NewOrderInput<'a> {
@@ -132,7 +166,7 @@ pub struct NewOrderInput<'a> {
 }
 
 pub struct ItemInput<'a> {
-    item: TableRow<'a, Item>,
+    item_number: i64,
     supplying_warehouse: TableRow<'a, Warehouse>,
     quantity: i64,
 }
@@ -171,22 +205,32 @@ pub fn new_order<'a>(
         entry_d,
         carrier_id: None::<i64>,
         all_local: local as i64,
+        order_line_cnt: input.items.len() as i64,
     });
     txn.insert(NewOrder { order }).unwrap();
 
     let mut output_order_lines = vec![];
 
+    let mut input_valid = true;
+
     for (
         number,
         ItemInput {
-            item,
+            item_number,
             supplying_warehouse,
             quantity,
         },
     ) in input.items.into_iter().enumerate()
     {
-        // TODO: make this a lookup by external item id
-        let item_info: Item!(price, name, data) = txn.query_one(FromExpr::from_expr(item));
+        let Some((item, item_info)): Option<(_, Item!(price, name, data))> =
+            txn.query_one(optional(|row| {
+                let item = row.and(Item::unique(item_number));
+                row.then((&item, FromExpr::from_expr(&item)))
+            }))
+        else {
+            input_valid = false;
+            continue;
+        };
 
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();
@@ -267,6 +311,14 @@ pub fn new_order<'a>(
     let total_amount = output_order_lines.iter().map(|x| x.amount).sum::<i64>() as f64
         * (1. - customer_info.discount)
         * (1. + warehouse_tax + district_info.tax);
+
+    if input_valid {
+        txn.commit();
+    } else {
+        // rollback if there are input errors
+        drop(txn);
+    }
+
     OutputData {
         warehouse: district_info.warehouse,
         district,
@@ -280,6 +332,7 @@ pub fn new_order<'a>(
         order_entry_date: entry_d,
         total_amount: total_amount as i64,
         order_lines: output_order_lines,
+        input_valid,
     }
 }
 
@@ -297,6 +350,7 @@ pub struct OutputData<'t> {
     total_amount: i64,
     // order_line_count: i64,
     order_lines: Vec<OutputLine<'t>>,
+    input_valid: bool,
 }
 
 pub struct OutputLine<'t> {

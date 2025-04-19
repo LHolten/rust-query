@@ -27,6 +27,7 @@ static_assertions = "1.1.0"
 [dev-dependencies]
 trybuild = "1.0.97"
 expect-test = "1"
+rand = "0.9.1"
 
 [features]
 default = ["dev"]
