@@ -57,7 +57,7 @@ pub fn new_order<'a>(
 ) -> OutputData<'a> {
     let district = txn.query_one(input.customer.district());
 
-    let district_info: District!(warehouse<'_>, number, tax) =
+    let district_info: District!(warehouse<'_>, number, tax, next_order) =
         txn.query_one(FromExpr::from_expr(district));
 
     let warehouse_tax = txn.query_one(district.warehouse().tax());
@@ -79,6 +79,7 @@ pub fn new_order<'a>(
         .all(|item| item.supplying_warehouse == district_info.warehouse);
 
     let order = txn.insert_ok(Order {
+        number: district_info.next_order,
         customer: input.customer,
         entry_d: input.entry_date,
         carrier_id: None::<i64>,
@@ -167,7 +168,7 @@ pub fn new_order<'a>(
             order,
             number: number as i64,
             stock,
-            derlivery_d: None::<i64>,
+            delivery_d: None::<i64>,
             quantity,
             amount,
             dist_info: stock_info.dist_xx,

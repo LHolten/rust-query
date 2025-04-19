@@ -6,6 +6,7 @@ use rust_query::{
 };
 
 mod new_order;
+mod order_status;
 mod payment;
 
 #[schema(Schema)]
@@ -71,6 +72,7 @@ pub mod vN {
     }
     pub struct Order {
         pub customer: Customer,
+        pub number: i64,
         pub entry_d: i64,
         pub carrier_id: Option<i64>,
         pub order_line_cnt: i64,
@@ -81,7 +83,7 @@ pub mod vN {
         pub order: Order,
         pub number: i64,
         pub stock: Stock,
-        pub derlivery_d: Option<i64>,
+        pub delivery_d: Option<i64>,
         pub quantity: i64,
         pub amount: i64, // total cost of this line
         pub dist_info: String,
@@ -141,4 +143,51 @@ pub fn random_to_last_name(num: i64) -> String {
         );
     }
     out
+}
+
+enum CustomerIdent<'a> {
+    Number(TableRow<'a, Customer>),
+    Name(TableRow<'a, District>, String),
+}
+
+impl<'a> CustomerIdent<'a> {
+    pub fn lookup_customer(self, txn: &Transaction<'a, Schema>) -> TableRow<'a, Customer> {
+        match self {
+            CustomerIdent::Number(customer) => customer,
+            CustomerIdent::Name(district, last_name) => {
+                let mut customers = txn.query(|rows| {
+                    let customer = Customer::join(rows);
+                    rows.filter(customer.district().eq(district));
+                    rows.filter(customer.last().eq(last_name));
+                    rows.into_vec((customer.first(), customer))
+                });
+                customers.sort_by(|a, b| a.0.cmp(&b.0));
+
+                let count = customers.len();
+                let id = count.div_ceil(2) - 1;
+                customers.swap_remove(id).1
+            }
+        }
+    }
+}
+
+fn customer_ident<'a>(
+    txn: &Transaction<'a, Schema>,
+    rng: &mut ThreadRng,
+    customer_district: TableRow<'a, District>,
+) -> CustomerIdent<'a> {
+    if rng.random_ratio(60, 100) {
+        CustomerIdent::Name(
+            customer_district,
+            random_to_last_name(rng.nurand(255, 0, 999)),
+        )
+    } else {
+        let customer = txn
+            .query_one(Customer::unique(
+                customer_district,
+                rng.nurand(1023, 1, 3000),
+            ))
+            .unwrap();
+        CustomerIdent::Number(customer)
+    }
 }

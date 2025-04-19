@@ -19,20 +19,7 @@ pub fn generate_payment<'a>(
             .unwrap()
     };
 
-    let customer = if rng.random_ratio(60, 100) {
-        CustomerIdent::Name(
-            customer_district,
-            random_to_last_name(rng.nurand(255, 0, 999)),
-        )
-    } else {
-        let customer = txn
-            .query_one(Customer::unique(
-                customer_district,
-                rng.nurand(1023, 1, 3000),
-            ))
-            .unwrap();
-        CustomerIdent::Number(customer)
-    };
+    let customer = customer_ident(txn, &mut rng, customer_district);
 
     PaymentInput {
         district,
@@ -40,11 +27,6 @@ pub fn generate_payment<'a>(
         amount: rng.random_range(100..=500000),
         date: UNIX_EPOCH.elapsed().unwrap().as_millis() as i64,
     }
-}
-
-enum CustomerIdent<'a> {
-    Number(TableRow<'a, Customer>),
-    Name(TableRow<'a, District>, String),
 }
 
 struct PaymentInput<'a> {
@@ -108,22 +90,8 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         },
     );
 
-    let (customer, customer_info) = match input.customer {
-        CustomerIdent::Number(row) => (row, txn.query_one(CustomerInfo::from_expr(row))),
-        CustomerIdent::Name(customer_district, name) => {
-            let mut customers = txn.query(|rows| {
-                let customer = Customer::join(rows);
-                rows.filter(customer.district().eq(customer_district));
-                rows.filter(customer.last().eq(name));
-                rows.into_vec((&customer, CustomerInfo::from_expr(&customer)))
-            });
-            customers.sort_by(|a, b| a.1.first.cmp(&b.1.first));
-
-            let count = customers.len();
-            let id = count.div_ceil(2) - 1;
-            customers.swap_remove(id)
-        }
-    };
+    let customer = input.customer.lookup_customer(&txn);
+    let customer_info: CustomerInfo = txn.query_one(FromExpr::from_expr(customer));
 
     txn.update_ok(
         customer,
