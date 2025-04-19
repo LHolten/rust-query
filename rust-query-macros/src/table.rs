@@ -67,7 +67,6 @@ fn define_table(
         let col = &unique.columns;
         let mut col_typ = vec![];
         let mut col_str = vec![];
-        let mut generic = vec![];
         for col in col {
             let i = &table
                 .columns
@@ -81,7 +80,6 @@ fn define_table(
                 })?;
             let tmp = format_ident!("_{table_ident}{i}");
 
-            generic.push(make_generic(col));
             col_typ.push(tmp);
             col_str.push(col.to_string());
         }
@@ -89,9 +87,8 @@ fn define_table(
         unique_typs.push(quote! {f.unique(&[#(#col_str),*])});
 
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a #(,#generic)*>(#(#col: #generic),*) -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
-            where
-                #(#generic: ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>,)*
+            pub fn #unique_name<'a>(#(#col: impl ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>),*) 
+                -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
             {
                 #(
                     let #col = ::rust_query::private::into_owned(#col);
