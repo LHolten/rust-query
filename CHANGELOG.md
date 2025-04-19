@@ -1,6 +1,10 @@
 # Unreleased
 
-- Revert "Insert and update conflict is now an `Expr` (`find_or_insert` returns an `Expr` now too)."
+# 0.4.1
+
+- Change conflicts back to using `TableRow` instead of `Expr`.
+Changing the conflict type to `Expr` was a mistake, because the `Expr` can be invalidated.
+- Fix `#[schema]` macro not showing errors for unique constraints.
 
 # 0.4.0
 
