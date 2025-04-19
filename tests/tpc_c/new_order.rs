@@ -32,12 +32,17 @@ pub fn generate_new_order<'a>(
         });
     }
 
-    NewOrderInput { customer, items }
+    NewOrderInput {
+        customer,
+        items,
+        entry_date: UNIX_EPOCH.elapsed().unwrap().as_millis() as i64,
+    }
 }
 
 pub struct NewOrderInput<'a> {
     pub(crate) customer: TableRow<'a, Customer>,
     pub(crate) items: Vec<ItemInput<'a>>,
+    pub(crate) entry_date: i64,
 }
 
 pub struct ItemInput<'a> {
@@ -73,11 +78,9 @@ pub fn new_order<'a>(
         .iter()
         .all(|item| item.supplying_warehouse == district_info.warehouse);
 
-    let entry_d = UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
-
     let order = txn.insert_ok(Order {
         customer: input.customer,
-        entry_d,
+        entry_d: input.entry_date,
         carrier_id: None::<i64>,
         all_local: local as i64,
         order_line_cnt: input.items.len() as i64,
@@ -204,7 +207,7 @@ pub fn new_order<'a>(
         customer_discount: customer_info.discount,
         warehouse_tax,
         district_tax: district_info.tax,
-        order_entry_date: entry_d,
+        order_entry_date: input.entry_date,
         total_amount: total_amount as i64,
         order_lines: output_order_lines,
         input_valid,
