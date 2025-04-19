@@ -1,7 +1,9 @@
 use std::time::UNIX_EPOCH;
 
 use rand::{Rng, rngs::ThreadRng};
-use rust_query::{FromExpr, Select, Table, TableRow, TransactionMut, Update, migration::schema};
+use rust_query::{
+    FromExpr, Select, Table, TableRow, Transaction, TransactionMut, Update, migration::schema,
+};
 
 mod new_order;
 
@@ -126,15 +128,70 @@ impl NuRand for ThreadRng {
     }
 }
 
+/// `num` must be in range `0..=999`
+pub fn random_to_last_name(num: i64) -> String {
+    let mut out = String::new();
+    for position in [100, 10, 1] {
+        let digit = (num / position) % 10;
+        out.push_str(
+            [
+                "BAR", "OUGHT", "ABLE", "PRI", "PRES", "ESE", "ANTI", "CALLY", "ATION", "EING",
+            ][digit as usize],
+        );
+    }
+    out
+}
+
+pub fn generate_payment<'a>(
+    txn: &Transaction<'a, Schema>,
+    warehouse: TableRow<'a, Warehouse>,
+) -> PaymentInput<'a> {
+    let mut rng = rand::rng();
+    let district = txn
+        .query_one(District::unique(warehouse, rng.random_range(1..=10)))
+        .unwrap();
+
+    let customer_district = if rng.random_ratio(85, 100) {
+        district
+    } else {
+        // TODO: select a different warehouse here
+        txn.query_one(District::unique(warehouse, rng.random_range(1..=10)))
+            .unwrap()
+    };
+
+    let customer = if rng.random_ratio(60, 100) {
+        CustomerIdent::Name(
+            customer_district,
+            random_to_last_name(rng.nurand(255, 0, 999)),
+        )
+    } else {
+        let customer = txn
+            .query_one(Customer::unique(
+                customer_district,
+                rng.nurand(1023, 1, 3000),
+            ))
+            .unwrap();
+        CustomerIdent::Number(customer)
+    };
+
+    PaymentInput {
+        district,
+        customer,
+        amount: rng.random_range(100..=500000),
+        date: UNIX_EPOCH.elapsed().unwrap().as_millis() as i64,
+    }
+}
+
 enum CustomerIdent<'a> {
-    Id(TableRow<'a, Customer>),
-    Name(String),
+    Number(TableRow<'a, Customer>),
+    Name(TableRow<'a, District>, String),
 }
 
 struct PaymentInput<'a> {
-    disctrict: TableRow<'a, District>,
+    district: TableRow<'a, District>,
     customer: CustomerIdent<'a>,
     amount: i64,
+    date: i64,
 }
 
 #[derive(FromExpr)]
@@ -169,7 +226,7 @@ struct CustomerInfo {
 }
 
 fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> PaymentOutput<'a> {
-    let district = input.disctrict;
+    let district = input.district;
     let warehouse = district.warehouse();
     let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
 
@@ -192,17 +249,18 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     );
 
     let (customer, customer_info) = match input.customer {
-        CustomerIdent::Id(row) => (row, txn.query_one(CustomerInfo::from_expr(row))),
-        CustomerIdent::Name(name) => {
+        CustomerIdent::Number(row) => (row, txn.query_one(CustomerInfo::from_expr(row))),
+        CustomerIdent::Name(customer_district, name) => {
             let mut customers = txn.query(|rows| {
                 let customer = Customer::join(rows);
-                rows.filter(customer.district().eq(district));
+                rows.filter(customer.district().eq(customer_district));
                 rows.filter(customer.last().eq(name));
                 rows.into_vec((&customer, CustomerInfo::from_expr(&customer)))
             });
+            customers.sort_by(|a, b| a.1.first.cmp(&b.1.first));
 
             let count = customers.len();
-            let id = count / 2;
+            let id = count.div_ceil(2) - 1;
             customers.swap_remove(id)
         }
     };
@@ -231,16 +289,16 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         credit_data = Some(data);
     }
 
-    let date = UNIX_EPOCH.elapsed().unwrap().as_millis() as i64;
-
     let data = format!("{}    {}", warehouse_info.name, district_info.name);
     txn.insert_ok(History {
         customer,
         district,
-        date,
+        date: input.date,
         amount: input.amount,
         data,
     });
+
+    txn.commit();
 
     PaymentOutput {
         district,
@@ -250,7 +308,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
         customer_info,
         data: credit_data,
         amount: input.amount,
-        date,
+        date: input.date,
     }
 }
 
