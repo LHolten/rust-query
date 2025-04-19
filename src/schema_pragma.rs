@@ -42,7 +42,10 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn get_conflict_unchecked<'t>(_val: &Self::Insert<'t>) -> Self::Conflict<'t> {
+            fn get_conflict_unchecked<'t>(
+                _txn: &crate::Transaction<'t, Self::Schema>,
+                _val: &Self::Insert<'t>,
+            ) -> Self::Conflict<'t> {
                 unreachable!()
             }
 

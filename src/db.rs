@@ -217,7 +217,10 @@ mod tests {
             todo!()
         }
 
-        fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> Self::Conflict<'t> {
+        fn get_conflict_unchecked<'t>(
+            txn: &crate::Transaction<'t, Self::Schema>,
+            val: &Self::Insert<'t>,
+        ) -> Self::Conflict<'t> {
             todo!()
         }
 

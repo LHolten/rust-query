@@ -105,7 +105,7 @@ fn define_table(
         });
     }
 
-    let (conflict_type, conflict_dummy_insert) = table.conflict(schema);
+    let (conflict_type, conflict_dummy_insert) = table.conflict();
 
     let mut def_typs = vec![];
     let mut update_columns_safe = vec![];
@@ -268,8 +268,10 @@ fn define_table(
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
 
-                fn get_conflict_unchecked<'t>(val: &Self::Insert<'t>) -> Self::Conflict<'t>
-                {
+                fn get_conflict_unchecked<'t>(
+                    txn: &::rust_query::Transaction<'t, Self::Schema>,
+                    val: &Self::Insert<'t>
+                ) -> Self::Conflict<'t> {
                     #conflict_dummy_insert
                 }
 
@@ -315,7 +317,7 @@ fn define_table(
 }
 
 impl SingleVersionTable {
-    pub fn conflict(&self, schema: &Ident) -> (TokenStream, TokenStream) {
+    pub fn conflict(&self) -> (TokenStream, TokenStream) {
         match &*self.uniques {
             [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
             [unique] => {
@@ -324,9 +326,9 @@ impl SingleVersionTable {
 
                 let col = &unique.columns;
                 (
-                    quote! {::rust_query::Expr<'t, #schema, #table_ident>},
+                    quote! {::rust_query::TableRow<'t, #table_ident>},
                     quote! {
-                        ::rust_query::private::assume_expr(#table_ident::#unique_name(#(&val.#col),*))
+                        txn.query_one(#table_ident::#unique_name(#(&val.#col),*)).unwrap()
                     },
                 )
             }

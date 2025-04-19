@@ -1,5 +1,7 @@
 # Unreleased
 
+- Revert "Insert and update conflict is now an `Expr` (`find_or_insert` returns an `Expr` now too)."
+
 # 0.4.0
 
 Blog post: https://blog.lucasholten.com/rust-query-0-4/

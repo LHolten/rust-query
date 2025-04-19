@@ -219,14 +219,14 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// let bob2 = txn.find_or_insert(User {
     ///     name: "Bob", // this will conflict with the existing row.
     /// });
-    /// assert_eq!(bob, txn.query_one(bob2));
+    /// assert_eq!(bob, bob2);
     /// ```
-    pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = crate::Expr<'t, S, T>>>(
+    pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = TableRow<'t, T>>>(
         &mut self,
         val: impl TableInsert<'t, T = T>,
-    ) -> crate::Expr<'t, S, T> {
+    ) -> TableRow<'t, T> {
         match self.insert(val) {
-            Ok(row) => row.into_expr(),
+            Ok(row) => row,
             Err(row) => row,
         }
     }
@@ -301,7 +301,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                Err(T::get_conflict_unchecked(&val))
+                Err(T::get_conflict_unchecked(self, &val))
             }
             Err(err) => Err(err).unwrap(),
         }
@@ -456,7 +456,10 @@ pub fn try_insert_private<'t, T: Table>(
             if kind.code == ErrorCode::ConstraintViolation =>
         {
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-            Err(T::get_conflict_unchecked(&val))
+            Err(T::get_conflict_unchecked(
+                &Transaction::new(transaction.clone()),
+                &val,
+            ))
         }
         Err(err) => Err(err).unwrap(),
     }
