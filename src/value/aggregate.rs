@@ -85,6 +85,16 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         Expr::new(self.select(expr))
     }
 
+    /// Return the minimum value in a column, this is [None] if there are zero rows.
+    pub fn min<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
+    where
+        T: NumTyp,
+    {
+        let val = val.into_expr().inner;
+        let expr = Func::min(val.build_expr(self.ast.builder()));
+        Expr::new(self.select(expr))
+    }
+
     /// Return the sum of a column.
     pub fn sum<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, T>
     where

@@ -1,10 +1,7 @@
-use std::time::UNIX_EPOCH;
-
 use rand::{Rng, rngs::ThreadRng};
-use rust_query::{
-    FromExpr, Select, Table, TableRow, Transaction, TransactionMut, Update, migration::schema,
-};
+use rust_query::{Select, Table, TableRow, Transaction, migration::schema};
 
+mod delivery;
 mod new_order;
 mod order_status;
 mod payment;
