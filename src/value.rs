@@ -28,19 +28,19 @@ pub struct ValueBuilder {
 
 impl ValueBuilder {
     pub(crate) fn get_aggr(
-        &self,
+        &mut self,
         aggr: SelectStatement,
         conds: Vec<(Field, SimpleExpr)>,
     ) -> MyAlias {
         let source = Source {
-            kind: crate::ast::SourceKind::Aggregate(aggr),
+            kind: crate::ast::SourceKind::Aggregate(Rc::new(aggr)),
             conds,
         };
         let new_alias = || self.scope.new_alias();
         *self.extra.get_or_init(source, new_alias)
     }
 
-    pub(crate) fn get_join<T: Table>(&self, expr: SimpleExpr) -> MyAlias {
+    pub(crate) fn get_join<T: Table>(&mut self, expr: SimpleExpr) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: vec![(Field::Str(T::ID), expr)],
@@ -49,7 +49,7 @@ impl ValueBuilder {
         *self.extra.get_or_init(source, new_alias)
     }
 
-    pub fn get_unique<T: Table>(&self, conds: Vec<(&'static str, SimpleExpr)>) -> SimpleExpr {
+    pub fn get_unique<T: Table>(&mut self, conds: Vec<(&'static str, SimpleExpr)>) -> SimpleExpr {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: conds.into_iter().map(|x| (Field::Str(x.0), x.1)).collect(),
@@ -60,11 +60,11 @@ impl ValueBuilder {
         sea_query::Expr::col((*table, Alias::new(T::ID))).into()
     }
 
-    pub fn cache(&self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
+    pub fn cache(&mut self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
         exprs
             .into_iter()
             .map(|val| {
-                let expr = (val.0)(&self);
+                let expr = (val.0)(self);
                 let new_field = || self.scope.new_field();
                 *self.select.get_or_init(expr, new_field)
             })
@@ -109,13 +109,14 @@ pub trait Typed {
     type Typ;
 
     #[doc(hidden)]
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr;
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr;
     #[doc(hidden)]
-    fn build_table(&self, b: &ValueBuilder) -> MyAlias
+    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
         Self::Typ: Table,
     {
-        b.get_join::<Self::Typ>(self.build_expr(b))
+        let expr = self.build_expr(b);
+        b.get_join::<Self::Typ>(expr)
     }
 }
 
@@ -131,7 +132,7 @@ pub trait IntoExpr<'column, S>: Clone {
 impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
     type Typ = Option<T::Typ>;
 
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         self.as_ref()
             .map(|x| T::build_expr(x, b))
             .unwrap_or(X::Sql::null().into())
@@ -149,7 +150,7 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> Into
 
 impl Typed for String {
     type Typ = String;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(self)
     }
 }
@@ -170,7 +171,7 @@ impl<'column, S> IntoExpr<'column, S> for &str {
 
 impl Typed for Vec<u8> {
     type Typ = Vec<u8>;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(self.to_owned())
     }
 }
@@ -191,7 +192,7 @@ impl<'column, S> IntoExpr<'column, S> for &[u8] {
 
 impl Typed for bool {
     type Typ = bool;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
@@ -205,7 +206,7 @@ impl<'column, S> IntoExpr<'column, S> for bool {
 
 impl Typed for i64 {
     type Typ = i64;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
@@ -219,7 +220,7 @@ impl<'column, S> IntoExpr<'column, S> for i64 {
 
 impl Typed for f64 {
     type Typ = f64;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         SimpleExpr::from(*self)
     }
 }
@@ -236,10 +237,10 @@ where
     T: Typed,
 {
     type Typ = T::Typ;
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         T::build_expr(self, b)
     }
-    fn build_table(&self, b: &ValueBuilder) -> MyAlias
+    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
         Self::Typ: Table,
     {
@@ -263,7 +264,7 @@ pub struct UnixEpoch;
 
 impl Typed for UnixEpoch {
     type Typ = i64;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         sea_query::Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
     }
 }
@@ -427,7 +428,7 @@ impl<'column, S, T: 'static> Expr<'column, S, T> {
 }
 
 pub fn adhoc_expr<S, T: 'static>(
-    f: impl 'static + Fn(&ValueBuilder) -> SimpleExpr,
+    f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
 ) -> Expr<'static, S, T> {
     Expr::adhoc(f)
 }
@@ -452,16 +453,16 @@ pub fn into_owned<'x, S, T>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {
 }
 
 struct AdHoc<F, T>(F, PhantomData<T>);
-impl<F: Fn(&ValueBuilder) -> SimpleExpr, T> Typed for AdHoc<F, T> {
+impl<F: Fn(&mut ValueBuilder) -> SimpleExpr, T> Typed for AdHoc<F, T> {
     type Typ = T;
 
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         (self.0)(b)
     }
 }
 
 impl<S, T: 'static> Expr<'_, S, T> {
-    pub(crate) fn adhoc(f: impl 'static + Fn(&ValueBuilder) -> SimpleExpr) -> Self {
+    pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr) -> Self {
         Self::new(AdHoc(f, PhantomData))
     }
 
@@ -488,11 +489,11 @@ impl<'column, S, T> Clone for Expr<'column, S, T> {
 impl<'column, S, T: 'static> Typed for Expr<'column, S, T> {
     type Typ = T;
 
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         self.inner.0.as_ref().build_expr(b)
     }
 
-    fn build_table(&self, b: &ValueBuilder) -> MyAlias
+    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
         Self::Typ: Table,
     {
@@ -500,7 +501,7 @@ impl<'column, S, T: 'static> Typed for Expr<'column, S, T> {
     }
 }
 
-pub struct DynTypedExpr(pub(crate) Box<dyn Fn(&ValueBuilder) -> SimpleExpr>);
+pub struct DynTypedExpr(pub(crate) Box<dyn Fn(&mut ValueBuilder) -> SimpleExpr>);
 
 impl<Typ: 'static> DynTyped<Typ> {
     pub fn erase(self) -> DynTypedExpr {
@@ -515,7 +516,7 @@ pub struct MigratedExpr<Typ> {
 
 impl<Typ> Typed for MigratedExpr<Typ> {
     type Typ = Typ;
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         self.prev.0(b)
     }
 }
@@ -531,11 +532,11 @@ impl<T> Clone for DynTyped<T> {
 impl<Typ: 'static> Typed for DynTyped<Typ> {
     type Typ = Typ;
 
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         self.0.build_expr(b)
     }
 
-    fn build_table(&self, b: &ValueBuilder) -> MyAlias
+    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
         Self::Typ: Table,
     {

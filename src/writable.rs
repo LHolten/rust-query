@@ -5,8 +5,7 @@ use ref_cast::{RefCastCustom, ref_cast_custom};
 use crate::{
     Expr, IntoExpr, Table,
     alias::Field,
-    ast::MySelect,
-    value::{DynTypedExpr, NumTyp},
+    value::{DynTypedExpr, NumTyp, ValueBuilder},
 };
 
 /// Defines a column update.
@@ -56,24 +55,24 @@ pub trait TableInsert<'t> {
 #[derive(RefCastCustom)]
 #[repr(transparent)]
 pub struct Reader<'t, S> {
-    pub(crate) ast: MySelect,
+    pub(crate) builder: ValueBuilder,
     pub(crate) _p: PhantomData<S>,
     pub(crate) _p2: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
 impl<'t, S> Reader<'t, S> {
     #[ref_cast_custom]
-    pub(crate) fn new(select: &MySelect) -> &Self;
+    pub(crate) fn new(select: &mut ValueBuilder) -> &mut Self;
 }
 
 impl<'t, S> Reader<'t, S> {
-    pub fn col(&self, name: &'static str, val: impl IntoExpr<'t, S>) {
+    pub fn col(&mut self, name: &'static str, val: impl IntoExpr<'t, S>) {
         self.col_erased(name, val.into_expr().inner.erase());
     }
 
-    pub(crate) fn col_erased(&self, name: &'static str, val: DynTypedExpr) {
+    pub(crate) fn col_erased(&mut self, name: &'static str, val: DynTypedExpr) {
         let field = Field::Str(name);
-        let expr = (val.0)(&self.ast.builder);
-        self.ast.builder.select.push(Box::new((expr, field)))
+        let expr = (val.0)(&mut self.builder);
+        self.builder.select.push(Box::new((expr, field)))
     }
 }

@@ -27,6 +27,12 @@ impl Scope {
     pub fn new_field(&self) -> Field {
         Field::U64(self.new_alias())
     }
+
+    pub fn tmp_copy(&self) -> Self {
+        Self {
+            iden_num: AtomicU64::new(self.iden_num.load(Ordering::Relaxed)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

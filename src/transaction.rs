@@ -258,15 +258,15 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         row: impl IntoExpr<'t, S, Typ = T>,
         val: T::Update<'t>,
     ) -> Result<(), T::Conflict<'t>> {
-        let id = MySelect::default();
-        Reader::new(&id).col(T::ID, &row);
-        let id = id.build_select(false);
+        let mut id = MySelect::default();
+        Reader::new(&mut id.builder).col(T::ID, &row);
+        let (id, _) = id.build_select(false, vec![]);
 
         let val = T::apply_try_update(val, row.into_expr());
-        let ast = MySelect::default();
-        T::read(&val, Reader::new(&ast));
+        let mut ast = MySelect::default();
+        T::read(&val, Reader::new(&mut ast.builder));
 
-        let select = ast.build_select(false);
+        let (select, _) = ast.build_select(false, vec![]);
         let cte = CommonTableExpression::new()
             .query(select)
             .columns(ast.builder.select.iter().map(|x| x.1))
@@ -425,14 +425,14 @@ pub fn try_insert_private<'t, T: Table>(
     idx: Option<i64>,
     val: T::Insert<'t>,
 ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-    let ast = MySelect::default();
-    let reader = Reader::new(&ast);
+    let mut ast = MySelect::default();
+    let reader = Reader::new(&mut ast.builder);
     T::read(&val, reader);
     if let Some(idx) = idx {
         reader.col(T::ID, idx);
     }
 
-    let select = ast.simple();
+    let (select, _) = ast.simple(vec![]);
 
     let mut insert = InsertStatement::new();
     let names = ast.builder.select.iter().map(|(_field, name)| *name);

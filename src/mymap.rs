@@ -2,6 +2,7 @@ use std::ops::Deref;
 
 use elsa::FrozenVec;
 
+#[derive(Clone)]
 pub struct MyMap<K, V> {
     inner: FrozenVec<Box<(K, V)>>,
 }

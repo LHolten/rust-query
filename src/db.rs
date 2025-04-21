@@ -39,7 +39,7 @@ impl<T, X> Col<T, X> {
 
 impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
     type Typ = T;
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         sea_query::Expr::col((self.inner.build_table(b), self.field)).into()
     }
 }
@@ -71,10 +71,10 @@ impl<T> Copy for Join<T> {}
 
 impl<T: Table> Typed for Join<T> {
     type Typ = T;
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
-    fn build_table(&self, _: &ValueBuilder) -> MyAlias {
+    fn build_table(&self, _: &mut ValueBuilder) -> MyAlias {
         self.table
     }
 }
@@ -168,7 +168,7 @@ impl<'t, T> From<TableRow<'t, T>> for sea_query::Value {
 
 impl<T: Table> Typed for TableRowInner<T> {
     type Typ = T;
-    fn build_expr(&self, _: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
         sea_query::Expr::val(self.idx).into()
     }
 }

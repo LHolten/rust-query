@@ -15,10 +15,12 @@ use crate::{
     value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
 };
 
+use super::DynTypedExpr;
+
 /// This is the argument type used for [aggregate].
 pub struct Aggregate<'outer, 'inner, S> {
     // pub(crate) outer_ast: &'inner MySelect,
-    pub(crate) conds: Vec<(Field, Rc<dyn Fn(&ValueBuilder) -> SimpleExpr>)>,
+    pub(crate) conds: Vec<(Field, Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>)>,
     pub(crate) query: Rows<'inner, S>,
     // pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
@@ -39,16 +41,19 @@ impl<'outer, 'inner, S> DerefMut for Aggregate<'outer, 'inner, S> {
 }
 
 impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
-    fn select<T>(&self, expr: impl Into<SimpleExpr>) -> Aggr<S, Option<T>> {
-        let alias = self
-            .ast
-            .builder
-            .select
-            .get_or_init(expr.into(), || self.ast.builder.scope.new_field());
+    fn select<T>(
+        &self,
+        expr: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
+    ) -> Aggr<S, Option<T>> {
+        let expr = DynTypedExpr(Box::new(expr));
+        let (select, mut fields) = self.query.ast.build_select(true, vec![expr]);
         Aggr {
             _p2: PhantomData,
-            select: self.query.ast.build_select(true),
-            field: *alias,
+            select,
+            field: {
+                debug_assert_eq!(fields.len(), 1);
+                fields.swap_remove(0)
+            },
             conds: self.conds.clone(),
         }
     }
@@ -64,15 +69,14 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let alias = self.ast.builder.scope.new_alias();
         self.conds
             .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
-        let val = val.build_expr(&self.ast.builder);
+        let val = val.build_expr(&mut self.ast.builder);
         self.ast.filter_on.push((val, alias))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
     pub fn avg(&self, val: impl IntoExpr<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
         let val = val.into_expr().inner;
-        let expr = Func::avg(val.build_expr(&self.ast.builder));
-        Expr::new(self.select(expr))
+        Expr::new(self.select(move |b| Func::avg(val.build_expr(b)).into()))
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
@@ -81,8 +85,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let val = val.into_expr().inner;
-        let expr = Func::max(val.build_expr(&self.ast.builder));
-        Expr::new(self.select(expr))
+        Expr::new(self.select(move |b| Func::max(val.build_expr(b)).into()))
     }
 
     /// Return the minimum value in a column, this is [None] if there are zero rows.
@@ -91,8 +94,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let val = val.into_expr().inner;
-        let expr = Func::min(val.build_expr(&self.ast.builder));
-        Expr::new(self.select(expr))
+        Expr::new(self.select(move |b| Func::min(val.build_expr(b)).into()))
     }
 
     /// Return the sum of a column.
@@ -101,8 +103,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let val = val.into_expr().inner;
-        let expr = Func::sum(val.build_expr(&self.ast.builder));
-        let val = self.select::<T>(expr);
+        let val = self.select::<T>(move |b| Func::sum(val.build_expr(b)).into());
+
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(val.build_expr(b))
                 .if_null(SimpleExpr::Constant(T::ZERO.into_sea_value()))
@@ -118,8 +120,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: EqTyp,
     {
         let val = val.into_expr().inner;
-        let expr = Func::count_distinct(val.build_expr(&self.ast.builder));
-        let val = self.select::<i64>(expr);
+        let val = self.select::<i64>(move |b| Func::count_distinct(val.build_expr(b)).into());
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(val.build_expr(b))
                 .if_null(SimpleExpr::Constant(0i64.into_sea_value()))
@@ -128,8 +129,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
     /// Return whether there are any rows.
     pub fn exists(&self) -> Expr<'outer, S, bool> {
-        let expr = SimpleExpr::Constant(1.into_sea_value());
-        let val = self.select::<i64>(expr);
+        let val = self.select::<i64>(|_| SimpleExpr::Constant(1.into_sea_value()));
         Expr::adhoc(move |b| sea_query::Expr::expr(val.build_expr(b)).is_not_null())
     }
 }
@@ -137,7 +137,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 pub struct Aggr<S, T> {
     pub(crate) _p2: PhantomData<(S, T)>,
     pub(crate) select: SelectStatement,
-    pub(crate) conds: Vec<(Field, Rc<dyn Fn(&ValueBuilder) -> SimpleExpr>)>,
+    pub(crate) conds: Vec<(Field, Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>)>,
     pub(crate) field: Field,
 }
 
@@ -154,15 +154,19 @@ impl<S, T> Clone for Aggr<S, T> {
 
 impl<S, T: MyTyp> Typed for Aggr<S, T> {
     type Typ = T;
-    fn build_expr(&self, b: &ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         sea_query::Expr::col((self.build_table(b), self.field)).into()
     }
 }
 
 impl<S, T> Aggr<S, T> {
-    fn build_table(&self, b: &ValueBuilder) -> MyAlias {
-        let conds = self.conds.iter().map(|(field, expr)| (*field, expr(b)));
-        b.get_aggr(self.select.clone(), conds.collect())
+    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
+        let conds = self
+            .conds
+            .iter()
+            .map(|(field, expr)| (*field, expr(b)))
+            .collect();
+        b.get_aggr(self.select.clone(), conds)
     }
 }
 
