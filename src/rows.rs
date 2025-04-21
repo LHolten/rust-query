@@ -63,7 +63,7 @@ impl<'inner, S> Rows<'inner, S> {
     }
 
     fn filter_private(&mut self, prop: SimpleExpr) {
-        self.ast.filters.push(Box::new(prop));
+        self.ast.filters.push(prop);
     }
 
     /// Filter out rows where this column is [None].

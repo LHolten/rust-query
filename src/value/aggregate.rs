@@ -63,9 +63,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let alias = self.ast.scope.new_alias();
         self.conds
             .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
-        self.ast
-            .filter_on
-            .push(Box::new((val.build_expr(self.ast.builder()), alias)))
+        let val = val.build_expr(self.ast.builder());
+        self.ast.filter_on.push((val, alias))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.

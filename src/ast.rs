@@ -1,4 +1,3 @@
-use elsa::FrozenVec;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
@@ -15,11 +14,11 @@ pub struct MySelect {
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
     // all conditions to check
-    pub(super) filters: FrozenVec<Box<SimpleExpr>>,
+    pub(super) filters: Vec<SimpleExpr>,
     // calculating these results
     pub(super) select: MyMap<SimpleExpr, Field>,
     // values that must be returned/ filtered on
-    pub(super) filter_on: FrozenVec<Box<(SimpleExpr, MyAlias)>>,
+    pub(super) filter_on: Vec<(SimpleExpr, MyAlias)>,
 }
 
 #[derive(PartialEq)]
@@ -106,7 +105,7 @@ impl MySelect {
 
         let mut any_expr = false;
         let mut any_group = false;
-        for (group, alias) in self.filter_on.iter() {
+        for (group, alias) in &self.filter_on {
             any_expr = true;
 
             select.expr_as(group.clone(), *alias);
