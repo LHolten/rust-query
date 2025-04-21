@@ -94,9 +94,12 @@ fn define_table(
                 #(
                     let #col = ::rust_query::private::into_owned(#col);
                 )*
-                ::rust_query::private::adhoc_expr(move |b| {
-                    b.get_unique::<#table_ident>(vec![#(
-                        (#col_str, ::rust_query::private::Typed::build_expr(&#col, b)),
+                ::rust_query::private::adhoc_expr(move |_b| {
+                    #(
+                        let #col = ::rust_query::private::Typed::build_expr(&#col, _b);
+                    )*
+                    _b.get_unique::<#table_ident>(vec![#(
+                        (#col_str, #col),
                     )*])
                 })
             }
@@ -262,7 +265,7 @@ fn define_table(
                 type Update<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
                 type Insert<'t> = (#table_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
 
-                fn read<'t>(val: &Self::Insert<'t>, f: &::rust_query::private::Reader<'t, Self::Schema>) {
+                fn read<'t>(val: &Self::Insert<'t>, f: &mut ::rust_query::private::Reader<'t, Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
 

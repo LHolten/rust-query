@@ -174,7 +174,7 @@ pub trait Table: Sized + 'static {
     type Insert<'t>;
 
     #[doc(hidden)]
-    fn read<'t>(val: &Self::Insert<'t>, f: &Reader<'t, Self::Schema>);
+    fn read<'t>(val: &Self::Insert<'t>, f: &mut Reader<'t, Self::Schema>);
 
     #[doc(hidden)]
     fn get_conflict_unchecked<'t>(

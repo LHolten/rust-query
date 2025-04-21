@@ -213,7 +213,7 @@ mod tests {
         type Update<'t> = ();
         type Insert<'t> = ();
 
-        fn read<'t>(val: &Self::Insert<'t>, f: &Reader<'t, Self::Schema>) {
+        fn read<'t>(val: &Self::Insert<'t>, f: &mut Reader<'t, Self::Schema>) {
             todo!()
         }
 

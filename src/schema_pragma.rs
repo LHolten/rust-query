@@ -38,7 +38,7 @@ macro_rules! table {
             type Update<'t> = ();
             type Insert<'t> = ();
 
-            fn read<'t>(_val: &Self::Insert<'t>, _f: &Reader<'t, Self::Schema>) {
+            fn read<'t>(_val: &Self::Insert<'t>, _f: &mut Reader<'t, Self::Schema>) {
                 unreachable!()
             }
 
