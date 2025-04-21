@@ -54,7 +54,7 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
         let mut cacher = Cacher::new();
         let mut prepared = dummy.into_select().inner.prepare(&mut cacher);
 
-        let cached = self.ast.cache(cacher.columns);
+        let cached = self.ast.builder.cache(cacher.columns);
 
         let select = self.ast.simple();
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);

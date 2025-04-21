@@ -1,22 +1,17 @@
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
-    alias::{Field, MyAlias, RawAlias, Scope},
-    mymap::MyMap,
-    value::{DynTypedExpr, ValueBuilder},
+    alias::{Field, MyAlias, RawAlias},
+    value::ValueBuilder,
 };
 
 #[derive(Default)]
 pub struct MySelect {
-    pub(super) scope: Scope,
+    pub(crate) builder: ValueBuilder,
     // tables to join, adding more requires mutating
     pub(super) tables: Vec<(String, MyAlias)>,
-    // implicit joins
-    pub(super) extra: MyMap<Source, MyAlias>,
     // all conditions to check
     pub(super) filters: Vec<SimpleExpr>,
-    // calculating these results
-    pub(super) select: MyMap<SimpleExpr, Field>,
     // values that must be returned/ filtered on
     pub(super) filter_on: Vec<(SimpleExpr, MyAlias)>,
 }
@@ -44,21 +39,6 @@ impl PartialEq for SourceKind {
 }
 
 impl MySelect {
-    pub fn builder(&self) -> ValueBuilder<'_> {
-        ValueBuilder { inner: self }
-    }
-
-    pub fn cache(&self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
-        exprs
-            .into_iter()
-            .map(|val| {
-                let expr = (val.0)(self.builder());
-                let new_field = || self.scope.new_field();
-                *self.select.get_or_init(expr, new_field)
-            })
-            .collect()
-    }
-
     pub fn simple(&self) -> SelectStatement {
         self.build_select(false)
     }
@@ -77,7 +57,7 @@ impl MySelect {
             select.from_values([1], NullAlias);
         }
 
-        for (source, table_alias) in self.extra.iter() {
+        for (source, table_alias) in self.builder.extra.iter() {
             let mut cond = Condition::all();
             for (field, outer_value) in &source.conds {
                 let id_field = Expr::expr(outer_value.clone());
@@ -115,7 +95,7 @@ impl MySelect {
             }
         }
 
-        for (aggr, alias) in self.select.iter() {
+        for (aggr, alias) in self.builder.select.iter() {
             any_expr = true;
             select.expr_as(aggr.clone(), *alias);
         }

@@ -73,7 +73,7 @@ impl<'t, S> Reader<'t, S> {
 
     pub(crate) fn col_erased(&self, name: &'static str, val: DynTypedExpr) {
         let field = Field::Str(name);
-        let expr = (val.0)(self.ast.builder());
-        self.ast.select.push(Box::new((expr, field)))
+        let expr = (val.0)(&self.ast.builder);
+        self.ast.builder.select.push(Box::new((expr, field)))
     }
 }

@@ -269,7 +269,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let select = ast.build_select(false);
         let cte = CommonTableExpression::new()
             .query(select)
-            .columns(ast.select.iter().map(|x| x.1))
+            .columns(ast.builder.select.iter().map(|x| x.1))
             .table_name(Alias::new("cte"))
             .to_owned();
         let with_clause = WithClause::new().cte(cte).to_owned();
@@ -279,7 +279,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             .cond_where(Expr::col(Alias::new(T::ID)).in_subquery(id))
             .to_owned();
 
-        for (_, col) in ast.select.iter() {
+        for (_, col) in ast.builder.select.iter() {
             let select = SelectStatement::new()
                 .from(Alias::new("cte"))
                 .column(*col)
@@ -435,7 +435,7 @@ pub fn try_insert_private<'t, T: Table>(
     let select = ast.simple();
 
     let mut insert = InsertStatement::new();
-    let names = ast.select.iter().map(|(_field, name)| *name);
+    let names = ast.builder.select.iter().map(|(_field, name)| *name);
     insert.into_table(table);
     insert.columns(names);
     insert.select_from(select).unwrap();

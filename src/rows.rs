@@ -32,13 +32,13 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// For convenience there is also [Table::join].
     pub fn join<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
-        let alias = self.ast.scope.new_alias();
+        let alias = self.ast.builder.scope.new_alias();
         self.ast.tables.push((T::NAME.to_owned(), alias));
         Expr::new(Join::new(alias))
     }
 
     pub(crate) fn join_custom<T: Table<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
-        let alias = self.ast.scope.new_alias();
+        let alias = self.ast.builder.scope.new_alias();
         self.ast.tables.push((t.name(), alias));
         Expr::new(Join::new(alias))
     }
@@ -46,7 +46,7 @@ impl<'inner, S> Rows<'inner, S> {
     pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
         let mut tmp_string = String::new();
         tmp.unquoted(&mut tmp_string);
-        let alias = self.ast.scope.new_alias();
+        let alias = self.ast.builder.scope.new_alias();
         self.ast.tables.push((tmp_string, alias));
         Expr::new(Join::new(alias))
     }
@@ -59,7 +59,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
         let prop = prop.into_expr().inner;
-        self.filter_private(prop.build_expr(self.ast.builder()));
+        self.filter_private(prop.build_expr(&self.ast.builder));
     }
 
     fn filter_private(&mut self, prop: SimpleExpr) {
@@ -74,9 +74,7 @@ impl<'inner, S> Rows<'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
         let val = val.into_expr().inner;
-        self.filter_private(
-            sea_query::Expr::expr(val.build_expr(self.ast.builder())).is_not_null(),
-        );
+        self.filter_private(sea_query::Expr::expr(val.build_expr(&self.ast.builder)).is_not_null());
         Expr::adhoc(move |b| val.build_expr(b))
     }
 }
