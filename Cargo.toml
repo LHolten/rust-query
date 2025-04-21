@@ -12,7 +12,6 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 
 [dependencies]
-elsa = "1.10.0"
 sea-query = "0.32"
 sea-query-rusqlite = "0.7"
 rusqlite = { version = "0.32", features = ["modern_sqlite", "unlock_notify"] }

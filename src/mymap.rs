@@ -1,18 +1,17 @@
-use std::ops::Deref;
-
-use elsa::FrozenVec;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Clone)]
 pub struct MyMap<K, V> {
-    inner: FrozenVec<Box<(K, V)>>,
+    inner: Vec<(K, V)>,
 }
 
 impl<K: PartialEq, V> MyMap<K, V> {
-    pub fn get_or_init(&self, k: K, f: impl FnOnce() -> V) -> &V {
-        if let Some(res) = self.inner.iter().find(|x| x.0 == k) {
-            return &res.1;
+    pub fn get_or_init(&mut self, k: K, f: impl FnOnce() -> V) -> &V {
+        if let Some(res) = self.inner.iter().position(|x| x.0 == k) {
+            return &self.inner[res].1;
         }
-        &self.inner.push_get(Box::new((k, f()))).1
+        self.inner.push((k, f()));
+        &self.inner.last().unwrap().1
     }
 }
 
@@ -25,9 +24,15 @@ impl<K, V> Default for MyMap<K, V> {
 }
 
 impl<K, V> Deref for MyMap<K, V> {
-    type Target = FrozenVec<Box<(K, V)>>;
+    type Target = Vec<(K, V)>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl<K, V> DerefMut for MyMap<K, V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
