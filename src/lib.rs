@@ -63,7 +63,6 @@ pub mod migration {
 pub mod private {
     use std::marker::PhantomData;
 
-    pub use crate::db::Col;
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
     pub use crate::query::show_sql;

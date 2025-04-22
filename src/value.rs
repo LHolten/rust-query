@@ -433,8 +433,12 @@ pub fn adhoc_expr<S, T: 'static>(
     Expr::adhoc(f)
 }
 
-pub fn new_column<'x, S, T: 'static>(val: impl Typed<Typ = T> + 'static) -> Expr<'x, S, T> {
-    Expr::new(val)
+pub fn new_column<'x, S, C: MyTyp, T: Table>(
+    table: impl IntoExpr<'x, S, Typ = T>,
+    name: &'static str,
+) -> Expr<'x, S, C> {
+    let table = table.into_expr().inner;
+    Expr::adhoc(move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into())
 }
 
 pub fn assume_expr<S, T: 'static>(e: Expr<S, Option<T>>) -> Expr<S, T> {

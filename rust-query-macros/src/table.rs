@@ -242,7 +242,7 @@ fn define_table(
                 where T: ::rust_query::IntoExpr<'t, #schema, Typ = #table_ident>
             {#(
                 pub fn #col_ident(&self) -> ::rust_query::Expr<'t, #schema, #col_typ> {
-                    ::rust_query::private::new_column(::rust_query::private::Col::new(#col_str, ::rust_query::private::into_owned(&self.0)))
+                    ::rust_query::private::new_column(&self.0, #col_str)
                 }
             )*}
 

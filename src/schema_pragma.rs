@@ -2,17 +2,20 @@ use std::{collections::HashMap, convert::Infallible};
 
 use ref_cast::RefCast;
 
-use crate::{Expr, FromExpr, Table, Transaction, db::Col, hash, private::Reader};
+use crate::{
+    Expr, FromExpr, Table, Transaction, hash,
+    private::{Reader, new_column},
+};
 
 macro_rules! field {
     ($name:ident: $typ:ty) => {
-        pub fn $name<'x>(&self) -> Expr<'x, Pragma, $typ> {
-            Expr::new(Col::new(stringify!($name), self.0.inner.clone()))
+        pub fn $name(&self) -> Expr<'x, Pragma, $typ> {
+            new_column(&self.0, stringify!($name))
         }
     };
     ($name:ident($name_str:literal): $typ:ty) => {
-        pub fn $name<'x>(&self) -> Expr<'x, Pragma, $typ> {
-            Expr::new(Col::new($name_str, self.0.inner.clone()))
+        pub fn $name(&self) -> Expr<'x, Pragma, $typ> {
+            new_column(&self.0, $name_str)
         }
     };
 }
@@ -75,7 +78,7 @@ struct TableList;
 struct TableListSelect<T>(T);
 
 #[allow(unused)]
-impl TableListSelect<Expr<'_, Pragma, TableList>> {
+impl<'x> TableListSelect<Expr<'x, Pragma, TableList>> {
     field! {schema: String}
     field! {name: String}
     field! {r#type("type"): String}
@@ -92,7 +95,7 @@ struct TableInfo(pub String);
 #[derive(RefCast)]
 struct TableInfoSelect<T>(T);
 
-impl TableInfoSelect<Expr<'_, Pragma, TableInfo>> {
+impl<'x> TableInfoSelect<Expr<'x, Pragma, TableInfo>> {
     field! {name: String}
     field! {r#type("type"): String}
     field! {notnull: i64}
@@ -108,7 +111,7 @@ struct ForeignKeyList(pub String);
 struct ForeignKeyListSelect<T>(T);
 
 #[allow(unused)]
-impl ForeignKeyListSelect<Expr<'_, Pragma, ForeignKeyList>> {
+impl<'x> ForeignKeyListSelect<Expr<'x, Pragma, ForeignKeyList>> {
     field! {table: String}
     field! {from: String}
     field! {to: String}
@@ -122,7 +125,7 @@ struct IndexList(String);
 #[derive(RefCast)]
 struct IndexListSelect<T>(T);
 
-impl IndexListSelect<Expr<'_, Pragma, IndexList>> {
+impl<'x> IndexListSelect<Expr<'x, Pragma, IndexList>> {
     field! {name: String}
     field! {unique: bool}
     field! {origin: String}
@@ -137,7 +140,7 @@ struct IndexInfo(String);
 #[derive(RefCast)]
 struct IndexInfoSelect<T>(T);
 
-impl IndexInfoSelect<Expr<'_, Pragma, IndexInfo>> {
+impl<'x> IndexInfoSelect<Expr<'x, Pragma, IndexInfo>> {
     field! {name: Option<String>}
 }
 

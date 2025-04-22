@@ -5,44 +5,9 @@ use sea_query::{Alias, SimpleExpr};
 
 use crate::{
     Expr, IntoExpr, LocalClient, Table,
-    alias::{Field, MyAlias},
-    value::{MyTyp, Typed, ValueBuilder},
+    alias::MyAlias,
+    value::{Typed, ValueBuilder},
 };
-
-pub struct Col<T, X> {
-    pub(crate) _p: PhantomData<T>,
-    pub(crate) field: Field,
-    pub(crate) inner: X,
-}
-
-impl<T, X: Clone> Clone for Col<T, X> {
-    fn clone(&self) -> Self {
-        Self {
-            _p: self._p,
-            field: self.field,
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl<T, X: Copy> Copy for Col<T, X> {}
-
-impl<T, X> Col<T, X> {
-    pub fn new(key: &'static str, x: X) -> Self {
-        Self {
-            _p: PhantomData,
-            field: Field::Str(key),
-            inner: x,
-        }
-    }
-}
-
-impl<T: MyTyp, P: Typed<Typ: Table>> Typed for Col<T, P> {
-    type Typ = T;
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
-        sea_query::Expr::col((self.inner.build_table(b), self.field)).into()
-    }
-}
 
 /// Table reference that is the result of a join.
 /// It can only be used in the query where it was created.
@@ -60,14 +25,6 @@ impl<T> Join<T> {
         }
     }
 }
-
-impl<T> Clone for Join<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for Join<T> {}
 
 impl<T: Table> Typed for Join<T> {
     type Typ = T;
@@ -185,70 +142,5 @@ impl<'t, S, T: Table> IntoExpr<'t, S> for TableRow<'t, T> {
 impl<T> rusqlite::ToSql for TableRow<'_, T> {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         self.inner.idx.to_sql()
-    }
-}
-
-#[cfg(test)]
-#[allow(unused)]
-mod tests {
-    use std::convert::Infallible;
-
-    use crate::{IntoSelectExt, Select, private::Reader};
-
-    use super::*;
-    struct Admin;
-
-    impl Table for Admin {
-        type MigrateFrom = Self;
-        type Ext<T> = AdminSelect<T>;
-
-        type Schema = ();
-        type Referer = ();
-        fn get_referer_unchecked() -> Self::Referer {}
-
-        fn typs(_: &mut crate::hash::TypBuilder<Self::Schema>) {}
-
-        type Conflict<'t> = Infallible;
-        type UpdateOk<'t> = ();
-        type Update<'t> = ();
-        type Insert<'t> = ();
-
-        fn read<'t>(val: &Self::Insert<'t>, f: &mut Reader<'t, Self::Schema>) {
-            todo!()
-        }
-
-        fn get_conflict_unchecked<'t>(
-            txn: &crate::Transaction<'t, Self::Schema>,
-            val: &Self::Insert<'t>,
-        ) -> Self::Conflict<'t> {
-            todo!()
-        }
-
-        fn update_into_try_update<'t>(val: Self::UpdateOk<'t>) -> Self::Update<'t> {
-            todo!()
-        }
-
-        fn apply_try_update<'t>(
-            val: Self::Update<'t>,
-            old: Expr<'t, Self::Schema, Self>,
-        ) -> Self::Insert<'t> {
-            todo!()
-        }
-
-        const ID: &'static str = "";
-        const NAME: &'static str = "";
-    }
-
-    #[repr(transparent)]
-    #[derive(RefCast)]
-    struct AdminSelect<X>(X);
-
-    impl<X: Clone> AdminSelect<X> {
-        fn a(&self) -> Col<Admin, X> {
-            Col::new("a", self.0.clone())
-        }
-        fn b(&self) -> Col<Admin, X> {
-            Col::new("b", self.0.clone())
-        }
     }
 }
