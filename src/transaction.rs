@@ -275,8 +275,11 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         let with_clause = WithClause::new().cte(cte).to_owned();
 
         let mut update = UpdateStatement::new()
-            .table(Alias::new(T::NAME))
-            .cond_where(Expr::col(Alias::new(T::ID)).in_subquery(id))
+            .table((Alias::new("main"), Alias::new(T::NAME)))
+            .cond_where(
+                Expr::col((Alias::new("main"), Alias::new(T::NAME), Alias::new(T::ID)))
+                    .in_subquery(id),
+            )
             .to_owned();
 
         for (_, col) in ast.builder.select.iter() {
@@ -363,8 +366,11 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
         val: TableRow<'t, T>,
     ) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
-            .from_table(Alias::new(T::NAME))
-            .cond_where(Expr::col(Alias::new(T::ID)).eq(val.inner.idx))
+            .from_table((Alias::new("main"), Alias::new(T::NAME)))
+            .cond_where(
+                Expr::col((Alias::new("main"), Alias::new(T::NAME), Alias::new(T::ID)))
+                    .eq(val.inner.idx),
+            )
             .to_owned();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
