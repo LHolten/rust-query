@@ -1,6 +1,5 @@
 use rust_query::{
-    Database, LocalClient, Select, Table, TableRow, Transaction, aggregate, migration::schema,
-    optional,
+    Database, LocalClient, Select, TableRow, Transaction, aggregate, migration::schema, optional,
 };
 
 #[schema(Schema)]

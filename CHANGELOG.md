@@ -1,5 +1,8 @@
 # Unreleased
 
+- Update the `Rows::join` method to take a constant argument.
+This is now the prefered join syntax and all examples have been updated.
+
 # 0.4.1
 
 - Change conflicts back to using `TableRow` instead of `Expr`.
