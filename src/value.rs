@@ -64,10 +64,6 @@ impl ValueBuilder {
         MyAlias::new(idx)
     }
 
-    pub fn get_filter_on(&mut self, idx: usize) -> MyAlias {
-        MyAlias::new(idx)
-    }
-
     pub fn cache(&mut self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
         exprs
             .into_iter()
@@ -494,22 +490,6 @@ impl<'column, S, T> Clone for Expr<'column, S, T> {
             _p: self._p.clone(),
             _p2: self._p2.clone(),
         }
-    }
-}
-
-// TODO: remove this and replace with `Private`
-impl<'column, S, T: 'static> Typed for Expr<'column, S, T> {
-    type Typ = T;
-
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
-        self.inner.0.as_ref().build_expr(b)
-    }
-
-    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        self.inner.0.as_ref().build_table(b)
     }
 }
 
