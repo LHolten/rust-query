@@ -3,7 +3,7 @@ use std::rc::Rc;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
-    alias::{Field, RawAlias, Scope},
+    alias::{Field, MyAlias, RawAlias, Scope},
     value::{DynTyped, DynTypedExpr, Typed, ValueBuilder},
 };
 
@@ -17,6 +17,7 @@ pub struct MySelect {
     pub(super) filter_on: Vec<DynTypedExpr>,
 }
 
+#[derive(Default)]
 pub struct FullSelect {
     pub(crate) from: Rc<MySelect>,
     pub(crate) builder: ValueBuilder,
@@ -46,14 +47,14 @@ impl PartialEq for SourceKind {
 }
 
 impl MySelect {
-    pub fn full(self) -> FullSelect {
+    pub fn full(self: Rc<Self>) -> FullSelect {
         FullSelect {
             builder: ValueBuilder {
                 scope: Scope::create(self.tables.len(), self.filter_on.len()),
                 extra: Default::default(),
                 select: Default::default(),
             },
-            from: Rc::new(self),
+            from: self,
         }
     }
 }
@@ -126,7 +127,7 @@ impl FullSelect {
         let mut any_expr = false;
         let mut any_group = false;
         for (idx, group) in filter_on.into_iter().enumerate() {
-            select.expr_as(group.clone(), self.builder.get_filter_on(idx));
+            select.expr_as(group.clone(), MyAlias::new(idx));
             any_expr = true;
 
             // for some reason i can not use the column alias here

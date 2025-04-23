@@ -8,7 +8,7 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    IntoExpr, IntoSelect, Table, TableRow, ast::MySelect, client::LocalClient,
+    IntoExpr, IntoSelect, Table, TableRow, ast::FullSelect, client::LocalClient,
     migrate::schema_version, private::Reader, query::Query, rows::Rows, value::SecretFromSql,
     writable::TableInsert,
 };
@@ -119,10 +119,9 @@ impl<'t, S> Transaction<'t, S> {
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
         let conn: &rusqlite::Connection = &self.transaction;
-        let ast = MySelect::default();
         let q = Rows {
             phantom: PhantomData,
-            ast,
+            ast: Default::default(),
             _p: PhantomData,
         };
         f(&mut Query {
@@ -258,12 +257,12 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         row: impl IntoExpr<'t, S, Typ = T>,
         val: T::Update<'t>,
     ) -> Result<(), T::Conflict<'t>> {
-        let mut id = MySelect::default().full();
+        let mut id = FullSelect::default();
         Reader::new(&mut id.builder).col(T::ID, &row);
         let (id, _) = id.build_select(false, vec![]);
 
         let val = T::apply_try_update(val, row.into_expr());
-        let mut ast = MySelect::default().full();
+        let mut ast = FullSelect::default();
         T::read(&val, Reader::new(&mut ast.builder));
 
         let (select, _) = ast.build_select(false, vec![]);
@@ -431,7 +430,7 @@ pub fn try_insert_private<'t, T: Table>(
     idx: Option<i64>,
     val: T::Insert<'t>,
 ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-    let mut ast = MySelect::default().full();
+    let mut ast = FullSelect::default();
     let reader = Reader::new(&mut ast.builder);
     T::read(&val, reader);
     if let Some(idx) = idx {

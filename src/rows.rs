@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use sea_query::Iden;
 
@@ -21,7 +21,7 @@ pub struct Rows<'inner, S> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
     pub(crate) _p: PhantomData<S>,
-    pub(crate) ast: MySelect,
+    pub(crate) ast: Rc<MySelect>,
 }
 
 impl<'inner, S> Rows<'inner, S> {
@@ -32,22 +32,22 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// For convenience there is also [Table::join].
     pub fn join<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
-        let table_idx = self.ast.tables.len();
-        self.ast.tables.push(T::NAME.to_owned());
-        Expr::new(Join::new(table_idx))
+        self.join_string(T::NAME.to_owned())
     }
 
     pub(crate) fn join_custom<T: Table<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
-        let table_idx = self.ast.tables.len();
-        self.ast.tables.push(t.name());
-        Expr::new(Join::new(table_idx))
+        self.join_string(t.name())
     }
 
     pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
         let mut tmp_string = String::new();
         tmp.unquoted(&mut tmp_string);
+        self.join_string(tmp_string)
+    }
+
+    fn join_string<T: Table<Schema = S>>(&mut self, name: String) -> Expr<'inner, S, T> {
         let table_idx = self.ast.tables.len();
-        self.ast.tables.push(tmp_string);
+        Rc::make_mut(&mut self.ast).tables.push(name);
         Expr::new(Join::new(table_idx))
     }
 
@@ -59,7 +59,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
         let prop = prop.into_expr();
-        self.ast.filters.push(prop.inner);
+        Rc::make_mut(&mut self.ast).filters.push(prop.inner);
     }
 
     /// Filter out rows where this column is [None].
@@ -70,7 +70,9 @@ impl<'inner, S> Rows<'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
         let val = val.into_expr();
-        self.ast.filters.push(val.is_some().inner);
+        Rc::make_mut(&mut self.ast)
+            .filters
+            .push(val.is_some().inner);
 
         Expr::adhoc(move |b| val.inner.build_expr(b))
     }

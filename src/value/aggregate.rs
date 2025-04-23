@@ -10,7 +10,6 @@ use sea_query::{Func, SelectStatement, SimpleExpr};
 use crate::{
     Expr, Table,
     alias::{Field, MyAlias},
-    ast::MySelect,
     rows::Rows,
     value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
 };
@@ -64,7 +63,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     ) {
         let on = on.into_expr().inner;
         let val = val.into_expr().inner;
-        self.ast.filter_on.push(val.erase());
+        Rc::make_mut(&mut self.ast).filter_on.push(val.erase());
         self.conds.push(on.erase());
     }
 
@@ -189,10 +188,9 @@ pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
     F: for<'inner> FnOnce(&mut Aggregate<'outer, 'inner, S>) -> R,
 {
-    let ast = MySelect::default();
     let inner = Rows {
         phantom: PhantomData,
-        ast,
+        ast: Default::default(),
         _p: PhantomData,
     };
     let mut group = Aggregate {
