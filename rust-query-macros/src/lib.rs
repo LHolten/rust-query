@@ -259,7 +259,7 @@ pub fn schema(
 ///
 /// fn do_query(db: &Transaction<Schema>) -> Vec<MyData> {
 ///     db.query(|rows| {
-///         let thing = Thing::join(rows);
+///         let thing = rows.join(Thing);
 ///
 ///         rows.into_vec(MyDataSelect {
 ///             seconds: thing.seconds(),

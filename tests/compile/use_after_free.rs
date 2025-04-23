@@ -1,4 +1,4 @@
-use rust_query::{Database, IntoExpr, LocalClient, Table, migration::schema};
+use rust_query::{Database, IntoExpr, LocalClient, migration::schema};
 
 #[schema(Schema)]
 pub mod vN {
@@ -13,7 +13,7 @@ fn test(db: Database<Schema>) {
 
     let txn = client.transaction(&db);
     let items = txn.query(|rows| {
-        let item = MyTable::join(rows);
+        let item = rows.join(MyTable);
         rows.into_vec(item)
     });
     let items: Vec<_> = items.into_iter().map(|x| x.into_expr()).collect();

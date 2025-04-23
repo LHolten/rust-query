@@ -29,8 +29,6 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// After this operation [Rows] has rows for the combinations of each original row with each row of the table.
     /// (Also called the "Carthesian product")
-    ///
-    /// For convenience there is also [Table::join].
     pub fn join<T: Table<Schema = S>>(&mut self, _: T) -> Expr<'inner, S, T> {
         self.join_string(T::NAME.to_owned())
     }

@@ -31,7 +31,7 @@ pub fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a
             .unwrap();
 
         let Some(first_new_order) = txn.query_one(aggregate(|rows| {
-            let new_order = NewOrder::join(rows);
+            let new_order = rows.join(NewOrder);
             let order = new_order.order();
             rows.filter_on(order.customer().district(), district);
             rows.min(order.number())
@@ -40,7 +40,7 @@ pub fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a
         };
 
         let new_order = txn.query(|rows| {
-            let new_order = NewOrder::join(rows);
+            let new_order = rows.join(NewOrder);
             let order = new_order.order();
             rows.filter(order.customer().district().eq(district));
             rows.filter(order.number().eq(first_new_order));
@@ -58,7 +58,7 @@ pub fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a
 
         let mut total_amount = 0;
         for (line, amount) in txn.query(|rows| {
-            let ol = OrderLine::join(rows);
+            let ol = rows.join(OrderLine);
             rows.filter(ol.order().eq(new_order.order()));
             rows.into_vec((&ol, ol.amount()))
         }) {

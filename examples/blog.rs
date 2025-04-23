@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, LocalClient, Table, Transaction, TransactionMut, aggregate,
+    Database, LocalClient, Transaction, TransactionMut, aggregate,
     migration::{Config, schema},
 };
 
@@ -55,9 +55,9 @@ fn insert_data(txn: &mut TransactionMut<Schema>) {
 
 fn query_data(txn: &Transaction<Schema>) {
     let results = txn.query(|rows| {
-        let story = Story::join(rows);
+        let story = rows.join(Story);
         let avg_rating = aggregate(|rows| {
-            let rating = Rating::join(rows);
+            let rating = rows.join(Rating);
             rows.filter_on(rating.story(), &story);
             rows.avg(rating.stars().as_float())
         });

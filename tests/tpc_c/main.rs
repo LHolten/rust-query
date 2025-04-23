@@ -1,5 +1,5 @@
 use rand::{Rng, rngs::ThreadRng};
-use rust_query::{Select, Table, TableRow, Transaction, migration::schema};
+use rust_query::{Select, TableRow, Transaction, migration::schema};
 
 mod delivery;
 mod new_order;
@@ -153,7 +153,7 @@ impl<'a> CustomerIdent<'a> {
             CustomerIdent::Number(customer) => customer,
             CustomerIdent::Name(district, last_name) => {
                 let mut customers = txn.query(|rows| {
-                    let customer = Customer::join(rows);
+                    let customer = rows.join(Customer);
                     rows.filter(customer.district().eq(district));
                     rows.filter(customer.last().eq(last_name));
                     rows.into_vec((customer.first(), customer))

@@ -1,4 +1,4 @@
-use rust_query::{Database, LocalClient, Table, migration::schema};
+use rust_query::{Database, LocalClient, migration::schema};
 
 #[schema(Schema)]
 pub mod vN {
@@ -13,7 +13,7 @@ fn test(db: Database<Schema>) {
 
     let txn = client.transaction(&db);
     let name = txn.query(|rows| {
-        let item = MyTable::join(rows);
+        let item = rows.join(MyTable);
 
         txn.query_one(item.name())
     });

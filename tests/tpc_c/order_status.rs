@@ -19,10 +19,10 @@ pub fn order_status<'a>(
 ) -> OrderStatus<'a> {
     let customer = input.lookup_customer(txn);
     let last_order = txn.query(|rows| {
-        let order = Order::join(rows);
+        let order = rows.join(Order);
         rows.filter(order.customer().eq(customer));
         let max_number = rows.filter_some(aggregate(|rows| {
-            let order = Order::join(rows);
+            let order = rows.join(Order);
             rows.filter_on(order.customer(), customer);
             rows.max(order.number())
         }));
@@ -31,7 +31,7 @@ pub fn order_status<'a>(
     });
 
     let order_lines_info = txn.query(|rows| {
-        let order_line = OrderLine::join(rows);
+        let order_line = rows.join(OrderLine);
         rows.filter(order_line.order().eq(last_order));
         rows.into_vec(FromExpr::from_expr(order_line))
     });

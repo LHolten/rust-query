@@ -36,7 +36,7 @@ mod using_v0 {
 
     fn read_scores(txn: &Transaction<Schema>) -> Vec<Score> {
         txn.query(|rows| {
-            let m = Measurement::join(rows);
+            let m = rows.join(Measurement);
             rows.into_vec(ScoreSelect {
                 score: m.score(),
                 timestamp: m.timestamp(),
@@ -46,14 +46,14 @@ mod using_v0 {
 
     fn read_scores2(txn: &Transaction<Schema>) -> Vec<Score> {
         txn.query(|rows| {
-            let m = Measurement::join(rows);
+            let m = rows.join(Measurement);
             rows.into_vec(FromExpr::from_expr(m))
         })
     }
 
     fn read_scores3(txn: &Transaction<Schema>) -> Vec<Measurement!(score, timestamp)> {
         txn.query(|rows| {
-            let m = Measurement::join(rows);
+            let m = rows.join(Measurement);
             rows.into_vec(FromExpr::from_expr(m))
         })
     }
@@ -104,7 +104,7 @@ mod using_v1 {
         loc: TableRow<'t, Location>,
     ) -> Option<Info> {
         txn.query_one(aggregate(|rows| {
-            let m = Measurement::join(rows);
+            let m = rows.join(Measurement);
             rows.filter_on(m.location(), loc);
 
             optional(|row| {
