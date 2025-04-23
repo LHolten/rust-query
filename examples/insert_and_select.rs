@@ -1,5 +1,5 @@
 use rust_query::{
-    LocalClient, Table, TransactionMut,
+    LocalClient, TransactionMut,
     migration::{Config, schema},
 };
 
@@ -52,7 +52,7 @@ fn do_stuff_with_database(db: &mut TransactionMut<MySchema>) {
     let mike_pictures = db.query(|rows| {
         // Initially there is one empty row.
         // Lets join the pictures table.
-        let picture = Image::join(rows);
+        let picture = rows.join(Image);
         // Now lets filter for pictures from mike,
         rows.filter(picture.uploaded_by().eq(mike_id));
         // and finally turn the rows into a vec.

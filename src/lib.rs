@@ -146,6 +146,9 @@ pub trait Table: Sized + 'static {
     #[doc(hidden)]
     type Ext<T>: RefCast<From = T>;
 
+    #[doc(hidden)]
+    const TOKEN: Self;
+
     /// The schema that this table is a part of.
     type Schema;
 
@@ -155,7 +158,7 @@ pub trait Table: Sized + 'static {
 
     /// Please refer to [Rows::join].
     fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Expr<'inner, Self::Schema, Self> {
-        rows.join()
+        rows.join(Self::TOKEN)
     }
 
     /// The type of conflict that can result from inserting a row in this table.

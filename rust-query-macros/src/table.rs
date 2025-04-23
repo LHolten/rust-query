@@ -188,6 +188,11 @@ fn define_table(
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
 
+        #[allow(non_upper_case_globals)]
+        pub const #table_ident_with_span: #table_ident = #table_ident {#(
+            #col_ident: (),
+        )*};
+
         impl<#(#generic: ::rust_query::private::Apply),*> ::rust_query::private::Instantiate<#struct_id, (#(#generic),*)> for super::MacroRoot {
             type Out = (#table_ident<#(#generic),*>);
         }
@@ -250,6 +255,8 @@ fn define_table(
                 type MigrateFrom = #migrate_from;
                 type Ext<T> = #ext_ident<T>;
                 type Schema = #schema;
+
+                const TOKEN: Self = #table_ident;
 
                 fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
                     #(f.col::<#col_typ>(#col_str);)*

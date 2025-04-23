@@ -21,10 +21,13 @@ macro_rules! field {
 }
 
 macro_rules! table {
-    ($typ:ident, $dummy:ident, $var:pat => $name:expr) => {
+    ($typ:ident, $dummy:ident, $var:pat => $name:expr, $c:expr) => {
         impl Table for $typ {
             type MigrateFrom = Self;
             type Ext<T> = $dummy<T>;
+
+            const TOKEN: Self = $c;
+
             type Schema = Pragma;
             type Referer = ();
             fn get_referer_unchecked() -> Self::Referer {}
@@ -87,7 +90,7 @@ impl<'x> TableListSelect<Expr<'x, Pragma, TableList>> {
     field! {strict: i64}
 }
 
-table! {TableList, TableListSelect, _ => "pragma_table_list".to_owned()}
+table! {TableList, TableListSelect, _ => "pragma_table_list".to_owned(), TableList}
 
 struct TableInfo(pub String);
 
@@ -102,7 +105,7 @@ impl<'x> TableInfoSelect<Expr<'x, Pragma, TableInfo>> {
     field! {pk: i64}
 }
 
-table! {TableInfo, TableInfoSelect, val => format!("pragma_table_info('{}', 'main')", val.0)}
+table! {TableInfo, TableInfoSelect, val => format!("pragma_table_info('{}', 'main')", val.0), TableInfo(String::new())}
 
 struct ForeignKeyList(pub String);
 
@@ -117,7 +120,7 @@ impl<'x> ForeignKeyListSelect<Expr<'x, Pragma, ForeignKeyList>> {
     field! {to: String}
 }
 
-table! {ForeignKeyList, ForeignKeyListSelect, val => format!("pragma_foreign_key_list('{}', 'main')", val.0)}
+table! {ForeignKeyList, ForeignKeyListSelect, val => format!("pragma_foreign_key_list('{}', 'main')", val.0), ForeignKeyList(String::new())}
 
 struct IndexList(String);
 
@@ -132,7 +135,7 @@ impl<'x> IndexListSelect<Expr<'x, Pragma, IndexList>> {
     field! {partial: bool}
 }
 
-table! {IndexList, IndexListSelect, val => format!("pragma_index_list('{}', 'main')", val.0)}
+table! {IndexList, IndexListSelect, val => format!("pragma_index_list('{}', 'main')", val.0), IndexList(String::new())}
 
 struct IndexInfo(String);
 
@@ -144,7 +147,7 @@ impl<'x> IndexInfoSelect<Expr<'x, Pragma, IndexInfo>> {
     field! {name: Option<String>}
 }
 
-table! {IndexInfo, IndexInfoSelect, val => format!("pragma_index_info('{}', 'main')", val.0)}
+table! {IndexInfo, IndexInfoSelect, val => format!("pragma_index_info('{}', 'main')", val.0), IndexInfo(String::new())}
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     #[derive(Clone, FromExpr)]

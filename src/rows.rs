@@ -31,7 +31,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// For convenience there is also [Table::join].
-    pub fn join<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
+    pub fn join<T: Table<Schema = S>>(&mut self, _: T) -> Expr<'inner, S, T> {
         self.join_string(T::NAME.to_owned())
     }
 
