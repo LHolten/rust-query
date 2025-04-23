@@ -163,7 +163,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
                 v1::migrate::Track {
                     media_type: old.media_type.name,
                     composer_table: None,
-                    byte_price: old.unit_price as f64 / old.bytes as f64,
+                    byte_price: old.unit_price / old.bytes as f64,
                 }
             },
         ),

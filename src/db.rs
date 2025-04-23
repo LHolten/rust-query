@@ -51,7 +51,7 @@ pub struct TableRow<'t, T> {
     pub(crate) _local: PhantomData<LocalClient>,
     pub(crate) inner: TableRowInner<T>,
 }
-impl<'t, T> TableRow<'t, T> {
+impl<T> TableRow<'_, T> {
     pub(crate) fn new(idx: i64) -> Self {
         Self {
             _p: PhantomData,
@@ -64,15 +64,15 @@ impl<'t, T> TableRow<'t, T> {
     }
 }
 
-impl<'t, T> Eq for TableRow<'t, T> {}
+impl<T> Eq for TableRow<'_, T> {}
 
-impl<'t, T> PartialOrd for TableRow<'t, T> {
+impl<T> PartialOrd for TableRow<'_, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.inner.idx.partial_cmp(&other.inner.idx)
     }
 }
 
-impl<'t, T> Ord for TableRow<'t, T> {
+impl<T> Ord for TableRow<'_, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.idx.cmp(&other.inner.idx)
     }
@@ -83,7 +83,7 @@ pub(crate) struct TableRowInner<T> {
     pub(crate) idx: i64,
 }
 
-impl<'t, T> PartialEq for TableRow<'t, T> {
+impl<T> PartialEq for TableRow<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         self.inner.idx == other.inner.idx
     }
@@ -117,7 +117,7 @@ impl<T: Table> Deref for TableRow<'_, T> {
     }
 }
 
-impl<'t, T> From<TableRow<'t, T>> for sea_query::Value {
+impl<T> From<TableRow<'_, T>> for sea_query::Value {
     fn from(value: TableRow<T>) -> Self {
         value.inner.idx.into()
     }

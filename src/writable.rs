@@ -13,7 +13,7 @@ pub struct Update<'t, S, Typ> {
     inner: Box<dyn 't + Fn(Expr<'t, S, Typ>) -> Expr<'t, S, Typ>>,
 }
 
-impl<'t, S, Typ> Default for Update<'t, S, Typ> {
+impl<S, Typ> Default for Update<'_, S, Typ> {
     fn default() -> Self {
         Self {
             inner: Box::new(|x| x),
@@ -60,7 +60,7 @@ pub struct Reader<'t, S> {
     pub(crate) _p2: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
-impl<'t, S> Reader<'t, S> {
+impl<S> Reader<'_, S> {
     #[ref_cast_custom]
     pub(crate) fn new(select: &mut ValueBuilder) -> &mut Self;
 }

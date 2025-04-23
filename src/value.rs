@@ -414,7 +414,7 @@ pub struct Expr<'column, S, T> {
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'column, S, T> Debug for Expr<'column, S, T> {
+impl<S, T> Debug for Expr<'_, S, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Expr of type {}", std::any::type_name::<T>())
     }
@@ -483,12 +483,12 @@ impl<S, T: 'static> Expr<'_, S, T> {
     }
 }
 
-impl<'column, S, T> Clone for Expr<'column, S, T> {
+impl<S, T> Clone for Expr<'_, S, T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
-            _p: self._p.clone(),
-            _p2: self._p2.clone(),
+            _p: self._p,
+            _p2: self._p2,
         }
     }
 }
@@ -544,7 +544,7 @@ impl<'column, S, T: MyTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
     }
 }
 
-impl<'column, S, T: Table> Deref for Expr<'column, S, T> {
+impl<S, T: Table> Deref for Expr<'_, S, T> {
     type Target = T::Ext<Self>;
 
     fn deref(&self) -> &Self::Target {

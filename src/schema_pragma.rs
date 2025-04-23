@@ -55,7 +55,7 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn update_into_try_update<'t>(_val: Self::UpdateOk<'t>) -> Self::Update<'t> {
+            fn update_into_try_update(_val: Self::UpdateOk<'_>) -> Self::Update<'_> {
                 unreachable!()
             }
 

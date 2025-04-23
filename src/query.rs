@@ -19,7 +19,7 @@ pub struct Query<'outer, 'inner, S> {
     pub(crate) conn: &'inner rusqlite::Connection,
 }
 
-impl<'outer, 'inner, S> Deref for Query<'outer, 'inner, S> {
+impl<'inner, S> Deref for Query<'_, 'inner, S> {
     type Target = Rows<'inner, S>;
 
     fn deref(&self) -> &Self::Target {
@@ -27,7 +27,7 @@ impl<'outer, 'inner, S> Deref for Query<'outer, 'inner, S> {
     }
 }
 
-impl<'outer, 'inner, S> DerefMut for Query<'outer, 'inner, S> {
+impl<S> DerefMut for Query<'_, '_, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.q
     }

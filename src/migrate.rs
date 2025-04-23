@@ -297,7 +297,7 @@ impl LocalClient {
     /// Create a [Migrator] to migrate a database.
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.
-    pub fn migrator<'t, S: Schema>(&'t mut self, config: Config) -> Option<Migrator<'t, S>> {
+    pub fn migrator<S: Schema>(&mut self, config: Config) -> Option<Migrator<'_, S>> {
         use r2d2::ManageConnection;
         let conn = self.conn.insert(config.manager.connect().unwrap());
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();

@@ -34,7 +34,7 @@ fn main() {
     let raw_txn = txn.rusqlite_transaction();
     for id in ids {
         let name: String = raw_txn
-            .query_row("select name from Name where id = $1", &[&id], |row| {
+            .query_row("select name from Name where id = $1", [&id], |row| {
                 row.get(0)
             })
             .unwrap();

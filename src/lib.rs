@@ -185,7 +185,7 @@ pub trait Table: Sized + 'static {
     ) -> Self::Conflict<'t>;
 
     #[doc(hidden)]
-    fn update_into_try_update<'t>(val: Self::UpdateOk<'t>) -> Self::Update<'t>;
+    fn update_into_try_update(val: Self::UpdateOk<'_>) -> Self::Update<'_>;
 
     #[doc(hidden)]
     fn apply_try_update<'t>(

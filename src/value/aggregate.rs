@@ -23,7 +23,7 @@ pub struct Aggregate<'outer, 'inner, S> {
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
 }
 
-impl<'outer, 'inner, S> Deref for Aggregate<'outer, 'inner, S> {
+impl<'inner, S> Deref for Aggregate<'_, 'inner, S> {
     type Target = Rows<'inner, S>;
 
     fn deref(&self) -> &Self::Target {
@@ -31,7 +31,7 @@ impl<'outer, 'inner, S> Deref for Aggregate<'outer, 'inner, S> {
     }
 }
 
-impl<'outer, 'inner, S> DerefMut for Aggregate<'outer, 'inner, S> {
+impl<S> DerefMut for Aggregate<'_, '_, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.query
     }

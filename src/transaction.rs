@@ -102,11 +102,11 @@ impl<'t, S> Transaction<'t, S> {
     /// Execute a query with multiple results.
     ///
     /// ```
-    /// # use rust_query::{private::doctest::*, Table};
+    /// # use rust_query::{private::doctest::*};
     /// # let mut client = get_client();
     /// # let txn = get_txn(&mut client);
     /// let user_names = txn.query(|rows| {
-    ///     let user = User::join(rows);
+    ///     let user = rows.join(User);
     ///     rows.into_vec(user.name())
     /// });
     /// assert_eq!(user_names, vec!["Alice".to_owned()]);
@@ -305,7 +305,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
                 Err(T::get_conflict_unchecked(self, &val))
             }
-            Err(err) => Err(err).unwrap(),
+            Err(err) => panic!("{:?}", err),
         }
     }
 
@@ -387,7 +387,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
                 // Some foreign key constraint got violated
                 Err(T::get_referer_unchecked())
             }
-            Err(err) => Err(err).unwrap(),
+            Err(err) => panic!("{:?}", err),
         }
     }
 
@@ -466,6 +466,6 @@ pub fn try_insert_private<'t, T: Table>(
                 &val,
             ))
         }
-        Err(err) => Err(err).unwrap(),
+        Err(err) => panic!("{:?}", err),
     }
 }
