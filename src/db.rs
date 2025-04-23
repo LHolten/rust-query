@@ -68,7 +68,7 @@ impl<T> Eq for TableRow<'_, T> {}
 
 impl<T> PartialOrd for TableRow<'_, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.inner.idx.partial_cmp(&other.inner.idx)
+        Some(self.cmp(other))
     }
 }
 

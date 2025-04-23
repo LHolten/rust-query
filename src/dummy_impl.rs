@@ -283,7 +283,7 @@ where
     }
 }
 
-impl<'transaction, A, B> Prepared for (A, B)
+impl<A, B> Prepared for (A, B)
 where
     A: Prepared,
     B: Prepared,

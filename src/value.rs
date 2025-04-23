@@ -49,7 +49,7 @@ impl ValueBuilder {
         *self.extra.get_or_init(source, new_alias)
     }
 
-    pub fn get_unique<T: Table>(&mut self, conds: Vec<(&'static str, SimpleExpr)>) -> SimpleExpr {
+    pub fn get_unique<T: Table>(&mut self, conds: Box<[(&'static str, SimpleExpr)]>) -> SimpleExpr {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: conds.into_iter().map(|x| (Field::Str(x.0), x.1)).collect(),

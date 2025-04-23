@@ -106,13 +106,10 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Return the number of distinct values in a column.
-    pub fn count_distinct<T: 'static>(
+    pub fn count_distinct<T: EqTyp + 'static>(
         &self,
         val: impl IntoExpr<'inner, S, Typ = T>,
-    ) -> Expr<'outer, S, i64>
-    where
-        T: EqTyp,
-    {
+    ) -> Expr<'outer, S, i64> {
         let val = val.into_expr().inner;
         let val = self.select::<i64>(move |b| Func::count_distinct(val.build_expr(b)).into());
         Expr::adhoc(move |b| {

@@ -51,8 +51,6 @@ pub fn wrap(parts: &[impl ToTokens]) -> TokenStream {
 }
 
 pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
-    let transaction_lt = None;
-
     let CommonInfo {
         name,
         original_generics,
@@ -60,12 +58,9 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     } = CommonInfo::from_item(item)?;
     let dummy_name = format_ident!("{name}Select");
 
+    let transaction_lt = syn::Lifetime::new("'_a", Span::mixed_site());
     let mut original_plus_transaction = original_generics.clone();
-    let builtin_lt = syn::Lifetime::new("'_a", Span::mixed_site());
-    if transaction_lt.is_none() {
-        original_plus_transaction.push(builtin_lt.clone());
-    }
-    let transaction_lt = transaction_lt.unwrap_or(builtin_lt);
+    original_plus_transaction.push(transaction_lt.clone());
 
     let mut defs = vec![];
     let mut generics = vec![];

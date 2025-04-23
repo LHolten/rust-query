@@ -98,9 +98,9 @@ fn define_table(
                     #(
                         let #col = ::rust_query::private::Typed::build_expr(&#col, _b);
                     )*
-                    _b.get_unique::<#table_ident>(vec![#(
+                    _b.get_unique::<#table_ident>(Box::new([#(
                         (#col_str, #col),
-                    )*])
+                    )*]))
                 })
             }
         });
@@ -166,7 +166,7 @@ fn define_table(
     let macro_ident = format_ident!("{}Macro", table_ident);
 
     let (referer, referer_expr) = if table.referenceable {
-        (quote! {()}, quote! {()})
+        (quote! {()}, quote! {})
     } else {
         (quote! {::std::convert::Infallible}, quote! {unreachable!()})
     };
@@ -283,7 +283,7 @@ fn define_table(
                     #conflict_dummy_insert
                 }
 
-                fn update_into_try_update<'t>(val: Self::UpdateOk<'t>) -> Self::Update<'t> {
+                fn update_into_try_update(val: Self::UpdateOk<'_>) -> Self::Update<'_> {
                     #table_ident {#(
                         #col_ident: #try_from_update,
                     )*}
