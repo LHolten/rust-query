@@ -13,14 +13,14 @@ use crate::{
 /// It can only be used in the query where it was created.
 /// Invariant in `'t`.
 pub(crate) struct Join<T> {
-    pub(crate) table: MyAlias,
+    pub(crate) table_idx: usize,
     pub(crate) _p: PhantomData<T>,
 }
 
 impl<T> Join<T> {
-    pub(crate) fn new(table: MyAlias) -> Self {
+    pub(crate) fn new(table_idx: usize) -> Self {
         Self {
-            table,
+            table_idx,
             _p: PhantomData,
         }
     }
@@ -31,8 +31,8 @@ impl<T: Table> Typed for Join<T> {
     fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
         sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
-    fn build_table(&self, _: &mut ValueBuilder) -> MyAlias {
-        self.table
+    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
+        b.get_table(self.table_idx)
     }
 }
 

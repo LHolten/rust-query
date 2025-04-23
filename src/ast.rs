@@ -3,20 +3,23 @@ use std::rc::Rc;
 use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
 
 use crate::{
-    alias::{Field, MyAlias, RawAlias},
+    alias::{Field, RawAlias, Scope},
     value::{DynTyped, DynTypedExpr, Typed, ValueBuilder},
 };
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MySelect {
-    // contains implicit joins etc necessary for the filters below
-    pub(crate) builder: ValueBuilder,
     // tables to join, adding more requires mutating
-    pub(super) tables: Vec<(String, MyAlias)>,
+    pub(super) tables: Vec<String>,
     // all conditions to check
     pub(super) filters: Vec<DynTyped<bool>>,
     // values that must be returned/ filtered on
-    pub(super) filter_on: Vec<(DynTypedExpr, MyAlias)>,
+    pub(super) filter_on: Vec<DynTypedExpr>,
+}
+
+pub struct FullSelect {
+    pub(crate) from: Rc<MySelect>,
+    pub(crate) builder: ValueBuilder,
 }
 
 #[derive(PartialEq, Clone)]
@@ -43,47 +46,58 @@ impl PartialEq for SourceKind {
 }
 
 impl MySelect {
-    pub fn simple(&self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<Field>) {
+    pub fn full(self) -> FullSelect {
+        FullSelect {
+            builder: ValueBuilder {
+                scope: Scope::create(self.tables.len(), self.filter_on.len()),
+                extra: Default::default(),
+                select: Default::default(),
+            },
+            from: Rc::new(self),
+        }
+    }
+}
+
+impl FullSelect {
+    pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<Field>) {
         self.build_select(false, select)
     }
 
     pub fn build_select(
-        &self,
+        &mut self,
         must_group: bool,
         select_out: Vec<DynTypedExpr>,
     ) -> (SelectStatement, Vec<Field>) {
         let mut select = SelectStatement::new();
 
-        let mut builder = ValueBuilder {
-            scope: self.builder.scope.tmp_copy(),
-            extra: self.builder.extra.clone(),
-            select: self.builder.select.clone(),
-        };
-        let out_fields = builder.cache(select_out);
+        let out_fields = self.builder.cache(select_out);
 
+        // this stuff adds more to the self.builder.extra list
         let filters: Vec<_> = self
+            .from
             .filters
             .iter()
-            .map(|x| x.build_expr(&mut builder))
+            .map(|x| x.build_expr(&mut self.builder))
             .collect();
         let filter_on: Vec<_> = self
+            .from
             .filter_on
             .iter()
-            .map(|(a, b)| ((a.0)(&mut builder), b))
+            .map(|val| (val.0)(&mut self.builder))
             .collect();
 
         let mut any_from = false;
-        for (table, alias) in &self.tables {
+        for (idx, table) in self.from.tables.iter().enumerate() {
             let tbl_ref = (Alias::new("main"), RawAlias(table.clone()));
-            select.from_as(tbl_ref, *alias);
-            any_from = true
+            select.from_as(tbl_ref, self.builder.get_table(idx));
+            any_from = true;
         }
 
         if !any_from {
             select.from_values([1], NullAlias);
         }
 
-        for (source, table_alias) in builder.extra.iter() {
+        for (source, table_alias) in self.builder.extra.iter() {
             let mut cond = Condition::all();
             for (field, outer_value) in &source.conds {
                 let id_field = Expr::expr(outer_value.clone());
@@ -111,8 +125,8 @@ impl MySelect {
 
         let mut any_expr = false;
         let mut any_group = false;
-        for (group, alias) in filter_on {
-            select.expr_as(group.clone(), *alias);
+        for (idx, group) in filter_on.into_iter().enumerate() {
+            select.expr_as(group.clone(), self.builder.get_filter_on(idx));
             any_expr = true;
 
             // for some reason i can not use the column alias here
@@ -120,7 +134,7 @@ impl MySelect {
             any_group = true;
         }
 
-        for (aggr, alias) in &*builder.select {
+        for (aggr, alias) in &*self.builder.select {
             select.expr_as(aggr.clone(), *alias);
             any_expr = true;
         }

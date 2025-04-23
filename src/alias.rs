@@ -28,9 +28,9 @@ impl Scope {
         Field::U64(self.new_alias())
     }
 
-    pub fn tmp_copy(&self) -> Self {
+    pub fn create(num_tables: usize, num_filter_on: usize) -> Self {
         Self {
-            iden_num: AtomicU64::new(self.iden_num.load(Ordering::Relaxed)),
+            iden_num: AtomicU64::new(num_tables.max(num_filter_on) as u64),
         }
     }
 }
@@ -38,6 +38,12 @@ impl Scope {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MyAlias {
     name: u64,
+}
+
+impl MyAlias {
+    pub fn new(idx: usize) -> Self {
+        Self { name: idx as u64 }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

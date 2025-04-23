@@ -27,14 +27,14 @@ pub struct ValueBuilder {
 }
 
 impl ValueBuilder {
-    pub(crate) fn get_aggr(
-        &mut self,
-        aggr: SelectStatement,
-        conds: Vec<(Field, SimpleExpr)>,
-    ) -> MyAlias {
+    pub(crate) fn get_aggr(&mut self, aggr: SelectStatement, conds: Vec<SimpleExpr>) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Aggregate(Rc::new(aggr)),
-            conds,
+            conds: conds
+                .into_iter()
+                .enumerate()
+                .map(|(idx, expr)| (Field::U64(MyAlias::new(idx)), expr))
+                .collect(),
         };
         let new_alias = || self.scope.new_alias();
         *self.extra.get_or_init(source, new_alias)
@@ -58,6 +58,14 @@ impl ValueBuilder {
         let new_alias = || self.scope.new_alias();
         let table = self.extra.get_or_init(source, new_alias);
         sea_query::Expr::col((*table, Alias::new(T::ID))).into()
+    }
+
+    pub fn get_table(&mut self, idx: usize) -> MyAlias {
+        MyAlias::new(idx)
+    }
+
+    pub fn get_filter_on(&mut self, idx: usize) -> MyAlias {
+        MyAlias::new(idx)
     }
 
     pub fn cache(&mut self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {

@@ -32,23 +32,23 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// For convenience there is also [Table::join].
     pub fn join<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
-        let alias = self.ast.builder.scope.new_alias();
-        self.ast.tables.push((T::NAME.to_owned(), alias));
-        Expr::new(Join::new(alias))
+        let table_idx = self.ast.tables.len();
+        self.ast.tables.push(T::NAME.to_owned());
+        Expr::new(Join::new(table_idx))
     }
 
     pub(crate) fn join_custom<T: Table<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
-        let alias = self.ast.builder.scope.new_alias();
-        self.ast.tables.push((t.name(), alias));
-        Expr::new(Join::new(alias))
+        let table_idx = self.ast.tables.len();
+        self.ast.tables.push(t.name());
+        Expr::new(Join::new(table_idx))
     }
 
     pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
         let mut tmp_string = String::new();
         tmp.unquoted(&mut tmp_string);
-        let alias = self.ast.builder.scope.new_alias();
-        self.ast.tables.push((tmp_string, alias));
-        Expr::new(Join::new(alias))
+        let table_idx = self.ast.tables.len();
+        self.ast.tables.push(tmp_string);
+        Expr::new(Join::new(table_idx))
     }
 
     // Join a vector of values.

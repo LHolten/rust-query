@@ -258,12 +258,12 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         row: impl IntoExpr<'t, S, Typ = T>,
         val: T::Update<'t>,
     ) -> Result<(), T::Conflict<'t>> {
-        let mut id = MySelect::default();
+        let mut id = MySelect::default().full();
         Reader::new(&mut id.builder).col(T::ID, &row);
         let (id, _) = id.build_select(false, vec![]);
 
         let val = T::apply_try_update(val, row.into_expr());
-        let mut ast = MySelect::default();
+        let mut ast = MySelect::default().full();
         T::read(&val, Reader::new(&mut ast.builder));
 
         let (select, _) = ast.build_select(false, vec![]);
@@ -431,7 +431,7 @@ pub fn try_insert_private<'t, T: Table>(
     idx: Option<i64>,
     val: T::Insert<'t>,
 ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-    let mut ast = MySelect::default();
+    let mut ast = MySelect::default().full();
     let reader = Reader::new(&mut ast.builder);
     T::read(&val, reader);
     if let Some(idx) = idx {
