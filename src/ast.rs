@@ -16,7 +16,7 @@ pub struct MySelect {
     // all conditions to check
     pub(super) filters: Vec<DynTyped<bool>>,
     // values that must be returned/ filtered on
-    pub(super) filter_on: Vec<(SimpleExpr, MyAlias)>,
+    pub(super) filter_on: Vec<(DynTypedExpr, MyAlias)>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -66,6 +66,11 @@ impl MySelect {
             .iter()
             .map(|x| x.build_expr(&mut builder))
             .collect();
+        let filter_on: Vec<_> = self
+            .filter_on
+            .iter()
+            .map(|(a, b)| ((a.0)(&mut builder), b))
+            .collect();
 
         let mut any_from = false;
         for (table, alias) in &self.tables {
@@ -100,21 +105,22 @@ impl MySelect {
             }
         }
 
-        for filter in &filters {
-            select.and_where(filter.clone());
+        for filter in filters {
+            select.and_where(filter);
         }
 
         let mut any_expr = false;
         let mut any_group = false;
-        for (group, alias) in &self.filter_on {
+        for (group, alias) in filter_on {
             select.expr_as(group.clone(), *alias);
             any_expr = true;
 
-            select.add_group_by([group.clone()]);
+            // for some reason i can not use the column alias here
+            select.add_group_by([group]);
             any_group = true;
         }
 
-        for (aggr, alias) in builder.select.iter() {
+        for (aggr, alias) in &*builder.select {
             select.expr_as(aggr.clone(), *alias);
             any_expr = true;
         }

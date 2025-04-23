@@ -20,7 +20,7 @@ use super::DynTypedExpr;
 /// This is the argument type used for [aggregate].
 pub struct Aggregate<'outer, 'inner, S> {
     // pub(crate) outer_ast: &'inner MySelect,
-    pub(crate) conds: Vec<(Field, Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>)>,
+    pub(crate) conds: Vec<(Field, DynTypedExpr)>,
     pub(crate) query: Rows<'inner, S>,
     // pub(crate) table: MyAlias,
     pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
@@ -45,7 +45,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         &self,
         expr: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
     ) -> Aggr<S, Option<T>> {
-        let expr = DynTypedExpr(Box::new(expr));
+        let expr = DynTypedExpr(Rc::new(expr));
         let (select, mut fields) = self.query.ast.build_select(true, vec![expr]);
         Aggr {
             _p2: PhantomData,
@@ -67,10 +67,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let on = on.into_expr().inner;
         let val = val.into_expr().inner;
         let alias = self.ast.builder.scope.new_alias();
-        self.conds
-            .push((Field::U64(alias), Rc::new(move |b| on.build_expr(b))));
-        let val = val.build_expr(&mut self.ast.builder);
-        self.ast.filter_on.push((val, alias))
+        self.conds.push((Field::U64(alias), on.erase()));
+        self.ast.filter_on.push((val.erase(), alias))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
@@ -137,7 +135,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 pub struct Aggr<S, T> {
     pub(crate) _p2: PhantomData<(S, T)>,
     pub(crate) select: SelectStatement,
-    pub(crate) conds: Vec<(Field, Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>)>,
+    pub(crate) conds: Vec<(Field, DynTypedExpr)>,
     pub(crate) field: Field,
 }
 
@@ -164,7 +162,7 @@ impl<S, T> Aggr<S, T> {
         let conds = self
             .conds
             .iter()
-            .map(|(field, expr)| (*field, expr(b)))
+            .map(|(field, expr)| (*field, (expr.0)(b)))
             .collect();
         b.get_aggr(self.select.clone(), conds)
     }

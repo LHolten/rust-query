@@ -505,11 +505,12 @@ impl<'column, S, T: 'static> Typed for Expr<'column, S, T> {
     }
 }
 
-pub struct DynTypedExpr(pub(crate) Box<dyn Fn(&mut ValueBuilder) -> SimpleExpr>);
+#[derive(Clone)]
+pub struct DynTypedExpr(pub(crate) Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>);
 
 impl<Typ: 'static> DynTyped<Typ> {
     pub fn erase(self) -> DynTypedExpr {
-        DynTypedExpr(Box::new(move |b| self.build_expr(b)))
+        DynTypedExpr(Rc::new(move |b| self.build_expr(b)))
     }
 }
 

@@ -257,7 +257,7 @@ pub fn schema(
 ///     beta: f64,
 /// }
 ///
-/// pub fn do_query(db: &Transaction<Schema>) -> Vec<MyData> {
+/// fn do_query(db: &Transaction<Schema>) -> Vec<MyData> {
 ///     db.query(|rows| {
 ///         let thing = Thing::join(rows);
 ///
