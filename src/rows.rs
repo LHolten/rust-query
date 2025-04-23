@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sea_query::{Iden, SimpleExpr};
+use sea_query::Iden;
 
 use crate::{
     Expr, Table,
@@ -58,13 +58,8 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on a column.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
-        let prop = prop.into_expr().inner;
-        let prop = prop.build_expr(&mut self.ast.builder);
-        self.filter_private(prop);
-    }
-
-    fn filter_private(&mut self, prop: SimpleExpr) {
-        self.ast.filters.push(prop);
+        let prop = prop.into_expr();
+        self.ast.filters.push(prop.inner);
     }
 
     /// Filter out rows where this column is [None].
@@ -74,10 +69,9 @@ impl<'inner, S> Rows<'inner, S> {
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
-        let val = val.into_expr().inner;
-        let expr = val.build_expr(&mut self.ast.builder);
-        self.filter_private(sea_query::Expr::expr(expr).is_not_null());
+        let val = val.into_expr();
+        self.ast.filters.push(val.is_some().inner);
 
-        Expr::adhoc(move |b| val.build_expr(b))
+        Expr::adhoc(move |b| val.inner.build_expr(b))
     }
 }

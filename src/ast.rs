@@ -4,7 +4,7 @@ use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, Si
 
 use crate::{
     alias::{Field, MyAlias, RawAlias},
-    value::{DynTypedExpr, ValueBuilder},
+    value::{DynTyped, DynTypedExpr, Typed, ValueBuilder},
 };
 
 #[derive(Default)]
@@ -14,7 +14,7 @@ pub struct MySelect {
     // tables to join, adding more requires mutating
     pub(super) tables: Vec<(String, MyAlias)>,
     // all conditions to check
-    pub(super) filters: Vec<SimpleExpr>,
+    pub(super) filters: Vec<DynTyped<bool>>,
     // values that must be returned/ filtered on
     pub(super) filter_on: Vec<(SimpleExpr, MyAlias)>,
 }
@@ -61,6 +61,12 @@ impl MySelect {
         };
         let out_fields = builder.cache(select_out);
 
+        let filters: Vec<_> = self
+            .filters
+            .iter()
+            .map(|x| x.build_expr(&mut builder))
+            .collect();
+
         let mut any_from = false;
         for (table, alias) in &self.tables {
             let tbl_ref = (Alias::new("main"), RawAlias(table.clone()));
@@ -94,7 +100,7 @@ impl MySelect {
             }
         }
 
-        for filter in &self.filters {
+        for filter in &filters {
             select.and_where(filter.clone());
         }
 
