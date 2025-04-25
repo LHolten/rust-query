@@ -71,9 +71,15 @@ impl FullSelect {
     ) -> (SelectStatement, Vec<Field>) {
         let mut select = SelectStatement::new();
 
-        let out_fields = self.builder.cache(select_out);
-
         // this stuff adds more to the self.builder.extra list
+        let out_fields = select_out
+            .into_iter()
+            .map(|val| {
+                let expr = (val.0)(&mut self.builder);
+                let new_field = || self.builder.scope.new_field();
+                *self.builder.select.get_or_init(expr, new_field)
+            })
+            .collect();
         let filters: Vec<_> = self
             .from
             .filters

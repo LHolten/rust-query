@@ -63,17 +63,6 @@ impl ValueBuilder {
     pub fn get_table(&mut self, idx: usize) -> MyAlias {
         MyAlias::new(idx)
     }
-
-    pub fn cache(&mut self, exprs: impl IntoIterator<Item = DynTypedExpr>) -> Vec<Field> {
-        exprs
-            .into_iter()
-            .map(|val| {
-                let expr = (val.0)(self);
-                let new_field = || self.scope.new_field();
-                *self.select.get_or_init(expr, new_field)
-            })
-            .collect()
-    }
 }
 
 pub trait NumTyp: MyTyp + Clone + Copy {
