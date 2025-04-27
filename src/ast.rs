@@ -130,8 +130,10 @@ impl FullSelect {
             select.expr_as(group.clone(), MyAlias::new(idx));
             any_expr = true;
 
-            // for some reason i can not use the column alias here
-            select.add_group_by([group]);
+            // this constant refers to the 1 indexed output column.
+            // should work on postgresql and sqlite.
+            let constant = SimpleExpr::Constant(sea_query::Value::BigInt(Some((idx + 1) as i64)));
+            select.add_group_by([constant]);
             any_group = true;
         }
 
