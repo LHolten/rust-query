@@ -2,6 +2,9 @@
 
 - Update the `Rows::join` method to take a constant argument.
 This is now the prefered join syntax and all examples have been updated.
+- Allow arbitrary correlated subqueries.
+This means that `Aggregate` now has an implied bound that allows leaking `Expr` from the
+out scope. Correlated subqueries are decorrelated before translating to SQL.
 
 # 0.4.1
 
@@ -74,7 +77,7 @@ Blog post: https://blog.lucasholten.com/rust-query-0-4/
 
 # 0.2.2
 
-- Bound the lifetime of `TableRow: IntoColumn` to the lifetime of the transaction. 
+- Bound the lifetime of `TableRow: IntoColumn` to the lifetime of the transaction.
 Without the bound it was possible to sneak `TableRow`s into following transacions. <details>
 `query_one` now checks that its input lives for as long as the transaction.
 To make sure that `query_one` still checks that the dummy is "global", the transaction now has an invariant lifetime.
@@ -83,7 +86,7 @@ To make sure that `query_one` still checks that the dummy is "global", the trans
 # 0.2.1
 
 - Relax `Transaction` creation to not borrow the `Database`.
-- Add missing lifetime bound on `try_insert`s return value. 
+- Add missing lifetime bound on `try_insert`s return value.
 Technically this is a breaking change, but it fixes a bug so it is still a patch release.
 - Fix the version of the macro crate exactly (=0.2.0) to allow future internal API changes with only a patch release.
 
