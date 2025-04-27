@@ -25,6 +25,7 @@ pub struct ValueBuilder {
     pub(super) extra: MyMap<Source, MyAlias>,
     // calculating these results
     pub(super) select: MyMap<SimpleExpr, Field>,
+    pub(super) forwarded: MyMap<MyTableRef, &'static str>,
 }
 
 impl ValueBuilder {
@@ -61,8 +62,25 @@ impl ValueBuilder {
         sea_query::Expr::col((*table, Alias::new(T::ID))).into()
     }
 
-    pub fn get_table(&mut self, idx: usize) -> MyAlias {
+    pub fn get_table<T: Table>(&mut self, table: MyTableRef) -> MyAlias {
+        let idx = if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
+            table.idx
+        } else {
+            self.forwarded.pos_or_init(table.clone(), || T::NAME)
+        };
         MyAlias::new(idx)
+    }
+}
+
+#[derive(Clone)]
+pub struct MyTableRef {
+    pub(crate) scope_rc: Rc<()>,
+    pub(crate) idx: usize,
+}
+
+impl PartialEq for MyTableRef {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.scope_rc, &other.scope_rc) && self.idx == other.idx
     }
 }
 
@@ -486,6 +504,12 @@ impl<S, T> Clone for Expr<'_, S, T> {
 #[derive(Clone)]
 pub struct DynTypedExpr(pub(crate) Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>);
 
+impl DynTypedExpr {
+    pub fn new(f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr) -> Self {
+        Self(Rc::new(f))
+    }
+}
+
 impl<Typ: 'static> DynTyped<Typ> {
     pub fn erase(self) -> DynTypedExpr {
         DynTypedExpr(Rc::new(move |b| self.build_expr(b)))
@@ -505,6 +529,12 @@ impl<Typ> Typed for MigratedExpr<Typ> {
 }
 
 pub struct DynTyped<Typ>(pub(crate) Rc<dyn Typed<Typ = Typ>>);
+
+impl<Typ> DynTyped<Typ> {
+    pub fn new(val: impl 'static + Typed<Typ = Typ>) -> Self {
+        Self(Rc::new(val))
+    }
+}
 
 impl<T> Clone for DynTyped<T> {
     fn clone(&self) -> Self {

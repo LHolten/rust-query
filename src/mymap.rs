@@ -6,12 +6,18 @@ pub struct MyMap<K, V> {
 }
 
 impl<K: PartialEq, V> MyMap<K, V> {
-    pub fn get_or_init(&mut self, k: K, f: impl FnOnce() -> V) -> &V {
+    pub fn pos_or_init(&mut self, k: K, f: impl FnOnce() -> V) -> usize {
         if let Some(res) = self.inner.iter().position(|x| x.0 == k) {
-            return &self.inner[res].1;
+            return res;
         }
+        let len = self.inner.len();
         self.inner.push((k, f()));
-        &self.inner.last().unwrap().1
+        len
+    }
+
+    pub fn get_or_init(&mut self, k: K, f: impl FnOnce() -> V) -> &V {
+        let idx = self.pos_or_init(k, f);
+        &self.inner[idx].1
     }
 }
 

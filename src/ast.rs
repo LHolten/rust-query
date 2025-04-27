@@ -9,6 +9,8 @@ use crate::{
 
 #[derive(Default, Clone)]
 pub struct MySelect {
+    // this is used to check which `MySelect` a table is from
+    pub(crate) scope_rc: Rc<()>,
     // tables to join, adding more requires mutating
     pub(super) tables: Vec<String>,
     // all conditions to check
@@ -47,6 +49,7 @@ impl MySelect {
             extra: Default::default(),
             select: Default::default(),
             from: self,
+            forwarded: Default::default(),
         }
     }
 }
@@ -79,7 +82,7 @@ impl ValueBuilder {
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
             let tbl_ref = (Alias::new("main"), RawAlias(table.clone()));
-            select.from_as(tbl_ref, self.get_table(idx));
+            select.from_as(tbl_ref, MyAlias::new(idx));
             any_from = true;
         }
 

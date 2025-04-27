@@ -7,7 +7,7 @@ use crate::{
     alias::TmpTable,
     ast::MySelect,
     db::Join,
-    value::{IntoExpr, Typed},
+    value::{IntoExpr, MyTableRef, Typed},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -46,7 +46,10 @@ impl<'inner, S> Rows<'inner, S> {
     fn join_string<T: Table<Schema = S>>(&mut self, name: String) -> Expr<'inner, S, T> {
         let table_idx = self.ast.tables.len();
         Rc::make_mut(&mut self.ast).tables.push(name);
-        Expr::new(Join::new(table_idx))
+        Expr::new(Join::new(MyTableRef {
+            scope_rc: self.ast.scope_rc.clone(),
+            idx: table_idx,
+        }))
     }
 
     // Join a vector of values.

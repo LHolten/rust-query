@@ -6,19 +6,19 @@ use sea_query::{Alias, SimpleExpr};
 use crate::{
     Expr, IntoExpr, LocalClient, Table,
     alias::MyAlias,
-    value::{Typed, ValueBuilder},
+    value::{MyTableRef, Typed, ValueBuilder},
 };
 
 /// Table reference that is the result of a join.
 /// It can only be used in the query where it was created.
 /// Invariant in `'t`.
 pub(crate) struct Join<T> {
-    pub(crate) table_idx: usize,
+    pub(crate) table_idx: MyTableRef,
     pub(crate) _p: PhantomData<T>,
 }
 
 impl<T> Join<T> {
-    pub(crate) fn new(table_idx: usize) -> Self {
+    pub(crate) fn new(table_idx: MyTableRef) -> Self {
         Self {
             table_idx,
             _p: PhantomData,
@@ -32,7 +32,7 @@ impl<T: Table> Typed for Join<T> {
         sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
-        b.get_table(self.table_idx)
+        b.get_table::<T>(self.table_idx.clone())
     }
 }
 
