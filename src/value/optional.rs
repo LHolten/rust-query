@@ -53,7 +53,7 @@ pub fn optional<'outer, S, R>(
 /// Finally it is possible to return selections or expressions using [Optional::then] and [Optional::then_expr].
 pub struct Optional<'outer, 'inner, S> {
     nulls: Vec<DynTyped<bool>>,
-    _p: PhantomData<&'inner &'outer ()>,
+    _p: PhantomData<fn(&'inner ()) -> &'inner &'outer ()>,
     _p2: PhantomData<S>,
 }
 

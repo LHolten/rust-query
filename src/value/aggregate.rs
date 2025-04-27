@@ -20,7 +20,7 @@ use super::DynTypedExpr;
 pub struct Aggregate<'outer, 'inner, S> {
     pub(crate) conds: Vec<DynTypedExpr>,
     pub(crate) query: Rows<'inner, S>,
-    pub(crate) phantom2: PhantomData<fn(&'outer ()) -> &'outer ()>,
+    _p: PhantomData<&'inner &'outer ()>,
 }
 
 impl<'inner, S> Deref for Aggregate<'_, 'inner, S> {
@@ -63,13 +63,14 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Filter the rows of this sub-query based on a value from the outer query.
+    #[deprecated = "Please use `Aggregate::filter` instead"]
     pub fn filter_on<T: EqTyp + 'static>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = T>,
         on: impl IntoExpr<'outer, S, Typ = T>,
     ) {
-        let on = on.into_expr().inner;
-        self.filter(val.into_expr().eq(Expr::new(on)))
+        let on = on.into_expr();
+        self.filter(val.into_expr().eq(on))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
@@ -198,7 +199,7 @@ where
     let mut group = Aggregate {
         conds: Vec::new(),
         query: inner,
-        phantom2: PhantomData,
+        _p: PhantomData,
     };
     f(&mut group)
 }

@@ -33,7 +33,7 @@ pub fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a
         let Some(first_new_order) = txn.query_one(aggregate(|rows| {
             let new_order = rows.join(NewOrder);
             let order = new_order.order();
-            rows.filter_on(order.customer().district(), district);
+            rows.filter(order.customer().district().eq(district));
             rows.min(order.number())
         })) else {
             continue;

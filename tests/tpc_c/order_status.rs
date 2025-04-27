@@ -23,7 +23,7 @@ pub fn order_status<'a>(
         rows.filter(order.customer().eq(customer));
         let max_number = rows.filter_some(aggregate(|rows| {
             let order = rows.join(Order);
-            rows.filter_on(order.customer(), customer);
+            rows.filter(order.customer().eq(customer));
             rows.max(order.number())
         }));
         rows.filter(order.number().eq(max_number));

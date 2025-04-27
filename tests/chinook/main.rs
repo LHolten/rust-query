@@ -99,7 +99,7 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
         let pl = rows.join(Playlist);
         let track_count = aggregate(|rows| {
             let plt = rows.join(PlaylistTrack);
-            rows.filter_on(plt.playlist(), &pl);
+            rows.filter(plt.playlist().eq(&pl));
             rows.count_distinct(plt)
         });
 
@@ -115,11 +115,11 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
         let artist = rows.join(Artist);
         let avg_track_count = aggregate(|rows| {
             let album = rows.join(Album);
-            rows.filter_on(album.artist(), &artist);
+            rows.filter(album.artist().eq(&artist));
 
             let track_count = aggregate(|rows| {
                 let track = rows.join(Track);
-                rows.filter_on(track.album(), album);
+                rows.filter(track.album().eq(album));
 
                 rows.count_distinct(track)
             });
@@ -136,7 +136,7 @@ fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
             let reporter = rows.join(Employee);
             // only count employees that report to someone
             let reports_to = rows.filter_some(reporter.reports_to());
-            rows.filter_on(reports_to, &receiver);
+            rows.filter(reports_to.eq(&receiver));
             rows.count_distinct(reporter)
         });
 
@@ -190,7 +190,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         let genre = rows.join(Genre);
         let (bytes, milis) = aggregate(|rows| {
             let track = rows.join(Track);
-            rows.filter_on(track.genre(), &genre);
+            rows.filter(track.genre().eq(&genre));
             (
                 rows.avg(track.bytes().as_float()),
                 rows.avg(track.milliseconds().as_float()),
@@ -225,9 +225,10 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
 fn customer_spending<'t>(
     customer: impl IntoExpr<'t, Schema, Typ = Customer>,
 ) -> Expr<'t, Schema, f64> {
+    let customer = customer.into_expr();
     aggregate(|rows| {
         let invoice = rows.join(Invoice);
-        rows.filter_on(invoice.customer(), customer);
+        rows.filter(invoice.customer().eq(customer));
         rows.sum(invoice.total())
     })
 }
@@ -267,12 +268,12 @@ fn artist_details<'a>(db: &Transaction<'a, Schema>, artist: TableRow<'a, Artist>
         name: artist.name(),
         album_count: aggregate(|rows| {
             let album = rows.join(Album);
-            rows.filter_on(album.artist(), artist);
+            rows.filter(album.artist().eq(&artist));
             rows.count_distinct(album)
         }),
         track_stats: aggregate(|rows| {
             let track = rows.join(Track);
-            rows.filter_on(track.album().artist(), artist);
+            rows.filter(track.album().artist().eq(artist));
             TrackStatsSelect {
                 avg_len_milis: rows.avg(track.milliseconds().as_float()),
                 max_len_milis: rows.max(track.milliseconds()),
