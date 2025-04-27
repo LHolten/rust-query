@@ -1,4 +1,4 @@
-use std::{convert::Infallible, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{convert::Infallible, iter::zip, marker::PhantomData, ops::Deref, rc::Rc};
 
 use rusqlite::ErrorCode;
 use sea_query::{
@@ -263,17 +263,18 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         val: T::Update<'t>,
     ) -> Result<(), T::Conflict<'t>> {
         let mut id = ValueBuilder::default();
-        Reader::new(&mut id).col(T::ID, &row);
-        let (id, _) = id.build_select(false, vec![]);
+        let row = row.into_expr();
+        let (id, _) = id.simple_one(row.inner.clone().erase());
 
-        let val = T::apply_try_update(val, row.into_expr());
-        let mut ast = ValueBuilder::default();
-        T::read(&val, Reader::new(&mut ast));
+        let val = T::apply_try_update(val, row);
+        let mut reader = Reader::default();
+        T::read(&val, &mut reader);
+        let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
 
-        let (select, _) = ast.build_select(false, vec![]);
+        let (select, col_fields) = ValueBuilder::default().simple(col_exprs);
         let cte = CommonTableExpression::new()
             .query(select)
-            .columns(ast.select.iter().map(|x| x.1))
+            .columns(col_fields.clone())
             .table_name(Alias::new("cte"))
             .to_owned();
         let with_clause = WithClause::new().cte(cte).to_owned();
@@ -286,16 +287,16 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             )
             .to_owned();
 
-        for (_, col) in ast.select.iter() {
+        for (name, field) in zip(col_names, col_fields) {
             let select = SelectStatement::new()
                 .from(Alias::new("cte"))
-                .column(*col)
+                .column(field)
                 .to_owned();
             let value = SimpleExpr::SubQuery(
                 None,
                 Box::new(sea_query::SubQueryStatement::SelectStatement(select)),
             );
-            update.value(*col, value);
+            update.value(Alias::new(name), value);
         }
 
         let (query, args) = update.with(with_clause).build_rusqlite(SqliteQueryBuilder);
@@ -435,17 +436,17 @@ pub fn try_insert_private<'t, T: Table>(
     idx: Option<i64>,
     val: T::Insert<'t>,
 ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-    let mut ast = ValueBuilder::default();
-    let reader = Reader::new(&mut ast);
-    T::read(&val, reader);
+    let mut reader = Reader::default();
+    T::read(&val, &mut reader);
     if let Some(idx) = idx {
         reader.col(T::ID, idx);
     }
+    let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
 
-    let (select, _) = ast.simple(vec![]);
+    let (select, _) = ValueBuilder::default().simple(col_exprs);
 
     let mut insert = InsertStatement::new();
-    let names = ast.select.iter().map(|(_field, name)| *name);
+    let names = col_names.into_iter().map(|name| Alias::new(name));
     insert.into_table(table);
     insert.columns(names);
     insert.select_from(select).unwrap();

@@ -55,8 +55,16 @@ impl MySelect {
 }
 
 impl ValueBuilder {
+    pub fn simple_one(&mut self, val: DynTypedExpr) -> (SelectStatement, Field) {
+        let (a, mut b) = self.simple(vec![val]);
+        assert!(b.len() == 1);
+        (a, b.swap_remove(0))
+    }
+
     pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<Field>) {
-        self.build_select(false, select)
+        let res = self.build_select(false, select);
+        assert!(self.forwarded.is_empty());
+        res
     }
 
     pub fn build_select(

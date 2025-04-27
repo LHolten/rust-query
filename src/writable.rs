@@ -52,17 +52,20 @@ pub trait TableInsert<'t> {
     fn into_insert(self) -> <Self::T as Table>::Insert<'t>;
 }
 
-#[derive(RefCastCustom)]
-#[repr(transparent)]
 pub struct Reader<'t, S> {
-    pub(crate) builder: ValueBuilder,
+    pub(crate) builder: Vec<(&'static str, DynTypedExpr)>,
     pub(crate) _p: PhantomData<S>,
     pub(crate) _p2: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
-impl<S> Reader<'_, S> {
-    #[ref_cast_custom]
-    pub(crate) fn new(select: &mut ValueBuilder) -> &mut Self;
+impl<'t, S> Default for Reader<'t, S> {
+    fn default() -> Self {
+        Self {
+            builder: Default::default(),
+            _p: Default::default(),
+            _p2: Default::default(),
+        }
+    }
 }
 
 impl<'t, S> Reader<'t, S> {
@@ -71,8 +74,6 @@ impl<'t, S> Reader<'t, S> {
     }
 
     pub(crate) fn col_erased(&mut self, name: &'static str, val: DynTypedExpr) {
-        let field = Field::Str(name);
-        let expr = (val.0)(&mut self.builder);
-        self.builder.select.push((expr, field))
+        self.builder.push((name, val));
     }
 }
