@@ -8,8 +8,13 @@ use sea_query::{
 use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{
-    IntoExpr, IntoSelect, Table, TableRow, ast::FullSelect, client::LocalClient,
-    migrate::schema_version, private::Reader, query::Query, rows::Rows, value::SecretFromSql,
+    IntoExpr, IntoSelect, Table, TableRow,
+    client::LocalClient,
+    migrate::schema_version,
+    private::Reader,
+    query::Query,
+    rows::Rows,
+    value::{SecretFromSql, ValueBuilder},
     writable::TableInsert,
 };
 
@@ -257,18 +262,18 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
         row: impl IntoExpr<'t, S, Typ = T>,
         val: T::Update<'t>,
     ) -> Result<(), T::Conflict<'t>> {
-        let mut id = FullSelect::default();
-        Reader::new(&mut id.builder).col(T::ID, &row);
+        let mut id = ValueBuilder::default();
+        Reader::new(&mut id).col(T::ID, &row);
         let (id, _) = id.build_select(false, vec![]);
 
         let val = T::apply_try_update(val, row.into_expr());
-        let mut ast = FullSelect::default();
-        T::read(&val, Reader::new(&mut ast.builder));
+        let mut ast = ValueBuilder::default();
+        T::read(&val, Reader::new(&mut ast));
 
         let (select, _) = ast.build_select(false, vec![]);
         let cte = CommonTableExpression::new()
             .query(select)
-            .columns(ast.builder.select.iter().map(|x| x.1))
+            .columns(ast.select.iter().map(|x| x.1))
             .table_name(Alias::new("cte"))
             .to_owned();
         let with_clause = WithClause::new().cte(cte).to_owned();
@@ -281,7 +286,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
             )
             .to_owned();
 
-        for (_, col) in ast.builder.select.iter() {
+        for (_, col) in ast.select.iter() {
             let select = SelectStatement::new()
                 .from(Alias::new("cte"))
                 .column(*col)
@@ -430,8 +435,8 @@ pub fn try_insert_private<'t, T: Table>(
     idx: Option<i64>,
     val: T::Insert<'t>,
 ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
-    let mut ast = FullSelect::default();
-    let reader = Reader::new(&mut ast.builder);
+    let mut ast = ValueBuilder::default();
+    let reader = Reader::new(&mut ast);
     T::read(&val, reader);
     if let Some(idx) = idx {
         reader.col(T::ID, idx);
@@ -440,7 +445,7 @@ pub fn try_insert_private<'t, T: Table>(
     let (select, _) = ast.simple(vec![]);
 
     let mut insert = InsertStatement::new();
-    let names = ast.builder.select.iter().map(|(_field, name)| *name);
+    let names = ast.select.iter().map(|(_field, name)| *name);
     insert.into_table(table);
     insert.columns(names);
     insert.select_from(select).unwrap();

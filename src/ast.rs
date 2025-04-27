@@ -17,12 +17,6 @@ pub struct MySelect {
     pub(super) filter_on: Vec<DynTypedExpr>,
 }
 
-#[derive(Default)]
-pub struct FullSelect {
-    pub(crate) from: Rc<MySelect>,
-    pub(crate) builder: ValueBuilder,
-}
-
 #[derive(PartialEq, Clone)]
 pub(super) struct Source {
     pub(super) conds: Vec<(Field, SimpleExpr)>,
@@ -47,19 +41,17 @@ impl PartialEq for SourceKind {
 }
 
 impl MySelect {
-    pub fn full(self: Rc<Self>) -> FullSelect {
-        FullSelect {
-            builder: ValueBuilder {
-                scope: Scope::create(self.tables.len(), self.filter_on.len()),
-                extra: Default::default(),
-                select: Default::default(),
-            },
+    pub fn full(self: Rc<Self>) -> ValueBuilder {
+        ValueBuilder {
+            scope: Scope::create(self.tables.len(), self.filter_on.len()),
+            extra: Default::default(),
+            select: Default::default(),
             from: self,
         }
     }
 }
 
-impl FullSelect {
+impl ValueBuilder {
     pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<Field>) {
         self.build_select(false, select)
     }
@@ -70,33 +62,24 @@ impl FullSelect {
         select_out: Vec<DynTypedExpr>,
     ) -> (SelectStatement, Vec<Field>) {
         let mut select = SelectStatement::new();
+        let from = self.from.clone();
 
-        // this stuff adds more to the self.builder.extra list
+        // this stuff adds more to the self.extra list
         let out_fields = select_out
             .into_iter()
             .map(|val| {
-                let expr = (val.0)(&mut self.builder);
-                let new_field = || self.builder.scope.new_field();
-                *self.builder.select.get_or_init(expr, new_field)
+                let expr = (val.0)(self);
+                let new_field = || self.scope.new_field();
+                *self.select.get_or_init(expr, new_field)
             })
             .collect();
-        let filters: Vec<_> = self
-            .from
-            .filters
-            .iter()
-            .map(|x| x.build_expr(&mut self.builder))
-            .collect();
-        let filter_on: Vec<_> = self
-            .from
-            .filter_on
-            .iter()
-            .map(|val| (val.0)(&mut self.builder))
-            .collect();
+        let filters: Vec<_> = from.filters.iter().map(|x| x.build_expr(self)).collect();
+        let filter_on: Vec<_> = from.filter_on.iter().map(|val| (val.0)(self)).collect();
 
         let mut any_from = false;
-        for (idx, table) in self.from.tables.iter().enumerate() {
+        for (idx, table) in from.tables.iter().enumerate() {
             let tbl_ref = (Alias::new("main"), RawAlias(table.clone()));
-            select.from_as(tbl_ref, self.builder.get_table(idx));
+            select.from_as(tbl_ref, self.get_table(idx));
             any_from = true;
         }
 
@@ -104,7 +87,7 @@ impl FullSelect {
             select.from_values([1], NullAlias);
         }
 
-        for (source, table_alias) in self.builder.extra.iter() {
+        for (source, table_alias) in self.extra.iter() {
             let mut cond = Condition::all();
             for (field, outer_value) in &source.conds {
                 let id_field = Expr::expr(outer_value.clone());
@@ -143,7 +126,7 @@ impl FullSelect {
             any_group = true;
         }
 
-        for (aggr, alias) in &*self.builder.select {
+        for (aggr, alias) in &*self.select {
             select.expr_as(aggr.clone(), *alias);
             any_expr = true;
         }

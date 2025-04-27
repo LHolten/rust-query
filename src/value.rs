@@ -11,7 +11,7 @@ use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
 use crate::{
     IntoSelect, Select, Table,
     alias::{Field, MyAlias, RawAlias, Scope},
-    ast::Source,
+    ast::{MySelect, Source},
     db::{TableRow, TableRowInner},
     hash,
     mymap::MyMap,
@@ -19,6 +19,7 @@ use crate::{
 
 #[derive(Default)]
 pub struct ValueBuilder {
+    pub(crate) from: Rc<MySelect>,
     pub(super) scope: Scope,
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
