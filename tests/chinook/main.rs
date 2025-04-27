@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use expect_test::expect_file;
 use rust_query::{
     Expr, IntoExpr, IntoSelectExt, LocalClient, Select, TableRow, Transaction, Update, aggregate,
+    optional,
 };
 use schema::*;
 
@@ -43,6 +44,8 @@ fn test_queries() {
     assert_dbg(&mut res, None, "the_artists");
     let mut res = ten_space_tracks(&db);
     assert_dbg(&mut res, None, "ten_space_tracks");
+    let mut res = high_avg_invoice_total(&db);
+    assert_dbg(&mut res, None, "high_avg_invoice_total");
 
     free_reference(&db);
 
@@ -200,6 +203,31 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
             genre_name: genre.name(),
             byte_average: bytes.map_select(|x| x.unwrap()),
             milis_average: milis.map_select(|x| x.unwrap()),
+        })
+    })
+}
+
+#[derive(Debug, Select, PartialEq, PartialOrd)]
+struct HighInvoiceInfo {
+    customer_name: String,
+    avg_spend: f64,
+    high_avg_spend: f64,
+}
+
+fn high_avg_invoice_total(db: &Transaction<Schema>) -> Vec<HighInvoiceInfo> {
+    db.query(|q_rows| {
+        let customer = q_rows.join(Customer);
+        aggregate(|rows| {
+            let invoice = rows.join(Invoice);
+            rows.filter(invoice.customer().eq(&customer));
+            let avg = q_rows.filter_some(rows.avg(invoice.total()));
+            rows.filter(invoice.total().gt(&avg));
+            let high_avg = q_rows.filter_some(rows.avg(invoice.total()));
+            q_rows.into_vec(HighInvoiceInfoSelect {
+                customer_name: customer.last_name(),
+                avg_spend: avg,
+                high_avg_spend: high_avg,
+            })
         })
     })
 }

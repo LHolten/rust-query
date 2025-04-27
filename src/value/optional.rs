@@ -67,7 +67,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
         let column = col.into_expr();
-        self.nulls.push(column.is_some().not().into_expr().inner);
+        self.nulls.push(column.is_none().into_expr().inner);
         Expr::adhoc(move |b| column.inner.build_expr(b))
     }
 
@@ -96,13 +96,11 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
             sea_query::SimpleExpr::Keyword(sea_query::Keyword::Null);
 
         let col = col.into_expr().inner;
-        let nulls = self.nulls.clone();
+        let is_none = self.is_none().inner;
         Expr::adhoc(move |b| {
-            nulls.iter().fold(col.build_expr(b), |accum, e| {
-                sea_query::Expr::case(e.build_expr(b), NULL)
-                    .finally(accum)
-                    .into()
-            })
+            sea_query::Expr::case(is_none.build_expr(b), NULL)
+                .finally(col.build_expr(b))
+                .into()
         })
     }
 
