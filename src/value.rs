@@ -24,7 +24,7 @@ pub struct ValueBuilder {
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
     // calculating these results
-    pub(super) forwarded: MyMap<MyTableRef, (&'static str, DynTypedExpr)>,
+    pub(super) forwarded: MyMap<MyTableRef, (&'static str, DynTypedExpr, MyAlias)>,
 }
 
 impl ValueBuilder {
@@ -62,14 +62,19 @@ impl ValueBuilder {
     }
 
     pub fn get_table<T: Table>(&mut self, table: MyTableRef) -> MyAlias {
-        let idx = if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
-            table.idx
+        if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
+            MyAlias::new(table.idx)
         } else {
-            self.forwarded.pos_or_init(table.clone(), || {
-                (T::NAME, DynTyped::new(Join::<T>::new(table)).erase())
-            })
-        };
-        MyAlias::new(idx)
+            self.forwarded
+                .get_or_init(table.clone(), || {
+                    (
+                        T::NAME,
+                        DynTyped::new(Join::<T>::new(table)).erase(),
+                        self.scope.new_alias(),
+                    )
+                })
+                .2
+        }
     }
 }
 
@@ -107,7 +112,7 @@ impl NumTyp for f64 {
     message = "Columns with type `{Self}` can not be checked for equality",
     note = "`EqTyp` is also implemented for all table types"
 )]
-pub trait EqTyp {}
+pub trait EqTyp: MyTyp {}
 
 impl EqTyp for String {}
 impl EqTyp for Vec<u8> {}

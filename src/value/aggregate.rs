@@ -69,9 +69,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         on: impl IntoExpr<'outer, S, Typ = T>,
     ) {
         let on = on.into_expr().inner;
-        let val = val.into_expr().inner;
-        Rc::make_mut(&mut self.ast).filter_on.push(val.erase());
-        self.conds.push(on.erase());
+        self.filter(val.into_expr().eq(Expr::new(on)))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.

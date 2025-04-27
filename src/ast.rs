@@ -15,8 +15,6 @@ pub struct MySelect {
     pub(super) tables: Vec<String>,
     // all conditions to check
     pub(super) filters: Vec<DynTyped<bool>>,
-    // values that must be returned/ filtered on
-    pub(super) filter_on: Vec<DynTypedExpr>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -45,7 +43,7 @@ impl PartialEq for SourceKind {
 impl MySelect {
     pub fn full(self: Rc<Self>) -> ValueBuilder {
         ValueBuilder {
-            scope: Scope::create(self.tables.len(), self.filter_on.len()),
+            scope: Scope::create(self.tables.len(), 0),
             extra: Default::default(),
             from: self,
             forwarded: Default::default(),
@@ -77,7 +75,6 @@ impl ValueBuilder {
         // this stuff adds more to the self.extra list
         let select_out: Vec<_> = select_out.into_iter().map(|val| (val.0)(self)).collect();
         let filters: Vec<_> = from.filters.iter().map(|x| x.build_expr(self)).collect();
-        let filter_on: Vec<_> = from.filter_on.iter().map(|val| (val.0)(self)).collect();
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
@@ -112,13 +109,17 @@ impl ValueBuilder {
             select.and_where(filter);
         }
 
-        let filter_on_len = filter_on.len();
-        let from_len = from.tables.len();
-
         let mut any_expr = false;
         let mut any_group = false;
-        for (idx, group) in filter_on.into_iter().enumerate() {
-            select.expr_as(group.clone(), MyAlias::new(idx));
+
+        for (idx, group) in self.forwarded.iter().enumerate() {
+            select.from_as((Alias::new("main"), Alias::new(group.1.0)), group.1.2);
+            any_from = true;
+
+            select.expr_as(
+                Expr::column((group.1.2, Alias::new("id"))),
+                MyAlias::new(idx),
+            );
             any_expr = true;
 
             // this constant refers to the 1 indexed output column.
@@ -128,31 +129,13 @@ impl ValueBuilder {
             any_group = true;
         }
 
-        for (idx, group) in self.forwarded.iter().enumerate() {
-            let table_alias = MyAlias::new(from_len + idx);
-            select.from_as(Alias::new(group.1.0), table_alias);
-            any_from = true;
-
-            let out_idx = filter_on_len + idx;
-            select.expr_as(
-                Expr::column((table_alias, Alias::new("id"))),
-                MyAlias::new(out_idx),
-            );
-            any_expr = true;
-
-            // this constant refers to the 1 indexed output column.
-            // should work on postgresql and sqlite.
-            let constant =
-                SimpleExpr::Constant(sea_query::Value::BigInt(Some((out_idx + 1) as i64)));
-            select.add_group_by([constant]);
-            any_group = true;
-        }
+        let forwarded_len = self.forwarded.len();
 
         let mut out_fields = vec![];
-        for aggr in &select_out {
-            let alias = self.scope.new_alias();
+        for (idx, aggr) in select_out.into_iter().enumerate() {
+            let alias = MyAlias::new(forwarded_len + idx);
             out_fields.push(alias);
-            select.expr_as(aggr.clone(), alias);
+            select.expr_as(aggr, alias);
             any_expr = true;
         }
 
