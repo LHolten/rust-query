@@ -1,11 +1,8 @@
 use std::marker::PhantomData;
 
-use ref_cast::{RefCastCustom, ref_cast_custom};
-
 use crate::{
     Expr, IntoExpr, Table,
-    alias::Field,
-    value::{DynTypedExpr, NumTyp, ValueBuilder},
+    value::{DynTypedExpr, NumTyp},
 };
 
 /// Defines a column update.

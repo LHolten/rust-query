@@ -24,10 +24,6 @@ impl Scope {
         MyAlias { name: next }
     }
 
-    pub fn new_field(&self) -> Field {
-        Field::U64(self.new_alias())
-    }
-
     pub fn create(num_tables: usize, num_filter_on: usize) -> Self {
         Self {
             iden_num: AtomicU64::new(num_tables.max(num_filter_on) as u64),

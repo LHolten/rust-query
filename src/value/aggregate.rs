@@ -9,7 +9,7 @@ use sea_query::{Func, SelectStatement, SimpleExpr};
 
 use crate::{
     Expr, Table,
-    alias::{Field, MyAlias},
+    alias::MyAlias,
     rows::Rows,
     value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
 };
@@ -129,7 +129,7 @@ pub struct Aggr<S, T> {
     pub(crate) _p2: PhantomData<(S, T)>,
     pub(crate) select: SelectStatement,
     pub(crate) conds: Vec<DynTypedExpr>,
-    pub(crate) field: Field,
+    pub(crate) field: MyAlias,
 }
 
 impl<S, T> Clone for Aggr<S, T> {

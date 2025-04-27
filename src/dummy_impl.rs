@@ -4,7 +4,7 @@ use sea_query::Iden;
 
 use crate::{
     Expr,
-    alias::Field,
+    alias::MyAlias,
     value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
 };
 
@@ -44,11 +44,11 @@ impl Cacher {
 #[derive(Clone, Copy)]
 pub(crate) struct Row<'x> {
     pub(crate) row: &'x rusqlite::Row<'x>,
-    pub(crate) fields: &'x [Field],
+    pub(crate) fields: &'x [MyAlias],
 }
 
 impl<'x> Row<'x> {
-    pub(crate) fn new(row: &'x rusqlite::Row<'x>, fields: &'x [Field]) -> Self {
+    pub(crate) fn new(row: &'x rusqlite::Row<'x>, fields: &'x [MyAlias]) -> Self {
         Self { row, fields }
     }
 

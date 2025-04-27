@@ -47,7 +47,6 @@ impl MySelect {
         ValueBuilder {
             scope: Scope::create(self.tables.len(), self.filter_on.len()),
             extra: Default::default(),
-            select: Default::default(),
             from: self,
             forwarded: Default::default(),
         }
@@ -55,13 +54,13 @@ impl MySelect {
 }
 
 impl ValueBuilder {
-    pub fn simple_one(&mut self, val: DynTypedExpr) -> (SelectStatement, Field) {
+    pub fn simple_one(&mut self, val: DynTypedExpr) -> (SelectStatement, MyAlias) {
         let (a, mut b) = self.simple(vec![val]);
         assert!(b.len() == 1);
         (a, b.swap_remove(0))
     }
 
-    pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<Field>) {
+    pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<MyAlias>) {
         let res = self.build_select(false, select);
         assert!(self.forwarded.is_empty());
         res
@@ -71,15 +70,12 @@ impl ValueBuilder {
         &mut self,
         must_group: bool,
         select_out: Vec<DynTypedExpr>,
-    ) -> (SelectStatement, Vec<Field>) {
+    ) -> (SelectStatement, Vec<MyAlias>) {
         let mut select = SelectStatement::new();
         let from = self.from.clone();
 
         // this stuff adds more to the self.extra list
-        self.select = select_out
-            .into_iter()
-            .map(|val| ((val.0)(self), self.scope.new_field()))
-            .collect();
+        let select_out: Vec<_> = select_out.into_iter().map(|val| (val.0)(self)).collect();
         let filters: Vec<_> = from.filters.iter().map(|x| x.build_expr(self)).collect();
         let filter_on: Vec<_> = from.filter_on.iter().map(|val| (val.0)(self)).collect();
 
@@ -133,8 +129,11 @@ impl ValueBuilder {
             any_group = true;
         }
 
-        for (aggr, alias) in &*self.select {
-            select.expr_as(aggr.clone(), *alias);
+        let mut out_fields = vec![];
+        for aggr in &select_out {
+            let alias = self.scope.new_alias();
+            out_fields.push(alias);
+            select.expr_as(aggr.clone(), alias);
             any_expr = true;
         }
 
@@ -150,7 +149,6 @@ impl ValueBuilder {
         }
         assert_eq!(any_group, must_group);
 
-        let out_fields = self.select.iter().map(|(k, v)| v.clone()).collect();
         (select, out_fields)
     }
 }
