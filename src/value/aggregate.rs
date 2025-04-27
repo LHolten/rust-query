@@ -18,7 +18,6 @@ use super::DynTypedExpr;
 
 /// This is the argument type used for [aggregate].
 pub struct Aggregate<'outer, 'inner, S> {
-    pub(crate) conds: Vec<DynTypedExpr>,
     pub(crate) query: Rows<'inner, S>,
     _p: PhantomData<&'inner &'outer ()>,
 }
@@ -46,14 +45,11 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let mut builder = self.query.ast.clone().full();
         let (select, mut fields) = builder.build_select(true, vec![expr]);
 
-        let mut conds = self.conds.clone();
-        for x in builder.forwarded.into_iter() {
-            conds.push(x.1.1);
-        }
+        let conds = builder.forwarded.into_iter().map(|x| x.1.1).collect();
 
         Aggr {
             _p2: PhantomData,
-            select,
+            select: Rc::new(select),
             field: {
                 debug_assert_eq!(fields.len(), 1);
                 fields.swap_remove(0)
@@ -133,7 +129,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
 pub struct Aggr<S, T> {
     pub(crate) _p2: PhantomData<(S, T)>,
-    pub(crate) select: SelectStatement,
+    pub(crate) select: Rc<SelectStatement>,
     pub(crate) conds: Vec<DynTypedExpr>,
     pub(crate) field: MyAlias,
 }
@@ -197,7 +193,6 @@ where
         _p: PhantomData,
     };
     let mut group = Aggregate {
-        conds: Vec::new(),
         query: inner,
         _p: PhantomData,
     };

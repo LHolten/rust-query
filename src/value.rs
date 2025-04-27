@@ -20,6 +20,7 @@ use crate::{
 #[derive(Default)]
 pub struct ValueBuilder {
     pub(crate) from: Rc<MySelect>,
+    // only used for tables
     pub(super) scope: Scope,
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
@@ -28,9 +29,13 @@ pub struct ValueBuilder {
 }
 
 impl ValueBuilder {
-    pub(crate) fn get_aggr(&mut self, aggr: SelectStatement, conds: Vec<SimpleExpr>) -> MyAlias {
+    pub(crate) fn get_aggr(
+        &mut self,
+        aggr: Rc<SelectStatement>,
+        conds: Vec<SimpleExpr>,
+    ) -> MyAlias {
         let source = Source {
-            kind: crate::ast::SourceKind::Aggregate(Rc::new(aggr)),
+            kind: crate::ast::SourceKind::Aggregate(aggr),
             conds: conds
                 .into_iter()
                 .enumerate()
