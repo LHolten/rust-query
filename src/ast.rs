@@ -68,13 +68,9 @@ impl ValueBuilder {
         let from = self.from.clone();
 
         // this stuff adds more to the self.extra list
-        let out_fields = select_out
+        self.select = select_out
             .into_iter()
-            .map(|val| {
-                let expr = (val.0)(self);
-                let new_field = || self.scope.new_field();
-                *self.select.get_or_init(expr, new_field)
-            })
+            .map(|val| ((val.0)(self), self.scope.new_field()))
             .collect();
         let filters: Vec<_> = from.filters.iter().map(|x| x.build_expr(self)).collect();
         let filter_on: Vec<_> = from.filter_on.iter().map(|val| (val.0)(self)).collect();
@@ -146,6 +142,7 @@ impl ValueBuilder {
         }
         assert_eq!(any_group, must_group);
 
+        let out_fields = self.select.iter().map(|(k, v)| v.clone()).collect();
         (select, out_fields)
     }
 }

@@ -24,7 +24,7 @@ pub struct ValueBuilder {
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
     // calculating these results
-    pub(super) select: MyMap<SimpleExpr, Field>,
+    pub(super) select: Vec<(SimpleExpr, Field)>,
     pub(super) forwarded: MyMap<MyTableRef, &'static str>,
 }
 
