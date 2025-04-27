@@ -12,7 +12,7 @@ use crate::{
     IntoSelect, Select, Table,
     alias::{Field, MyAlias, RawAlias, Scope},
     ast::{MySelect, Source},
-    db::{TableRow, TableRowInner},
+    db::{Join, TableRow, TableRowInner},
     hash,
     mymap::MyMap,
 };
@@ -23,7 +23,8 @@ pub struct ValueBuilder {
     pub(super) scope: Scope,
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
-    pub(super) forwarded: MyMap<MyTableRef, &'static str>,
+    // calculating these results
+    pub(super) forwarded: MyMap<MyTableRef, (&'static str, DynTypedExpr)>,
 }
 
 impl ValueBuilder {
@@ -64,7 +65,9 @@ impl ValueBuilder {
         let idx = if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
             table.idx
         } else {
-            self.forwarded.pos_or_init(table.clone(), || T::NAME)
+            self.forwarded.pos_or_init(table.clone(), || {
+                (T::NAME, DynTyped::new(Join::<T>::new(table)).erase())
+            })
         };
         MyAlias::new(idx)
     }

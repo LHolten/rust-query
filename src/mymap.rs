@@ -19,6 +19,10 @@ impl<K: PartialEq, V> MyMap<K, V> {
         let idx = self.pos_or_init(k, f);
         &self.inner[idx].1
     }
+
+    pub fn into_iter(self) -> std::vec::IntoIter<(K, V)> {
+        self.inner.into_iter()
+    }
 }
 
 impl<K, V> Default for MyMap<K, V> {

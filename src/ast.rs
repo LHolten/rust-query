@@ -86,10 +86,6 @@ impl ValueBuilder {
             any_from = true;
         }
 
-        if !any_from {
-            select.from_values([1], NullAlias);
-        }
-
         for (source, table_alias) in self.extra.iter() {
             let mut cond = Condition::all();
             for (field, outer_value) in &source.conds {
@@ -116,6 +112,9 @@ impl ValueBuilder {
             select.and_where(filter);
         }
 
+        let filter_on_len = filter_on.len();
+        let from_len = from.tables.len();
+
         let mut any_expr = false;
         let mut any_group = false;
         for (idx, group) in filter_on.into_iter().enumerate() {
@@ -129,6 +128,26 @@ impl ValueBuilder {
             any_group = true;
         }
 
+        for (idx, group) in self.forwarded.iter().enumerate() {
+            let table_alias = MyAlias::new(from_len + idx);
+            select.from_as(Alias::new(group.1.0), table_alias);
+            any_from = true;
+
+            let out_idx = filter_on_len + idx;
+            select.expr_as(
+                Expr::column((table_alias, Alias::new("id"))),
+                MyAlias::new(out_idx),
+            );
+            any_expr = true;
+
+            // this constant refers to the 1 indexed output column.
+            // should work on postgresql and sqlite.
+            let constant =
+                SimpleExpr::Constant(sea_query::Value::BigInt(Some((out_idx + 1) as i64)));
+            select.add_group_by([constant]);
+            any_group = true;
+        }
+
         let mut out_fields = vec![];
         for aggr in &select_out {
             let alias = self.scope.new_alias();
@@ -136,6 +155,12 @@ impl ValueBuilder {
             select.expr_as(aggr.clone(), alias);
             any_expr = true;
         }
+
+        if !any_from {
+            select.from_values([1], NullAlias);
+            any_from = true;
+        }
+        assert!(any_from);
 
         if !any_expr {
             select.expr_as(Expr::val(1), NullAlias);

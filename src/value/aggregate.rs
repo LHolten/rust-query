@@ -43,7 +43,14 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         expr: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
     ) -> Aggr<S, Option<T>> {
         let expr = DynTypedExpr(Rc::new(expr));
-        let (select, mut fields) = self.query.ast.clone().full().build_select(true, vec![expr]);
+        let mut builder = self.query.ast.clone().full();
+        let (select, mut fields) = builder.build_select(true, vec![expr]);
+
+        let mut conds = self.conds.clone();
+        for x in builder.forwarded.into_iter() {
+            conds.push(x.1.1);
+        }
+
         Aggr {
             _p2: PhantomData,
             select,
@@ -51,7 +58,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
                 debug_assert_eq!(fields.len(), 1);
                 fields.swap_remove(0)
             },
-            conds: self.conds.clone(),
+            conds,
         }
     }
 
