@@ -1,10 +1,13 @@
 # Unreleased
 
+# 0.4.2
+
 - Update the `Rows::join` method to take a constant argument.
 This is now the prefered join syntax and all examples have been updated.
 - Allow arbitrary correlated subqueries.
 This means that `Aggregate` now has an implied bound that allows leaking `Expr` from the
 out scope. Correlated subqueries are decorrelated before translating to SQL.
+- Fix loose lifetime on `Optional`.
 
 # 0.4.1
 

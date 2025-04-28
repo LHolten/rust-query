@@ -39,13 +39,6 @@ impl<T: Table> Typed for Join<T> {
 /// Row reference that can be used in any query in the same transaction.
 ///
 /// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
-///
-/// Note that the [TableRow] can typically only be used at the top level of each query (not inside aggregates).
-/// `rustc` sometimes suggested making the transaction lifetime `'static` to get around this issue.
-/// While it is a valid and correct suggestion, you probably don't want a `'static` transaction.
-///
-/// The appropriate solution is to use [crate::args::Aggregate::filter_on] to bring [TableRow]
-/// columns into the [crate::aggregate] inner scope.
 pub struct TableRow<'t, T> {
     pub(crate) _p: PhantomData<&'t ()>,
     pub(crate) _local: PhantomData<LocalClient>,
