@@ -449,6 +449,9 @@ impl<'t, S: Schema> Migrator<'t, S> {
         }
         check_schema::<S>(&self.transaction);
 
+        // adds an sqlite_stat1 table
+        self.transaction.execute_batch("PRAGMA optimize;").unwrap();
+
         let schema_version = schema_version(conn);
         Rc::into_inner(self.transaction).unwrap().commit().unwrap();
 

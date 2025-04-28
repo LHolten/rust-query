@@ -164,6 +164,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
         q.filter(table.schema().eq("main"));
         q.filter(table.r#type().eq("table"));
         q.filter(table.name().eq("sqlite_schema").not());
+        q.filter(table.name().eq("sqlite_stat1").not());
         q.into_vec(table.name())
     });
 
