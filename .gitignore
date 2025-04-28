@@ -2,6 +2,8 @@
 /docs
 Chinook_Sqlite.sql
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 test.db
 /src/experiment
 /src/experiment.rs
