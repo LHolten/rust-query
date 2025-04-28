@@ -78,14 +78,16 @@ pub fn new_order<'a>(
         .iter()
         .all(|item| item.supplying_warehouse == district_info.warehouse);
 
-    let order = txn.insert_ok(Order {
-        number: district_info.next_order,
-        customer: input.customer,
-        entry_d: input.entry_date,
-        carrier_id: None::<i64>,
-        all_local: local as i64,
-        order_line_cnt: input.items.len() as i64,
-    });
+    let order = txn
+        .insert(Order {
+            number: district_info.next_order,
+            customer: input.customer,
+            entry_d: input.entry_date,
+            carrier_id: None::<i64>,
+            all_local: local as i64,
+            order_line_cnt: input.items.len() as i64,
+        })
+        .unwrap();
     txn.insert(NewOrder { order }).unwrap();
 
     let mut output_order_lines = vec![];

@@ -1,6 +1,6 @@
 use std::time::UNIX_EPOCH;
 
-use rust_query::{TransactionMut, Update, aggregate};
+use rust_query::{TransactionMut, Update, aggregate, optional};
 
 use super::*;
 
@@ -30,22 +30,27 @@ pub fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a
             .query_one(District::unique(input.warehouse, district_num))
             .unwrap();
 
-        let Some(first_new_order) = txn.query_one(aggregate(|rows| {
-            let new_order = rows.join(NewOrder);
-            let order = new_order.order();
-            rows.filter(order.customer().district().eq(district));
-            rows.min(order.number())
-        })) else {
+        let new_order = txn.query_one(optional(|row| {
+            aggregate(|rows| {
+                let new_order = rows.join(NewOrder);
+                let order = new_order.order();
+                let customer = order.customer();
+                rows.filter(customer.district().eq(district));
+
+                let order_num = row.and(rows.min(order.number()));
+                rows.filter(order.number().eq(&order_num));
+
+                let customer_num = row.and(rows.min(customer.number()));
+                let customer = row.and(Customer::unique(district, customer_num));
+                let order = row.and(Order::unique(customer, order_num));
+                let new_order = row.and(NewOrder::unique(order));
+                row.then(new_order)
+            })
+        }));
+        let Some(new_order) = new_order else {
             continue;
         };
 
-        let new_order = txn.query(|rows| {
-            let new_order = rows.join(NewOrder);
-            let order = new_order.order();
-            rows.filter(order.customer().district().eq(district));
-            rows.filter(order.number().eq(first_new_order));
-            rows.into_vec(new_order).swap_remove(0)
-        });
         new_orders.push(new_order);
 
         txn.update_ok(

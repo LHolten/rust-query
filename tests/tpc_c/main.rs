@@ -67,6 +67,7 @@ pub mod vN {
         #[unique]
         pub order: Order,
     }
+    #[unique(customer, number)]
     pub struct Order {
         pub customer: Customer,
         pub number: i64,
