@@ -131,7 +131,7 @@ pub mod vN {
 pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
     if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {
         panic!(
-            "test data file 'Chinook_Sqlite.sqlite' does not exist. 
+            "test data file 'Chinook_Sqlite.sqlite' does not exist.
             Please download it from https://github.com/lerocha/chinook-database/releases/tag/v1.4.5"
         );
     }

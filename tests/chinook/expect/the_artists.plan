@@ -1,0 +1,3 @@
+QUERY PLAN [
+    SEARCH _0 USING COVERING INDEX sqlite_autoindex_artist_1 (name>? AND name<?),
+]

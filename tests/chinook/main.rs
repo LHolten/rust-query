@@ -9,13 +9,17 @@ use rust_query::{
 };
 use schema::*;
 
-fn assert_dbg(mut val: &mut [impl Debug + PartialOrd], count: Option<usize>, file_name: &str) {
+fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>) {
+    let (mut val, plan) = rust_query::private::get_plan(f);
+    let mut val = &mut val[..];
     val.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    if let Some(count) = count {
-        val = &mut val[..count];
+    if val.len() > 20 {
+        val = &mut val[..20];
     }
     let path = format!("expect/{file_name}.dbg");
     expect_file![path].assert_debug_eq(&val);
+    let path = format!("expect/{file_name}.plan");
+    expect_file![path].assert_debug_eq(&plan);
 }
 
 #[test]
@@ -24,28 +28,19 @@ fn test_queries() {
     let db = migrate(&mut client);
     let mut db = client.transaction_mut(&db);
 
-    let mut res = invoice_info(&db);
-    assert_dbg(&mut res, Some(20), "invoice_info");
-    let mut res = playlist_track_count(&db);
-    assert_dbg(&mut res, None, "playlist_track_count");
-    let mut res = avg_album_track_count_for_artist(&db);
-    assert_dbg(&mut res, Some(20), "avg_album_track_count_for_artist");
-    let mut res = count_reporting(&db);
-    assert_dbg(&mut res, None, "count_reporting");
-    let mut res = list_all_genres(&db);
-    assert_dbg(&mut res, Some(20), "list_all_genres");
-    let mut res = filtered_track(&db, "Metal", 1000 * 60);
-    assert_dbg(&mut res, None, "filtered_track");
-    let mut res = genre_statistics(&db);
-    assert_dbg(&mut res, Some(20), "genre_statistics");
-    let mut res = all_customer_spending(&db);
-    assert_dbg(&mut res, Some(20), "customer_spending");
-    let mut res = get_the_artists(&db);
-    assert_dbg(&mut res, None, "the_artists");
-    let mut res = ten_space_tracks(&db);
-    assert_dbg(&mut res, None, "ten_space_tracks");
-    let mut res = high_avg_invoice_total(&db);
-    assert_dbg(&mut res, None, "high_avg_invoice_total");
+    assert_dbg("invoice_info", || invoice_info(&db));
+    assert_dbg("playlist_track_count", || playlist_track_count(&db));
+    assert_dbg("avg_album_track_count_for_artist", || {
+        avg_album_track_count_for_artist(&db)
+    });
+    assert_dbg("count_reporting", || count_reporting(&db));
+    assert_dbg("list_all_genres", || list_all_genres(&db));
+    assert_dbg("filtered_track", || filtered_track(&db, "Metal", 1000 * 60));
+    assert_dbg("genre_statistics", || genre_statistics(&db));
+    assert_dbg("customer_spending", || all_customer_spending(&db));
+    assert_dbg("the_artists", || get_the_artists(&db));
+    assert_dbg("ten_space_tracks", || ten_space_tracks(&db));
+    assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(&db));
 
     free_reference(&db);
 

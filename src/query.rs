@@ -1,11 +1,13 @@
 use std::{
     cell::Cell,
+    fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
+use rusqlite::Connection;
 use sea_query::SqliteQueryBuilder;
-use sea_query_rusqlite::RusqliteBinder;
+use sea_query_rusqlite::{RusqliteBinder, RusqliteValues};
 
 use crate::{
     dummy_impl::{Cacher, IntoSelect, Prepared, Row, SelectImpl},
@@ -60,6 +62,10 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
             println!("{sql}");
             println!("{values:?}");
         }
+        if GET_PLAN.get() {
+            let node = get_node(&self.conn, &values, &sql);
+            PLAN.set(Some(node));
+        }
 
         let mut statement = self.conn.prepare_cached(&sql).unwrap();
         let mut rows = statement.query(&*values.as_params()).unwrap();
@@ -74,6 +80,8 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
 
 thread_local! {
     static SHOW_SQL: Cell<bool> = const { Cell::new(false) };
+    static GET_PLAN: Cell<bool> = const { Cell::new(false) };
+    static PLAN: Cell<Option<Node>> = const { Cell::new(None) };
 }
 
 pub fn show_sql<R>(f: impl FnOnce() -> R) -> R {
@@ -82,4 +90,65 @@ pub fn show_sql<R>(f: impl FnOnce() -> R) -> R {
     let res = f();
     SHOW_SQL.set(old);
     res
+}
+
+pub fn get_plan<R>(f: impl FnOnce() -> R) -> (R, Node) {
+    let old = GET_PLAN.get();
+    GET_PLAN.set(true);
+    let res = f();
+    GET_PLAN.set(old);
+    (res, PLAN.take().unwrap())
+}
+
+fn get_node(conn: &Connection, values: &RusqliteValues, sql: &str) -> Node {
+    let mut prepared = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
+    let rows = prepared
+        .query_map(&*values.as_params(), |row| {
+            Ok((
+                row.get_unwrap("parent"),
+                Node {
+                    id: row.get_unwrap("id"),
+                    detail: row.get_unwrap("detail"),
+                    children: vec![],
+                },
+            ))
+        })
+        .unwrap();
+    let mut out = Node {
+        id: 0,
+        detail: "QUERY PLAN".to_owned(),
+        children: vec![],
+    };
+    rows.for_each(|res| {
+        let (id, node) = res.unwrap();
+        out.get_mut(id).children.push(node);
+    });
+
+    out
+}
+
+pub struct Node {
+    id: i64,
+    detail: String,
+    children: Vec<Node>,
+}
+
+impl Node {
+    fn get_mut(&mut self, id: i64) -> &mut Node {
+        if self.id == id {
+            return self;
+        }
+        self.children.last_mut().unwrap().get_mut(id)
+    }
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.detail)?;
+        if !self.children.is_empty() {
+            f.write_str(" ")?;
+            f.debug_list().entries(&self.children).finish()?;
+        }
+        Ok(())
+    }
 }
