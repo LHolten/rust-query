@@ -442,18 +442,19 @@ pub fn try_insert_private<'t, T: Table>(
         reader.col(T::ID, idx);
     }
     let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
+    let is_empty = col_names.is_empty();
 
     let (select, _) = ValueBuilder::default().simple(col_exprs);
 
     let mut insert = InsertStatement::new();
     insert.into_table(table);
-    if col_names.is_empty() {
+    insert.columns(col_names.into_iter().map(|name| Alias::new(name)));
+    if is_empty {
         // select always has at least one column, so we leave it out when there are no columns
         insert.or_default_values();
     } else {
         insert.select_from(select).unwrap();
     }
-    insert.columns(col_names.into_iter().map(|name| Alias::new(name)));
     insert.returning_col(Alias::new(T::ID));
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
