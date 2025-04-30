@@ -150,6 +150,9 @@ pub mod dev {
         }
     }
 
+    /// Calculate the hash of a shema.
+    ///
+    /// This is useful in a test to make sure that old schema versions are not accidentally modified.
     pub fn hash_schema<S: crate::migrate::Schema>() -> String {
         let mut b = crate::migrate::TableTypBuilder::default();
         S::typs(&mut b);

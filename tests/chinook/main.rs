@@ -5,7 +5,6 @@ use std::fmt::Debug;
 use expect_test::expect_file;
 use rust_query::{
     Expr, IntoExpr, IntoSelectExt, LocalClient, Select, TableRow, Transaction, Update, aggregate,
-    optional,
 };
 use schema::*;
 

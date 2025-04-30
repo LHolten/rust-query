@@ -13,7 +13,7 @@ use crate::{
 /// [Rows] keeps track of all rows in the current query.
 ///
 /// This is the base type for other query types like [crate::args::Aggregate] and [crate::args::Query].
-/// It contains most query functionality like joining tables and doing sub-queries.
+/// It contains basic query functionality like joining tables and filters.
 ///
 /// [Rows] mutability is only about which rows are included.
 /// Adding new columns does not require mutating [Rows].

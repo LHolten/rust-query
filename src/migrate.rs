@@ -355,7 +355,7 @@ pub struct Migrator<'t, S> {
     _local: PhantomData<LocalClient>,
 }
 
-/// [Migrated] provides a migration strategy.
+/// [Migrated] provides a proof of migration.
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
 // TODO: is this lifetime bound good enough, why?

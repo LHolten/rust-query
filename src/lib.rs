@@ -157,6 +157,7 @@ pub trait Table: Sized + 'static {
     type MigrateFrom: MyTyp;
 
     /// Please refer to [Rows::join].
+    #[deprecated = "Please use `Rows::join`"]
     fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Expr<'inner, Self::Schema, Self> {
         rows.join(Self::TOKEN)
     }

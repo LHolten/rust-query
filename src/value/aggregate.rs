@@ -59,7 +59,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     }
 
     /// Filter the rows of this sub-query based on a value from the outer query.
-    #[deprecated = "Please use `Aggregate::filter` instead"]
+    #[deprecated = "Please use `Rows::filter` instead"]
     pub fn filter_on<T: EqTyp + 'static>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = T>,

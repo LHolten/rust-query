@@ -50,9 +50,11 @@ mod table;
 /// Note that optional types are not allowed in unique constraints.
 ///
 /// ## Multiple versions
-/// The macro uses enum syntax, but it generates multiple modules of types.
+/// The macro must be applied to a module named `vN`. This is because the module
+/// is a template that is used to generate multiple modules called `v0`, `v1` etc.
+/// Each module corresponds to a schema version and contains the types to work with that schema.
 ///
-/// Note that the schema version range is `0..=0` so there is only a version 0.
+/// Note in the previous example that the schema version range is `0..=0` so there is only a version 0.
 /// The generated code will have a structure like this:
 /// ```rust,ignore
 /// pub mod v0 {
@@ -133,7 +135,6 @@ mod table;
 /// # fn main() {}
 /// ```
 /// The `migrate` function first creates an empty database if it does not exists.
-/// Then it migrates the database if necessary, where it initializes every user score to the length of their email.
 ///
 /// # `#[from]` Attribute
 /// You can use this attribute when renaming or splitting a table.

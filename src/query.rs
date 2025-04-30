@@ -36,11 +36,7 @@ impl<S> DerefMut for Query<'_, '_, S> {
 }
 
 impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
-    /// Turn a database query into a rust [Vec] of results.
-    ///
-    /// Types that implement [crate::IntoExpr], will also implement [IntoSelect].
-    /// Tuples of two values also implement [IntoSelect]. If you want to return more
-    /// than two values, then you should use a struct that derives [rust_query_macros::Select].
+    /// Turn a database query into a [Vec] of results.
     ///
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
