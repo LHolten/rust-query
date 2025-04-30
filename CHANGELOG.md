@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fix inserting into table without columns.
+
 # 0.4.2
 
 - Update the `Rows::join` method to take a constant argument.

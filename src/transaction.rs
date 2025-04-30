@@ -446,10 +446,14 @@ pub fn try_insert_private<'t, T: Table>(
     let (select, _) = ValueBuilder::default().simple(col_exprs);
 
     let mut insert = InsertStatement::new();
-    let names = col_names.into_iter().map(|name| Alias::new(name));
     insert.into_table(table);
-    insert.columns(names);
-    insert.select_from(select).unwrap();
+    if col_names.is_empty() {
+        // select always has at least one column, so we leave it out when there are no columns
+        insert.or_default_values();
+    } else {
+        insert.select_from(select).unwrap();
+    }
+    insert.columns(col_names.into_iter().map(|name| Alias::new(name)));
     insert.returning_col(Alias::new(T::ID));
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
