@@ -36,20 +36,20 @@ fn main() {
 }
 
 // Use the database to insert and query.
-fn do_stuff_with_database(db: &mut TransactionMut<MySchema>) {
+fn do_stuff_with_database(txn: &mut TransactionMut<MySchema>) {
     // Lets make a new user 'mike',
     let mike = User { name: "mike" };
-    let mike_id = db.insert_ok(mike);
+    let mike_id = txn.insert_ok(mike);
 
     // and also insert a dog picture for 'mike'.
     let dog_picture = Image {
         description: "dog",
         uploaded_by: mike_id,
     };
-    let _picture_id = db.insert_ok(dog_picture);
+    let _picture_id = txn.insert_ok(dog_picture);
 
     // Now we want to get all pictures for 'mike'.
-    let mike_pictures = db.query(|rows| {
+    let mike_pictures = txn.query(|rows| {
         // Initially there is one empty row.
         // Lets join the pictures table.
         let picture = rows.join(Image);
