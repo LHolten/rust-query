@@ -93,7 +93,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             type Out = (#name<#(#original_generics),*>);
 
             fn into_select(self) -> ::rust_query::Select<'_t, #transaction_lt, S, Self::Out> {
-                ::rust_query::IntoSelectExt::map_select(#parts_dummies, |#parts_name| #name {
+                ::rust_query::IntoSelect::into_select(#parts_dummies).map(|#parts_name| #name {
                     #(#names,)*
                 })
             }
@@ -163,7 +163,7 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
             {
                 fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, #transaction_lt, #schema, Self> {
                     let col = ::rust_query::IntoExpr::into_expr(col);
-                    ::rust_query::IntoSelectExt::map_select(#parts_dummies, |#parts_name| #name {
+                    ::rust_query::IntoSelect::into_select(#parts_dummies).map(|#parts_name| #name {
                         #(#names,)*
                     })
                 }

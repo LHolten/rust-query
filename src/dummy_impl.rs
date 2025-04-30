@@ -76,6 +76,21 @@ pub struct Select<'columns, 'transaction, S, Out> {
     pub(crate) _p2: PhantomData<S>,
 }
 
+impl<'columns, 'transaction, S, Out: 'transaction> Select<'columns, 'transaction, S, Out> {
+    /// Map the result of a [Select] using native rust.
+    ///
+    /// This is useful when implementing [IntoSelect].
+    pub fn map<T>(
+        self,
+        f: impl 'transaction + FnMut(Out) -> T,
+    ) -> Select<'columns, 'transaction, S, T> {
+        Select::new(MapImpl {
+            dummy: self.inner,
+            func: f,
+        })
+    }
+}
+
 pub struct DynSelectImpl<'transaction, Out> {
     inner: Box<dyn 'transaction + FnOnce(&mut Cacher) -> DynPrepared<'transaction, Out>>,
 }
@@ -134,7 +149,9 @@ pub trait SelectImpl<'transaction> {
 
 /// This trait is implemented by everything that can be retrieved from the database.
 ///
-/// Instead of implementing it yourself you probably want to use the [derive@rust_query::Select] macro.
+/// The most common type that implements [IntoSelect] is [Expr].
+/// Tuples of two values also implement [IntoSelect]. If you want to return more
+/// than two values, then you should use a struct that derives [derive@rust_query::Select].
 pub trait IntoSelect<'columns, 'transaction, S>: Sized {
     /// The type that results from executing the [Select].
     type Out: 'transaction;
@@ -143,16 +160,14 @@ pub trait IntoSelect<'columns, 'transaction, S>: Sized {
     ///
     /// The only way to implement this method is by constructing a different value
     /// that implements [IntoSelect] and then calling the [IntoSelect::into_select] method
-    /// on that other value.
+    /// on that other value. The result can then be modified with [Select::map].
     fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out>;
 }
 
 /// [IntoSelectExt] adds extra methods to values that implement [IntoSelect].
 pub trait IntoSelectExt<'columns, 'transaction, S>: IntoSelect<'columns, 'transaction, S> {
-    /// Map the result of a [Select] using native rust.
-    ///
-    /// This is useful when retrieving custom types from the database.
-    /// It is also useful in migrations to process rows using arbitrary rust.
+    /// Refer to [Select::map].
+    #[deprecated = "Please use `Select::map`"]
     fn map_select<T>(
         self,
         f: impl 'transaction + FnMut(Self::Out) -> T,
@@ -348,7 +363,8 @@ mod tests {
 
         fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
             (self.a.into_expr(), self.b.into_expr())
-                .map_select((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
+                .into_select()
+                .map((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
                 .into_select()
         }
     }

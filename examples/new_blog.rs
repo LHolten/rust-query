@@ -104,7 +104,7 @@ mod using_v1 {
     ) -> Option<Info> {
         txn.query_one(aggregate(|rows| {
             let m = rows.join(Measurement);
-            rows.filter_on(m.location(), loc);
+            rows.filter(m.location().eq(loc));
 
             optional(|row| {
                 let average_value = row.and(rows.avg(m.value()));

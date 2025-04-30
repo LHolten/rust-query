@@ -88,7 +88,7 @@ fn define_table(
         unique_typs.push(quote! {f.unique(&[#(#col_str),*])});
 
         unique_funcs.push(quote! {
-            pub fn #unique_name<'a>(#(#col: impl ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>),*) 
+            pub fn #unique_name<'a>(#(#col: impl ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>),*)
                 -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
             {
                 #(
@@ -206,7 +206,7 @@ fn define_table(
                 col: impl ::rust_query::IntoExpr<'columns, #schema, Typ = #table_ident>,
             ) -> ::rust_query::Select<'columns, 'transaction, #schema, Self> {
                 let col = ::rust_query::IntoExpr::into_expr(col);
-                ::rust_query::IntoSelectExt::map_select(#wrap_parts, |#wrap_ident| #table_ident {
+                ::rust_query::IntoSelect::into_select(#wrap_parts).map(|#wrap_ident| #table_ident {
                     #(#col_ident,)*
                 })
             }

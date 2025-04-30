@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use expect_test::expect_file;
 use rust_query::{
-    Expr, IntoExpr, IntoSelectExt, LocalClient, Select, TableRow, Transaction, Update, aggregate,
+    Expr, IntoExpr, IntoSelect, LocalClient, Select, TableRow, Transaction, Update, aggregate,
 };
 use schema::*;
 
@@ -195,8 +195,8 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         });
         rows.into_vec(GenreStatsSelect {
             genre_name: genre.name(),
-            byte_average: bytes.map_select(|x| x.unwrap()),
-            milis_average: milis.map_select(|x| x.unwrap()),
+            byte_average: bytes.into_select().map(|x| x.unwrap()),
+            milis_average: milis.into_select().map(|x| x.unwrap()),
         })
     })
 }

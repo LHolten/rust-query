@@ -107,7 +107,7 @@ mod table;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// use rust_query::migration::{schema, Config};
-/// use rust_query::{IntoSelectExt, LocalClient, Database};
+/// use rust_query::{LocalClient, Database};
 /// #[schema(Schema)]
 /// #[version(0..=1)]
 /// pub mod vN {
