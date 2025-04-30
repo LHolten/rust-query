@@ -3,6 +3,7 @@ name = "rust-query-macros"
 version = "0.4.3"
 edition = "2021"
 description = "Proc-macro crate for rust-query."
+repository = "https://github.com/LHolten/rust-query/"
 license = "MIT OR Apache-2.0"
 
 [lib]
