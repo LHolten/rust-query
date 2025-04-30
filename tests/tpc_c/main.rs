@@ -1,5 +1,7 @@
+use std::time::SystemTime;
+
 use rand::{Rng, rngs::ThreadRng};
-use rust_query::{Select, TableRow, Transaction, migration::schema};
+use rust_query::{IntoExpr, Select, TableRow, Transaction, migration::schema};
 
 mod delivery;
 mod new_order;
@@ -187,5 +189,17 @@ fn customer_ident<'a>(
             ))
             .unwrap();
         CustomerIdent::Number(customer)
+    }
+}
+
+impl<'column> IntoExpr<'column, Schema> for SystemTime {
+    type Typ = i64;
+
+    fn into_expr(self) -> rust_query::Expr<'column, Schema, Self::Typ> {
+        let millis = self
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        (millis as i64).into_expr()
     }
 }

@@ -3,7 +3,7 @@ The goal of this library is to allow using relational databases (only SQLite rig
 The library should guarantee that queries and migrations can not fail when they compile. While rust-query goes quite far to achieve this, there are still some exceptions that can cause queries to fail, such as integer overflow.
 
 Writing queries using this library involves:
-- Interact with row/column references as Rust values.
+- Interaction with row/column references as Rust values.
 - Lifetimes to check the scopes of row/column references.
 - Procedural mutation of row sets with methods like `filter` and `join`.
 - "Combinators" like `optional` and `aggregate`.

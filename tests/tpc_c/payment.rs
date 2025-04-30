@@ -1,6 +1,5 @@
 use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, TransactionMut, Update};
-use std::time::UNIX_EPOCH;
 
 pub fn generate_payment<'a>(
     txn: &Transaction<'a, Schema>,
@@ -25,7 +24,7 @@ pub fn generate_payment<'a>(
         district,
         customer,
         amount: rng.random_range(100..=500000),
-        date: UNIX_EPOCH.elapsed().unwrap().as_millis() as i64,
+        date: SystemTime::now(),
     }
 }
 
@@ -33,7 +32,7 @@ struct PaymentInput<'a> {
     district: TableRow<'a, District>,
     customer: CustomerIdent<'a>,
     amount: i64,
-    date: i64,
+    date: SystemTime,
 }
 
 #[derive(FromExpr)]
@@ -148,5 +147,5 @@ struct PaymentOutput<'a> {
     customer_info: CustomerInfo,
     data: Option<String>,
     amount: i64,
-    date: i64,
+    date: SystemTime,
 }

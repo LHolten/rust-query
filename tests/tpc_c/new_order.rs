@@ -1,6 +1,6 @@
 use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, TransactionMut, Update, optional};
-use std::time::UNIX_EPOCH;
+use std::time::SystemTime;
 
 pub fn generate_new_order<'a>(
     txn: &Transaction<'a, Schema>,
@@ -35,14 +35,14 @@ pub fn generate_new_order<'a>(
     NewOrderInput {
         customer,
         items,
-        entry_date: UNIX_EPOCH.elapsed().unwrap().as_millis() as i64,
+        entry_date: SystemTime::now(),
     }
 }
 
 pub struct NewOrderInput<'a> {
     pub(crate) customer: TableRow<'a, Customer>,
     pub(crate) items: Vec<ItemInput<'a>>,
-    pub(crate) entry_date: i64,
+    pub(crate) entry_date: SystemTime,
 }
 
 pub struct ItemInput<'a> {
@@ -227,7 +227,7 @@ pub struct OutputData<'t> {
     pub(crate) customer_discount: f64,
     pub(crate) warehouse_tax: f64,
     pub(crate) district_tax: f64,
-    pub(crate) order_entry_date: i64,
+    pub(crate) order_entry_date: SystemTime,
     pub(crate) total_amount: i64,
     // order_line_count: i64,
     pub(crate) order_lines: Vec<OutputLine<'t>>,
