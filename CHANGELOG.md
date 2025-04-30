@@ -1,6 +1,9 @@
 # Unreleased
 
-- Fix inserting into table without columns.
+- Fix panic when inserting into table without columns.
+- Add `Select::map` method.
+- Deprecate `IntoSelectExt::map_select`.
+- Deprecate `Aggregate::join_on`.
 
 # 0.4.2
 
