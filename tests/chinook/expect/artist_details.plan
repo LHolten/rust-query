@@ -1,0 +1,28 @@
+QUERY PLAN [
+    CO-ROUTINE  [
+        SCAN CONSTANT ROW,
+    ],
+    MATERIALIZE _1 [
+        USE TEMP B-TREE FOR count(DISTINCT),
+        SCAN _0,
+    ],
+    MATERIALIZE _2 [
+        SCAN _0,
+        SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
+    ],
+    MATERIALIZE _3 [
+        SCAN _0,
+        SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
+    ],
+    MATERIALIZE _4 [
+        USE TEMP B-TREE FOR count(DISTINCT),
+        SCAN _0,
+        SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
+    ],
+    SCAN ,
+    SEARCH _0 USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN,
+    SCAN _1 LEFT-JOIN,
+    SCAN _2 LEFT-JOIN,
+    SCAN _3 LEFT-JOIN,
+    SCAN _4 LEFT-JOIN,
+]

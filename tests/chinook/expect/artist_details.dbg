@@ -1,0 +1,15 @@
+[
+    ArtistDetails {
+        name: "U2",
+        album_count: 10,
+        track_stats: TrackStats {
+            avg_len_milis: Some(
+                262385.05925925926,
+            ),
+            max_len_milis: Some(
+                591986,
+            ),
+            genre_count: 2,
+        },
+    },
+]

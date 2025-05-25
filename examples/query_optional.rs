@@ -34,6 +34,7 @@ fn main() {
 
     let mut txn = client.transaction_mut(&database);
 
+    #[expect(unused)]
     #[derive(FromExpr)]
     #[rust_query(From = World, From = Player)]
     struct NameInfo {

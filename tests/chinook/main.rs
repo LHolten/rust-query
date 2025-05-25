@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use expect_test::expect_file;
 use rust_query::{
     Expr, IntoExpr, IntoSelect, LocalClient, Select, TableRow, Transaction, Update, aggregate,
+    optional,
 };
 use schema::*;
 
@@ -40,6 +41,13 @@ fn test_queries() {
     assert_dbg("the_artists", || get_the_artists(&db));
     assert_dbg("ten_space_tracks", || ten_space_tracks(&db));
     assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(&db));
+    let artist = db.query_one(Artist::unique("U2")).unwrap();
+    assert_dbg("artist_details", || vec![artist_details(&db, artist)]);
+    assert_eq!(
+        customer_spending_by_email(&db, "vstevens@yahoo.com"),
+        Some(42.62)
+    );
+    assert_eq!(customer_spending_by_email(&db, "asdf"), None);
 
     free_reference(&db);
 
@@ -256,8 +264,10 @@ fn customer_spending<'t>(
 }
 
 fn customer_spending_by_email(db: &Transaction<Schema>, email: &str) -> Option<f64> {
-    let customer = db.query_one(Customer::unique_by_email(email));
-    customer.map(|x| db.query_one(customer_spending(x)))
+    db.query_one(optional(|row| {
+        let customer = row.and(Customer::unique_by_email(email));
+        row.then(customer_spending(customer))
+    }))
 }
 
 fn free_reference(db: &Transaction<Schema>) {
@@ -271,14 +281,14 @@ fn free_reference(db: &Transaction<Schema>) {
     }
 }
 
-#[derive(Select)]
+#[derive(Select, PartialEq, PartialOrd, Debug)]
 struct TrackStats {
     avg_len_milis: Option<f64>,
     max_len_milis: Option<i64>,
     genre_count: i64,
 }
 
-#[derive(Select)]
+#[derive(Select, PartialEq, PartialOrd, Debug)]
 struct ArtistDetails {
     name: String,
     album_count: i64,

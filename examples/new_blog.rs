@@ -26,6 +26,7 @@ mod using_v0 {
     use rust_query::FromExpr;
     use v0::*;
 
+    #[expect(unused)]
     #[derive(FromExpr, Select)]
     #[rust_query(From = Measurement)]
     struct Score {
@@ -33,6 +34,7 @@ mod using_v0 {
         timestamp: i64,
     }
 
+    #[expect(unused)]
     fn read_scores(txn: &Transaction<Schema>) -> Vec<Score> {
         txn.query(|rows| {
             let m = rows.join(Measurement);
@@ -43,6 +45,7 @@ mod using_v0 {
         })
     }
 
+    #[expect(unused)]
     fn read_scores2(txn: &Transaction<Schema>) -> Vec<Score> {
         txn.query(|rows| {
             let m = rows.join(Measurement);
@@ -50,6 +53,7 @@ mod using_v0 {
         })
     }
 
+    #[expect(unused)]
     fn read_scores3(txn: &Transaction<Schema>) -> Vec<Measurement!(score, timestamp)> {
         txn.query(|rows| {
             let m = rows.join(Measurement);
@@ -58,12 +62,19 @@ mod using_v0 {
     }
 }
 
+fn main() {
+    let mut client = LocalClient::try_new().unwrap();
+    let db = using_v1::migrate(&mut client);
+    let txn = client.transaction_mut(&db);
+    using_v1::do_stuff(txn);
+}
+
 mod using_v1 {
     use super::*;
     use rust_query::{TransactionMut, TransactionWeak, migration::Config};
     use v1::*;
 
-    fn migrate(client: &mut LocalClient) -> Database<Schema> {
+    pub fn migrate(client: &mut LocalClient) -> Database<Schema> {
         let m = client
             .migrator(Config::open("db.sqlite"))
             .expect("database should not be older than supported versions");
@@ -76,8 +87,9 @@ mod using_v1 {
             .expect("database should not be newer than supported versions")
     }
 
-    fn do_stuff(mut txn: TransactionMut<Schema>) {
+    pub fn do_stuff(mut txn: TransactionMut<Schema>) {
         let loc: TableRow<Location> = txn.insert_ok(Location { name: "Amsterdam" });
+        let _ = location_info(&txn, loc);
 
         let mut txn: TransactionWeak<Schema> = txn.downgrade();
 
@@ -92,6 +104,7 @@ mod using_v1 {
         assert!(is_not_deleted_twice);
     }
 
+    #[expect(unused)]
     #[derive(Select)]
     struct Info {
         average_value: f64,
@@ -136,5 +149,3 @@ mod delete_example {
         }
     }
 }
-
-fn main() {}
