@@ -2,7 +2,15 @@ use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, TransactionMut, Update, optional};
 use std::time::SystemTime;
 
-pub fn generate_new_order<'a>(
+pub fn random_new_order<'a>(
+    txn: TransactionMut<'a, Schema>,
+    warehouse: TableRow<'a, Warehouse>,
+) -> OutputData<'a> {
+    let input = generate_input(&txn, warehouse);
+    new_order(txn, input)
+}
+
+fn generate_input<'a>(
     txn: &Transaction<'a, Schema>,
     warehouse: TableRow<'a, Warehouse>,
 ) -> NewOrderInput<'a> {
@@ -39,22 +47,19 @@ pub fn generate_new_order<'a>(
     }
 }
 
-pub struct NewOrderInput<'a> {
-    pub(crate) customer: TableRow<'a, Customer>,
-    pub(crate) items: Vec<ItemInput<'a>>,
-    pub(crate) entry_date: SystemTime,
+struct NewOrderInput<'a> {
+    customer: TableRow<'a, Customer>,
+    items: Vec<ItemInput<'a>>,
+    entry_date: SystemTime,
 }
 
-pub struct ItemInput<'a> {
-    pub(crate) item_number: i64,
-    pub(crate) supplying_warehouse: TableRow<'a, Warehouse>,
-    pub(crate) quantity: i64,
+struct ItemInput<'a> {
+    item_number: i64,
+    supplying_warehouse: TableRow<'a, Warehouse>,
+    quantity: i64,
 }
 
-pub fn new_order<'a>(
-    mut txn: TransactionMut<'a, Schema>,
-    input: NewOrderInput<'a>,
-) -> OutputData<'a> {
+fn new_order<'a>(mut txn: TransactionMut<'a, Schema>, input: NewOrderInput<'a>) -> OutputData<'a> {
     let district = txn.query_one(input.customer.district());
 
     let district_info: District!(warehouse<'_>, number, tax, next_order) =
@@ -217,30 +222,32 @@ pub fn new_order<'a>(
     }
 }
 
+#[expect(unused)]
 pub struct OutputData<'t> {
-    pub(crate) warehouse: TableRow<'t, Warehouse>,
-    pub(crate) district: TableRow<'t, District>,
-    pub(crate) customer: TableRow<'t, Customer>,
-    pub(crate) order: TableRow<'t, Order>,
-    pub(crate) customer_last_name: String,
-    pub(crate) customer_credit: String,
-    pub(crate) customer_discount: f64,
-    pub(crate) warehouse_tax: f64,
-    pub(crate) district_tax: f64,
-    pub(crate) order_entry_date: SystemTime,
-    pub(crate) total_amount: i64,
+    warehouse: TableRow<'t, Warehouse>,
+    district: TableRow<'t, District>,
+    customer: TableRow<'t, Customer>,
+    order: TableRow<'t, Order>,
+    customer_last_name: String,
+    customer_credit: String,
+    customer_discount: f64,
+    warehouse_tax: f64,
+    district_tax: f64,
+    order_entry_date: SystemTime,
+    total_amount: i64,
     // order_line_count: i64,
-    pub(crate) order_lines: Vec<OutputLine<'t>>,
-    pub(crate) input_valid: bool,
+    order_lines: Vec<OutputLine<'t>>,
+    input_valid: bool,
 }
 
+#[expect(unused)]
 pub struct OutputLine<'t> {
-    pub(crate) supplying_warehouse: TableRow<'t, Warehouse>,
-    pub(crate) item: TableRow<'t, Item>,
-    pub(crate) item_name: String,
-    pub(crate) quantity: i64,
-    pub(crate) stock_quantity: i64,
-    pub(crate) brand_generic: &'static str,
-    pub(crate) item_price: i64,
-    pub(crate) amount: i64,
+    supplying_warehouse: TableRow<'t, Warehouse>,
+    item: TableRow<'t, Item>,
+    item_name: String,
+    quantity: i64,
+    stock_quantity: i64,
+    brand_generic: &'static str,
+    item_price: i64,
+    amount: i64,
 }

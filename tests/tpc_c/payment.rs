@@ -1,7 +1,15 @@
 use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, TransactionMut, Update};
 
-pub fn generate_payment<'a>(
+pub fn random_payment<'a>(
+    txn: TransactionMut<'a, Schema>,
+    warehouse: TableRow<'a, Warehouse>,
+) -> PaymentOutput<'a> {
+    let input = generate_input(&txn, warehouse);
+    payment(txn, input)
+}
+
+fn generate_input<'a>(
     txn: &Transaction<'a, Schema>,
     warehouse: TableRow<'a, Warehouse>,
 ) -> PaymentInput<'a> {
@@ -33,37 +41,6 @@ struct PaymentInput<'a> {
     customer: CustomerIdent<'a>,
     amount: i64,
     date: SystemTime,
-}
-
-#[derive(FromExpr)]
-#[rust_query(From = Warehouse, From = District)]
-struct LocationYtd {
-    name: String,
-    street_1: String,
-    street_2: String,
-    city: String,
-    state: String,
-    zip: String,
-    ytd: i64,
-}
-
-#[derive(FromExpr)]
-#[rust_query(From = Customer)]
-struct CustomerInfo {
-    first: String,
-    middle: String,
-    last: String,
-    street_1: String,
-    street_2: String,
-    city: String,
-    state: String,
-    zip: String,
-    phone: String,
-    since: i64,
-    credit: String,
-    credit_lim: i64,
-    discount: f64,
-    balance: i64,
 }
 
 fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> PaymentOutput<'a> {
@@ -139,7 +116,41 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
     }
 }
 
-struct PaymentOutput<'a> {
+#[expect(unused)]
+#[derive(FromExpr)]
+#[rust_query(From = Warehouse, From = District)]
+struct LocationYtd {
+    name: String,
+    street_1: String,
+    street_2: String,
+    city: String,
+    state: String,
+    zip: String,
+    ytd: i64,
+}
+
+#[expect(unused)]
+#[derive(FromExpr)]
+#[rust_query(From = Customer)]
+struct CustomerInfo {
+    first: String,
+    middle: String,
+    last: String,
+    street_1: String,
+    street_2: String,
+    city: String,
+    state: String,
+    zip: String,
+    phone: String,
+    since: i64,
+    credit: String,
+    credit_lim: i64,
+    discount: f64,
+    balance: i64,
+}
+
+#[expect(unused)]
+pub struct PaymentOutput<'a> {
     district: TableRow<'a, District>,
     customer: TableRow<'a, Customer>,
     warehouse_info: LocationYtd,

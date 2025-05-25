@@ -1,7 +1,15 @@
 use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, aggregate, optional};
 
-pub fn generate_order_status<'a>(
+pub fn random_order_status<'a>(
+    txn: &Transaction<'a, Schema>,
+    warehouse: TableRow<'a, Warehouse>,
+) -> OrderStatus<'a> {
+    let input = generate_input(txn, warehouse);
+    order_status(txn, input)
+}
+
+fn generate_input<'a>(
     txn: &Transaction<'a, Schema>,
     warehouse: TableRow<'a, Warehouse>,
 ) -> CustomerIdent<'a> {
@@ -13,10 +21,7 @@ pub fn generate_order_status<'a>(
     customer_ident(txn, &mut rng, district)
 }
 
-pub fn order_status<'a>(
-    txn: &Transaction<'a, Schema>,
-    input: CustomerIdent<'a>,
-) -> OrderStatus<'a> {
+fn order_status<'a>(txn: &Transaction<'a, Schema>, input: CustomerIdent<'a>) -> OrderStatus<'a> {
     let customer = input.lookup_customer(txn);
     let last_order = txn
         .query_one(optional(|row| {
@@ -44,7 +49,8 @@ pub fn order_status<'a>(
     }
 }
 
-struct OrderStatus<'a> {
+#[expect(unused)]
+pub struct OrderStatus<'a> {
     customer_info: Customer!(balance, first, middle, last),
     order_info: Order!(number, entry_d, carrier_id),
     order_lines_info: Vec<OrderLineInfo<'a>>,
