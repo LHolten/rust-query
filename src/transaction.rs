@@ -22,9 +22,10 @@ use crate::{
 ///
 /// Creating a [Database] requires going through the steps to migrate an existing database to
 /// the required schema, or creating a new database from scratch (See also [crate::migration::Config]).
+/// Please see [LocalClient::migrator] to get started.
+///
 /// Having done the setup to create a compatible database is sadly not a guarantee that the
 /// database will stay compatible for the lifetime of the [Database] struct.
-///
 /// That is why [Database] also stores the `schema_version`. This allows detecting non-malicious
 /// modifications to the schema and gives us the ability to panic when this is detected.
 /// Such non-malicious modification of the schema can happen for example if another [Database]
@@ -43,7 +44,7 @@ impl<S> Database<S> {
     /// You can do (almost) anything you want with this connection as it is almost completely isolated from all other
     /// [rust_query] connections. The only thing you should not do here is changing the schema.
     /// Schema changes are detected with the `schema_version` pragma and will result in a panic when creating a new
-    /// transaction.
+    /// [rust_query] transaction.
     pub fn rusqlite_connection(&self) -> rusqlite::Connection {
         use r2d2::ManageConnection;
         self.manager.connect().unwrap()
