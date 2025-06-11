@@ -183,7 +183,10 @@ fn define_table(
         quote! {Self}
     };
 
+    let table_doc_comments = &table.doc_comments;
+
     Ok(quote! {
+        #(#table_doc_comments)*
         pub struct #table_ident_with_span<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}

@@ -6,6 +6,7 @@ use rust_query::{
 #[schema(Schema)]
 #[version(0..=1)]
 pub mod vN {
+    /// This is a doc comment for the User table!
     pub struct User {
         pub name: String,
         #[version(1..)]

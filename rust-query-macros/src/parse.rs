@@ -57,8 +57,9 @@ impl VersionedTable {
         let mut uniques = vec![];
         let mut prev = None;
         let mut referenceable = true;
+        let mut doc_comments = vec![];
 
-        for attr in &table.attrs {
+        for attr in table.attrs {
             if let Some(unique) = is_unique(attr.path()) {
                 let idents =
                     attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?;
@@ -73,8 +74,10 @@ impl VersionedTable {
                     return Err(syn::Error::new_spanned(attr, "can not have multiple from"));
                 }
                 prev = Some(attr.parse_args()?)
+            } else if attr.path().is_ident("doc") {
+                doc_comments.push(attr);
             } else {
-                other_attrs.push(attr.clone());
+                other_attrs.push(attr);
             }
         }
 
@@ -102,6 +105,7 @@ impl VersionedTable {
             columns,
             uniques,
             referenceable,
+            doc_comments,
         })
     }
 }

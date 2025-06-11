@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use proc_macro2::{Span, TokenStream};
 use quote::format_ident;
-use syn::Ident;
+use syn::{Attribute, Ident};
 
 #[derive(Clone)]
 pub(crate) struct Unique {
@@ -22,6 +22,7 @@ pub(crate) struct VersionedTable {
     // `prev` always has a distinct span from `name`
     pub prev: Option<Ident>,
     pub uniques: Vec<Unique>,
+    pub doc_comments: Vec<Attribute>,
     pub columns: Vec<VersionedColumn>,
     pub referenceable: bool,
 }
@@ -75,6 +76,7 @@ impl VersionedSchema {
             prev,
             name: table.name.clone(),
             uniques: table.uniques.clone(),
+            doc_comments: table.doc_comments.clone(),
             columns,
             referenceable: table.referenceable,
         })
@@ -85,6 +87,7 @@ pub(crate) struct SingleVersionTable {
     pub prev: Option<Ident>,
     pub name: Ident,
     pub uniques: Vec<Unique>,
+    pub doc_comments: Vec<Attribute>,
     pub columns: BTreeMap<usize, SingleVersionColumn>,
     pub referenceable: bool,
 }
