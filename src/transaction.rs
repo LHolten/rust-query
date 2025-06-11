@@ -149,15 +149,8 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<'e, O>(&self, val: impl IntoSelect<'t, 't, S, Out = O>) -> O {
-        // Theoretically this doesn't even need to be in a transaction.
-        // We already have one though, so we must use it.
-        let mut res = self.query(|e| {
-            // Cast the static lifetime to any lifetime necessary, this is fine because we know the static lifetime
-            // can not be guaranteed by a query scope.
-            e.into_vec_private(val)
-        });
-        res.pop().unwrap()
+    pub fn query_one<'e, O: 't>(&self, val: impl IntoSelect<'t, 't, S, Out = O>) -> O {
+        self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 }
 

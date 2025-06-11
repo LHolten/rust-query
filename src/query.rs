@@ -8,9 +8,11 @@ use std::{
 use rusqlite::Connection;
 use sea_query::SqliteQueryBuilder;
 use sea_query_rusqlite::{RusqliteBinder, RusqliteValues};
+use self_cell::{MutBorrow, self_cell};
 
 use crate::{
-    dummy_impl::{Cacher, IntoSelect, Prepared, Row, SelectImpl},
+    alias::MyAlias,
+    dummy_impl::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     rows::Rows,
 };
 
@@ -35,6 +37,35 @@ impl<S> DerefMut for Query<'_, '_, S> {
     }
 }
 
+type Stmt<'x> = rusqlite::CachedStatement<'x>;
+type RRows<'a> = rusqlite::Rows<'a>;
+
+self_cell!(
+    struct OwnedRows<'x> {
+        owner: MutBorrow<Stmt<'x>>,
+
+        #[covariant]
+        dependent: RRows,
+    }
+);
+
+pub struct Iter<'inner, O> {
+    inner: OwnedRows<'inner>,
+    prepared: DynPrepared<'inner, O>,
+    cached: Vec<MyAlias>,
+}
+
+impl<O> Iterator for Iter<'_, O> {
+    type Item = O;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.with_dependent_mut(|_, rows| {
+            let row = rows.next().unwrap()?;
+            Some(self.prepared.call(Row::new(row, &self.cached)))
+        })
+    }
+}
+
 impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// Turn a database query into a [Vec] of results.
     ///
@@ -42,15 +73,20 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
     /// then you have to use something like [slice::sort].
     pub fn into_vec<O>(&self, select: impl IntoSelect<'inner, 'outer, S, Out = O>) -> Vec<O> {
-        self.into_vec_private(select)
+        self.into_iter(select).collect()
     }
 
-    pub(crate) fn into_vec_private<'x, D>(&self, dummy: D) -> Vec<D::Out>
-    where
-        D: IntoSelect<'x, 'outer, S>,
-    {
+    /// Turn a database query into an [Iter] of results.
+    ///
+    /// The order of rows that is returned is unstable. This means that the order may change between any two
+    /// executions of the exact same query. If a specific order (or even a consistent order) is required,
+    /// then you have to use something like [slice::sort].
+    pub fn into_iter<O>(
+        &self,
+        select: impl IntoSelect<'inner, 'outer, S, Out = O>,
+    ) -> Iter<'inner, O> {
         let mut cacher = Cacher::new();
-        let mut prepared = dummy.into_select().inner.prepare(&mut cacher);
+        let prepared = select.into_select().inner.prepare(&mut cacher);
 
         let (select, cached) = self.ast.clone().full().simple(cacher.columns);
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
@@ -63,14 +99,15 @@ impl<'outer, 'inner, S> Query<'outer, 'inner, S> {
             PLAN.set(Some(node));
         }
 
-        let mut statement = self.conn.prepare_cached(&sql).unwrap();
-        let mut rows = statement.query(&*values.as_params()).unwrap();
+        let statement = MutBorrow::new(self.conn.prepare_cached(&sql).unwrap());
 
-        let mut out = vec![];
-        while let Some(row) = rows.next().unwrap() {
-            out.push(prepared.call(Row::new(row, &cached)));
+        Iter {
+            inner: OwnedRows::new(statement, |stmt| {
+                stmt.borrow_mut().query(&*values.as_params()).unwrap()
+            }),
+            prepared,
+            cached,
         }
-        out
     }
 }
 
