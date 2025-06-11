@@ -114,6 +114,7 @@ fn define_table(
     let mut try_from_update = vec![];
     let mut col_str = vec![];
     let mut col_ident = vec![];
+    let mut col_doc = vec![];
     let mut col_typ = vec![];
     let mut col_typ_original = vec![];
     let mut empty = vec![];
@@ -136,6 +137,7 @@ fn define_table(
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
+        col_doc.push(&col.doc_comments);
 
         if col.is_def {
             col_typ_original.push(col.typ.clone());
@@ -188,6 +190,7 @@ fn define_table(
     Ok(quote! {
         #(#table_doc_comments)*
         pub struct #table_ident_with_span<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
+            #(#col_doc)*
             pub #col_ident: #generic::Out<#col_typ, #schema>,
         )*}
 

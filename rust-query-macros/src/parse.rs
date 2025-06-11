@@ -24,13 +24,16 @@ impl VersionedColumn {
         }
 
         let mut other_field_attr = vec![];
-        for attr in field.attrs.clone() {
+        let mut doc_comments = vec![];
+        for attr in field.attrs {
             if let Some(unique) = is_unique(attr.path()) {
                 attr.meta.require_path_only()?;
                 uniques.push(Unique {
                     name: unique,
                     columns: vec![name.clone()],
                 })
+            } else if attr.path().is_ident("doc") {
+                doc_comments.push(attr);
             } else {
                 other_field_attr.push(attr);
             }
@@ -43,6 +46,7 @@ impl VersionedColumn {
             versions,
             name,
             typ: field.ty.into_token_stream(),
+            doc_comments,
         })
     }
 }

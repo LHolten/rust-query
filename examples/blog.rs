@@ -9,6 +9,7 @@ pub mod vN {
     /// This is a doc comment for the User table!
     pub struct User {
         pub name: String,
+        /// This is a doc comment for the email column
         #[version(1..)]
         pub email: String,
     }

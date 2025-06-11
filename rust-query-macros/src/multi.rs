@@ -31,6 +31,7 @@ pub(crate) struct VersionedColumn {
     pub versions: std::ops::Range<u32>,
     pub name: Ident,
     pub typ: TokenStream,
+    pub doc_comments: Vec<Attribute>,
 }
 
 impl VersionedSchema {
@@ -56,6 +57,7 @@ impl VersionedSchema {
                         name: c.name.clone(),
                         typ: c.typ.clone(),
                         is_def: version == c.versions.end - 1,
+                        doc_comments: c.doc_comments.clone(),
                     },
                 );
             }
@@ -97,4 +99,5 @@ pub(crate) struct SingleVersionColumn {
     pub typ: TokenStream,
     // is this the latest version where the column exists?
     pub is_def: bool,
+    pub doc_comments: Vec<Attribute>,
 }
