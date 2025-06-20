@@ -49,6 +49,10 @@ self_cell!(
     }
 );
 
+/// Lazy iterator over rows from a query.
+///
+/// This is currently invariant in `'inner` due to [MutBorrow].
+/// Would be nice to relax this variance in the future.
 pub struct Iter<'inner, O> {
     inner: OwnedRows<'inner>,
     prepared: DynPrepared<'inner, O>,
