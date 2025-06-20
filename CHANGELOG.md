@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.4.4
+
 - Add support for doc comments on tables and columns.
 - Add `Query::into_iter`, to lazily iterate over query results.
 
