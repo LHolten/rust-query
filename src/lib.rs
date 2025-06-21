@@ -27,7 +27,6 @@ pub use db::TableRow;
 pub use dummy_impl::{IntoSelect, IntoSelectExt, Select};
 use hash::TypBuilder;
 use private::Reader;
-use ref_cast::RefCast;
 use rows::Rows;
 pub use rust_query_macros::{FromExpr, Select};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
@@ -141,15 +140,10 @@ pub mod private {
 ///
 /// **You can not implement this trait yourself!**
 pub trait Table: Sized + 'static {
-    /// The associated type [Table::Ext] is used as the deref target by several types that implement [IntoExpr].
-    /// This adds convenient methods to access related tables that have a foreign key constraint.
-    #[doc(hidden)]
-    type Ext<T>: RefCast<From = T>;
-
     #[doc(hidden)]
     type Ext2<'t>;
     #[doc(hidden)]
-    fn build_ext2(val: Expr<'_, Self::Schema, Self>) -> Self::Ext2<'_>;
+    fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t>;
 
     #[doc(hidden)]
     const TOKEN: Self;

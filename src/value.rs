@@ -5,7 +5,6 @@ pub mod trivial;
 
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
-use ref_cast::RefCast;
 use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
 
 use crate::{
@@ -600,10 +599,10 @@ impl<'column, S, T: MyTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
     }
 }
 
-impl<S, T: Table> Deref for Expr<'_, S, T> {
-    type Target = T::Ext<Self>;
+impl<'t, T: Table> Deref for Expr<'t, T::Schema, T> {
+    type Target = T::Ext2<'t>;
 
     fn deref(&self) -> &Self::Target {
-        RefCast::ref_cast(self)
+        self.ext.get_or_init(|| Box::new(T::build_ext2(self)))
     }
 }

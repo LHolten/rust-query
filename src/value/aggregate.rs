@@ -4,11 +4,10 @@ use std::{
     rc::Rc,
 };
 
-use ref_cast::RefCast;
 use sea_query::{Func, SelectStatement, SimpleExpr};
 
 use crate::{
-    Expr, Table,
+    Expr,
     alias::MyAlias,
     rows::Rows,
     value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
@@ -156,14 +155,6 @@ impl<S, T> Aggr<S, T> {
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
         let conds = self.conds.iter().map(|expr| (expr.0)(b)).collect();
         b.get_aggr(self.select.clone(), conds)
-    }
-}
-
-impl<S, T: Table> Deref for Aggr<S, T> {
-    type Target = T::Ext<Self>;
-
-    fn deref(&self) -> &Self::Target {
-        RefCast::ref_cast(self)
     }
 }
 

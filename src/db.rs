@@ -1,6 +1,5 @@
 use std::{fmt::Debug, marker::PhantomData, ops::Deref};
 
-use ref_cast::RefCast;
 use sea_query::{Alias, SimpleExpr};
 
 use crate::{
@@ -102,11 +101,11 @@ impl<T> Clone for TableRowInner<T> {
 }
 impl<T> Copy for TableRowInner<T> {}
 
-impl<T: Table> Deref for TableRow<'_, T> {
-    type Target = T::Ext<Self>;
+impl<'t, T: Table> Deref for TableRow<'t, T> {
+    type Target = T::Ext2<'t>;
 
     fn deref(&self) -> &Self::Target {
-        RefCast::ref_cast(self)
+        todo!()
     }
 }
 

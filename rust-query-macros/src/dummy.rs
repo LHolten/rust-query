@@ -153,7 +153,7 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         for (name, typ) in &fields {
             let span = typ.span();
             trivial_prepared
-                .push(quote_spanned! {span=> <#typ as ::rust_query::FromExpr<_, _>>::from_expr(col.#name())});
+                .push(quote_spanned! {span=> <#typ as ::rust_query::FromExpr<_, _>>::from_expr(&col.#name)});
         }
         let parts_dummies = wrap(&trivial_prepared);
         let parts_name = wrap(&names);

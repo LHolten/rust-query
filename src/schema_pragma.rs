@@ -1,30 +1,31 @@
 use std::{collections::HashMap, convert::Infallible};
 
-use ref_cast::RefCast;
-
 use crate::{
     Expr, FromExpr, Table, Transaction, hash,
     private::{Reader, new_column},
 };
 
-macro_rules! field {
-    ($name:ident: $typ:ty) => {
-        pub fn $name(&self) -> Expr<'x, Pragma, $typ> {
-            new_column(&self.0, stringify!($name))
-        }
-    };
-    ($name:ident($name_str:literal): $typ:ty) => {
-        pub fn $name(&self) -> Expr<'x, Pragma, $typ> {
-            new_column(&self.0, $name_str)
-        }
-    };
+pub fn strip_raw(inp: &'static str) -> &'static str {
+    inp.strip_prefix("r#").unwrap_or(inp)
 }
 
 macro_rules! table {
-    ($typ:ident, $dummy:ident, $var:pat => $name:expr, $c:expr) => {
+    {$typ:ident, $var:pat => $name:expr, $c:expr,
+    $dummy:ident {
+        $($field_name:ident: $field_typ:ty,)*
+    }} => {
+        pub struct $dummy<'t> {
+            $($field_name: Expr<'t, Pragma, $field_typ>,)*
+        }
         impl Table for $typ {
             type MigrateFrom = Self;
-            type Ext<T> = $dummy<T>;
+            type Ext2<'t> = $dummy<'t>;
+
+            fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t> {
+                Self::Ext2 {
+                    $($field_name: new_column(val, strip_raw(stringify!($field_name))),)*
+                }
+            }
 
             const TOKEN: Self = $c;
 
@@ -76,78 +77,60 @@ pub struct Pragma;
 
 struct TableList;
 
-#[repr(transparent)]
-#[derive(RefCast)]
-struct TableListSelect<T>(T);
-
-#[allow(unused)]
-impl<'x> TableListSelect<Expr<'x, Pragma, TableList>> {
-    field! {schema: String}
-    field! {name: String}
-    field! {r#type("type"): String}
-    field! {ncol: i64}
-    field! {wr: i64}
-    field! {strict: i64}
+table! {
+    TableList, _ => "pragma_table_list".to_owned(), TableList,
+    TableListSelect {
+        schema: String,
+        name: String,
+        r#type: String,
+        ncol: i64,
+        wr: i64,
+        strict: i64,
+    }
 }
-
-table! {TableList, TableListSelect, _ => "pragma_table_list".to_owned(), TableList}
 
 struct TableInfo(pub String);
 
-#[repr(transparent)]
-#[derive(RefCast)]
-struct TableInfoSelect<T>(T);
-
-impl<'x> TableInfoSelect<Expr<'x, Pragma, TableInfo>> {
-    field! {name: String}
-    field! {r#type("type"): String}
-    field! {notnull: i64}
-    field! {pk: i64}
+table! {
+    TableInfo, val => format!("pragma_table_info('{}', 'main')", val.0), TableInfo(String::new()),
+    TableInfoSelect {
+        name: String,
+        r#type: String,
+        notnull: i64,
+        pk: i64,
+    }
 }
-
-table! {TableInfo, TableInfoSelect, val => format!("pragma_table_info('{}', 'main')", val.0), TableInfo(String::new())}
 
 struct ForeignKeyList(pub String);
 
-#[repr(transparent)]
-#[derive(RefCast)]
-struct ForeignKeyListSelect<T>(T);
-
-#[allow(unused)]
-impl<'x> ForeignKeyListSelect<Expr<'x, Pragma, ForeignKeyList>> {
-    field! {table: String}
-    field! {from: String}
-    field! {to: String}
+table! {
+    ForeignKeyList, val => format!("pragma_foreign_key_list('{}', 'main')", val.0), ForeignKeyList(String::new()),
+    ForeignKeyListSelect {
+        table: String,
+        from: String,
+        to: String,
+    }
 }
-
-table! {ForeignKeyList, ForeignKeyListSelect, val => format!("pragma_foreign_key_list('{}', 'main')", val.0), ForeignKeyList(String::new())}
 
 struct IndexList(String);
 
-#[repr(transparent)]
-#[derive(RefCast)]
-struct IndexListSelect<T>(T);
-
-impl<'x> IndexListSelect<Expr<'x, Pragma, IndexList>> {
-    field! {name: String}
-    field! {unique: bool}
-    field! {origin: String}
-    field! {partial: bool}
+table! {
+    IndexList, val => format!("pragma_index_list('{}', 'main')", val.0), IndexList(String::new()),
+    IndexListSelect {
+        name: String,
+        unique: bool,
+        origin: String,
+        partial: bool,
+    }
 }
-
-table! {IndexList, IndexListSelect, val => format!("pragma_index_list('{}', 'main')", val.0), IndexList(String::new())}
 
 struct IndexInfo(String);
 
-#[repr(transparent)]
-#[derive(RefCast)]
-struct IndexInfoSelect<T>(T);
-
-impl<'x> IndexInfoSelect<Expr<'x, Pragma, IndexInfo>> {
-    field! {name: Option<String>}
+table! {IndexInfo, val => format!("pragma_index_info('{}', 'main')", val.0), IndexInfo(String::new()),
+    IndexInfoSelect {
+        name: Option<String>,
+    }
 }
-
-table! {IndexInfo, IndexInfoSelect, val => format!("pragma_index_info('{}', 'main')", val.0), IndexInfo(String::new())}
 
 pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     #[derive(Clone, FromExpr)]
@@ -161,11 +144,11 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
 
     let tables = conn.query(|q| {
         let table = q.join_custom(TableList);
-        q.filter(table.schema().eq("main"));
-        q.filter(table.r#type().eq("table"));
-        q.filter(table.name().eq("sqlite_schema").not());
-        q.filter(table.name().eq("sqlite_stat1").not());
-        q.into_vec(table.name())
+        q.filter(table.schema.eq("main"));
+        q.filter(table.r#type.eq("table"));
+        q.filter(table.name.eq("sqlite_schema").not());
+        q.filter(table.name.eq("sqlite_stat1").not());
+        q.into_vec(&table.name)
     });
 
     let mut output = hash::Schema::default();
@@ -179,7 +162,7 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
         let fks: HashMap<_, _> = conn
             .query(|q| {
                 let fk = q.join_custom(ForeignKeyList(table_name.to_owned()));
-                q.into_vec((fk.from(), fk.table()))
+                q.into_vec((&fk.from, &fk.table))
             })
             .into_iter()
             .collect();
@@ -213,16 +196,16 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
 
         let uniques = conn.query(|q| {
             let index = q.join_custom(IndexList(table_name.clone()));
-            q.filter(index.unique());
-            q.filter(index.origin().eq("u"));
-            q.filter(index.partial().not());
-            q.into_vec(index.name())
+            q.filter(&index.unique);
+            q.filter(index.origin.eq("u"));
+            q.filter(index.partial.not());
+            q.into_vec(&index.name)
         });
 
         for unique_name in uniques {
             let columns = conn.query(|q| {
                 let col = q.join_custom(IndexInfo(unique_name));
-                let name = q.filter_some(col.name());
+                let name = q.filter_some(&col.name);
                 q.into_vec(name)
             });
 
