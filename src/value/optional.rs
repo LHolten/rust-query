@@ -62,7 +62,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     ///
     /// If the joined column is [None], then the whole [optional] combinator will return [None].
     #[doc(alias = "join")]
-    pub fn and<T: 'static>(
+    pub fn and<T: MyTyp>(
         &mut self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {

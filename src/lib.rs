@@ -147,6 +147,11 @@ pub trait Table: Sized + 'static {
     type Ext<T>: RefCast<From = T>;
 
     #[doc(hidden)]
+    type Ext2<'t>;
+    #[doc(hidden)]
+    fn build_ext2(val: Expr<'_, Self::Schema, Self>) -> Self::Ext2<'_>;
+
+    #[doc(hidden)]
     const TOKEN: Self;
 
     /// The schema that this table is a part of.

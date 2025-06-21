@@ -50,7 +50,7 @@ where
     ) -> Select<'columns, 'transaction, S, Self> {
         let col = col.into_expr();
         optional(|row| {
-            let col = row.and(col);
+            let col = row.and(col.covariant());
             row.then(T::from_expr(col))
         })
     }

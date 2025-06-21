@@ -3,7 +3,7 @@ mod operations;
 pub mod optional;
 pub mod trivial;
 
-use std::{fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
 use ref_cast::RefCast;
 use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
@@ -305,6 +305,7 @@ pub trait MyTyp: 'static {
     const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
     type Out<'t>: SecretFromSql<'t>;
+    type Ext<'t>;
     type Sql;
 }
 
@@ -318,6 +319,7 @@ impl<T: Table> MyTyp for T {
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out<'t> = TableRow<'t, Self>;
+    type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
 }
 
@@ -338,6 +340,7 @@ impl MyTyp for i64 {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
+    type Ext<'t> = ();
     type Sql = i64;
 }
 
@@ -351,6 +354,7 @@ impl MyTyp for f64 {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out<'t> = Self;
+    type Ext<'t> = ();
     type Sql = f64;
 }
 
@@ -364,6 +368,7 @@ impl MyTyp for bool {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out<'t> = Self;
+    type Ext<'t> = ();
     type Sql = bool;
 }
 
@@ -377,6 +382,7 @@ impl MyTyp for String {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out<'t> = Self;
+    type Ext<'t> = ();
     type Sql = String;
 }
 assert_impl_all!(String: Nullable);
@@ -391,6 +397,7 @@ impl MyTyp for Vec<u8> {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Blob;
     type Out<'t> = Self;
+    type Ext<'t> = ();
     type Sql = Vec<u8>;
 }
 assert_impl_all!(Vec<u8>: Nullable);
@@ -407,6 +414,7 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out<'t> = Option<T::Out<'t>>;
+    type Ext<'t> = ();
     type Sql = T::Sql;
 }
 
@@ -427,19 +435,34 @@ impl<'t, T: SecretFromSql<'t>> SecretFromSql<'t> for Option<T> {
 /// - And finally the type paramter `T` specifies the type of the expression.
 ///
 /// [Expr] implements [Deref] to have table extension methods in case the type is a table type.
-pub struct Expr<'column, S, T> {
+pub struct Expr<'column, S, T: MyTyp> {
     pub(crate) inner: DynTyped<T>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
+    pub(crate) ext: OnceCell<Box<T::Ext<'column>>>,
 }
 
-impl<S, T> Debug for Expr<'_, S, T> {
+impl<'column, S, T: MyTyp> Expr<'column, S, T> {
+    pub(crate) fn covariant<'a>(self) -> Expr<'a, S, T>
+    where
+        'column: 'a,
+    {
+        Expr {
+            inner: self.inner,
+            _p: PhantomData,
+            _p2: self._p2,
+            ext: OnceCell::new(),
+        }
+    }
+}
+
+impl<S, T: MyTyp> Debug for Expr<'_, S, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Expr of type {}", std::any::type_name::<T>())
     }
 }
 
-impl<'column, S, T: 'static> Expr<'column, S, T> {
+impl<'column, S, T: MyTyp> Expr<'column, S, T> {
     /// Extremely easy to use API. Should only be used by the macro to implement migrations.
     #[doc(hidden)]
     pub fn _migrate<OldS>(prev: impl IntoExpr<'column, OldS>) -> Self {
@@ -450,7 +473,7 @@ impl<'column, S, T: 'static> Expr<'column, S, T> {
     }
 }
 
-pub fn adhoc_expr<S, T: 'static>(
+pub fn adhoc_expr<S, T: MyTyp>(
     f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
 ) -> Expr<'static, S, T> {
     Expr::adhoc(f)
@@ -464,7 +487,7 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
     Expr::adhoc(move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into())
 }
 
-pub fn assume_expr<S, T: 'static>(e: Expr<S, Option<T>>) -> Expr<S, T> {
+pub fn assume_expr<S, T: MyTyp>(e: Expr<S, Option<T>>) -> Expr<S, T> {
     let inner = e.inner;
     Expr::adhoc(move |b| inner.build_expr(b))
 }
@@ -475,7 +498,7 @@ pub fn new_dummy<'x, S, T: MyTyp>(
     IntoSelect::into_select(Expr::new(val))
 }
 
-pub fn into_owned<'x, S, T>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {
+pub fn into_owned<'x, S, T: MyTyp>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {
     val.into_expr().inner
 }
 
@@ -488,7 +511,7 @@ impl<F: Fn(&mut ValueBuilder) -> SimpleExpr, T> Typed for AdHoc<F, T> {
     }
 }
 
-impl<S, T: 'static> Expr<'_, S, T> {
+impl<S, T: MyTyp> Expr<'_, S, T> {
     pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr) -> Self {
         Self::new(AdHoc(f, PhantomData))
     }
@@ -498,16 +521,18 @@ impl<S, T: 'static> Expr<'_, S, T> {
             inner: DynTyped(Rc::new(val)),
             _p: PhantomData,
             _p2: PhantomData,
+            ext: OnceCell::new(),
         }
     }
 }
 
-impl<S, T> Clone for Expr<'_, S, T> {
+impl<S, T: MyTyp> Clone for Expr<'_, S, T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
             _p: self._p,
             _p2: self._p2,
+            ext: OnceCell::new(),
         }
     }
 }

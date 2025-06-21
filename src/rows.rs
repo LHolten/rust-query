@@ -7,7 +7,7 @@ use crate::{
     alias::TmpTable,
     ast::MySelect,
     db::Join,
-    value::{IntoExpr, MyTableRef, Typed},
+    value::{IntoExpr, MyTableRef, MyTyp, Typed},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -66,7 +66,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter out rows where this column is [None].
     ///
     /// Returns a new column with the unwrapped type.
-    pub fn filter_some<Typ: 'static>(
+    pub fn filter_some<Typ: MyTyp>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
