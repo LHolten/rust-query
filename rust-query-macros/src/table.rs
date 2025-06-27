@@ -133,7 +133,7 @@ fn define_table(
             update_columns_safe.push(quote! {::rust_query::private::Update<'t>});
             try_from_update.push(quote! {val.#ident});
         }
-        parts.push(quote! {::rust_query::FromExpr::from_expr(col.#ident())});
+        parts.push(quote! {::rust_query::FromExpr::from_expr(&col.#ident)});
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
@@ -164,7 +164,6 @@ fn define_table(
         })
     }
 
-    let ext_ident = format_ident!("{}Ext", table_ident);
     let macro_ident = format_ident!("{}Macro", table_ident);
 
     let (referer, referer_expr) = if table.referenceable {
@@ -186,6 +185,7 @@ fn define_table(
     };
 
     let table_doc_comments = &table.doc_comments;
+    let as_expr = vec![quote! {::rust_query::private::AsExpr}; col_ident.len()];
 
     Ok(quote! {
         #(#table_doc_comments)*
@@ -245,21 +245,21 @@ fn define_table(
         #safe_default
 
         const _: () = {
-            #[repr(transparent)]
-            pub struct #ext_ident<T>(T);
-            ::rust_query::unsafe_impl_ref_cast! {#ext_ident}
-
-            impl<'t, T> #ext_ident<T>
-                where T: ::rust_query::IntoExpr<'t, #schema, Typ = #table_ident>
-            {#(
-                pub fn #col_ident(&self) -> ::rust_query::Expr<'t, #schema, #col_typ> {
-                    ::rust_query::private::new_column(&self.0, #col_str)
-                }
-            )*}
-
             impl ::rust_query::Table for #table_ident {
                 type MigrateFrom = #migrate_from;
-                type Ext<T> = #ext_ident<T>;
+
+                type Ext2<'t> = #table_ident<#(#as_expr<'t>),*>;
+
+                fn covariant_ext<'x, 't>(val: &'x Self::Ext2<'static>) -> &'x Self::Ext2<'t> {
+                    val
+                }
+
+                fn build_ext2<'t>(val: &::rust_query::Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t> {
+                    Self::Ext2 {
+                        #(#col_ident: ::rust_query::private::new_column(val, #col_str),)*
+                    }
+                }
+
                 type Schema = #schema;
 
                 const TOKEN: Self = #table_ident;
@@ -300,7 +300,7 @@ fn define_table(
                     old: ::rust_query::Expr<'t, Self::Schema, Self>,
                 ) -> Self::Insert<'t> {
                     #table_ident {#(
-                        #col_ident: val.#col_ident.apply(old.#col_ident()),
+                        #col_ident: val.#col_ident.apply(&old.#col_ident),
                     )*}
                 }
 
