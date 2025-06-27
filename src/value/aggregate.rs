@@ -64,7 +64,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = T>,
         on: impl IntoExpr<'outer, S, Typ = T>,
     ) {
-        let on = on.into_expr().covariant();
+        let on = on.into_expr();
         self.filter(val.into_expr().eq(on))
     }
 

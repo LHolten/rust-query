@@ -439,21 +439,7 @@ pub struct Expr<'column, S, T: MyTyp> {
     pub(crate) inner: DynTyped<T>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
-    pub(crate) ext: OnceCell<Box<T::Ext<'column>>>,
-}
-
-impl<'column, S, T: MyTyp> Expr<'column, S, T> {
-    pub(crate) fn covariant<'a>(self) -> Expr<'a, S, T>
-    where
-        'column: 'a,
-    {
-        Expr {
-            inner: self.inner,
-            _p: PhantomData,
-            _p2: self._p2,
-            ext: OnceCell::new(),
-        }
-    }
+    pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
 }
 
 impl<S, T: MyTyp> Debug for Expr<'_, S, T> {
@@ -604,6 +590,14 @@ impl<'t, T: Table> Deref for Expr<'t, T::Schema, T> {
     type Target = T::Ext2<'t>;
 
     fn deref(&self) -> &Self::Target {
-        self.ext.get_or_init(|| Box::new(T::build_ext2(self)))
+        T::covariant_ext(self.ext.get_or_init(|| {
+            let expr = Expr {
+                inner: self.inner.clone(),
+                _p: PhantomData::<&'static ()>,
+                _p2: PhantomData,
+                ext: OnceCell::new(),
+            };
+            Box::new(T::build_ext2(&expr))
+        }))
     }
 }

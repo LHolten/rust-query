@@ -42,7 +42,7 @@ pub struct TableRow<'t, T: Table> {
     pub(crate) _p: PhantomData<&'t ()>,
     pub(crate) _local: PhantomData<LocalClient>,
     pub(crate) inner: TableRowInner<T>,
-    pub(crate) ext: OnceCell<Box<T::Ext2<'t>>>,
+    pub(crate) ext: OnceCell<Box<T::Ext2<'static>>>,
 }
 
 impl<T: Table> TableRow<'_, T> {
@@ -112,7 +112,15 @@ impl<'t, T: Table> Deref for TableRow<'t, T> {
     type Target = T::Ext2<'t>;
 
     fn deref(&self) -> &Self::Target {
-        todo!()
+        T::covariant_ext(self.ext.get_or_init(|| {
+            let expr = TableRow {
+                _p: PhantomData,
+                _local: PhantomData,
+                inner: self.inner.clone(),
+                ext: OnceCell::new(),
+            };
+            Box::new(T::build_ext2(&expr.into_expr()))
+        }))
     }
 }
 

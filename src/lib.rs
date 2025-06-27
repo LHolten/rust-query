@@ -142,6 +142,10 @@ pub mod private {
 pub trait Table: Sized + 'static {
     #[doc(hidden)]
     type Ext2<'t>;
+
+    #[doc(hidden)]
+    fn covariant_ext<'x, 't>(val: &'x Self::Ext2<'static>) -> &'x Self::Ext2<'t>;
+
     #[doc(hidden)]
     fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t>;
 

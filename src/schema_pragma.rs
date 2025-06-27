@@ -21,6 +21,10 @@ macro_rules! table {
             type MigrateFrom = Self;
             type Ext2<'t> = $dummy<'t>;
 
+            fn covariant_ext<'x, 't>(val: &'x Self::Ext2<'static>) -> &'x Self::Ext2<'t> {
+                val
+            }
+
             fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t> {
                 Self::Ext2 {
                     $($field_name: new_column(val, strip_raw(stringify!($field_name))),)*
