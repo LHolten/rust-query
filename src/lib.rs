@@ -15,7 +15,6 @@ mod hash;
 mod migrate;
 mod mymap;
 mod query;
-mod ref_cast_impl;
 mod rows;
 mod schema_pragma;
 mod transaction;
@@ -70,7 +69,6 @@ pub mod private {
     };
     pub use crate::writable::{Reader, TableInsert};
 
-    pub use ref_cast::RefCast;
     pub use rust_query_macros::fields;
     pub use sea_query::SimpleExpr;
 
