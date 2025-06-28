@@ -6,8 +6,8 @@ error[E0521]: borrowed data escapes outside of closure
 15 |     let name = txn.query(|rows| {
    |                           ---- `rows` is a reference that is only valid in the closure body
 ...
-18 |         txn.query_one(item.name())
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ `rows` escapes the closure body here
+18 |         txn.query_one(&item.name)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^ `rows` escapes the closure body here
    |
    = note: requirement occurs because of the type `Transaction<'_, v0::Schema>`, which makes the generic argument `'_` invariant
    = note: the struct `Transaction<'t, S>` is invariant over the parameter `'t`

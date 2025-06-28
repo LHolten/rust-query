@@ -21,7 +21,7 @@ fn test(db: Database<Schema>) {
 
     let txn = client.transaction(&db);
     for item in items {
-        let name = txn.query_one(item.name());
+        let name = txn.query_one(&item.name);
         println!("{name}")
     }
 }

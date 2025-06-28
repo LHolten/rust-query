@@ -15,7 +15,7 @@ fn test(db: Database<Schema>) {
     let total = txn.query(|rows| {
         let item = rows.join(MyTable);
 
-        txn.query_one(aggregate(|rows| rows.sum(item.score())))
+        txn.query_one(aggregate(|rows| rows.sum(&item.score)))
     });
 
     println!("{total}");

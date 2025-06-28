@@ -6,5 +6,5 @@ error: lifetime may not live long enough
 15 |     let total = txn.query(|rows| {
    |                            ---- has type `&mut Query<'_, '1, v0::Schema>`
 ...
-18 |         txn.query_one(aggregate(|rows| rows.sum(item.score())))
-   |                                        ^^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+18 |         txn.query_one(aggregate(|rows| rows.sum(&item.score)))
+   |                                        ^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`

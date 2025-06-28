@@ -15,7 +15,7 @@ fn test(db: Database<Schema>) {
     let score = txn.query(|rows| {
         let item = rows.join(MyTable);
 
-        txn.query_one(optional(|row| row.then(item.score())))
+        txn.query_one(optional(|row| row.then(&item.score)))
     });
 
     println!("{score:?}");

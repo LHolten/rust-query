@@ -18,8 +18,8 @@ error: lifetime may not live long enough
    |                            |
    |                            has type `&mut Query<'_, '1, v0::Schema>`
 30 |         let item = rows.join(MyTable);
-31 |         rows.into_iter(item.name())
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+31 |         rows.into_iter(&item.name)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
    |
    = note: requirement occurs because of the type `rust_query::query::Iter<'_, String>`, which makes the generic argument `'_` invariant
    = note: the struct `rust_query::query::Iter<'inner, O>` is invariant over the parameter `'inner`

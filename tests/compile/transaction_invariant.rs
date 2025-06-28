@@ -15,7 +15,7 @@ fn test(db: Database<Schema>) {
     let name = txn.query(|rows| {
         let item = rows.join(MyTable);
 
-        txn.query_one(item.name())
+        txn.query_one(&item.name)
     });
 
     println!("{name}");

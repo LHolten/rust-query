@@ -28,7 +28,7 @@ fn test2(db: Database<Schema>) {
 
     let names = txn.query(|rows| {
         let item = rows.join(MyTable);
-        rows.into_iter(item.name())
+        rows.into_iter(&item.name)
     });
 
     // can not take iterator outside of `query`
