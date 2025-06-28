@@ -108,6 +108,10 @@ pub mod private {
         type Out;
     }
 
+    pub trait UpdateOrUnit<'t, S, T>: Default {}
+    impl<'t, S, T: MyTyp> UpdateOrUnit<'t, S, T> for crate::Update<'t, S, T> {}
+    impl<'t, S, T> UpdateOrUnit<'t, S, T> for () {}
+
     pub mod doctest {
         use crate::{LocalClient, TransactionMut, migrate::Config, migration};
 

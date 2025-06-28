@@ -151,20 +151,8 @@ fn define_table(
         empty.push(quote! {});
     }
 
-    let mut safe_default = None;
-    if !table.uniques.is_empty() {
-        safe_default = Some(quote! {
-            impl<'t> Default for #table_ident<#(#update_columns_safe),*> {
-                fn default() -> Self {
-                    Self {#(
-                        #col_ident: Default::default(),
-                    )*}
-                }
-            }
-        })
-    }
-
     let macro_ident = format_ident!("{}Macro", table_ident);
+    let alias_ident = format_ident!("{}Alias", table_ident);
 
     let (referer, referer_expr) = if table.referenceable {
         (quote! {()}, quote! {})
@@ -185,14 +173,14 @@ fn define_table(
     };
 
     let table_doc_comments = &table.doc_comments;
-    let as_expr = vec![quote! {::rust_query::private::AsExpr}; col_ident.len()];
 
     Ok(quote! {
         #(#table_doc_comments)*
-        pub struct #table_ident_with_span<#(#generic: ::rust_query::private::Apply = ::rust_query::private::Ignore),*> {#(
+        pub struct #table_ident_with_span<#(#generic = ()),*> {#(
             #(#col_doc)*
-            pub #col_ident: #generic::Out<#col_typ, #schema>,
+            pub #col_ident: #generic,
         )*}
+        type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
 
         #[allow(non_upper_case_globals)]
         pub const #table_ident_with_span: #table_ident = #table_ident {#(
@@ -200,12 +188,12 @@ fn define_table(
         )*};
 
         impl<#(#generic: ::rust_query::private::Apply),*> ::rust_query::private::Instantiate<#struct_id, (#(#generic),*)> for super::MacroRoot {
-            type Out = (#table_ident<#(#generic),*>);
+            type Out = (#table_ident<#(#generic::Out<#col_typ, #schema>),*>);
         }
 
-        impl<'transaction, #(#generic: ::rust_query::private::Apply + 'transaction),*> ::rust_query::FromExpr<'transaction, #schema, #table_ident>
+        impl<'transaction, #(#generic),*> ::rust_query::FromExpr<'transaction, #schema, #table_ident>
             for #table_ident<#(#generic),*>
-        where #(#generic::Out<#col_typ, #schema>: ::rust_query::FromExpr<'transaction, #schema, #col_typ>,)*
+        where #(#generic: ::rust_query::FromExpr<'transaction, #schema, #col_typ>,)*
         {
             /// How to turn a column reference into a [Select].
             fn from_expr<'columns>(
@@ -234,7 +222,7 @@ fn define_table(
         #[allow(unused_imports)]
         pub(crate) use #macro_ident::#table_ident;
 
-        impl<'t> Default for #table_ident<#(#empty ::rust_query::private::Update<'t>),*> {
+        impl<'t #(,#generic: ::rust_query::private::UpdateOrUnit<'t, #schema, #col_typ>)*> Default for #table_ident<#(#generic),*> {
             fn default() -> Self {
                 Self {#(
                     #col_ident: Default::default(),
@@ -242,13 +230,11 @@ fn define_table(
             }
         }
 
-        #safe_default
-
         const _: () = {
             impl ::rust_query::Table for #table_ident {
                 type MigrateFrom = #migrate_from;
 
-                type Ext2<'t> = #table_ident<#(#as_expr<'t>),*>;
+                type Ext2<'t> = #alias_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>;
 
                 fn covariant_ext<'x, 't>(val: &'x Self::Ext2<'static>) -> &'x Self::Ext2<'t> {
                     val
@@ -274,9 +260,9 @@ fn define_table(
                 const NAME: &'static str = #table_name;
 
                 type Conflict<'t> = #conflict_type;
-                type UpdateOk<'t> = (#table_ident<#(#update_columns_safe),*>);
-                type Update<'t> = (#table_ident<#(#empty ::rust_query::private::Update<'t>),*>);
-                type Insert<'t> = (#table_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
+                type UpdateOk<'t> = (#alias_ident<#(#update_columns_safe),*>);
+                type Update<'t> = (#alias_ident<#(#empty ::rust_query::private::Update<'t>),*>);
+                type Insert<'t> = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
 
                 fn read<'t>(val: &Self::Insert<'t>, f: &mut ::rust_query::private::Reader<'t, Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
@@ -311,7 +297,7 @@ fn define_table(
             }
         };
 
-        impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(::rust_query::private::Custom<#generic>),*>
+        impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(#generic),*>
         where
             #(#generic: ::rust_query::IntoExpr<'t, #schema, Typ = #col_typ>,)*
         {

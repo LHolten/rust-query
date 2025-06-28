@@ -96,7 +96,7 @@ fn define_table_migration(
     for (i, col) in &table.columns {
         let name = &col.name;
         if prev_columns.contains_key(i) {
-            col_new.push(quote! {prev.#name()});
+            col_new.push(quote! {&prev.#name});
         } else {
             let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
             if unique_columns.any(|c| c == name) {

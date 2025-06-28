@@ -14,6 +14,7 @@ macro_rules! table {
     $dummy:ident {
         $($field_name:ident: $field_typ:ty,)*
     }} => {
+        #[allow(dead_code)]
         pub struct $dummy<'t> {
             $($field_name: Expr<'t, Pragma, $field_typ>,)*
         }
