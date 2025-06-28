@@ -322,7 +322,7 @@ impl<T: Table> MyTyp for T {
     type Sql = i64;
 }
 
-impl<'t, T> SecretFromSql<'t> for TableRow<'t, T> {
+impl<'t, T: Table> SecretFromSql<'t> for TableRow<'t, T> {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(TableRow {
             _p: PhantomData,
@@ -331,6 +331,7 @@ impl<'t, T> SecretFromSql<'t> for TableRow<'t, T> {
                 _p: PhantomData,
                 idx: value.as_i64()?,
             },
+            ext: OnceCell::new(),
         })
     }
 }

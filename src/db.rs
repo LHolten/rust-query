@@ -1,4 +1,4 @@
-use std::{fmt::Debug, marker::PhantomData, ops::Deref};
+use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref};
 
 use sea_query::{Alias, SimpleExpr};
 
@@ -38,12 +38,14 @@ impl<T: Table> Typed for Join<T> {
 /// Row reference that can be used in any query in the same transaction.
 ///
 /// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
-pub struct TableRow<'t, T> {
+pub struct TableRow<'t, T: Table> {
     pub(crate) _p: PhantomData<&'t ()>,
     pub(crate) _local: PhantomData<LocalClient>,
     pub(crate) inner: TableRowInner<T>,
+    pub(crate) ext: OnceCell<Box<T::Ext2<'t>>>,
 }
-impl<T> TableRow<'_, T> {
+
+impl<T: Table> TableRow<'_, T> {
     pub(crate) fn new(idx: i64) -> Self {
         Self {
             _p: PhantomData,
@@ -52,19 +54,20 @@ impl<T> TableRow<'_, T> {
                 _p: PhantomData,
                 idx,
             },
+            ext: OnceCell::new(),
         }
     }
 }
 
-impl<T> Eq for TableRow<'_, T> {}
+impl<T: Table> Eq for TableRow<'_, T> {}
 
-impl<T> PartialOrd for TableRow<'_, T> {
+impl<T: Table> PartialOrd for TableRow<'_, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T> Ord for TableRow<'_, T> {
+impl<T: Table> Ord for TableRow<'_, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.idx.cmp(&other.inner.idx)
     }
@@ -75,24 +78,28 @@ pub(crate) struct TableRowInner<T> {
     pub(crate) idx: i64,
 }
 
-impl<T> PartialEq for TableRow<'_, T> {
+impl<T: Table> PartialEq for TableRow<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         self.inner.idx == other.inner.idx
     }
 }
 
-impl<T> Debug for TableRow<'_, T> {
+impl<T: Table> Debug for TableRow<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "db_{}", self.inner.idx)
     }
 }
 
-impl<T> Clone for TableRow<'_, T> {
+impl<T: Table> Clone for TableRow<'_, T> {
     fn clone(&self) -> Self {
-        *self
+        Self {
+            _p: PhantomData,
+            _local: PhantomData,
+            inner: self.inner,
+            ext: OnceCell::new(),
+        }
     }
 }
-impl<T> Copy for TableRow<'_, T> {}
 
 impl<T> Clone for TableRowInner<T> {
     fn clone(&self) -> Self {
@@ -109,7 +116,7 @@ impl<'t, T: Table> Deref for TableRow<'t, T> {
     }
 }
 
-impl<T> From<TableRow<'_, T>> for sea_query::Value {
+impl<T: Table> From<TableRow<'_, T>> for sea_query::Value {
     fn from(value: TableRow<T>) -> Self {
         value.inner.idx.into()
     }
@@ -131,7 +138,7 @@ impl<'t, S, T: Table> IntoExpr<'t, S> for TableRow<'t, T> {
 
 /// This makes it possible to use TableRow as a parameter in
 /// rusqlite queries and statements.
-impl<T> rusqlite::ToSql for TableRow<'_, T> {
+impl<T: Table> rusqlite::ToSql for TableRow<'_, T> {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         self.inner.idx.to_sql()
     }
