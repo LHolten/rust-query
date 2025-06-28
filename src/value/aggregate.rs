@@ -57,17 +57,6 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         }
     }
 
-    /// Filter the rows of this sub-query based on a value from the outer query.
-    #[deprecated = "Please use `Rows::filter` instead"]
-    pub fn filter_on<T: EqTyp>(
-        &mut self,
-        val: impl IntoExpr<'inner, S, Typ = T>,
-        on: impl IntoExpr<'outer, S, Typ = T>,
-    ) {
-        let on = on.into_expr();
-        self.filter(val.into_expr().eq(on))
-    }
-
     /// Return the average value in a column, this is [None] if there are zero rows.
     pub fn avg(&self, val: impl IntoExpr<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
         let val = val.into_expr().inner;

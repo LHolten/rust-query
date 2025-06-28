@@ -4,6 +4,9 @@
 
 - Changed foreign key join syntax from methods `artist.name()` to fields `&artist.name`.
 - Removed support for foreign key join syntax on `TableRow`.
+- Remove deprecated `Table::join`.
+- Remove deprecated `IntoSelectExt` (wit the `map_select` method).
+- Remove deprecated `Aggregate::filter_on`.
 
 ## Internal improvement
 

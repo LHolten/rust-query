@@ -23,10 +23,9 @@ mod writable;
 
 pub use client::LocalClient;
 pub use db::TableRow;
-pub use dummy_impl::{IntoSelect, IntoSelectExt, Select};
+pub use dummy_impl::{IntoSelect, Select};
 use hash::TypBuilder;
 use private::Reader;
-use rows::Rows;
 pub use rust_query_macros::{FromExpr, Select};
 pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
 use value::MyTyp;
@@ -160,12 +159,6 @@ pub trait Table: Sized + 'static {
     #[doc(hidden)]
     /// The table that this table can be migrated from.
     type MigrateFrom: MyTyp;
-
-    /// Please refer to [Rows::join].
-    #[deprecated = "Please use `Rows::join`"]
-    fn join<'inner>(rows: &mut Rows<'inner, Self::Schema>) -> Expr<'inner, Self::Schema, Self> {
-        rows.join(Self::TOKEN)
-    }
 
     /// The type of conflict that can result from inserting a row in this table.
     /// This is the same type that is used for row updates too.

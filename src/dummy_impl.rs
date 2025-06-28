@@ -164,31 +164,6 @@ pub trait IntoSelect<'columns, 'transaction, S>: Sized {
     fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out>;
 }
 
-/// [IntoSelectExt] adds extra methods to values that implement [IntoSelect].
-pub trait IntoSelectExt<'columns, 'transaction, S>: IntoSelect<'columns, 'transaction, S> {
-    /// Refer to [Select::map].
-    #[deprecated = "Please use `Select::map`"]
-    fn map_select<T>(
-        self,
-        f: impl 'transaction + FnMut(Self::Out) -> T,
-    ) -> Select<'columns, 'transaction, S, T>;
-}
-
-impl<'columns, 'transaction, S, X> IntoSelectExt<'columns, 'transaction, S> for X
-where
-    X: IntoSelect<'columns, 'transaction, S>,
-{
-    fn map_select<T>(
-        self,
-        f: impl 'transaction + FnMut(Self::Out) -> T,
-    ) -> Select<'columns, 'transaction, S, T> {
-        Select::new(MapImpl {
-            dummy: self.into_select().inner,
-            func: f,
-        })
-    }
-}
-
 /// This is the result of the [Select::map_select] method.
 ///
 /// [MapImpl] retrieves the same columns as the [Select] that it wraps,
