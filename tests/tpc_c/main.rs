@@ -207,9 +207,9 @@ impl<'a> CustomerIdent<'a> {
             CustomerIdent::Name(district, last_name) => {
                 let mut customers = txn.query(|rows| {
                     let customer = rows.join(Customer);
-                    rows.filter(customer.district().eq(district));
-                    rows.filter(customer.last().eq(last_name));
-                    rows.into_vec((customer.first(), customer))
+                    rows.filter(customer.district.eq(district));
+                    rows.filter(customer.last.eq(last_name));
+                    rows.into_vec((&customer.first, &customer))
                 });
                 customers.sort_by(|a, b| a.0.cmp(&b.0));
 

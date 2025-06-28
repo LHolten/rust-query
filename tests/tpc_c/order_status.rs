@@ -27,9 +27,9 @@ fn order_status<'a>(txn: &Transaction<'a, Schema>, input: CustomerIdent<'a>) -> 
         .query_one(optional(|row| {
             aggregate(|rows| {
                 let order = rows.join(Order);
-                rows.filter(order.customer().eq(customer));
-                let max_number = row.and(rows.max(order.number()));
-                rows.filter(order.number().eq(&max_number));
+                rows.filter(order.customer.eq(customer));
+                let max_number = row.and(rows.max(&order.number));
+                rows.filter(order.number.eq(&max_number));
                 let order = row.and(Order::unique(customer, max_number));
                 row.then(order)
             })
@@ -38,7 +38,7 @@ fn order_status<'a>(txn: &Transaction<'a, Schema>, input: CustomerIdent<'a>) -> 
 
     let order_lines_info = txn.query(|rows| {
         let order_line = rows.join(OrderLine);
-        rows.filter(order_line.order().eq(last_order));
+        rows.filter(order_line.order.eq(last_order));
         rows.into_vec(FromExpr::from_expr(order_line))
     });
 

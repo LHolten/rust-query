@@ -54,9 +54,9 @@ fn do_stuff_with_database(txn: &mut TransactionMut<MySchema>) {
         // Lets join the pictures table.
         let picture = rows.join(Image);
         // Now lets filter for pictures from mike,
-        rows.filter(picture.uploaded_by().eq(mike_id));
+        rows.filter(picture.uploaded_by.eq(mike_id));
         // and finally turn the rows into a vec.
-        rows.into_vec(picture.description())
+        rows.into_vec(&picture.description)
     });
 
     println!("{mike_pictures:?}"); // This should print `["dog"]`.

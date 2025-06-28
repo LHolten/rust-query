@@ -39,8 +39,8 @@ mod using_v0 {
         txn.query(|rows| {
             let m = rows.join(Measurement);
             rows.into_vec(ScoreSelect {
-                score: m.score(),
-                timestamp: m.timestamp(),
+                score: &m.score,
+                timestamp: &m.timestamp,
             })
         })
     }
@@ -117,13 +117,13 @@ mod using_v1 {
     ) -> Option<Info> {
         txn.query_one(aggregate(|rows| {
             let m = rows.join(Measurement);
-            rows.filter(m.location().eq(loc));
+            rows.filter(m.location.eq(loc));
 
             optional(|row| {
-                let average_value = row.and(rows.avg(m.value()));
+                let average_value = row.and(rows.avg(&m.value));
                 row.then(InfoSelect {
                     average_value,
-                    total_duration: rows.sum(m.duration()),
+                    total_duration: rows.sum(&m.duration),
                 })
             })
         }))

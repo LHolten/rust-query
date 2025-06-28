@@ -45,7 +45,7 @@ struct PaymentInput<'a> {
 
 fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> PaymentOutput<'a> {
     let district = input.district;
-    let warehouse = district.warehouse();
+    let warehouse = &district.into_expr().warehouse;
     let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
 
     txn.update_ok(
@@ -80,7 +80,7 @@ fn payment<'a>(mut txn: TransactionMut<'a, Schema>, input: PaymentInput<'a>) -> 
 
     let mut credit_data = None;
     if customer_info.credit == "BC" {
-        let data = txn.query_one(customer.data());
+        let data = txn.query_one(&customer.into_expr().data);
         let mut data = format!("{customer:?},{};{data}", input.amount);
         txn.update_ok(
             customer,

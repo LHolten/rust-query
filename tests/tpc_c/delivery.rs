@@ -28,20 +28,20 @@ fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a>) {
     let mut new_orders = vec![];
     for district_num in 0..10 {
         let district = txn
-            .query_one(District::unique(input.warehouse, district_num))
+            .query_one(District::unique(&input.warehouse, district_num))
             .unwrap();
 
         let new_order = txn.query_one(optional(|row| {
             aggregate(|rows| {
                 let new_order = rows.join(NewOrder);
-                let order = new_order.order();
-                let customer = order.customer();
-                rows.filter(customer.district().eq(district));
+                let order = &new_order.order;
+                let customer = &order.customer;
+                rows.filter(customer.district.eq(district));
 
-                let order_num = row.and(rows.min(order.number()));
-                rows.filter(order.number().eq(&order_num));
+                let order_num = row.and(rows.min(&order.number));
+                rows.filter(order.number.eq(&order_num));
 
-                let customer_num = row.and(rows.min(customer.number()));
+                let customer_num = row.and(rows.min(&customer.number));
                 let customer = row.and(Customer::unique(district, customer_num));
                 let order = row.and(Order::unique(customer, order_num));
                 let new_order = row.and(NewOrder::unique(order));
@@ -53,9 +53,10 @@ fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a>) {
         };
 
         new_orders.push(new_order);
+        let order = &new_order.into_expr().order;
 
         txn.update_ok(
-            new_order.order(),
+            order,
             Order {
                 carrier_id: Update::set(Some(input.carrier_id)),
                 ..Default::default()
@@ -65,8 +66,8 @@ fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a>) {
         let mut total_amount = 0;
         for (line, amount) in txn.query(|rows| {
             let ol = rows.join(OrderLine);
-            rows.filter(ol.order().eq(new_order.order()));
-            rows.into_vec((&ol, ol.amount()))
+            rows.filter(ol.order.eq(order));
+            rows.into_vec((&ol, &ol.amount))
         }) {
             total_amount += amount;
             txn.update_ok(
@@ -79,7 +80,7 @@ fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a>) {
         }
 
         txn.update_ok(
-            new_order.order().customer(),
+            &order.customer,
             Customer {
                 balance: Update::add(total_amount),
                 delivery_cnt: Update::add(1),

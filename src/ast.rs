@@ -72,7 +72,7 @@ impl ValueBuilder {
         let mut select = SelectStatement::new();
         let from = self.from.clone();
 
-        // this stuff adds more to the self.extra list
+        // this stuff adds more to the self.extra list and self.forwarded list
         let select_out: Vec<_> = select_out.into_iter().map(|val| (val.0)(self)).collect();
         let filters: Vec<_> = from.filters.iter().map(|x| x.build_expr(self)).collect();
 

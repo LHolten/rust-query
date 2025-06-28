@@ -60,12 +60,12 @@ struct ItemInput<'a> {
 }
 
 fn new_order<'a>(mut txn: TransactionMut<'a, Schema>, input: NewOrderInput<'a>) -> OutputData<'a> {
-    let district = txn.query_one(input.customer.district());
+    let district = txn.query_one(&input.customer.into_expr().district);
 
     let district_info: District!(warehouse<'_>, number, tax, next_order) =
         txn.query_one(FromExpr::from_expr(district));
 
-    let warehouse_tax = txn.query_one(district.warehouse().tax());
+    let warehouse_tax = txn.query_one(&district.into_expr().warehouse.tax);
 
     txn.update_ok(
         district,
@@ -120,6 +120,7 @@ fn new_order<'a>(mut txn: TransactionMut<'a, Schema>, input: NewOrderInput<'a>) 
 
         let stock = Stock::unique(supplying_warehouse, item);
         let stock = txn.query_one(stock).unwrap();
+        let stock_expr = stock.into_expr();
 
         #[derive(Select)]
         struct StockInfo {
@@ -128,21 +129,21 @@ fn new_order<'a>(mut txn: TransactionMut<'a, Schema>, input: NewOrderInput<'a>) 
             data: String,
         }
         let stock_info = txn.query_one(StockInfoSelect {
-            quantity: stock.quantity(),
+            quantity: &stock_expr.quantity,
             dist_xx: &[
-                stock.dist_00(),
-                stock.dist_01(),
-                stock.dist_02(),
-                stock.dist_03(),
-                stock.dist_04(),
-                stock.dist_05(),
-                stock.dist_06(),
-                stock.dist_07(),
-                stock.dist_08(),
-                stock.dist_09(),
-                stock.dist_10(),
+                &stock_expr.dist_00,
+                &stock_expr.dist_01,
+                &stock_expr.dist_02,
+                &stock_expr.dist_03,
+                &stock_expr.dist_04,
+                &stock_expr.dist_05,
+                &stock_expr.dist_06,
+                &stock_expr.dist_07,
+                &stock_expr.dist_08,
+                &stock_expr.dist_09,
+                &stock_expr.dist_10,
             ][district_info.number as usize],
-            data: stock.data(),
+            data: &stock_expr.data,
         });
 
         let new_quantity = if stock_info.quantity >= quantity + 10 {
