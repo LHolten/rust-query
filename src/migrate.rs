@@ -12,7 +12,7 @@ use rusqlite::{Connection, config::DbConfig};
 use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder, TableDropStatement};
 
 use crate::{
-    FromExpr, Table, TableRow, Transaction,
+    FromExpr, IntoExpr, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     client::LocalClient,
     hash,
@@ -54,7 +54,10 @@ pub trait Migration<'t> {
     type Conflict;
 
     #[doc(hidden)]
-    fn prepare(val: Self, prev: TableRow<'t, Self::From>) -> <Self::To as Table>::Insert<'t>;
+    fn prepare(
+        val: Self,
+        prev: crate::Expr<'t, Self::FromSchema, Self::From>,
+    ) -> <Self::To as Table>::Insert<'t>;
     #[doc(hidden)]
     fn map_conflict(val: TableRow<'t, Self::From>) -> Self::Conflict;
 }
@@ -131,7 +134,7 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
                     &self.transaction,
                     new_name.into_table_ref(),
                     Some(idx),
-                    M::prepare(new, TableRow::new(idx)),
+                    M::prepare(new, TableRow::new(idx).into_expr()),
                 )
                 .map_err(|_| M::map_conflict(TableRow::new(idx)))?;
             };

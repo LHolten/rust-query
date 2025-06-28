@@ -142,7 +142,7 @@ fn define_table_migration(
 
             fn prepare(
                 val: Self,
-                prev: ::rust_query::TableRow<'t, Self::From>,
+                prev: ::rust_query::Expr<'t, Self::FromSchema, Self::From>,
             ) -> <Self::To as ::rust_query::Table>::Insert<'t> {
                 #new_mod::#table_ident {#(
                     #col_ident: ::rust_query::Expr::_migrate::<Self::FromSchema>(#col_new),

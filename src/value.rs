@@ -331,7 +331,6 @@ impl<'t, T: Table> SecretFromSql<'t> for TableRow<'t, T> {
                 _p: PhantomData,
                 idx: value.as_i64()?,
             },
-            ext: OnceCell::new(),
         })
     }
 }
