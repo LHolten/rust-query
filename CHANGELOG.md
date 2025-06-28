@@ -1,5 +1,14 @@
 # Unreleased
 
+# 0.5.0
+
+- Changed foreign key join syntax from methods `artist.name()` to fields `&artist.name`.
+- Removed support for foreign key join syntax on `TableRow`.
+
+## Internal improvement
+
+- Removed `ref_cast` dependency and remaining unsafe code.
+
 # 0.4.4
 
 - Add support for doc comments on tables and columns.
