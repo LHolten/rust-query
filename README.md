@@ -1,3 +1,6 @@
+[![Latest Version](https://img.shields.io/crates/v/rust-query.svg)](https://crates.io/crates/rust-query)
+[![Documentation](https://docs.rs/rust-query/badge.svg)](https://docs.rs/rust-query)
+
 # Type safe SQLite using the Rust type system
 The goal of this library is to allow using relational databases (only SQLite right now) using familiar Rust syntax.
 The library should guarantee that queries and migrations can not fail when they compile. While rust-query goes quite far to achieve this, there are still some exceptions that can cause queries to fail, such as integer overflow.
