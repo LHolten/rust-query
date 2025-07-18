@@ -6,6 +6,7 @@ use sea_query::{
     SelectStatement, SimpleExpr, SqliteQueryBuilder, UpdateStatement, WithClause,
 };
 use sea_query_rusqlite::RusqliteBinder;
+use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
@@ -38,7 +39,63 @@ pub struct Database<S> {
     pub(crate) schema: PhantomData<S>,
 }
 
-impl<S> Database<S> {
+use rusqlite::Connection;
+type RTransaction<'x> = Option<rusqlite::Transaction<'x>>;
+
+self_cell!(
+    struct OwnedTransaction {
+        owner: MutBorrow<Connection>,
+
+        #[covariant]
+        dependent: RTransaction,
+    }
+);
+
+pub enum CowTransaction<'x> {
+    Owned(OwnedTransaction),
+    Borrow(rusqlite::Transaction<'x>),
+}
+
+impl CowTransaction<'_> {
+    pub fn get(&self) -> &rusqlite::Transaction<'_> {
+        match self {
+            CowTransaction::Owned(owned_transaction) => {
+                owned_transaction.borrow_dependent().as_ref().unwrap()
+            }
+            CowTransaction::Borrow(transaction) => transaction,
+        }
+    }
+
+    pub fn with(self, f: impl FnOnce(rusqlite::Transaction<'_>)) {
+        match self {
+            CowTransaction::Owned(mut owned_transaction) => {
+                owned_transaction.with_dependent_mut(|_, b| f(b.take().unwrap()))
+            }
+            CowTransaction::Borrow(transaction) => f(transaction),
+        }
+    }
+}
+
+impl<S: Send + Sync> Database<S> {
+    pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(Transaction<'static, S>) -> R) -> R {
+        std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    use r2d2::ManageConnection;
+
+                    let conn = self.manager.connect().unwrap();
+                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |x| {
+                        Some(x.borrow_mut().transaction().unwrap())
+                    });
+                    let txn =
+                        Transaction::new_checked(CowTransaction::Owned(owned), self.schema_version);
+                    return f(txn);
+                })
+                .join()
+                .unwrap()
+        })
+    }
+
     /// Create a new [rusqlite::Connection] to the database.
     ///
     /// You can do (almost) anything you want with this connection as it is almost completely isolated from all other
@@ -60,14 +117,14 @@ impl<S> Database<S> {
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
 pub struct Transaction<'t, S> {
-    pub(crate) transaction: Rc<rusqlite::Transaction<'t>>,
+    pub(crate) transaction: Rc<CowTransaction<'t>>,
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
 
 impl<'t, S> Transaction<'t, S> {
-    pub(crate) fn new(raw: Rc<rusqlite::Transaction<'t>>) -> Self {
+    pub(crate) fn new(raw: Rc<CowTransaction<'t>>) -> Self {
         Self {
             transaction: raw,
             _p: PhantomData,
@@ -97,8 +154,8 @@ impl<'t, S> Deref for TransactionMut<'t, S> {
 
 impl<'t, S> Transaction<'t, S> {
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: rusqlite::Transaction<'t>, expected: i64) -> Self {
-        if schema_version(&txn) != expected {
+    pub(crate) fn new_checked(txn: CowTransaction<'t>, expected: i64) -> Self {
+        if schema_version(txn.get()) != expected {
             panic!("The database schema was updated unexpectedly")
         }
 
@@ -124,7 +181,7 @@ impl<'t, S> Transaction<'t, S> {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
-        let conn: &rusqlite::Connection = &self.transaction;
+        let conn: &rusqlite::Connection = self.transaction.get();
         let q = Rows {
             phantom: PhantomData,
             ast: Default::default(),
@@ -295,7 +352,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 
         let (query, args) = update.with(with_clause).build_rusqlite(SqliteQueryBuilder);
 
-        let mut stmt = self.transaction.prepare_cached(&query).unwrap();
+        let mut stmt = self.transaction.get().prepare_cached(&query).unwrap();
         match stmt.execute(&*args.as_params()) {
             Ok(1) => Ok(()),
             Ok(n) => panic!("unexpected number of updates: {n}"),
@@ -333,8 +390,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     pub fn commit(self) {
         Rc::into_inner(self.inner.transaction)
             .unwrap()
-            .commit()
-            .unwrap();
+            .with(|x| x.commit().unwrap());
     }
 
     /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
@@ -373,7 +429,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
             .to_owned();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
-        let mut stmt = self.inner.transaction.prepare_cached(&query).unwrap();
+        let mut stmt = self.inner.transaction.get().prepare_cached(&query).unwrap();
 
         match stmt.execute(&*args.as_params()) {
             Ok(0) => Ok(false),
@@ -413,7 +469,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     /// **When this method is used to break [rust_query] invariants, all other [rust_query] function calls
     /// may result in a panic.**
     pub fn rusqlite_transaction(&mut self) -> &rusqlite::Transaction {
-        &self.inner.transaction
+        self.inner.transaction.get()
     }
 
     /// Make the changes made in this [TransactionWeak] permanent.
@@ -425,7 +481,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
 }
 
 pub fn try_insert_private<'t, T: Table>(
-    transaction: &Rc<rusqlite::Transaction<'t>>,
+    transaction: &Rc<CowTransaction<'t>>,
     table: sea_query::TableRef,
     idx: Option<i64>,
     val: T::Insert<'t>,
@@ -453,7 +509,7 @@ pub fn try_insert_private<'t, T: Table>(
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-    let mut statement = transaction.prepare_cached(&sql).unwrap();
+    let mut statement = transaction.get().prepare_cached(&sql).unwrap();
     let mut res = statement
         .query_map(&*values.as_params(), |row| {
             Ok(TableRow::<'_, T>::from_sql(row.get_ref(T::ID)?)?)

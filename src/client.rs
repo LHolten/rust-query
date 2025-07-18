@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use rusqlite::Connection;
 
-use crate::{Database, Transaction, TransactionMut};
+use crate::{Database, Transaction, TransactionMut, transaction::CowTransaction};
 
 /// The primary interface to the database.
 ///
@@ -27,7 +27,7 @@ impl LocalClient {
         // TODO: could check here if the existing connection is good to use.
         let conn = self.conn.insert(db.manager.connect().unwrap());
         let txn = conn.transaction().unwrap();
-        Transaction::new_checked(txn, db.schema_version)
+        Transaction::new_checked(CowTransaction::Borrow(txn), db.schema_version)
     }
 
     /// Create a [TransactionMut].
@@ -52,7 +52,7 @@ impl LocalClient {
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .unwrap();
         TransactionMut {
-            inner: Transaction::new_checked(txn, db.schema_version),
+            inner: Transaction::new_checked(CowTransaction::Borrow(txn), db.schema_version),
         }
     }
 }

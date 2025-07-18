@@ -17,7 +17,7 @@ use crate::{
     client::LocalClient,
     hash,
     schema_pragma::read_schema,
-    transaction::{Database, try_insert_private},
+    transaction::{CowTransaction, Database, try_insert_private},
 };
 
 pub struct TableTypBuilder<S> {
@@ -81,7 +81,7 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
-            new_table::<T>(&self.inner.transaction, new_table_name);
+            new_table::<T>(self.inner.transaction.get(), new_table_name);
             new_table_name
         })
     }
@@ -308,7 +308,6 @@ impl LocalClient {
         let conn = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
             .unwrap();
-        let conn = Rc::new(conn);
 
         // check if this database is newly created
         if schema_version(&conn) == 0 {
@@ -335,7 +334,7 @@ impl LocalClient {
 
         Some(Migrator {
             manager: config.manager,
-            transaction: conn,
+            transaction: Rc::new(CowTransaction::Borrow(conn)),
             _p: PhantomData,
             _local: PhantomData,
             _p0: PhantomData,
@@ -349,7 +348,7 @@ impl LocalClient {
 /// [Migrator::finish].
 pub struct Migrator<'t, S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    transaction: Rc<rusqlite::Transaction<'t>>,
+    transaction: Rc<CowTransaction<'t>>,
     _p0: PhantomData<fn(&'t ()) -> &'t ()>,
     _p: PhantomData<S>,
     // We want to make sure that Migrator is always used with the same LocalClient
@@ -395,7 +394,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
     where
         M: SchemaMigration<'t, From = S>,
     {
-        if user_version(&self.transaction).unwrap() == S::VERSION {
+        if user_version(self.transaction.get()).unwrap() == S::VERSION {
             check_schema::<S>(&self.transaction);
 
             let mut txn = TransactionMigrate {
@@ -414,21 +413,21 @@ impl<'t, S: Schema> Migrator<'t, S> {
 
             for drop in builder.drop {
                 let sql = drop.to_string(SqliteQueryBuilder);
-                self.transaction.execute(&sql, []).unwrap();
+                self.transaction.get().execute(&sql, []).unwrap();
             }
             for (to, tmp) in builder.inner.rename_map {
                 let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
                 let sql = rename.to_string(SqliteQueryBuilder);
-                self.transaction.execute(&sql, []).unwrap();
+                self.transaction.get().execute(&sql, []).unwrap();
             }
-            if let Some(fk) = foreign_key_check(&self.transaction) {
+            if let Some(fk) = foreign_key_check(self.transaction.get()) {
                 (builder.foreign_key.remove(&*fk).unwrap())();
             }
             #[allow(
                 unreachable_code,
                 reason = "rustc is stupid and thinks this is unreachable"
             )]
-            set_user_version(&self.transaction, M::To::VERSION).unwrap();
+            set_user_version(self.transaction.get(), M::To::VERSION).unwrap();
         }
 
         Migrator {
@@ -447,16 +446,21 @@ impl<'t, S: Schema> Migrator<'t, S> {
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn finish(self) -> Option<Database<S>> {
         let conn = &self.transaction;
-        if user_version(conn).unwrap() != S::VERSION {
+        if user_version(conn.get()).unwrap() != S::VERSION {
             return None;
         }
         check_schema::<S>(&self.transaction);
 
         // adds an sqlite_stat1 table
-        self.transaction.execute_batch("PRAGMA optimize;").unwrap();
+        self.transaction
+            .get()
+            .execute_batch("PRAGMA optimize;")
+            .unwrap();
 
-        let schema_version = schema_version(conn);
-        Rc::into_inner(self.transaction).unwrap().commit().unwrap();
+        let schema_version = schema_version(conn.get());
+        Rc::into_inner(self.transaction)
+            .unwrap()
+            .with(|x| x.commit().unwrap());
 
         Some(Database {
             manager: self.manager,
@@ -481,7 +485,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-fn check_schema<S: Schema>(conn: &Rc<rusqlite::Transaction>) {
+fn check_schema<S: Schema>(conn: &Rc<CowTransaction>) {
     let mut b = TableTypBuilder::default();
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
@@ -491,7 +495,7 @@ fn check_schema<S: Schema>(conn: &Rc<rusqlite::Transaction>) {
     );
 }
 
-fn foreign_key_check(conn: &Rc<rusqlite::Transaction>) -> Option<String> {
+fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {
     let error = conn
         .prepare("PRAGMA foreign_key_check")
         .unwrap()
