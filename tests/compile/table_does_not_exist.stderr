@@ -5,8 +5,13 @@ error[E0271]: type mismatch resolving `<FooNext as Table>::Schema == Schema`
   | ----------------- required by a bound introduced by this call
 ...
 9 |         pub evolving: FooNext,
-  |                       ^^^^^^^ expected `v0::Schema`, found `v1::Schema`
+  |                       ^^^^^^^ type mismatch resolving `<FooNext as Table>::Schema == Schema`
   |
+note: expected this to be `v0::Schema`
+ --> tests/compile/table_does_not_exist.rs:3:10
+  |
+3 | #[schema(Schema)]
+  |          ^^^^^^
   = note: `v1::Schema` and `v0::Schema` have similar names, but are actually distinct types
 note: `v1::Schema` is defined in module `crate::v1` of the current crate
  --> tests/compile/table_does_not_exist.rs:3:1
