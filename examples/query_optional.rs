@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromExpr, LocalClient,
+    Database, FromExpr, LocalClient, TransactionMut,
     migration::{Config, schema},
     optional,
 };
@@ -22,8 +22,6 @@ pub mod vN {
 use v0::*;
 
 fn main() {
-    let pub_id = 100;
-
     let mut client = LocalClient::try_new().unwrap();
     let database: Database<Schema> = client
         .migrator(Config::open_in_memory())
@@ -32,7 +30,11 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    let mut txn = client.transaction_mut(&database);
+    database.transaction_mut(queries);
+}
+
+fn queries(mut txn: TransactionMut<Schema>) {
+    let pub_id = 100;
 
     #[expect(unused)]
     #[derive(FromExpr)]
@@ -69,7 +71,9 @@ fn main() {
     .expect("there is no player with this pub_id yet");
 
     let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player::unique(pub_id)));
-    assert!(info.is_some())
+    assert!(info.is_some());
+
+    txn.commit();
 }
 
 #[test]

@@ -65,8 +65,7 @@ mod using_v0 {
 fn main() {
     let mut client = LocalClient::try_new().unwrap();
     let db = using_v1::migrate(&mut client);
-    let txn = client.transaction_mut(&db);
-    using_v1::do_stuff(txn);
+    db.transaction_mut(using_v1::do_stuff)
 }
 
 mod using_v1 {
@@ -102,6 +101,8 @@ mod using_v1 {
             .delete(loc)
             .expect("there should be no fk references to this row");
         assert!(is_not_deleted_twice);
+
+        txn.commit();
     }
 
     #[expect(unused)]

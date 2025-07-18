@@ -23,20 +23,21 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    let mut txn = client.transaction_mut(&database);
+    database.transaction_mut(|mut txn| {
+        let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
+            .into_iter()
+            .map(|name| txn.insert_ok(Name { name }))
+            .collect();
 
-    let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
-        .into_iter()
-        .map(|name| txn.insert_ok(Name { name }))
-        .collect();
-
-    let mut txn = txn.downgrade();
-    for id in ids.clone() {
-        assert!(txn.delete_ok(id));
-    }
-    for id in ids {
-        assert!(!txn.delete_ok(id));
-    }
+        let mut txn = txn.downgrade();
+        for id in ids.clone() {
+            assert!(txn.delete_ok(id));
+        }
+        for id in ids {
+            assert!(!txn.delete_ok(id));
+        }
+        txn.commit();
+    })
 }
 
 #[test]

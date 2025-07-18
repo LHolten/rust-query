@@ -87,9 +87,11 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 fn main() {
     let mut client = LocalClient::try_new().unwrap();
     let db = migrate(&mut client);
-    let mut txn = client.transaction_mut(&db);
-    insert_data(&mut txn);
-    query_data(&txn);
+    db.transaction_mut(|mut txn| {
+        insert_data(&mut txn);
+        query_data(&txn);
+        txn.commit();
+    })
 }
 
 #[test]

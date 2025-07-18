@@ -29,10 +29,11 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    let mut txn = client.transaction_mut(&database);
-    do_stuff_with_database(&mut txn);
-    // After we are done we commit the changes!
-    txn.commit();
+    database.transaction_mut(|mut txn| {
+        do_stuff_with_database(&mut txn);
+        // After we are done we commit the changes!
+        txn.commit();
+    })
 }
 
 // Use the database to insert and query.

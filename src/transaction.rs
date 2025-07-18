@@ -84,12 +84,39 @@ impl<S: Send + Sync> Database<S> {
                     use r2d2::ManageConnection;
 
                     let conn = self.manager.connect().unwrap();
-                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |x| {
-                        Some(x.borrow_mut().transaction().unwrap())
+                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+                        Some(conn.borrow_mut().transaction().unwrap())
                     });
                     let txn =
                         Transaction::new_checked(CowTransaction::Owned(owned), self.schema_version);
                     return f(txn);
+                })
+                .join()
+                .unwrap()
+        })
+    }
+
+    pub fn transaction_mut<R: Send>(
+        &self,
+        f: impl Send + FnOnce(TransactionMut<'static, S>) -> R,
+    ) -> R {
+        std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    use r2d2::ManageConnection;
+
+                    let conn = self.manager.connect().unwrap();
+                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+                        let txn = conn
+                            .borrow_mut()
+                            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                            .unwrap();
+                        Some(txn)
+                    });
+                    let txn =
+                        Transaction::new_checked(CowTransaction::Owned(owned), self.schema_version);
+
+                    return f(TransactionMut { inner: txn });
                 })
                 .join()
                 .unwrap()

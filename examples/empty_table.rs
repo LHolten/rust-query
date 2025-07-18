@@ -16,10 +16,11 @@ pub fn main() {
         .finish()
         .expect("database is newer than supported versions");
 
-    let mut txn = client.transaction_mut(&db);
-    let id = txn.insert(v0::Empty).unwrap();
-    let id = txn.query_one(id.into_expr());
-    let mut txn = txn.downgrade();
-    assert!(txn.delete(id).unwrap());
-    txn.commit();
+    db.transaction_mut(|mut txn| {
+        let id = txn.insert(v0::Empty).unwrap();
+        let id = txn.query_one(id.into_expr());
+        let mut txn = txn.downgrade();
+        assert!(txn.delete(id).unwrap());
+        txn.commit();
+    })
 }
