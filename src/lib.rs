@@ -157,35 +157,32 @@ pub trait Table: Sized + 'static {
 
     /// The type of conflict that can result from inserting a row in this table.
     /// This is the same type that is used for row updates too.
-    type Conflict<'t>;
+    type Conflict;
 
     /// The type of updates used by [TransactionMut::update_ok].
-    type UpdateOk<'t>;
+    type UpdateOk;
     /// The type of updates used by [TransactionMut::update].
-    type Update<'t>;
+    type Update;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
 
     #[doc(hidden)]
-    type Insert<'t>;
+    type Insert;
 
     #[doc(hidden)]
-    fn read<'t>(val: &Self::Insert<'t>, f: &mut Reader<'t, Self::Schema>);
+    fn read(val: &Self::Insert, f: &mut Reader<'static, Self::Schema>);
 
     #[doc(hidden)]
     fn get_conflict_unchecked(
         txn: &Transaction<Self::Schema>,
-        val: &Self::Insert<'static>,
-    ) -> Self::Conflict<'static>;
+        val: &Self::Insert,
+    ) -> Self::Conflict;
 
     #[doc(hidden)]
-    fn update_into_try_update(val: Self::UpdateOk<'_>) -> Self::Update<'_>;
+    fn update_into_try_update(val: Self::UpdateOk) -> Self::Update;
 
     #[doc(hidden)]
-    fn apply_try_update<'t>(
-        val: Self::Update<'t>,
-        old: Expr<'t, Self::Schema, Self>,
-    ) -> Self::Insert<'t>;
+    fn apply_try_update(val: Self::Update, old: Expr<'static, Self::Schema, Self>) -> Self::Insert;
 
     #[doc(hidden)]
     fn get_referer_unchecked() -> Self::Referer;

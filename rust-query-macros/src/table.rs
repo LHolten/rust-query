@@ -130,7 +130,7 @@ fn define_table(
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
             try_from_update.push(quote! {Default::default()});
         } else {
-            update_columns_safe.push(quote! {::rust_query::private::Update<'t>});
+            update_columns_safe.push(quote! {::rust_query::private::Update<'static>});
             try_from_update.push(quote! {val.#ident});
         }
         parts.push(quote! {::rust_query::FromExpr::from_expr(&col.#ident)});
@@ -259,32 +259,32 @@ fn define_table(
                 const ID: &'static str = "id";
                 const NAME: &'static str = #table_name;
 
-                type Conflict<'t> = #conflict_type;
-                type UpdateOk<'t> = (#alias_ident<#(#update_columns_safe),*>);
-                type Update<'t> = (#alias_ident<#(#empty ::rust_query::private::Update<'t>),*>);
-                type Insert<'t> = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>);
+                type Conflict = #conflict_type;
+                type UpdateOk = (#alias_ident<#(#update_columns_safe),*>);
+                type Update = (#alias_ident<#(#empty ::rust_query::private::Update<'static>),*>);
+                type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
 
-                fn read<'t>(val: &Self::Insert<'t>, f: &mut ::rust_query::private::Reader<'t, Self::Schema>) {
+                fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<'static, Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
 
                 fn get_conflict_unchecked(
                     txn: &::rust_query::Transaction<Self::Schema>,
-                    val: &Self::Insert<'static>
-                ) -> Self::Conflict<'static> {
+                    val: &Self::Insert
+                ) -> Self::Conflict {
                     #conflict_dummy_insert
                 }
 
-                fn update_into_try_update(val: Self::UpdateOk<'_>) -> Self::Update<'_> {
+                fn update_into_try_update(val: Self::UpdateOk) -> Self::Update {
                     #table_ident {#(
                         #col_ident: #try_from_update,
                     )*}
                 }
 
-                fn apply_try_update<'t>(
-                    val: Self::Update<'t>,
-                    old: ::rust_query::Expr<'t, Self::Schema, Self>,
-                ) -> Self::Insert<'t> {
+                fn apply_try_update(
+                    val: Self::Update,
+                    old: ::rust_query::Expr<'static, Self::Schema, Self>,
+                ) -> Self::Insert {
                     #table_ident {#(
                         #col_ident: val.#col_ident.apply(&old.#col_ident),
                     )*}
@@ -299,10 +299,10 @@ fn define_table(
 
         impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(#generic),*>
         where
-            #(#generic: ::rust_query::IntoExpr<'t, #schema, Typ = #col_typ>,)*
+            #(#generic: ::rust_query::IntoExpr<'static, #schema, Typ = #col_typ>,)*
         {
             type T = #table_ident;
-            fn into_insert(self) -> <Self::T as ::rust_query::Table>::Insert<'t> {
+            fn into_insert(self) -> <Self::T as ::rust_query::Table>::Insert {
                 #table_ident {#(
                     #col_ident: ::rust_query::IntoExpr::into_expr(self.#col_ident),
                 )*}

@@ -57,7 +57,7 @@ pub trait Migration {
     fn prepare(
         val: Self,
         prev: crate::Expr<'static, Self::FromSchema, Self::From>,
-    ) -> <Self::To as Table>::Insert<'static>;
+    ) -> <Self::To as Table>::Insert;
     #[doc(hidden)]
     fn map_conflict(val: TableRow<Self::From>) -> Self::Conflict;
 }

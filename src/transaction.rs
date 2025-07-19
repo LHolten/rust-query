@@ -257,7 +257,7 @@ impl<S: 'static> TransactionMut<S> {
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
         val: impl TableInsert<'static, T = T>,
-    ) -> Result<TableRow<T>, T::Conflict<'static>> {
+    ) -> Result<TableRow<T>, T::Conflict> {
         try_insert_private(
             &self.transaction,
             Alias::new(T::NAME).into_table_ref(),
@@ -270,7 +270,7 @@ impl<S: 'static> TransactionMut<S> {
     /// easier for tables without unique constraints.
     ///
     /// The new row is added to the table and the row reference is returned.
-    pub fn insert_ok<T: Table<Schema = S, Conflict<'static> = Infallible>>(
+    pub fn insert_ok<T: Table<Schema = S, Conflict = Infallible>>(
         &mut self,
         val: impl TableInsert<'static, T = T>,
     ) -> TableRow<T> {
@@ -297,7 +297,7 @@ impl<S: 'static> TransactionMut<S> {
     /// assert_eq!(bob, bob2);
     /// # });
     /// ```
-    pub fn find_or_insert<T: Table<Schema = S, Conflict<'static> = TableRow<T>>>(
+    pub fn find_or_insert<T: Table<Schema = S, Conflict = TableRow<T>>>(
         &mut self,
         val: impl TableInsert<'static, T = T>,
     ) -> TableRow<T> {
@@ -332,8 +332,8 @@ impl<S: 'static> TransactionMut<S> {
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'static, S, Typ = T>,
-        val: T::Update<'static>,
-    ) -> Result<(), T::Conflict<'static>> {
+        val: T::Update,
+    ) -> Result<(), T::Conflict> {
         let mut id = ValueBuilder::default();
         let row = row.into_expr();
         let (id, _) = id.simple_one(row.inner.clone().erase());
@@ -395,7 +395,7 @@ impl<S: 'static> TransactionMut<S> {
     pub fn update_ok<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'static, S, Typ = T>,
-        val: T::UpdateOk<'static>,
+        val: T::UpdateOk,
     ) {
         match self.update(row, T::update_into_try_update(val)) {
             Ok(val) => val,
@@ -502,8 +502,8 @@ pub fn try_insert_private<T: Table>(
     transaction: &Rc<OwnedTransaction>,
     table: sea_query::TableRef,
     idx: Option<i64>,
-    val: T::Insert<'static>,
-) -> Result<TableRow<T>, T::Conflict<'static>> {
+    val: T::Insert,
+) -> Result<TableRow<T>, T::Conflict> {
     let mut reader = Reader::default();
     T::read(&val, &mut reader);
     if let Some(idx) = idx {

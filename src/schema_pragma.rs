@@ -45,30 +45,30 @@ macro_rules! table {
 
             fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
 
-            type Conflict<'t> = Infallible;
-            type UpdateOk<'t> = ();
-            type Update<'t> = ();
-            type Insert<'t> = ();
+            type Conflict = Infallible;
+            type UpdateOk = ();
+            type Update = ();
+            type Insert = ();
 
-            fn read<'t>(_val: &Self::Insert<'t>, _f: &mut Reader<'t, Self::Schema>) {
+            fn read(_val: &Self::Insert, _f: &mut Reader<'static, Self::Schema>) {
                 unreachable!()
             }
 
             fn get_conflict_unchecked(
                 _txn: &crate::Transaction< Self::Schema>,
-                _val: &Self::Insert<'static>,
-            ) -> Self::Conflict<'static> {
+                _val: &Self::Insert,
+            ) -> Self::Conflict {
                 unreachable!()
             }
 
-            fn update_into_try_update(_val: Self::UpdateOk<'_>) -> Self::Update<'_> {
+            fn update_into_try_update(_val: Self::UpdateOk) -> Self::Update {
                 unreachable!()
             }
 
-            fn apply_try_update<'t>(
-                _val: Self::Update<'t>,
-                _old: Expr<'t, Self::Schema, Self>,
-            ) -> Self::Insert<'t> {
+            fn apply_try_update(
+                _val: Self::Update,
+                _old: Expr<'static, Self::Schema, Self>,
+            ) -> Self::Insert {
                 unreachable!()
             }
 
