@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 use expect_test::expect_file;
 use rust_query::{
-    Expr, IntoExpr, IntoSelect, LocalClient, Select, TableRow, Transaction, Update, aggregate,
-    optional,
+    Expr, IntoExpr, IntoSelect, LocalClient, Select, TableRow, Transaction, TransactionMut, Update,
+    aggregate, optional,
 };
 use schema::*;
 
@@ -26,35 +26,39 @@ fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>
 fn test_queries() {
     let mut client = LocalClient::try_new().unwrap();
     let db = migrate(&mut client);
-    let mut db = client.transaction_mut(&db);
+    db.transaction_mut(run_queries);
+}
 
-    assert_dbg("invoice_info", || invoice_info(&db));
-    assert_dbg("playlist_track_count", || playlist_track_count(&db));
+fn run_queries(mut txn: TransactionMut<Schema>) {
+    assert_dbg("invoice_info", || invoice_info(&txn));
+    assert_dbg("playlist_track_count", || playlist_track_count(&txn));
     assert_dbg("avg_album_track_count_for_artist", || {
-        avg_album_track_count_for_artist(&db)
+        avg_album_track_count_for_artist(&txn)
     });
-    assert_dbg("count_reporting", || count_reporting(&db));
-    assert_dbg("list_all_genres", || list_all_genres(&db));
-    assert_dbg("filtered_track", || filtered_track(&db, "Metal", 1000 * 60));
-    assert_dbg("genre_statistics", || genre_statistics(&db));
-    assert_dbg("customer_spending", || all_customer_spending(&db));
-    assert_dbg("the_artists", || get_the_artists(&db));
-    assert_dbg("ten_space_tracks", || ten_space_tracks(&db));
-    assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(&db));
-    let artist = db.query_one(Artist::unique("U2")).unwrap();
-    assert_dbg("artist_details", || vec![artist_details(&db, artist)]);
+    assert_dbg("count_reporting", || count_reporting(&txn));
+    assert_dbg("list_all_genres", || list_all_genres(&txn));
+    assert_dbg("filtered_track", || {
+        filtered_track(&txn, "Metal", 1000 * 60)
+    });
+    assert_dbg("genre_statistics", || genre_statistics(&txn));
+    assert_dbg("customer_spending", || all_customer_spending(&txn));
+    assert_dbg("the_artists", || get_the_artists(&txn));
+    assert_dbg("ten_space_tracks", || ten_space_tracks(&txn));
+    assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(&txn));
+    let artist = txn.query_one(Artist::unique("U2")).unwrap();
+    assert_dbg("artist_details", || vec![artist_details(&txn, artist)]);
     assert_eq!(
-        customer_spending_by_email(&db, "vstevens@yahoo.com"),
+        customer_spending_by_email(&txn, "vstevens@yahoo.com"),
         Some(42.62)
     );
-    assert_eq!(customer_spending_by_email(&db, "asdf"), None);
+    assert_eq!(customer_spending_by_email(&txn, "asdf"), None);
 
-    free_reference(&db);
+    free_reference(&txn);
 
-    db.insert(Artist { name: "first" }).unwrap();
-    let id = db.insert(Artist { name: "second" }).unwrap();
+    txn.insert(Artist { name: "first" }).unwrap();
+    let id = txn.insert(Artist { name: "second" }).unwrap();
 
-    let Err(_) = db.update(
+    let Err(_) = txn.update(
         id,
         Artist {
             name: Update::set("first"),
@@ -62,16 +66,16 @@ fn test_queries() {
     ) else {
         panic!()
     };
-    db.update(
+    txn.update(
         id,
         Artist {
             name: Update::set("other"),
         },
     )
     .unwrap();
-    assert_eq!(db.query_one(&id.into_expr().name), "other");
+    assert_eq!(txn.query_one(&id.into_expr().name), "other");
 
-    let mut db = db.downgrade();
+    let mut db = txn.downgrade();
     assert!(db.delete(id).unwrap());
 }
 

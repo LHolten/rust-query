@@ -133,36 +133,41 @@ fn main() {
         .finish()
         .expect("database should not be too new");
 
-    let mut txn = client.transaction_mut(&db);
-    txn.insert(Warehouse {
-        number: 0,
-        name: "test",
-        street_1: "",
-        street_2: "",
-        city: "",
-        state: "",
-        zip: "",
-        tax: 0.5,
-        ytd: 100,
-    })
-    .unwrap();
-    txn.commit();
+    db.transaction_mut(|mut txn| {
+        txn.insert(Warehouse {
+            number: 0,
+            name: "test",
+            street_1: "",
+            street_2: "",
+            city: "",
+            state: "",
+            zip: "",
+            tax: 0.5,
+            ytd: 100,
+        })
+        .unwrap();
+        txn.commit();
+    });
 
-    let txn = client.transaction_mut(&db);
-    let warehouse = get_primary_warehouse(&txn);
-    new_order::random_new_order(txn, warehouse);
+    db.transaction_mut(|txn| {
+        let warehouse = get_primary_warehouse(&txn);
+        new_order::random_new_order(txn, warehouse);
+    });
 
-    let txn = client.transaction_mut(&db);
-    let warehouse = get_primary_warehouse(&txn);
-    delivery::random_delivery(txn, warehouse);
+    db.transaction_mut(|txn| {
+        let warehouse = get_primary_warehouse(&txn);
+        delivery::random_delivery(txn, warehouse);
+    });
 
-    let txn = client.transaction_mut(&db);
-    let warehouse = get_primary_warehouse(&txn);
-    payment::random_payment(txn, warehouse);
+    db.transaction_mut(|txn| {
+        let warehouse = get_primary_warehouse(&txn);
+        payment::random_payment(txn, warehouse);
+    });
 
-    let txn = client.transaction(&db);
-    let warehouse = get_primary_warehouse(&txn);
-    order_status::random_order_status(&txn, warehouse);
+    db.transaction(|txn| {
+        let warehouse = get_primary_warehouse(&txn);
+        order_status::random_order_status(&txn, warehouse);
+    });
 }
 
 fn get_primary_warehouse<'a>(txn: &Transaction<'a, Schema>) -> TableRow<'a, Warehouse> {
