@@ -4,7 +4,7 @@ use rust_query::{FromExpr, TableRow, Transaction, aggregate, optional};
 pub fn random_order_status(
     txn: &Transaction<Schema>,
     warehouse: TableRow<'static, Warehouse>,
-) -> OrderStatus<'static> {
+) -> OrderStatus {
     let input = generate_input(txn, warehouse);
     order_status(txn, input)
 }
@@ -21,7 +21,7 @@ fn generate_input(
     customer_ident(txn, &mut rng, district)
 }
 
-fn order_status(txn: &Transaction<Schema>, input: CustomerIdent) -> OrderStatus<'static> {
+fn order_status(txn: &Transaction<Schema>, input: CustomerIdent) -> OrderStatus {
     let customer = input.lookup_customer(txn);
     let last_order = txn
         .query_one(optional(|row| {
@@ -50,14 +50,14 @@ fn order_status(txn: &Transaction<Schema>, input: CustomerIdent) -> OrderStatus<
 }
 
 #[expect(unused)]
-pub struct OrderStatus<'a> {
+pub struct OrderStatus {
     customer_info: Customer!(balance, first, middle, last),
     order_info: Order!(number, entry_d, carrier_id),
-    order_lines_info: Vec<OrderLineInfo<'a>>,
+    order_lines_info: Vec<OrderLineInfo>,
 }
 
-type OrderLineInfo<'a> = OrderLine!(
-    stock as Stock!(item<'a>, warehouse<'a>),
+type OrderLineInfo = OrderLine!(
+    stock as Stock!(item, warehouse),
     quantity,
     amount,
     delivery_d

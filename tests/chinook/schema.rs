@@ -171,10 +171,8 @@ pub fn migrate() -> Database<v2::Schema> {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
         employee: txn.migrate_ok(|()| v1::migrate::Employee {}),
-        invoice_line: txn.migrate_ok(|old: v1::InvoiceLine!(invoice<'_>)| {
-            v1::migrate::InvoiceLine {
-                invoice_new: old.invoice,
-            }
+        invoice_line: txn.migrate_ok(|old: v1::InvoiceLine!(invoice)| v1::migrate::InvoiceLine {
+            invoice_new: old.invoice,
         }),
     });
 

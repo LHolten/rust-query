@@ -69,7 +69,7 @@ pub mod private {
     pub use rust_query_macros::fields;
     pub use sea_query::SimpleExpr;
 
-    pub struct Native<'t>(PhantomData<&'t ()>);
+    pub struct Native;
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
     pub struct Update<'t>(PhantomData<&'t ()>);
@@ -79,8 +79,8 @@ pub mod private {
         type Out<T: MyTyp, S>;
     }
 
-    impl<'t> Apply for Native<'t> {
-        type Out<T: MyTyp, S> = T::Out<'t>;
+    impl Apply for Native {
+        type Out<T: MyTyp, S> = T::Out<'static>;
     }
 
     impl Apply for Ignore {

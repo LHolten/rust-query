@@ -42,7 +42,7 @@ fn queries(mut txn: TransactionMut<Schema>) {
     }
 
     type PlayerInfo = Player!(name, score, home as NameInfo);
-    type PlayerInfo2<'t> = Player!(score, home<'t>);
+    type PlayerInfo2 = Player!(score, home);
 
     // old pattern, requires two queries
     let player = txn.query_one(Player::unique(pub_id));

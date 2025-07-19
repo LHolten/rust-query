@@ -65,7 +65,7 @@ fn new_order(
 ) -> OutputData<'static> {
     let district = txn.query_one(&input.customer.into_expr().district);
 
-    let district_info: District!(warehouse<'_>, number, tax, next_order) =
+    let district_info: District!(warehouse, number, tax, next_order) =
         txn.query_one(FromExpr::from_expr(district));
 
     let warehouse_tax = txn.query_one(&district.into_expr().warehouse.tax);
