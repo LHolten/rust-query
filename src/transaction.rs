@@ -66,7 +66,7 @@ impl<S: Send + Sync> Database<S> {
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
-    pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(Transaction<'static, S>) -> R) -> R {
+    pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(Transaction<S>) -> R) -> R {
         std::thread::scope(|scope| {
             scope
                 .spawn(|| {
@@ -139,18 +139,16 @@ impl<S: Send + Sync> Database<S> {
 ///
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
-pub struct Transaction<'t, S> {
+pub struct Transaction<S> {
     pub(crate) transaction: Rc<OwnedTransaction>,
-    pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
 }
 
-impl<'t, S> Transaction<'t, S> {
+impl<S> Transaction<S> {
     pub(crate) fn new(raw: Rc<OwnedTransaction>) -> Self {
         Self {
             transaction: raw,
-            _p: PhantomData,
             _p2: PhantomData,
             _local: PhantomData,
         }
@@ -164,18 +162,18 @@ impl<'t, S> Transaction<'t, S> {
 /// To make mutations to the database permanent you need to use [TransactionMut::commit].
 /// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
 pub struct TransactionMut<S> {
-    pub(crate) inner: Transaction<'static, S>,
+    pub(crate) inner: Transaction<S>,
 }
 
 impl<S> Deref for TransactionMut<S> {
-    type Target = Transaction<'static, S>;
+    type Target = Transaction<S>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<'t, S> Transaction<'t, S> {
+impl<S> Transaction<S> {
     /// This will check the schema version and panic if it is not as expected
     pub(crate) fn new_checked(txn: OwnedTransaction, expected: i64) -> Self {
         if schema_version(txn.get()) != expected {
@@ -199,7 +197,7 @@ impl<'t, S> Transaction<'t, S> {
     /// ```
     pub fn query<F, R>(&self, f: F) -> R
     where
-        F: for<'inner> FnOnce(&mut Query<'t, 'inner, S>) -> R,
+        F: for<'inner> FnOnce(&mut Query<'static, 'inner, S>) -> R,
     {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
@@ -229,7 +227,10 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<'e, O: 't>(&self, val: impl IntoSelect<'t, 't, S, Out = O>) -> O {
+    pub fn query_one<'e, O: 'static>(
+        &self,
+        val: impl IntoSelect<'static, 'static, S, Out = O>,
+    ) -> O {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 }
@@ -503,12 +504,12 @@ impl<S: 'static> TransactionWeak<S> {
     }
 }
 
-pub fn try_insert_private<'t, T: Table>(
+pub fn try_insert_private<T: Table>(
     transaction: &Rc<OwnedTransaction>,
     table: sea_query::TableRef,
     idx: Option<i64>,
-    val: T::Insert<'t>,
-) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
+    val: T::Insert<'static>,
+) -> Result<TableRow<'static, T>, T::Conflict<'static>> {
     let mut reader = Reader::default();
     T::read(&val, &mut reader);
     if let Some(idx) = idx {

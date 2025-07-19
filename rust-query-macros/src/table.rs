@@ -268,10 +268,10 @@ fn define_table(
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
 
-                fn get_conflict_unchecked<'t>(
-                    txn: &::rust_query::Transaction<'t, Self::Schema>,
-                    val: &Self::Insert<'t>
-                ) -> Self::Conflict<'t> {
+                fn get_conflict_unchecked(
+                    txn: &::rust_query::Transaction<Self::Schema>,
+                    val: &Self::Insert<'static>
+                ) -> Self::Conflict<'static> {
                     #conflict_dummy_insert
                 }
 

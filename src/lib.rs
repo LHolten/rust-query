@@ -173,10 +173,10 @@ pub trait Table: Sized + 'static {
     fn read<'t>(val: &Self::Insert<'t>, f: &mut Reader<'t, Self::Schema>);
 
     #[doc(hidden)]
-    fn get_conflict_unchecked<'t>(
-        txn: &Transaction<'t, Self::Schema>,
-        val: &Self::Insert<'t>,
-    ) -> Self::Conflict<'t>;
+    fn get_conflict_unchecked(
+        txn: &Transaction<Self::Schema>,
+        val: &Self::Insert<'static>,
+    ) -> Self::Conflict<'static>;
 
     #[doc(hidden)]
     fn update_into_try_update(val: Self::UpdateOk<'_>) -> Self::Update<'_>;

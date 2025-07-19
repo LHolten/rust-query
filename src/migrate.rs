@@ -64,13 +64,13 @@ pub trait Migration<'t> {
 
 /// Transaction type for use in migrations.
 pub struct TransactionMigrate<FromSchema> {
-    inner: Transaction<'static, FromSchema>,
+    inner: Transaction<FromSchema>,
     scope: Scope,
     rename_map: HashMap<&'static str, TmpTable>,
 }
 
 impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
-    type Target = Transaction<'static, FromSchema>;
+    type Target = Transaction<FromSchema>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
