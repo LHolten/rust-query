@@ -240,7 +240,7 @@ pub struct ColumnImpl<T> {
 }
 
 impl<'transaction, T: MyTyp> SelectImpl<'transaction> for ColumnImpl<T> {
-    type Out = T::Out<'transaction>;
+    type Out = T::Out;
     type Prepared = Cached<Self::Out>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
@@ -255,7 +255,7 @@ impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for Exp
 where
     T: MyTyp,
 {
-    type Out = T::Out<'transaction>;
+    type Out = T::Out;
 
     fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
         Select::new(ColumnImpl { expr: self.inner })

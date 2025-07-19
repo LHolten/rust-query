@@ -120,21 +120,20 @@ fn define_table_migration(
 
     let table_ident = &table.name;
     let typs_mod = format_ident!("_{table_ident}");
-    let migration_lt = alter_ident.is_empty().not().then_some(quote! {'t});
 
     let migration = quote! {
         mod #typs_mod {
             use super::#new_mod::*;
             #(
-                pub type #alter_tmp<'t> = <<#alter_typ as ::rust_query::private::MyTyp>::Prev as ::rust_query::private::MyTyp>::Out<'t>;
+                pub type #alter_tmp = <<#alter_typ as ::rust_query::private::MyTyp>::Prev as ::rust_query::private::MyTyp>::Out;
             )*
         }
 
-        pub struct #table_ident<#migration_lt> {#(
-            pub #alter_ident: #typs_mod::#alter_tmp<'t>,
+        pub struct #table_ident {#(
+            pub #alter_ident: #typs_mod::#alter_tmp,
         )*}
 
-        impl<'t> ::rust_query::private::Migration<'t> for #table_ident<#migration_lt> {
+        impl<'t> ::rust_query::private::Migration<'t> for #table_ident {
             type To = #new_mod::#table_ident;
             type FromSchema = <Self::From as ::rust_query::Table>::Schema;
             type From = <Self::To as ::rust_query::Table>::MigrateFrom;

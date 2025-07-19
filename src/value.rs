@@ -303,7 +303,7 @@ pub trait MyTyp: 'static {
     const NULLABLE: bool = false;
     const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out<'t>: SecretFromSql<'t>;
+    type Out: SecretFromSql<'static>;
     type Ext<'t>;
     type Sql;
 }
@@ -317,7 +317,7 @@ impl<T: Table> MyTyp for T {
     type Prev = T::MigrateFrom;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out<'t> = TableRow<'t, Self>;
+    type Out = TableRow<'static, Self>;
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
 }
@@ -338,7 +338,7 @@ impl<'t, T: Table> SecretFromSql<'t> for TableRow<'t, T> {
 impl MyTyp for i64 {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
-    type Out<'t> = Self;
+    type Out = Self;
     type Ext<'t> = ();
     type Sql = i64;
 }
@@ -352,7 +352,7 @@ impl SecretFromSql<'_> for i64 {
 impl MyTyp for f64 {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Float;
-    type Out<'t> = Self;
+    type Out = Self;
     type Ext<'t> = ();
     type Sql = f64;
 }
@@ -366,7 +366,7 @@ impl SecretFromSql<'_> for f64 {
 impl MyTyp for bool {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
-    type Out<'t> = Self;
+    type Out = Self;
     type Ext<'t> = ();
     type Sql = bool;
 }
@@ -380,7 +380,7 @@ impl SecretFromSql<'_> for bool {
 impl MyTyp for String {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::String;
-    type Out<'t> = Self;
+    type Out = Self;
     type Ext<'t> = ();
     type Sql = String;
 }
@@ -395,7 +395,7 @@ impl SecretFromSql<'_> for String {
 impl MyTyp for Vec<u8> {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Blob;
-    type Out<'t> = Self;
+    type Out = Self;
     type Ext<'t> = ();
     type Sql = Vec<u8>;
 }
@@ -412,7 +412,7 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const TYP: hash::ColumnType = T::TYP;
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
-    type Out<'t> = Option<T::Out<'t>>;
+    type Out = Option<T::Out>;
     type Ext<'t> = ();
     type Sql = T::Sql;
 }
@@ -479,7 +479,7 @@ pub fn assume_expr<S, T: MyTyp>(e: Expr<S, Option<T>>) -> Expr<S, T> {
 
 pub fn new_dummy<'x, S, T: MyTyp>(
     val: impl Typed<Typ = T> + 'static,
-) -> Select<'x, 'x, S, T::Out<'x>> {
+) -> Select<'x, 'static, S, T::Out> {
     IntoSelect::into_select(Expr::new(val))
 }
 

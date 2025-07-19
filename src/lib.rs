@@ -80,7 +80,7 @@ pub mod private {
     }
 
     impl Apply for Native {
-        type Out<T: MyTyp, S> = T::Out<'static>;
+        type Out<T: MyTyp, S> = T::Out;
     }
 
     impl Apply for Ignore {
