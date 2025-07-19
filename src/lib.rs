@@ -92,7 +92,7 @@ pub mod private {
     }
 
     impl<'t> Apply for Update<'t> {
-        type Out<T: MyTyp, S> = crate::Update<'t, S, T>;
+        type Out<T: MyTyp, S> = crate::Update<S, T>;
     }
 
     impl<'t> Apply for AsExpr<'t> {
@@ -104,7 +104,7 @@ pub mod private {
     }
 
     pub trait UpdateOrUnit<'t, S, T>: Default {}
-    impl<'t, S, T: MyTyp> UpdateOrUnit<'t, S, T> for crate::Update<'t, S, T> {}
+    impl<'t, S, T: MyTyp> UpdateOrUnit<'t, S, T> for crate::Update<S, T> {}
     impl<'t, S, T> UpdateOrUnit<'t, S, T> for () {}
 
     pub mod doctest {

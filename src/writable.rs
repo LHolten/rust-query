@@ -6,11 +6,11 @@ use crate::{
 };
 
 /// Defines a column update.
-pub struct Update<'t, S, Typ: MyTyp> {
-    inner: Box<dyn 't + Fn(Expr<'t, S, Typ>) -> Expr<'t, S, Typ>>,
+pub struct Update<S, Typ: MyTyp> {
+    inner: Box<dyn Fn(Expr<'static, S, Typ>) -> Expr<'static, S, Typ>>,
 }
 
-impl<S, Typ: MyTyp> Default for Update<'_, S, Typ> {
+impl<S, Typ: MyTyp> Default for Update<S, Typ> {
     fn default() -> Self {
         Self {
             inner: Box::new(|x| x),
@@ -18,9 +18,9 @@ impl<S, Typ: MyTyp> Default for Update<'_, S, Typ> {
     }
 }
 
-impl<'t, S: 't, Typ: MyTyp> Update<'t, S, Typ> {
+impl<S: 'static, Typ: MyTyp> Update<S, Typ> {
     /// Set the new value of the column.
-    pub fn set(val: impl IntoExpr<'t, S, Typ = Typ>) -> Self {
+    pub fn set(val: impl IntoExpr<'static, S, Typ = Typ>) -> Self {
         let val = val.into_expr();
         Self {
             inner: Box::new(move |_| val.clone()),
@@ -28,14 +28,14 @@ impl<'t, S: 't, Typ: MyTyp> Update<'t, S, Typ> {
     }
 
     #[doc(hidden)]
-    pub fn apply(&self, val: impl IntoExpr<'t, S, Typ = Typ>) -> Expr<'t, S, Typ> {
+    pub fn apply(&self, val: impl IntoExpr<'static, S, Typ = Typ>) -> Expr<'static, S, Typ> {
         (self.inner)(val.into_expr())
     }
 }
 
-impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
+impl<S: 'static, Typ: NumTyp> Update<S, Typ> {
     /// Update the column value to the old value plus some new value.
-    pub fn add(val: impl IntoExpr<'t, S, Typ = Typ>) -> Self {
+    pub fn add(val: impl IntoExpr<'static, S, Typ = Typ>) -> Self {
         let val = val.into_expr();
         Self {
             inner: Box::new(move |old| old.add(&val)),
