@@ -89,23 +89,23 @@ impl<'columns, 'transaction, S, Out: 'static> Select<'columns, S, Out> {
 }
 
 pub struct DynSelectImpl<Out> {
-    inner: Box<dyn FnOnce(&mut Cacher) -> DynPrepared<'static, Out>>,
+    inner: Box<dyn FnOnce(&mut Cacher) -> DynPrepared<Out>>,
 }
 
 impl<Out> SelectImpl for DynSelectImpl<Out> {
     type Out = Out;
-    type Prepared = DynPrepared<'static, Out>;
+    type Prepared = DynPrepared<Out>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
         (self.inner)(cacher)
     }
 }
 
-pub struct DynPrepared<'transaction, Out> {
-    inner: Box<dyn 'transaction + Prepared<Out = Out>>,
+pub struct DynPrepared<Out> {
+    inner: Box<dyn Prepared<Out = Out>>,
 }
 
-impl<Out> Prepared for DynPrepared<'_, Out> {
+impl<Out> Prepared for DynPrepared<Out> {
     type Out = Out;
     fn call(&mut self, row: Row<'_>) -> Self::Out {
         self.inner.call(row)

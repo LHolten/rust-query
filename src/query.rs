@@ -55,7 +55,7 @@ self_cell!(
 /// Would be nice to relax this variance in the future.
 pub struct Iter<'inner, O> {
     inner: OwnedRows<'inner>,
-    prepared: DynPrepared<'inner, O>,
+    prepared: DynPrepared<O>,
     cached: Vec<MyAlias>,
 }
 
