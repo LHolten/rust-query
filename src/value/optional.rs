@@ -105,10 +105,10 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Returns a [Select] with optional result.
-    pub fn then<'transaction, Out: 'transaction>(
+    pub fn then<Out: 'static>(
         &self,
-        d: impl IntoSelect<'inner, 'transaction, S, Out = Out>,
-    ) -> Select<'outer, 'transaction, S, Option<Out>> {
+        d: impl IntoSelect<'inner, S, Out = Out>,
+    ) -> Select<'outer, 'static, S, Option<Out>> {
         Select::new(OptionalImpl {
             inner: d.into_select().inner,
             is_some: ColumnImpl {

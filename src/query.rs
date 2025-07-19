@@ -76,7 +76,7 @@ impl<'inner, S> Query<'inner, S> {
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
     /// then you have to use something like [slice::sort].
-    pub fn into_vec<O>(&self, select: impl IntoSelect<'inner, 'static, S, Out = O>) -> Vec<O> {
+    pub fn into_vec<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Vec<O> {
         self.into_iter(select).collect()
     }
 
@@ -85,10 +85,7 @@ impl<'inner, S> Query<'inner, S> {
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
     /// then you have to use something like [slice::sort].
-    pub fn into_iter<O>(
-        &self,
-        select: impl IntoSelect<'inner, 'static, S, Out = O>,
-    ) -> Iter<'inner, O> {
+    pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'inner, O> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
 

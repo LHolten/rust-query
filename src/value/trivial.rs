@@ -17,10 +17,10 @@ pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
 
 macro_rules! from_expr {
     ($typ:ty) => {
-        impl<'transaction, S> FromExpr<'transaction, S, $typ> for $typ {
+        impl<S> FromExpr<'static, S, $typ> for $typ {
             fn from_expr<'columns>(
                 col: impl IntoExpr<'columns, S, Typ = $typ>,
-            ) -> Select<'columns, 'transaction, S, Self> {
+            ) -> Select<'columns, 'static, S, Self> {
                 col.into_expr().into_select()
             }
         }
@@ -41,13 +41,13 @@ impl<T: Table> FromExpr<'static, T::Schema, T> for TableRow<T> {
     }
 }
 
-impl<'transaction, S, T, From: MyTyp> FromExpr<'transaction, S, Option<From>> for Option<T>
+impl<S, T, From: MyTyp> FromExpr<'static, S, Option<From>> for Option<T>
 where
-    T: FromExpr<'transaction, S, From>,
+    T: FromExpr<'static, S, From>,
 {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = Option<From>>,
-    ) -> Select<'columns, 'transaction, S, Self> {
+    ) -> Select<'columns, 'static, S, Self> {
         let col = col.into_expr();
         optional(|row| {
             let col = row.and(col);
@@ -56,10 +56,10 @@ where
     }
 }
 
-impl<'transaction, S, From> FromExpr<'transaction, S, From> for () {
+impl<S, From> FromExpr<'static, S, From> for () {
     fn from_expr<'columns>(
         _col: impl IntoExpr<'columns, S, Typ = From>,
-    ) -> Select<'columns, 'transaction, S, Self> {
+    ) -> Select<'columns, 'static, S, Self> {
         ().into_select()
     }
 }

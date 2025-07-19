@@ -227,10 +227,7 @@ impl<S> Transaction<S> {
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
-    pub fn query_one<'e, O: 'static>(
-        &self,
-        val: impl IntoSelect<'static, 'static, S, Out = O>,
-    ) -> O {
+    pub fn query_one<'e, O: 'static>(&self, val: impl IntoSelect<'static, S, Out = O>) -> O {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 }

@@ -129,12 +129,10 @@ impl<'transaction, S, Out> Select<'_, 'transaction, S, Out> {
     }
 }
 
-impl<'columns, 'transaction, S, Out: 'transaction> IntoSelect<'columns, 'transaction, S>
-    for Select<'columns, 'transaction, S, Out>
-{
+impl<'columns, S, Out: 'static> IntoSelect<'columns, S> for Select<'columns, 'static, S, Out> {
     type Out = Out;
 
-    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
         self
     }
 }
@@ -152,16 +150,16 @@ pub trait SelectImpl {
 /// The most common type that implements [IntoSelect] is [Expr].
 /// Tuples of two values also implement [IntoSelect]. If you want to return more
 /// than two values, then you should use a struct that derives [derive@rust_query::Select].
-pub trait IntoSelect<'columns, 'transaction, S>: Sized {
+pub trait IntoSelect<'columns, S>: Sized {
     /// The type that results from executing the [Select].
-    type Out: 'transaction;
+    type Out: 'static;
 
     /// This method is what tells rust-query how to turn the value into a [Select].
     ///
     /// The only way to implement this method is by constructing a different value
     /// that implements [IntoSelect] and then calling the [IntoSelect::into_select] method
     /// on that other value. The result can then be modified with [Select::map].
-    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out>;
+    fn into_select(self) -> Select<'columns, 'static, S, Self::Out>;
 }
 
 /// This is the result of the [Select::map_select] method.
@@ -219,10 +217,10 @@ impl SelectImpl for () {
     fn prepare(self, _cacher: &mut Cacher) -> Self::Prepared {}
 }
 
-impl<'columns, 'transaction, S> IntoSelect<'columns, 'transaction, S> for () {
+impl<'columns, S> IntoSelect<'columns, S> for () {
     type Out = ();
 
-    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
         Select::new(())
     }
 }
@@ -251,24 +249,24 @@ impl<T: MyTyp> SelectImpl for ColumnImpl<T> {
     }
 }
 
-impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for Expr<'columns, S, T>
+impl<'columns, S, T> IntoSelect<'columns, S> for Expr<'columns, S, T>
 where
     T: MyTyp,
 {
     type Out = T::Out;
 
-    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
         Select::new(ColumnImpl { expr: self.inner })
     }
 }
 
-impl<'columns, 'transaction, S, T> IntoSelect<'columns, 'transaction, S> for &T
+impl<'columns, S, T> IntoSelect<'columns, S> for &T
 where
-    T: IntoSelect<'columns, 'transaction, S> + Clone,
+    T: IntoSelect<'columns, S> + Clone,
 {
     type Out = T::Out;
 
-    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
         T::clone(self).into_select()
     }
 }
@@ -300,14 +298,14 @@ where
     }
 }
 
-impl<'columns, 'transaction, S, A, B> IntoSelect<'columns, 'transaction, S> for (A, B)
+impl<'columns, S, A, B> IntoSelect<'columns, S> for (A, B)
 where
-    A: IntoSelect<'columns, 'transaction, S>,
-    B: IntoSelect<'columns, 'transaction, S>,
+    A: IntoSelect<'columns, S>,
+    B: IntoSelect<'columns, S>,
 {
     type Out = (A::Out, B::Out);
 
-    fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
         Select::new((self.0.into_select().inner, self.1.into_select().inner))
     }
 }
@@ -329,14 +327,14 @@ mod tests {
         b: B,
     }
 
-    impl<'columns, 'transaction, S, A, B> IntoSelect<'columns, 'transaction, S> for UserSelect<A, B>
+    impl<'columns, S, A, B> IntoSelect<'columns, S> for UserSelect<A, B>
     where
         A: IntoExpr<'columns, S, Typ = i64>,
         B: IntoExpr<'columns, S, Typ = String>,
     {
         type Out = User;
 
-        fn into_select(self) -> Select<'columns, 'transaction, S, Self::Out> {
+        fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
             (self.a.into_expr(), self.b.into_expr())
                 .into_select()
                 .map((|(a, b)| User { a, b }) as fn((i64, String)) -> User)

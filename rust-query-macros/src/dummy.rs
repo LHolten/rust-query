@@ -1,4 +1,4 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{spanned::Spanned, GenericParam, ItemStruct, Lifetime};
 
@@ -58,10 +58,6 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     } = CommonInfo::from_item(item)?;
     let dummy_name = format_ident!("{name}Select");
 
-    let transaction_lt = syn::Lifetime::new("'_a", Span::mixed_site());
-    let mut original_plus_transaction = original_generics.clone();
-    original_plus_transaction.push(transaction_lt.clone());
-
     let mut defs = vec![];
     let mut generics = vec![];
     let mut constraints = vec![];
@@ -72,8 +68,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         let generic = make_generic(name);
 
         defs.push(quote! {#name: #generic});
-        constraints
-            .push(quote! {#generic: ::rust_query::IntoSelect<'_t, #transaction_lt, S, Out = #typ>});
+        constraints.push(quote! {#generic: ::rust_query::IntoSelect<'_t, S, Out = #typ>});
         generics.push(quote! {#generic});
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
@@ -88,11 +83,11 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
             #(#defs),*
         }
 
-        impl<'_t #(,#original_plus_transaction)*, S #(,#constraints)*> ::rust_query::IntoSelect<'_t, #transaction_lt, S> for #dummy_name<#(#generics),*>
-        where #name<#(#original_generics),*>: #transaction_lt {
+        impl<'_t #(,#original_generics)*, S #(,#constraints)*> ::rust_query::IntoSelect<'_t, S> for #dummy_name<#(#generics),*>
+        where #name<#(#original_generics),*>: 'static {
             type Out = (#name<#(#original_generics),*>);
 
-            fn into_select(self) -> ::rust_query::Select<'_t, #transaction_lt, S, Self::Out> {
+            fn into_select(self) -> ::rust_query::Select<'_t, 'static, S, Self::Out> {
                 ::rust_query::IntoSelect::into_select(#parts_dummies).map(|#parts_name| #name {
                     #(#names,)*
                 })
@@ -103,18 +98,6 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 }
 
 pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
-    let mut transaction_lt = None;
-    match *item.generics.lifetimes().collect::<Vec<_>>() {
-        [] => {}
-        [lt] => transaction_lt = Some(lt.lifetime.clone()),
-        _ => {
-            return Err(syn::Error::new_spanned(
-                item.generics,
-                "can have at most one lifetime generic",
-            ))
-        }
-    }
-
     let mut trivial = vec![];
     for attr in &item.attrs {
         if attr.path().is_ident("rust_query") {
@@ -135,13 +118,6 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         fields,
     } = CommonInfo::from_item(item)?;
 
-    let mut original_plus_transaction = original_generics.clone();
-    let builtin_lt = syn::Lifetime::new("'_a", Span::mixed_site());
-    if transaction_lt.is_none() {
-        original_plus_transaction.push(builtin_lt.clone());
-    }
-    let transaction_lt = transaction_lt.unwrap_or(builtin_lt);
-
     let mut names = vec![];
     for (name, _) in &fields {
         names.push(quote! {#name});
@@ -159,9 +135,9 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         let parts_name = wrap(&names);
 
         quote! {
-            impl<#(#original_plus_transaction),*> ::rust_query::FromExpr<#transaction_lt, #schema, #trivial> for #name<#(#original_generics),*>
+            impl<#(#original_generics),*> ::rust_query::FromExpr<'static, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, #transaction_lt, #schema, Self> {
+                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, 'static, #schema, Self> {
                     let col = ::rust_query::IntoExpr::into_expr(col);
                     ::rust_query::IntoSelect::into_select(#parts_dummies).map(|#parts_name| #name {
                         #(#names,)*
