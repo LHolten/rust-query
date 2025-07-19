@@ -303,12 +303,12 @@ pub trait MyTyp: 'static {
     const NULLABLE: bool = false;
     const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: SecretFromSql<'static>;
+    type Out: SecretFromSql;
     type Ext<'t>;
     type Sql;
 }
 
-pub(crate) trait SecretFromSql<'t>: Sized {
+pub(crate) trait SecretFromSql: Sized {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>;
 }
 
@@ -322,7 +322,7 @@ impl<T: Table> MyTyp for T {
     type Sql = i64;
 }
 
-impl<'t, T: Table> SecretFromSql<'t> for TableRow<T> {
+impl<T: Table> SecretFromSql for TableRow<T> {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(TableRow {
             _local: PhantomData,
@@ -342,7 +342,7 @@ impl MyTyp for i64 {
     type Sql = i64;
 }
 
-impl SecretFromSql<'_> for i64 {
+impl SecretFromSql for i64 {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         value.as_i64()
     }
@@ -356,7 +356,7 @@ impl MyTyp for f64 {
     type Sql = f64;
 }
 
-impl SecretFromSql<'_> for f64 {
+impl SecretFromSql for f64 {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         value.as_f64()
     }
@@ -370,7 +370,7 @@ impl MyTyp for bool {
     type Sql = bool;
 }
 
-impl SecretFromSql<'_> for bool {
+impl SecretFromSql for bool {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(value.as_i64()? != 0)
     }
@@ -385,7 +385,7 @@ impl MyTyp for String {
 }
 assert_impl_all!(String: Nullable);
 
-impl SecretFromSql<'_> for String {
+impl SecretFromSql for String {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(value.as_str()?.to_owned())
     }
@@ -400,7 +400,7 @@ impl MyTyp for Vec<u8> {
 }
 assert_impl_all!(Vec<u8>: Nullable);
 
-impl SecretFromSql<'_> for Vec<u8> {
+impl SecretFromSql for Vec<u8> {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(value.as_blob()?.to_owned())
     }
@@ -416,7 +416,7 @@ impl<T: MyTyp> MyTyp for Option<T> {
     type Sql = T::Sql;
 }
 
-impl<'t, T: SecretFromSql<'t>> SecretFromSql<'t> for Option<T> {
+impl<T: SecretFromSql> SecretFromSql for Option<T> {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         if value.data_type() == rusqlite::types::Type::Null {
             Ok(None)

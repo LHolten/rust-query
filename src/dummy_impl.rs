@@ -52,7 +52,7 @@ impl<'x> Row<'x> {
         Self { row, fields }
     }
 
-    pub fn get<'transaction, T: SecretFromSql<'transaction>>(&self, val: Cached<T>) -> T {
+    pub fn get<T: SecretFromSql>(&self, val: Cached<T>) -> T {
         let field = self.fields[val.idx];
         let idx = &*field.to_string();
         T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
@@ -112,7 +112,7 @@ impl<Out> Prepared for DynPrepared<Out> {
     }
 }
 
-impl<'transaction, S, Out> Select<'_, S, Out> {
+impl<S, Out> Select<'_, S, Out> {
     pub(crate) fn new(val: impl 'static + SelectImpl<Out = Out>) -> Self {
         Self {
             inner: DynSelectImpl {
@@ -222,7 +222,7 @@ impl<'columns, S> IntoSelect<'columns, S> for () {
     }
 }
 
-impl<'transaction, T: SecretFromSql<'transaction>> Prepared for Cached<T> {
+impl<T: SecretFromSql> Prepared for Cached<T> {
     type Out = T;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
