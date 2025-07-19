@@ -72,7 +72,7 @@ pub mod private {
     pub struct Native;
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
-    pub struct Update<'t>(PhantomData<&'t ()>);
+    pub struct AsUpdate;
     pub struct AsExpr<'t>(PhantomData<&'t ()>);
 
     pub trait Apply {
@@ -91,7 +91,7 @@ pub mod private {
         type Out<T: MyTyp, S> = X;
     }
 
-    impl<'t> Apply for Update<'t> {
+    impl Apply for AsUpdate {
         type Out<T: MyTyp, S> = crate::Update<S, T>;
     }
 

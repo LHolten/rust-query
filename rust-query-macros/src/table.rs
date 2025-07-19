@@ -130,7 +130,7 @@ fn define_table(
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
             try_from_update.push(quote! {Default::default()});
         } else {
-            update_columns_safe.push(quote! {::rust_query::private::Update<'static>});
+            update_columns_safe.push(quote! {::rust_query::private::AsUpdate});
             try_from_update.push(quote! {val.#ident});
         }
         parts.push(quote! {::rust_query::FromExpr::from_expr(&col.#ident)});
@@ -261,7 +261,7 @@ fn define_table(
 
                 type Conflict = #conflict_type;
                 type UpdateOk = (#alias_ident<#(#update_columns_safe),*>);
-                type Update = (#alias_ident<#(#empty ::rust_query::private::Update<'static>),*>);
+                type Update = (#alias_ident<#(#empty ::rust_query::private::AsUpdate),*>);
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
 
                 fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
