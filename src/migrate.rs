@@ -160,6 +160,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
         Ok(Migrated {
             _p: PhantomData,
             f: Box::new(|_| {}),
+            _local: PhantomData,
         })
     }
 
@@ -356,10 +357,10 @@ pub struct Migrator<S> {
 /// [Migrated] provides a proof of migration.
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
-// TODO: is this lifetime bound good enough, why?
 pub struct Migrated<'t, FromSchema, T> {
-    _p: PhantomData<(fn(&'t ()) -> &'t (), T)>,
+    _p: PhantomData<T>,
     f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, FromSchema>)>,
+    _local: PhantomData<*const ()>,
 }
 
 impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
@@ -370,6 +371,7 @@ impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
         Self {
             _p: PhantomData,
             f: Box::new(|x| x.foreign_key::<T>(err)),
+            _local: PhantomData,
         }
     }
 
