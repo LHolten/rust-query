@@ -434,6 +434,7 @@ impl<T: SecretFromSql> SecretFromSql for Option<T> {
 ///
 /// [Expr] implements [Deref] to have table extension methods in case the type is a table type.
 pub struct Expr<'column, S, T: MyTyp> {
+    pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: DynTyped<T>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
@@ -500,6 +501,7 @@ impl<S, T: MyTyp> Expr<'_, S, T> {
 
     pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
         Self {
+            _local: PhantomData,
             inner: DynTyped(Rc::new(val)),
             _p: PhantomData,
             _p2: PhantomData,
@@ -511,6 +513,7 @@ impl<S, T: MyTyp> Expr<'_, S, T> {
 impl<S, T: MyTyp> Clone for Expr<'_, S, T> {
     fn clone(&self) -> Self {
         Self {
+            _local: PhantomData,
             inner: self.inner.clone(),
             _p: self._p,
             _p2: self._p2,
@@ -588,6 +591,7 @@ impl<'t, T: Table> Deref for Expr<'t, T::Schema, T> {
     fn deref(&self) -> &Self::Target {
         T::covariant_ext(self.ext.get_or_init(|| {
             let expr = Expr {
+                _local: PhantomData,
                 inner: self.inner.clone(),
                 _p: PhantomData::<&'static ()>,
                 _p2: PhantomData,
