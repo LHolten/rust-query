@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
-use rusqlite::Connection;
+use self_cell::MutBorrow;
 
-use crate::{Database, Transaction, TransactionMut, transaction::CowTransaction};
+use crate::{Database, Transaction, TransactionMut, transaction::OwnedTransaction};
 
 /// The primary interface to the database.
 ///
@@ -13,7 +13,6 @@ use crate::{Database, Transaction, TransactionMut, transaction::CowTransaction};
 /// Write transactions never run in parallell with each other, but they do run in parallel with read transactions.
 pub struct LocalClient {
     _p: std::marker::PhantomData<*const ()>,
-    pub(crate) conn: Option<Connection>,
 }
 
 impl LocalClient {
@@ -25,9 +24,11 @@ impl LocalClient {
     pub fn transaction<S>(&mut self, db: &Database<S>) -> Transaction<S> {
         use r2d2::ManageConnection;
         // TODO: could check here if the existing connection is good to use.
-        let conn = self.conn.insert(db.manager.connect().unwrap());
-        let txn = conn.transaction().unwrap();
-        Transaction::new_checked(CowTransaction::Borrow(txn), db.schema_version)
+        let conn = db.manager.connect().unwrap();
+        let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+            Some(conn.borrow_mut().transaction().unwrap())
+        });
+        Transaction::new_checked(owned, db.schema_version)
     }
 
     /// Create a [TransactionMut].
@@ -47,12 +48,16 @@ impl LocalClient {
         // TODO: could check here if the existing connection is good to use.
         // TODO: make sure that when reusing a connection, the foreign keys are checked (migration doesn't)
         // .pragma_update(None, "foreign_keys", "ON").unwrap();
-        let conn = self.conn.insert(db.manager.connect().unwrap());
-        let txn = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .unwrap();
+        let conn = db.manager.connect().unwrap();
+        let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+            Some(
+                conn.borrow_mut()
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .unwrap(),
+            )
+        });
         TransactionMut {
-            inner: Transaction::new_checked(CowTransaction::Borrow(txn), db.schema_version),
+            inner: Transaction::new_checked(owned, db.schema_version),
         }
     }
 }
@@ -65,7 +70,6 @@ impl LocalClient {
     fn new() -> Self {
         LocalClient {
             _p: std::marker::PhantomData,
-            conn: None,
         }
     }
 

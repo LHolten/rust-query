@@ -43,7 +43,7 @@ use rusqlite::Connection;
 type RTransaction<'x> = Option<rusqlite::Transaction<'x>>;
 
 self_cell!(
-    struct OwnedTransaction {
+    pub struct OwnedTransaction {
         owner: MutBorrow<Connection>,
 
         #[covariant]
@@ -51,28 +51,13 @@ self_cell!(
     }
 );
 
-pub enum CowTransaction<'x> {
-    Owned(OwnedTransaction),
-    Borrow(rusqlite::Transaction<'x>),
-}
-
-impl CowTransaction<'_> {
+impl OwnedTransaction {
     pub fn get(&self) -> &rusqlite::Transaction<'_> {
-        match self {
-            CowTransaction::Owned(owned_transaction) => {
-                owned_transaction.borrow_dependent().as_ref().unwrap()
-            }
-            CowTransaction::Borrow(transaction) => transaction,
-        }
+        self.borrow_dependent().as_ref().unwrap()
     }
 
-    pub fn with(self, f: impl FnOnce(rusqlite::Transaction<'_>)) {
-        match self {
-            CowTransaction::Owned(mut owned_transaction) => {
-                owned_transaction.with_dependent_mut(|_, b| f(b.take().unwrap()))
-            }
-            CowTransaction::Borrow(transaction) => f(transaction),
-        }
+    pub fn with(mut self, f: impl FnOnce(rusqlite::Transaction<'_>)) {
+        self.with_dependent_mut(|_, b| f(b.take().unwrap()))
     }
 }
 
@@ -87,8 +72,7 @@ impl<S: Send + Sync> Database<S> {
                     let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
                         Some(conn.borrow_mut().transaction().unwrap())
                     });
-                    let txn =
-                        Transaction::new_checked(CowTransaction::Owned(owned), self.schema_version);
+                    let txn = Transaction::new_checked(owned, self.schema_version);
                     return f(txn);
                 })
                 .join()
@@ -113,8 +97,7 @@ impl<S: Send + Sync> Database<S> {
                             .unwrap();
                         Some(txn)
                     });
-                    let txn =
-                        Transaction::new_checked(CowTransaction::Owned(owned), self.schema_version);
+                    let txn = Transaction::new_checked(owned, self.schema_version);
 
                     return f(TransactionMut { inner: txn });
                 })
@@ -144,14 +127,14 @@ impl<S: Send + Sync> Database<S> {
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
 pub struct Transaction<'t, S> {
-    pub(crate) transaction: Rc<CowTransaction<'t>>,
+    pub(crate) transaction: Rc<OwnedTransaction>,
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<LocalClient>,
 }
 
 impl<'t, S> Transaction<'t, S> {
-    pub(crate) fn new(raw: Rc<CowTransaction<'t>>) -> Self {
+    pub(crate) fn new(raw: Rc<OwnedTransaction>) -> Self {
         Self {
             transaction: raw,
             _p: PhantomData,
@@ -181,7 +164,7 @@ impl<'t, S> Deref for TransactionMut<'t, S> {
 
 impl<'t, S> Transaction<'t, S> {
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: CowTransaction<'t>, expected: i64) -> Self {
+    pub(crate) fn new_checked(txn: OwnedTransaction, expected: i64) -> Self {
         if schema_version(txn.get()) != expected {
             panic!("The database schema was updated unexpectedly")
         }
@@ -508,7 +491,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
 }
 
 pub fn try_insert_private<'t, T: Table>(
-    transaction: &Rc<CowTransaction<'t>>,
+    transaction: &Rc<OwnedTransaction>,
     table: sea_query::TableRef,
     idx: Option<i64>,
     val: T::Insert<'t>,

@@ -10,6 +10,7 @@ use std::{
 
 use rusqlite::{Connection, config::DbConfig};
 use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder, TableDropStatement};
+use self_cell::MutBorrow;
 
 use crate::{
     FromExpr, IntoExpr, Table, TableRow, Transaction,
@@ -17,7 +18,7 @@ use crate::{
     client::LocalClient,
     hash,
     schema_pragma::read_schema,
-    transaction::{CowTransaction, Database, try_insert_private},
+    transaction::{Database, OwnedTransaction, try_insert_private},
 };
 
 pub struct TableTypBuilder<S> {
@@ -302,39 +303,42 @@ impl LocalClient {
     /// Returns [None] if the database `user_version` on disk is older than `S`.
     pub fn migrator<S: Schema>(&mut self, config: Config) -> Option<Migrator<'_, S>> {
         use r2d2::ManageConnection;
-        let conn = self.conn.insert(config.manager.connect().unwrap());
+        let conn = config.manager.connect().unwrap();
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
-
-        let conn = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
-            .unwrap();
+        let txn = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+            Some(
+                conn.borrow_mut()
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Exclusive)
+                    .unwrap(),
+            )
+        });
 
         // check if this database is newly created
-        if schema_version(&conn) == 0 {
+        if schema_version(txn.get()) == 0 {
             let mut b = TableTypBuilder::default();
             S::typs(&mut b);
 
             for (table_name, table) in &*b.ast.tables {
-                new_table_inner(&conn, table, Alias::new(table_name));
+                new_table_inner(txn.get(), table, Alias::new(table_name));
             }
-            (config.init)(&conn);
-            set_user_version(&conn, S::VERSION).unwrap();
+            (config.init)(txn.get());
+            set_user_version(txn.get(), S::VERSION).unwrap();
         }
 
-        let user_version = user_version(&conn).unwrap();
+        let user_version = user_version(txn.get()).unwrap();
         // We can not migrate databases older than `S`
         if user_version < S::VERSION {
             return None;
         }
         assert_eq!(
-            foreign_key_check(&conn),
+            foreign_key_check(txn.get()),
             None,
             "foreign key constraint violated"
         );
 
         Some(Migrator {
             manager: config.manager,
-            transaction: Rc::new(CowTransaction::Borrow(conn)),
+            transaction: Rc::new(txn),
             _p: PhantomData,
             _local: PhantomData,
             _p0: PhantomData,
@@ -348,7 +352,7 @@ impl LocalClient {
 /// [Migrator::finish].
 pub struct Migrator<'t, S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    transaction: Rc<CowTransaction<'t>>,
+    transaction: Rc<OwnedTransaction>,
     _p0: PhantomData<fn(&'t ()) -> &'t ()>,
     _p: PhantomData<S>,
     // We want to make sure that Migrator is always used with the same LocalClient
@@ -485,7 +489,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-fn check_schema<S: Schema>(conn: &Rc<CowTransaction>) {
+fn check_schema<S: Schema>(conn: &Rc<OwnedTransaction>) {
     let mut b = TableTypBuilder::default();
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
