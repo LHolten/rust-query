@@ -326,7 +326,7 @@ impl SingleVersionTable {
 
                 let col = &unique.columns;
                 (
-                    quote! {::rust_query::TableRow<'t, #table_ident>},
+                    quote! {::rust_query::TableRow<#table_ident>},
                     quote! {
                         txn.query_one(#table_ident::#unique_name(#(&val.#col),*)).unwrap()
                     },

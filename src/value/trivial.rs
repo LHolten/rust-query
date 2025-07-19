@@ -33,10 +33,10 @@ from_expr! {i64}
 from_expr! {f64}
 from_expr! {bool}
 
-impl<'transaction, T: Table> FromExpr<'transaction, T::Schema, T> for TableRow<'static, T> {
+impl<T: Table> FromExpr<'static, T::Schema, T> for TableRow<T> {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, T::Schema, Typ = T>,
-    ) -> Select<'columns, 'transaction, T::Schema, Self> {
+    ) -> Select<'columns, 'static, T::Schema, Self> {
         col.into_expr().into_select()
     }
 }

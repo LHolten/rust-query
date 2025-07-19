@@ -260,7 +260,7 @@ impl<S: 'static> TransactionMut<S> {
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
         val: impl TableInsert<'static, T = T>,
-    ) -> Result<TableRow<'static, T>, T::Conflict<'static>> {
+    ) -> Result<TableRow<T>, T::Conflict<'static>> {
         try_insert_private(
             &self.transaction,
             Alias::new(T::NAME).into_table_ref(),
@@ -276,7 +276,7 @@ impl<S: 'static> TransactionMut<S> {
     pub fn insert_ok<T: Table<Schema = S, Conflict<'static> = Infallible>>(
         &mut self,
         val: impl TableInsert<'static, T = T>,
-    ) -> TableRow<'static, T> {
+    ) -> TableRow<T> {
         let Ok(row) = self.insert(val);
         row
     }
@@ -300,10 +300,10 @@ impl<S: 'static> TransactionMut<S> {
     /// assert_eq!(bob, bob2);
     /// # });
     /// ```
-    pub fn find_or_insert<T: Table<Schema = S, Conflict<'static> = TableRow<'static, T>>>(
+    pub fn find_or_insert<T: Table<Schema = S, Conflict<'static> = TableRow<T>>>(
         &mut self,
         val: impl TableInsert<'static, T = T>,
-    ) -> TableRow<'static, T> {
+    ) -> TableRow<T> {
         match self.insert(val) {
             Ok(row) => row,
             Err(row) => row,
@@ -440,10 +440,7 @@ impl<S: 'static> TransactionWeak<S> {
     /// When this method returns [Ok] it will contain a [bool] that is either
     /// - `true` if the row was just deleted.
     /// - `false` if the row was deleted previously in this transaction.
-    pub fn delete<T: Table<Schema = S>>(
-        &mut self,
-        val: TableRow<'static, T>,
-    ) -> Result<bool, T::Referer> {
+    pub fn delete<T: Table<Schema = S>>(&mut self, val: TableRow<T>) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
             .from_table((Alias::new("main"), Alias::new(T::NAME)))
             .cond_where(
@@ -478,7 +475,7 @@ impl<S: 'static> TransactionWeak<S> {
     /// To be able to use this method you have to mark the table as `#[no_reference]` in the schema.
     pub fn delete_ok<T: Table<Referer = Infallible, Schema = S>>(
         &mut self,
-        val: TableRow<'static, T>,
+        val: TableRow<T>,
     ) -> bool {
         let Ok(res) = self.delete(val);
         res
@@ -509,7 +506,7 @@ pub fn try_insert_private<T: Table>(
     table: sea_query::TableRef,
     idx: Option<i64>,
     val: T::Insert<'static>,
-) -> Result<TableRow<'static, T>, T::Conflict<'static>> {
+) -> Result<TableRow<T>, T::Conflict<'static>> {
     let mut reader = Reader::default();
     T::read(&val, &mut reader);
     if let Some(idx) = idx {
@@ -536,7 +533,7 @@ pub fn try_insert_private<T: Table>(
     let mut statement = transaction.get().prepare_cached(&sql).unwrap();
     let mut res = statement
         .query_map(&*values.as_params(), |row| {
-            Ok(TableRow::<'_, T>::from_sql(row.get_ref(T::ID)?)?)
+            Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?)?)
         })
         .unwrap();
 

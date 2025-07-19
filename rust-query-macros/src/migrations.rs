@@ -100,7 +100,7 @@ fn define_table_migration(
         } else {
             let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
             if unique_columns.any(|c| c == name) {
-                migration_conflict = quote! {::rust_query::TableRow<'t, Self::From>};
+                migration_conflict = quote! {::rust_query::TableRow<Self::From>};
                 conflict_from = quote! {val};
             }
             col_new.push(quote! {val.#name});
@@ -148,7 +148,7 @@ fn define_table_migration(
                 )*}
             }
 
-            fn map_conflict(val: ::rust_query::TableRow<'t, Self::From>) -> Self::Conflict {
+            fn map_conflict(val: ::rust_query::TableRow<Self::From>) -> Self::Conflict {
                 #conflict_from
             }
         }

@@ -59,7 +59,7 @@ pub trait Migration<'t> {
         prev: crate::Expr<'t, Self::FromSchema, Self::From>,
     ) -> <Self::To as Table>::Insert<'t>;
     #[doc(hidden)]
-    fn map_conflict(val: TableRow<'t, Self::From>) -> Self::Conflict;
+    fn map_conflict(val: TableRow<Self::From>) -> Self::Conflict;
 }
 
 /// Transaction type for use in migrations.

@@ -317,15 +317,14 @@ impl<T: Table> MyTyp for T {
     type Prev = T::MigrateFrom;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out = TableRow<'static, Self>;
+    type Out = TableRow<Self>;
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
 }
 
-impl<'t, T: Table> SecretFromSql<'t> for TableRow<'t, T> {
+impl<'t, T: Table> SecretFromSql<'t> for TableRow<T> {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
         Ok(TableRow {
-            _p: PhantomData,
             _local: PhantomData,
             inner: TableRowInner {
                 _p: PhantomData,
