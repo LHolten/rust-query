@@ -71,7 +71,7 @@ pub(crate) trait Prepared {
 ///
 /// For this reason many [rust_query] APIs accept values that implement [IntoSelect].
 pub struct Select<'columns, S, Out> {
-    pub(crate) inner: DynSelectImpl<'static, Out>,
+    pub(crate) inner: DynSelectImpl<Out>,
     pub(crate) _p: PhantomData<&'columns ()>,
     pub(crate) _p2: PhantomData<S>,
 }
@@ -88,13 +88,13 @@ impl<'columns, 'transaction, S, Out: 'static> Select<'columns, S, Out> {
     }
 }
 
-pub struct DynSelectImpl<'transaction, Out> {
-    inner: Box<dyn 'transaction + FnOnce(&mut Cacher) -> DynPrepared<'transaction, Out>>,
+pub struct DynSelectImpl<Out> {
+    inner: Box<dyn FnOnce(&mut Cacher) -> DynPrepared<'static, Out>>,
 }
 
-impl<'transaction, Out> SelectImpl for DynSelectImpl<'transaction, Out> {
+impl<Out> SelectImpl for DynSelectImpl<Out> {
     type Out = Out;
-    type Prepared = DynPrepared<'transaction, Out>;
+    type Prepared = DynPrepared<'static, Out>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
         (self.inner)(cacher)
