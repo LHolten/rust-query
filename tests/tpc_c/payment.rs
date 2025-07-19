@@ -9,10 +9,10 @@ pub fn random_payment(
     payment(txn, input)
 }
 
-fn generate_input<'a>(
-    txn: &Transaction<'a, Schema>,
-    warehouse: TableRow<'a, Warehouse>,
-) -> PaymentInput<'a> {
+fn generate_input(
+    txn: &Transaction<Schema>,
+    warehouse: TableRow<'static, Warehouse>,
+) -> PaymentInput<'static> {
     let mut rng = rand::rng();
     let district = txn
         .query_one(District::unique(warehouse, rng.random_range(1..=10)))
@@ -38,7 +38,7 @@ fn generate_input<'a>(
 
 struct PaymentInput<'a> {
     district: TableRow<'a, District>,
-    customer: CustomerIdent<'a>,
+    customer: CustomerIdent,
     amount: i64,
     date: SystemTime,
 }

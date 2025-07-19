@@ -10,10 +10,10 @@ pub fn random_new_order(
     new_order(txn, input)
 }
 
-fn generate_input<'a>(
-    txn: &Transaction<'a, Schema>,
-    warehouse: TableRow<'a, Warehouse>,
-) -> NewOrderInput<'a> {
+fn generate_input(
+    txn: &Transaction<Schema>,
+    warehouse: TableRow<'static, Warehouse>,
+) -> NewOrderInput<'static> {
     let mut rng = rand::rng();
     let district = txn
         .query_one(District::unique(warehouse, rng.random_range(1..=10)))

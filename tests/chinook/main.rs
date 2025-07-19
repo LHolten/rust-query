@@ -298,7 +298,7 @@ struct ArtistDetails {
     track_stats: TrackStats,
 }
 
-fn artist_details<'a>(db: &Transaction<'a, Schema>, artist: TableRow<'a, Artist>) -> ArtistDetails {
+fn artist_details(db: &Transaction<Schema>, artist: TableRow<'static, Artist>) -> ArtistDetails {
     db.query_one(ArtistDetailsSelect {
         name: &artist.into_expr().name,
         album_count: aggregate(|rows| {
