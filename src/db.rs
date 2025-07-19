@@ -3,7 +3,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use sea_query::{Alias, SimpleExpr};
 
 use crate::{
-    Expr, IntoExpr, LocalClient, Table,
+    Expr, IntoExpr, Table,
     alias::MyAlias,
     value::{MyTableRef, Typed, ValueBuilder},
 };
@@ -40,7 +40,7 @@ impl<T: Table> Typed for Join<T> {
 /// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
 pub struct TableRow<'t, T: Table> {
     pub(crate) _p: PhantomData<&'t ()>,
-    pub(crate) _local: PhantomData<LocalClient>,
+    pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: TableRowInner<T>,
 }
 

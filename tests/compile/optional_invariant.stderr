@@ -1,10 +1,10 @@
 error: lifetime may not live long enough
-  --> tests/compile/optional_invariant.rs:18:38
+  --> tests/compile/optional_invariant.rs:16:42
    |
-14 |     let txn = client.transaction(&db);
-   |         --- lifetime `'2` appears in the type of `txn`
-15 |     let score = txn.query(|rows| {
-   |                            ---- has type `&mut Query<'_, '1, v0::Schema>`
+12 |     db.transaction(|txn| {
+   |                     --- lifetime `'2` appears in the type of `txn`
+13 |         let score = txn.query(|rows| {
+   |                                ---- has type `&mut Query<'_, '1, v0::Schema>`
 ...
-18 |         txn.query_one(optional(|row| row.then(&item.score)))
-   |                                      ^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+16 |             txn.query_one(optional(|row| row.then(&item.score)))
+   |                                          ^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`

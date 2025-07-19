@@ -1,4 +1,4 @@
-use rust_query::{Database, LocalClient, aggregate, migration::schema};
+use rust_query::{Database, aggregate, migration::schema};
 
 #[schema(Schema)]
 pub mod vN {
@@ -9,16 +9,15 @@ pub mod vN {
 use v0::*;
 
 fn test(db: Database<Schema>) {
-    let mut client = LocalClient::try_new().unwrap();
+    db.transaction(|txn| {
+        let total = txn.query(|rows| {
+            let item = rows.join(MyTable);
 
-    let txn = client.transaction(&db);
-    let total = txn.query(|rows| {
-        let item = rows.join(MyTable);
+            txn.query_one(aggregate(|rows| rows.sum(&item.score)))
+        });
 
-        txn.query_one(aggregate(|rows| rows.sum(&item.score)))
-    });
-
-    println!("{total}");
+        println!("{total}");
+    })
 }
 
 fn main() {}

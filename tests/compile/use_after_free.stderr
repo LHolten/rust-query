@@ -1,10 +1,52 @@
-error[E0499]: cannot borrow `client` as mutable more than once at a time
-  --> tests/compile/use_after_free.rs:22:15
+error[E0277]: `*const ()` cannot be sent between threads safely
+  --> tests/compile/use_after_free.rs:18:24
    |
-14 |     let txn = client.transaction(&db);
-   |               ------ first mutable borrow occurs here
-...
-22 |     let txn = client.transaction(&db);
-   |               ^^^^^^ second mutable borrow occurs here
-23 |     for item in items {
-   |                 ----- first borrow later used here
+18 |           db.transaction(|txn| {
+   |              ----------- ^----
+   |              |           |
+   |  ____________|___________within this `{closure@$DIR/tests/compile/use_after_free.rs:18:24: 18:29}`
+   | |            |
+   | |            required by a bound introduced by this call
+19 | |             for item in items {
+20 | |                 let name = txn.query_one(&item.into_expr().name);
+21 | |                 println!("{name}")
+22 | |             }
+23 | |         })
+   | |_________^ `*const ()` cannot be sent between threads safely
+   |
+   = help: within `{closure@$DIR/tests/compile/use_after_free.rs:18:24: 18:29}`, the trait `Send` is not implemented for `*const ()`
+note: required because it appears within the type `PhantomData<*const ()>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: ?Sized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `TableRow<'_, v0::MyTable>`
+  --> src/db.rs
+   |
+   | pub struct TableRow<'t, T: Table> {
+   |            ^^^^^^^^
+note: required because it appears within the type `PhantomData<TableRow<'_, v0::MyTable>>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: ?Sized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `alloc::raw_vec::RawVec<TableRow<'_, v0::MyTable>>`
+  --> $RUST/alloc/src/raw_vec/mod.rs
+   |
+   | pub(crate) struct RawVec<T, A: Allocator = Global> {
+   |                   ^^^^^^
+note: required because it appears within the type `Vec<TableRow<'_, v0::MyTable>>`
+  --> $RUST/alloc/src/vec/mod.rs
+   |
+   | pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+   |            ^^^
+note: required because it's used within this closure
+  --> tests/compile/use_after_free.rs:18:24
+   |
+18 |         db.transaction(|txn| {
+   |                        ^^^^^
+note: required by a bound in `Database::<S>::transaction`
+  --> src/transaction.rs
+   |
+   |     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(Transaction<'static, S>) -> R) -> R {
+   |                                                ^^^^ required by this bound in `Database::<S>::transaction`
