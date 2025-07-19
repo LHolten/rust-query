@@ -2,10 +2,10 @@ use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, TransactionMut, Update, optional};
 use std::time::SystemTime;
 
-pub fn random_new_order<'a>(
-    txn: TransactionMut<'a, Schema>,
-    warehouse: TableRow<'a, Warehouse>,
-) -> OutputData<'a> {
+pub fn random_new_order(
+    txn: TransactionMut<Schema>,
+    warehouse: TableRow<'static, Warehouse>,
+) -> OutputData<'static> {
     let input = generate_input(&txn, warehouse);
     new_order(txn, input)
 }
@@ -59,7 +59,10 @@ struct ItemInput<'a> {
     quantity: i64,
 }
 
-fn new_order<'a>(mut txn: TransactionMut<'a, Schema>, input: NewOrderInput<'a>) -> OutputData<'a> {
+fn new_order(
+    mut txn: TransactionMut<Schema>,
+    input: NewOrderInput<'static>,
+) -> OutputData<'static> {
     let district = txn.query_one(&input.customer.into_expr().district);
 
     let district_info: District!(warehouse<'_>, number, tax, next_order) =

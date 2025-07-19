@@ -96,10 +96,7 @@ impl<S: Send + Sync> Database<S> {
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
-    pub fn transaction_mut<R: Send>(
-        &self,
-        f: impl Send + FnOnce(TransactionMut<'static, S>) -> R,
-    ) -> R {
+    pub fn transaction_mut<R: Send>(&self, f: impl Send + FnOnce(TransactionMut<S>) -> R) -> R {
         std::thread::scope(|scope| {
             scope
                 .spawn(|| {
@@ -166,12 +163,12 @@ impl<'t, S> Transaction<'t, S> {
 ///
 /// To make mutations to the database permanent you need to use [TransactionMut::commit].
 /// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
-pub struct TransactionMut<'t, S> {
-    pub(crate) inner: Transaction<'t, S>,
+pub struct TransactionMut<S> {
+    pub(crate) inner: Transaction<'static, S>,
 }
 
-impl<'t, S> Deref for TransactionMut<'t, S> {
-    type Target = Transaction<'t, S>;
+impl<S> Deref for TransactionMut<S> {
+    type Target = Transaction<'static, S>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -237,7 +234,7 @@ impl<'t, S> Transaction<'t, S> {
     }
 }
 
-impl<'t, S: 'static> TransactionMut<'t, S> {
+impl<S: 'static> TransactionMut<S> {
     /// Try inserting a value into the database.
     ///
     /// Returns [Ok] with a reference to the new inserted value or an [Err] with conflict information.
@@ -261,8 +258,8 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// ```
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl TableInsert<'t, T = T>,
-    ) -> Result<TableRow<'t, T>, T::Conflict<'t>> {
+        val: impl TableInsert<'static, T = T>,
+    ) -> Result<TableRow<'static, T>, T::Conflict<'static>> {
         try_insert_private(
             &self.transaction,
             Alias::new(T::NAME).into_table_ref(),
@@ -275,10 +272,10 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// easier for tables without unique constraints.
     ///
     /// The new row is added to the table and the row reference is returned.
-    pub fn insert_ok<T: Table<Schema = S, Conflict<'t> = Infallible>>(
+    pub fn insert_ok<T: Table<Schema = S, Conflict<'static> = Infallible>>(
         &mut self,
-        val: impl TableInsert<'t, T = T>,
-    ) -> TableRow<'t, T> {
+        val: impl TableInsert<'static, T = T>,
+    ) -> TableRow<'static, T> {
         let Ok(row) = self.insert(val);
         row
     }
@@ -302,10 +299,10 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// assert_eq!(bob, bob2);
     /// # });
     /// ```
-    pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = TableRow<'t, T>>>(
+    pub fn find_or_insert<T: Table<Schema = S, Conflict<'static> = TableRow<'static, T>>>(
         &mut self,
-        val: impl TableInsert<'t, T = T>,
-    ) -> TableRow<'t, T> {
+        val: impl TableInsert<'static, T = T>,
+    ) -> TableRow<'static, T> {
         match self.insert(val) {
             Ok(row) => row,
             Err(row) => row,
@@ -336,9 +333,9 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// ```
     pub fn update<T: Table<Schema = S>>(
         &mut self,
-        row: impl IntoExpr<'t, S, Typ = T>,
-        val: T::Update<'t>,
-    ) -> Result<(), T::Conflict<'t>> {
+        row: impl IntoExpr<'static, S, Typ = T>,
+        val: T::Update<'static>,
+    ) -> Result<(), T::Conflict<'static>> {
         let mut id = ValueBuilder::default();
         let row = row.into_expr();
         let (id, _) = id.simple_one(row.inner.clone().erase());
@@ -399,8 +396,8 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// columns that are part of unique constraints.
     pub fn update_ok<T: Table<Schema = S>>(
         &mut self,
-        row: impl IntoExpr<'t, S, Typ = T>,
-        val: T::UpdateOk<'t>,
+        row: impl IntoExpr<'static, S, Typ = T>,
+        val: T::UpdateOk<'static>,
     ) {
         match self.update(row, T::update_into_try_update(val)) {
             Ok(val) => val,
@@ -420,7 +417,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     }
 
     /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
-    pub fn downgrade(self) -> TransactionWeak<'t, S> {
+    pub fn downgrade(self) -> TransactionWeak<S> {
         TransactionWeak { inner: self }
     }
 }
@@ -431,11 +428,11 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
 /// that [TableRow]s prove the existence of their particular row.
 ///
 /// [TransactionWeak] is useful because it allowes deleting rows.
-pub struct TransactionWeak<'t, S> {
-    inner: TransactionMut<'t, S>,
+pub struct TransactionWeak<S> {
+    inner: TransactionMut<S>,
 }
 
-impl<'t, S: 'static> TransactionWeak<'t, S> {
+impl<S: 'static> TransactionWeak<S> {
     /// Try to delete a row from the database.
     ///
     /// This will return an [Err] if there is a row that references the row that is being deleted.
@@ -444,7 +441,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     /// - `false` if the row was deleted previously in this transaction.
     pub fn delete<T: Table<Schema = S>>(
         &mut self,
-        val: TableRow<'t, T>,
+        val: TableRow<'static, T>,
     ) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
             .from_table((Alias::new("main"), Alias::new(T::NAME)))
@@ -480,7 +477,7 @@ impl<'t, S: 'static> TransactionWeak<'t, S> {
     /// To be able to use this method you have to mark the table as `#[no_reference]` in the schema.
     pub fn delete_ok<T: Table<Referer = Infallible, Schema = S>>(
         &mut self,
-        val: TableRow<'t, T>,
+        val: TableRow<'static, T>,
     ) -> bool {
         let Ok(res) = self.delete(val);
         res

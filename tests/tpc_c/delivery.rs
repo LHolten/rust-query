@@ -4,7 +4,7 @@ use rust_query::{TransactionMut, Update, aggregate, optional};
 
 use super::*;
 
-pub fn random_delivery<'a>(txn: TransactionMut<'a, Schema>, warehouse: TableRow<'a, Warehouse>) {
+pub fn random_delivery<'a>(txn: TransactionMut<Schema>, warehouse: TableRow<'static, Warehouse>) {
     delivery(txn, generate_input(warehouse));
 }
 
@@ -24,7 +24,7 @@ struct DeliveryInput<'a> {
     delivery_d: i64,
 }
 
-fn delivery<'a>(mut txn: TransactionMut<'a, Schema>, input: DeliveryInput<'a>) {
+fn delivery(mut txn: TransactionMut<Schema>, input: DeliveryInput<'static>) {
     let mut new_orders = vec![];
     for district_num in 0..10 {
         let district = txn

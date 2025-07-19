@@ -119,7 +119,7 @@ pub mod private {
         }
         pub use v0::*;
 
-        pub fn get_txn(f: impl Send + FnOnce(TransactionMut<'static, Empty>)) {
+        pub fn get_txn(f: impl Send + FnOnce(TransactionMut<Empty>)) {
             let db = Database::migrator(Config::open_in_memory())
                 .unwrap()
                 .finish()
