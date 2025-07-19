@@ -143,7 +143,7 @@ pub trait Typed {
 }
 
 /// Trait for all values that can be used as expressions in queries.
-pub trait IntoExpr<'column, S>: Clone {
+pub trait IntoExpr<'column, S> {
     /// The type of the expression.
     type Typ: MyTyp;
 
@@ -272,7 +272,7 @@ where
 
 impl<'column, S, T> IntoExpr<'column, S> for &T
 where
-    T: IntoExpr<'column, S>,
+    T: IntoExpr<'column, S> + Clone,
 {
     type Typ = T::Typ;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
