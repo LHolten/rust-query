@@ -12,7 +12,7 @@ pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
     /// How to turn a column reference into a [Select].
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = From>,
-    ) -> Select<'columns, 'transaction, S, Self>;
+    ) -> Select<'columns, S, Self>;
 }
 
 macro_rules! from_expr {
@@ -20,7 +20,7 @@ macro_rules! from_expr {
         impl<S> FromExpr<'static, S, $typ> for $typ {
             fn from_expr<'columns>(
                 col: impl IntoExpr<'columns, S, Typ = $typ>,
-            ) -> Select<'columns, 'static, S, Self> {
+            ) -> Select<'columns, S, Self> {
                 col.into_expr().into_select()
             }
         }
@@ -36,7 +36,7 @@ from_expr! {bool}
 impl<T: Table> FromExpr<'static, T::Schema, T> for TableRow<T> {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, T::Schema, Typ = T>,
-    ) -> Select<'columns, 'static, T::Schema, Self> {
+    ) -> Select<'columns, T::Schema, Self> {
         col.into_expr().into_select()
     }
 }
@@ -47,7 +47,7 @@ where
 {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = Option<From>>,
-    ) -> Select<'columns, 'static, S, Self> {
+    ) -> Select<'columns, S, Self> {
         let col = col.into_expr();
         optional(|row| {
             let col = row.and(col);
@@ -59,7 +59,7 @@ where
 impl<S, From> FromExpr<'static, S, From> for () {
     fn from_expr<'columns>(
         _col: impl IntoExpr<'columns, S, Typ = From>,
-    ) -> Select<'columns, 'static, S, Self> {
+    ) -> Select<'columns, S, Self> {
         ().into_select()
     }
 }

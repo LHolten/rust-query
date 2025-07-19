@@ -87,7 +87,7 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
         where #name<#(#original_generics),*>: 'static {
             type Out = (#name<#(#original_generics),*>);
 
-            fn into_select(self) -> ::rust_query::Select<'_t, 'static, S, Self::Out> {
+            fn into_select(self) -> ::rust_query::Select<'_t, S, Self::Out> {
                 ::rust_query::IntoSelect::into_select(#parts_dummies).map(|#parts_name| #name {
                     #(#names,)*
                 })
@@ -137,7 +137,7 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         quote! {
             impl<#(#original_generics),*> ::rust_query::FromExpr<'static, #schema, #trivial> for #name<#(#original_generics),*>
             {
-                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, 'static, #schema, Self> {
+                fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, #schema, Self> {
                     let col = ::rust_query::IntoExpr::into_expr(col);
                     ::rust_query::IntoSelect::into_select(#parts_dummies).map(|#parts_name| #name {
                         #(#names,)*

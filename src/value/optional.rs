@@ -108,7 +108,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     pub fn then<Out: 'static>(
         &self,
         d: impl IntoSelect<'inner, S, Out = Out>,
-    ) -> Select<'outer, 'static, S, Option<Out>> {
+    ) -> Select<'outer, S, Option<Out>> {
         Select::new(OptionalImpl {
             inner: d.into_select().inner,
             is_some: ColumnImpl {

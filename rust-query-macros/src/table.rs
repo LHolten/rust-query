@@ -198,7 +198,7 @@ fn define_table(
             /// How to turn a column reference into a [Select].
             fn from_expr<'columns>(
                 col: impl ::rust_query::IntoExpr<'columns, #schema, Typ = #table_ident>,
-            ) -> ::rust_query::Select<'columns, 'static, #schema, Self> {
+            ) -> ::rust_query::Select<'columns, #schema, Self> {
                 let col = ::rust_query::IntoExpr::into_expr(col);
                 ::rust_query::IntoSelect::into_select(#wrap_parts).map(|#wrap_ident| #table_ident {
                     #(#col_ident,)*

@@ -476,9 +476,7 @@ pub fn assume_expr<S, T: MyTyp>(e: Expr<S, Option<T>>) -> Expr<S, T> {
     Expr::adhoc(move |b| inner.build_expr(b))
 }
 
-pub fn new_dummy<'x, S, T: MyTyp>(
-    val: impl Typed<Typ = T> + 'static,
-) -> Select<'x, 'static, S, T::Out> {
+pub fn new_dummy<'x, S, T: MyTyp>(val: impl Typed<Typ = T> + 'static) -> Select<'x, S, T::Out> {
     IntoSelect::into_select(Expr::new(val))
 }
 

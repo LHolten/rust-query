@@ -70,20 +70,17 @@ pub(crate) trait Prepared {
 /// It defines a set of expressions to evaluate in the database, and then how to turn the results into rust values.
 ///
 /// For this reason many [rust_query] APIs accept values that implement [IntoSelect].
-pub struct Select<'columns, 'transaction, S, Out> {
-    pub(crate) inner: DynSelectImpl<'transaction, Out>,
+pub struct Select<'columns, S, Out> {
+    pub(crate) inner: DynSelectImpl<'static, Out>,
     pub(crate) _p: PhantomData<&'columns ()>,
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'columns, 'transaction, S, Out: 'transaction> Select<'columns, 'transaction, S, Out> {
+impl<'columns, 'transaction, S, Out: 'static> Select<'columns, S, Out> {
     /// Map the result of a [Select] using native rust.
     ///
     /// This is useful when implementing [IntoSelect].
-    pub fn map<T>(
-        self,
-        f: impl 'transaction + FnMut(Out) -> T,
-    ) -> Select<'columns, 'transaction, S, T> {
+    pub fn map<T>(self, f: impl 'static + FnMut(Out) -> T) -> Select<'columns, S, T> {
         Select::new(MapImpl {
             dummy: self.inner,
             func: f,
@@ -115,8 +112,8 @@ impl<Out> Prepared for DynPrepared<'_, Out> {
     }
 }
 
-impl<'transaction, S, Out> Select<'_, 'transaction, S, Out> {
-    pub(crate) fn new(val: impl 'transaction + SelectImpl<Out = Out>) -> Self {
+impl<'transaction, S, Out> Select<'_, S, Out> {
+    pub(crate) fn new(val: impl 'static + SelectImpl<Out = Out>) -> Self {
         Self {
             inner: DynSelectImpl {
                 inner: Box::new(|cacher| DynPrepared {
@@ -129,10 +126,10 @@ impl<'transaction, S, Out> Select<'_, 'transaction, S, Out> {
     }
 }
 
-impl<'columns, S, Out: 'static> IntoSelect<'columns, S> for Select<'columns, 'static, S, Out> {
+impl<'columns, S, Out: 'static> IntoSelect<'columns, S> for Select<'columns, S, Out> {
     type Out = Out;
 
-    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, S, Self::Out> {
         self
     }
 }
@@ -159,7 +156,7 @@ pub trait IntoSelect<'columns, S>: Sized {
     /// The only way to implement this method is by constructing a different value
     /// that implements [IntoSelect] and then calling the [IntoSelect::into_select] method
     /// on that other value. The result can then be modified with [Select::map].
-    fn into_select(self) -> Select<'columns, 'static, S, Self::Out>;
+    fn into_select(self) -> Select<'columns, S, Self::Out>;
 }
 
 /// This is the result of the [Select::map_select] method.
@@ -220,7 +217,7 @@ impl SelectImpl for () {
 impl<'columns, S> IntoSelect<'columns, S> for () {
     type Out = ();
 
-    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, S, Self::Out> {
         Select::new(())
     }
 }
@@ -255,7 +252,7 @@ where
 {
     type Out = T::Out;
 
-    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, S, Self::Out> {
         Select::new(ColumnImpl { expr: self.inner })
     }
 }
@@ -266,7 +263,7 @@ where
 {
     type Out = T::Out;
 
-    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, S, Self::Out> {
         T::clone(self).into_select()
     }
 }
@@ -305,7 +302,7 @@ where
 {
     type Out = (A::Out, B::Out);
 
-    fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
+    fn into_select(self) -> Select<'columns, S, Self::Out> {
         Select::new((self.0.into_select().inner, self.1.into_select().inner))
     }
 }
@@ -334,7 +331,7 @@ mod tests {
     {
         type Out = User;
 
-        fn into_select(self) -> Select<'columns, 'static, S, Self::Out> {
+        fn into_select(self) -> Select<'columns, S, Self::Out> {
             (self.a.into_expr(), self.b.into_expr())
                 .into_select()
                 .map((|(a, b)| User { a, b }) as fn((i64, String)) -> User)
