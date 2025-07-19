@@ -133,7 +133,7 @@ fn define_table_migration(
             pub #alter_ident: #typs_mod::#alter_tmp,
         )*}
 
-        impl<'t> ::rust_query::private::Migration<'t> for #table_ident {
+        impl ::rust_query::private::Migration for #table_ident {
             type To = #new_mod::#table_ident;
             type FromSchema = <Self::From as ::rust_query::Table>::Schema;
             type From = <Self::To as ::rust_query::Table>::MigrateFrom;
@@ -141,8 +141,8 @@ fn define_table_migration(
 
             fn prepare(
                 val: Self,
-                prev: ::rust_query::Expr<'t, Self::FromSchema, Self::From>,
-            ) -> <Self::To as ::rust_query::Table>::Insert<'t> {
+                prev: ::rust_query::Expr<'static, Self::FromSchema, Self::From>,
+            ) -> <Self::To as ::rust_query::Table>::Insert<'static> {
                 #new_mod::#table_ident {#(
                     #col_ident: ::rust_query::Expr::_migrate::<Self::FromSchema>(#col_new),
                 )*}

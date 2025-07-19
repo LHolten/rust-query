@@ -47,7 +47,7 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-pub trait Migration<'t> {
+pub trait Migration {
     type FromSchema: 'static;
     type From: Table<Schema = Self::FromSchema>;
     type To: Table<MigrateFrom = Self::From>;
@@ -56,8 +56,8 @@ pub trait Migration<'t> {
     #[doc(hidden)]
     fn prepare(
         val: Self,
-        prev: crate::Expr<'t, Self::FromSchema, Self::From>,
-    ) -> <Self::To as Table>::Insert<'t>;
+        prev: crate::Expr<'static, Self::FromSchema, Self::From>,
+    ) -> <Self::To as Table>::Insert<'static>;
     #[doc(hidden)]
     fn map_conflict(val: TableRow<Self::From>) -> Self::Conflict;
 }
@@ -86,7 +86,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
         })
     }
 
-    fn unmigrated<M: Migration<'static, FromSchema = FromSchema>, Out>(
+    fn unmigrated<M: Migration<FromSchema = FromSchema>, Out>(
         &self,
         new_name: TmpTable,
     ) -> impl Iterator<Item = (i64, Out)>
@@ -120,7 +120,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     /// - 0 => [Infallible]
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<
-        M: Migration<'static, FromSchema = FromSchema>,
+        M: Migration<FromSchema = FromSchema>,
         X: FromExpr<FromSchema, M::From>,
     >(
         &mut self,
@@ -148,10 +148,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     ///
     /// However, this method will return [Migrated] when all rows are migrated.
     /// This can then be used as proof that there will be no foreign key violations.
-    pub fn migrate<
-        M: Migration<'static, FromSchema = FromSchema>,
-        X: FromExpr<FromSchema, M::From>,
-    >(
+    pub fn migrate<M: Migration<FromSchema = FromSchema>, X: FromExpr<FromSchema, M::From>>(
         &mut self,
         mut f: impl FnMut(X) -> M,
     ) -> Result<Migrated<'static, FromSchema, M::To>, M::Conflict> {
@@ -168,7 +165,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     ///
     /// It can only be used when the migration is known to never cause unique constraint conflicts.
     pub fn migrate_ok<
-        M: Migration<'static, FromSchema = FromSchema, Conflict = Infallible>,
+        M: Migration<FromSchema = FromSchema, Conflict = Infallible>,
         X: FromExpr<FromSchema, M::From>,
     >(
         &mut self,
