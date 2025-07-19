@@ -385,12 +385,12 @@ impl<S: Schema> Migrator<S> {
     /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
-    pub fn migrate<M>(
+    pub fn migrate<'x, M>(
         self,
         m: impl Send + FnOnce(&mut TransactionMigrate<S>) -> M,
     ) -> Migrator<M::To>
     where
-        M: SchemaMigration<'static, From = S>,
+        M: SchemaMigration<'x, From = S>,
     {
         if user_version(self.transaction.get()).unwrap() == S::VERSION {
             check_schema::<S>(&self.transaction);
