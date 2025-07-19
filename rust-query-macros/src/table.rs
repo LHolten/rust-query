@@ -222,7 +222,7 @@ fn define_table(
         #[allow(unused_imports)]
         pub(crate) use #macro_ident::#table_ident;
 
-        impl<'t #(,#generic: ::rust_query::private::UpdateOrUnit<'t, #schema, #col_typ>)*> Default for #table_ident<#(#generic),*> {
+        impl<#(#generic: ::rust_query::private::UpdateOrUnit< #schema, #col_typ>),*> Default for #table_ident<#(#generic),*> {
             fn default() -> Self {
                 Self {#(
                     #col_ident: Default::default(),

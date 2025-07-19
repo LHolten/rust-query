@@ -103,9 +103,9 @@ pub mod private {
         type Out;
     }
 
-    pub trait UpdateOrUnit<'t, S, T>: Default {}
-    impl<'t, S, T: MyTyp> UpdateOrUnit<'t, S, T> for crate::Update<S, T> {}
-    impl<'t, S, T> UpdateOrUnit<'t, S, T> for () {}
+    pub trait UpdateOrUnit<S, T>: Default {}
+    impl<S, T: MyTyp> UpdateOrUnit<S, T> for crate::Update<S, T> {}
+    impl<S, T> UpdateOrUnit<S, T> for () {}
 
     pub mod doctest {
         use crate::{Database, TransactionMut, migrate::Config, migration};
