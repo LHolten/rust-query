@@ -50,7 +50,7 @@ macro_rules! table {
             type Update = ();
             type Insert = ();
 
-            fn read(_val: &Self::Insert, _f: &mut Reader<'static, Self::Schema>) {
+            fn read(_val: &Self::Insert, _f: &mut Reader<Self::Schema>) {
                 unreachable!()
             }
 

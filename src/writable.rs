@@ -49,24 +49,22 @@ pub trait TableInsert {
     fn into_insert(self) -> <Self::T as Table>::Insert;
 }
 
-pub struct Reader<'t, S> {
+pub struct Reader<S> {
     pub(crate) builder: Vec<(&'static str, DynTypedExpr)>,
     pub(crate) _p: PhantomData<S>,
-    pub(crate) _p2: PhantomData<fn(&'t ()) -> &'t ()>,
 }
 
-impl<'t, S> Default for Reader<'t, S> {
+impl<S> Default for Reader<S> {
     fn default() -> Self {
         Self {
             builder: Default::default(),
             _p: Default::default(),
-            _p2: Default::default(),
         }
     }
 }
 
-impl<'t, S> Reader<'t, S> {
-    pub fn col(&mut self, name: &'static str, val: impl IntoExpr<'t, S>) {
+impl<S> Reader<S> {
+    pub fn col(&mut self, name: &'static str, val: impl IntoExpr<'static, S>) {
         self.col_erased(name, val.into_expr().inner.erase());
     }
 

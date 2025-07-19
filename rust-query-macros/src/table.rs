@@ -264,7 +264,7 @@ fn define_table(
                 type Update = (#alias_ident<#(#empty ::rust_query::private::Update<'static>),*>);
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
 
-                fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<'static, Self::Schema>) {
+                fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
 
