@@ -123,7 +123,7 @@ pub struct OptionalImpl<X> {
     is_some: ColumnImpl<bool>,
 }
 
-impl<'transaction, X: SelectImpl<'transaction>> SelectImpl<'transaction> for OptionalImpl<X> {
+impl<X: SelectImpl> SelectImpl for OptionalImpl<X> {
     type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X::Prepared>;
 

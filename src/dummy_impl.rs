@@ -95,7 +95,7 @@ pub struct DynSelectImpl<'transaction, Out> {
     inner: Box<dyn 'transaction + FnOnce(&mut Cacher) -> DynPrepared<'transaction, Out>>,
 }
 
-impl<'transaction, Out> SelectImpl<'transaction> for DynSelectImpl<'transaction, Out> {
+impl<'transaction, Out> SelectImpl for DynSelectImpl<'transaction, Out> {
     type Out = Out;
     type Prepared = DynPrepared<'transaction, Out>;
 
@@ -116,7 +116,7 @@ impl<Out> Prepared for DynPrepared<'_, Out> {
 }
 
 impl<'transaction, S, Out> Select<'_, 'transaction, S, Out> {
-    pub(crate) fn new(val: impl 'transaction + SelectImpl<'transaction, Out = Out>) -> Self {
+    pub(crate) fn new(val: impl 'transaction + SelectImpl<Out = Out>) -> Self {
         Self {
             inner: DynSelectImpl {
                 inner: Box::new(|cacher| DynPrepared {
@@ -139,7 +139,7 @@ impl<'columns, 'transaction, S, Out: 'transaction> IntoSelect<'columns, 'transac
     }
 }
 
-pub trait SelectImpl<'transaction> {
+pub trait SelectImpl {
     type Out;
     #[doc(hidden)]
     type Prepared: Prepared<Out = Self::Out>;
@@ -173,9 +173,9 @@ pub struct MapImpl<D, F> {
     func: F,
 }
 
-impl<'transaction, D, F, O> SelectImpl<'transaction> for MapImpl<D, F>
+impl<D, F, O> SelectImpl for MapImpl<D, F>
 where
-    D: SelectImpl<'transaction>,
+    D: SelectImpl,
     F: FnMut(D::Out) -> O,
 {
     type Out = O;
@@ -212,7 +212,7 @@ impl Prepared for () {
     fn call(&mut self, _row: Row<'_>) -> Self::Out {}
 }
 
-impl SelectImpl<'_> for () {
+impl SelectImpl for () {
     type Out = ();
     type Prepared = ();
 
@@ -239,7 +239,7 @@ pub struct ColumnImpl<T> {
     pub(crate) expr: DynTyped<T>,
 }
 
-impl<'transaction, T: MyTyp> SelectImpl<'transaction> for ColumnImpl<T> {
+impl<T: MyTyp> SelectImpl for ColumnImpl<T> {
     type Out = T::Out;
     type Prepared = Cached<Self::Out>;
 
@@ -285,10 +285,10 @@ where
     }
 }
 
-impl<'transaction, A, B> SelectImpl<'transaction> for (A, B)
+impl<A, B> SelectImpl for (A, B)
 where
-    A: SelectImpl<'transaction>,
-    B: SelectImpl<'transaction>,
+    A: SelectImpl,
+    B: SelectImpl,
 {
     type Out = (A::Out, B::Out);
     type Prepared = (A::Prepared, B::Prepared);
