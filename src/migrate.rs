@@ -300,7 +300,7 @@ impl<S: Schema> Database<S> {
     /// Create a [Migrator] to migrate a database.
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.
-    pub fn migrator(config: Config) -> Option<Migrator<'static, S>> {
+    pub fn migrator(config: Config) -> Option<Migrator<S>> {
         use r2d2::ManageConnection;
         let conn = config.manager.connect().unwrap();
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
@@ -339,7 +339,6 @@ impl<S: Schema> Database<S> {
             manager: config.manager,
             transaction: Rc::new(txn),
             _p: PhantomData,
-            _p0: PhantomData,
         })
     }
 }
@@ -348,10 +347,9 @@ impl<S: Schema> Database<S> {
 ///
 /// When all migrations are done, it can be turned into a [Database] instance with
 /// [Migrator::finish].
-pub struct Migrator<'t, S> {
+pub struct Migrator<S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
     transaction: Rc<OwnedTransaction>,
-    _p0: PhantomData<fn(&'t ()) -> &'t ()>,
     _p: PhantomData<S>,
 }
 
@@ -381,16 +379,16 @@ impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
     }
 }
 
-impl<'t, S: Schema> Migrator<'t, S> {
+impl<S: Schema> Migrator<S> {
     /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<M>(
         self,
-        m: impl Send + FnOnce(&mut TransactionMigrate<'t, S>) -> M,
-    ) -> Migrator<'t, M::To>
+        m: impl Send + FnOnce(&mut TransactionMigrate<'static, S>) -> M,
+    ) -> Migrator<M::To>
     where
-        M: SchemaMigration<'t, From = S>,
+        M: SchemaMigration<'static, From = S>,
     {
         if user_version(self.transaction.get()).unwrap() == S::VERSION {
             check_schema::<S>(&self.transaction);
@@ -432,7 +430,6 @@ impl<'t, S: Schema> Migrator<'t, S> {
             manager: self.manager,
             transaction: self.transaction,
             _p: PhantomData,
-            _p0: PhantomData,
         }
     }
 
