@@ -124,15 +124,19 @@ pub mod private {
         pub fn get_client() -> LocalClient {
             LocalClient::try_new().unwrap()
         }
-        pub fn get_txn(client: &mut LocalClient) -> TransactionMut<Empty> {
+        pub fn get_txn(
+            client: &mut LocalClient,
+            f: impl Send + FnOnce(TransactionMut<'static, Empty>),
+        ) {
             let db = client
                 .migrator(Config::open_in_memory())
                 .unwrap()
                 .finish()
                 .unwrap();
-            let mut txn = client.transaction_mut(&db);
-            txn.insert(User { name: "Alice" }).unwrap();
-            txn
+            db.transaction_mut(|mut txn| {
+                txn.insert(User { name: "Alice" }).unwrap();
+                f(txn)
+            })
         }
     }
 }

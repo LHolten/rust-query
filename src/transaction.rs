@@ -62,6 +62,11 @@ impl OwnedTransaction {
 }
 
 impl<S: Send + Sync> Database<S> {
+    /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
+    ///
+    /// This function will panic if the schema was modified compared to when the [Database] value
+    /// was created. This can happen for example by running another instance of your program with
+    /// additional migrations.
     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(Transaction<'static, S>) -> R) -> R {
         std::thread::scope(|scope| {
             scope
@@ -80,6 +85,18 @@ impl<S: Send + Sync> Database<S> {
         })
     }
 
+    /// Create a [TransactionMut].
+    /// This operation needs to wait for all other [TransactionMut]s for this database to be finished.
+    ///
+    /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
+    /// This makes it work across processes.
+    ///
+    /// Note: you can create a deadlock if you are holding on to another lock while trying to
+    /// get a mutable transaction!
+    ///
+    /// This function will panic if the schema was modified compared to when the [Database] value
+    /// was created. This can happen for example by running another instance of your program with
+    /// additional migrations.
     pub fn transaction_mut<R: Send>(
         &self,
         f: impl Send + FnOnce(TransactionMut<'static, S>) -> R,
@@ -177,12 +194,13 @@ impl<'t, S> Transaction<'t, S> {
     /// ```
     /// # use rust_query::{private::doctest::*};
     /// # let mut client = get_client();
-    /// # let txn = get_txn(&mut client);
+    /// # get_txn(&mut client, |txn| {
     /// let user_names = txn.query(|rows| {
     ///     let user = rows.join(User);
-    ///     rows.into_vec(user.name())
+    ///     rows.into_vec(&user.name)
     /// });
     /// assert_eq!(user_names, vec!["Alice".to_owned()]);
+    /// # });
     /// ```
     pub fn query<F, R>(&self, f: F) -> R
     where
@@ -209,9 +227,10 @@ impl<'t, S> Transaction<'t, S> {
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// let res = txn.query_one("test".into_expr());
     /// assert_eq!(res, "test");
+    /// # });
     /// ```
     ///
     /// Instead of using [Self::query_one] in a loop, it is better to
@@ -233,7 +252,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let mut txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |mut txn| {
     /// let res = txn.insert(User {
     ///     name: "Bob",
     /// });
@@ -242,6 +261,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///     name: "Bob",
     /// });
     /// assert!(res.is_err(), "there is a unique constraint on the name");
+    /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
@@ -277,7 +297,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let mut txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |mut txn| {
     /// let bob = txn.insert(User {
     ///     name: "Bob",
     /// }).unwrap();
@@ -285,6 +305,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///     name: "Bob", // this will conflict with the existing row.
     /// });
     /// assert_eq!(bob, bob2);
+    /// # });
     /// ```
     pub fn find_or_insert<T: Table<Schema = S, Conflict<'t> = TableRow<'t, T>>>(
         &mut self,
@@ -310,13 +331,14 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr, Update};
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let mut txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |mut txn| {
     /// let bob = txn.insert(User {
     ///     name: "Bob",
     /// }).unwrap();
     /// txn.update(bob, User {
     ///     name: Update::set("New Bob"),
     /// }).unwrap();
+    /// # });
     /// ```
     pub fn update<T: Table<Schema = S>>(
         &mut self,

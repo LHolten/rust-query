@@ -156,12 +156,13 @@ impl<S, T> Aggr<S, T> {
 /// # use rust_query::aggregate;
 /// # use rust_query::private::doctest::*;
 /// # let mut client = get_client();
-/// # let txn = get_txn(&mut client);
+/// # rust_query::private::doctest::get_txn(&mut client, |txn| {
 /// let res = txn.query_one(aggregate(|rows| {
 ///     let user = rows.join(User);
 ///     rows.count_distinct(user)
 /// }));
 /// assert_eq!(res, 1, "there is one user in the database");
+/// # });
 /// ```
 pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where

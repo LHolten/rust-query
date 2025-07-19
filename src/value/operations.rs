@@ -10,9 +10,10 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(1.into_expr().add(2)), 3);
     /// assert_eq!(txn.query_one(1.0.into_expr().add(2.0)), 3.0);
+    /// # });
     /// ```
     pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
         let lhs = self.inner.clone();
@@ -25,9 +26,10 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(1.into_expr().sub(2)), -1);
     /// assert_eq!(txn.query_one(1.0.into_expr().sub(2.0)), -1.0);
+    /// # });
     /// ```
     pub fn sub(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
         let lhs = self.inner.clone();
@@ -40,9 +42,10 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(2.into_expr().mul(3)), 6);
     /// assert_eq!(txn.query_one(2.0.into_expr().mul(3.0)), 6.0);
+    /// # });
     /// ```
     pub fn mul(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
         let lhs = self.inner.clone();
@@ -55,10 +58,11 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(2.into_expr().lt(3)), true);
     /// assert_eq!(txn.query_one(1.into_expr().lt(1)), false);
     /// assert_eq!(txn.query_one(3.0.into_expr().lt(1.0)), false);
+    /// # });
     /// ```
     pub fn lt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -71,9 +75,10 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(2.into_expr().lte(2)), true);
     /// assert_eq!(txn.query_one(3.0.into_expr().lte(1.0)), false);
+    /// # });
     /// ```
     pub fn lte(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -86,9 +91,10 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(2.into_expr().gt(2)), false);
     /// assert_eq!(txn.query_one(3.0.into_expr().gt(1.0)), true);
+    /// # });
     /// ```
     pub fn gt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -101,9 +107,10 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(2.into_expr().gte(3)), false);
     /// assert_eq!(txn.query_one(3.0.into_expr().gte(3.0)), true);
+    /// # });
     /// ```
     pub fn gte(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -118,7 +125,7 @@ impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(2.into_expr().eq(2)), true);
     /// assert_eq!(txn.query_one(3.0.into_expr().eq(3.0)), true);
     /// assert_eq!(txn.query_one("test".into_expr().eq("test")), true);
@@ -126,6 +133,7 @@ impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(false.into_expr().eq(false)), true);
     ///
     /// assert_eq!(txn.query_one(1.into_expr().eq(2)), false);
+    /// # });
     /// ```
     pub fn eq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -140,9 +148,10 @@ impl<'column, S> Expr<'column, S, bool> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(true.into_expr().not()), false);
     /// assert_eq!(txn.query_one(false.into_expr().not()), true);
+    /// # });
     /// ```
     pub fn not(&self) -> Expr<'column, S, bool> {
         let val = self.inner.clone();
@@ -154,10 +163,11 @@ impl<'column, S> Expr<'column, S, bool> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(true.into_expr().and(true)), true);
     /// assert_eq!(txn.query_one(false.into_expr().and(true)), false);
     /// assert_eq!(txn.query_one(false.into_expr().and(false)), false);
+    /// # });
     /// ```
     pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -170,10 +180,11 @@ impl<'column, S> Expr<'column, S, bool> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(true.into_expr().or(true)), true);
     /// assert_eq!(txn.query_one(false.into_expr().or(true)), true);
     /// assert_eq!(txn.query_one(false.into_expr().or(false)), false);
+    /// # });
     /// ```
     pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -188,9 +199,10 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(Some(10).into_expr().unwrap_or(5)), 10);
     /// assert_eq!(txn.query_one(None::<String>.into_expr().unwrap_or("foo")), "foo");
+    /// # });
     /// ```
     pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ>
     where
@@ -206,9 +218,10 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(Some(10).into_expr().is_some()), true);
     /// assert_eq!(txn.query_one(None::<i64>.into_expr().is_some()), false);
+    /// # });
     /// ```
     pub fn is_some(&self) -> Expr<'column, S, bool> {
         let val = self.inner.clone();
@@ -220,9 +233,10 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(Some(10).into_expr().is_none()), false);
     /// assert_eq!(txn.query_one(None::<i64>.into_expr().is_none()), true);
+    /// # });
     /// ```
     pub fn is_none(&self) -> Expr<'column, S, bool> {
         let val = self.inner.clone();
@@ -236,8 +250,9 @@ impl<'column, S> Expr<'column, S, i64> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one(10.into_expr().as_float()), 10.0);
+    /// # });
     /// ```
     pub fn as_float(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
@@ -253,9 +268,10 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().starts_with("hello")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().starts_with("Hello")), false);
+    /// # });
     /// ```
     pub fn starts_with(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
         self.glob(format!("{}*", escape_glob(pattern)))
@@ -268,9 +284,10 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().ends_with("world")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().ends_with("World")), false);
+    /// # });
     /// ```
     pub fn ends_with(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
         self.glob(format!("*{}", escape_glob(pattern)))
@@ -283,9 +300,10 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one("rhubarb".into_expr().contains("bar")), true);
     /// assert_eq!(txn.query_one("rhubarb".into_expr().contains("Bar")), false);
+    /// # });
     /// ```
     pub fn contains(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
         self.glob(format!("*{}*", escape_glob(pattern)))
@@ -300,9 +318,10 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().glob("?ello*")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().glob("Hell*")), false);
+    /// # });
     /// ```
     pub fn glob(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
@@ -319,9 +338,10 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     /// # use rust_query::IntoExpr;
     /// # let mut client = rust_query::private::doctest::get_client();
-    /// # let txn = rust_query::private::doctest::get_txn(&mut client);
+    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().like("HELLO%")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().like("he_o%")), false);
+    /// # });
     /// ```
     pub fn like(&self, pattern: impl Into<String>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();

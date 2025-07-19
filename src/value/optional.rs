@@ -14,7 +14,7 @@ use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
 /// ```
 /// # use rust_query::IntoExpr;
 /// # let mut client = rust_query::private::doctest::get_client();
-/// # let txn = rust_query::private::doctest::get_txn(&mut client);
+/// # rust_query::private::doctest::get_txn(&mut client, |txn| {
 /// # use rust_query::optional;
 /// let res = txn.query_one(optional(|row| {
 ///     let x = row.and(Some("test"));
@@ -22,12 +22,13 @@ use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
 ///     row.then((x, y))
 /// }));
 /// assert_eq!(res, Some(("test".to_owned(), 42)));
+/// # });
 /// ```
 ///
 /// ```
 /// # use rust_query::IntoExpr;
 /// # let mut client = rust_query::private::doctest::get_client();
-/// # let txn = rust_query::private::doctest::get_txn(&mut client);
+/// # rust_query::private::doctest::get_txn(&mut client, |txn| {
 /// # use rust_query::optional;
 /// let res = txn.query_one(optional(|row| {
 ///     let x = row.and(Some("test"));
@@ -35,6 +36,7 @@ use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
 ///     row.then((x, y))
 /// }));
 /// assert_eq!(res, None);
+/// # });
 /// ```
 pub fn optional<'outer, S, R>(
     f: impl for<'inner> FnOnce(&mut Optional<'outer, 'inner, S>) -> R,
