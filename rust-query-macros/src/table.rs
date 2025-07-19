@@ -191,9 +191,9 @@ fn define_table(
             type Out = (#table_ident<#(#generic::Out<#col_typ, #schema>),*>);
         }
 
-        impl<#(#generic),*> ::rust_query::FromExpr<'static, #schema, #table_ident>
+        impl<#(#generic),*> ::rust_query::FromExpr<#schema, #table_ident>
             for #table_ident<#(#generic),*>
-        where #(#generic: ::rust_query::FromExpr<'static, #schema, #col_typ>,)*
+        where #(#generic: ::rust_query::FromExpr<#schema, #col_typ>,)*
         {
             /// How to turn a column reference into a [Select].
             fn from_expr<'columns>(

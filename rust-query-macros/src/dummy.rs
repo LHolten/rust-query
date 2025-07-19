@@ -135,7 +135,7 @@ pub fn from_expr(item: ItemStruct) -> syn::Result<TokenStream> {
         let parts_name = wrap(&names);
 
         quote! {
-            impl<#(#original_generics),*> ::rust_query::FromExpr<'static, #schema, #trivial> for #name<#(#original_generics),*>
+            impl<#(#original_generics),*> ::rust_query::FromExpr<#schema, #trivial> for #name<#(#original_generics),*>
             {
                 fn from_expr<'_t>(col: impl ::rust_query::IntoExpr<'_t, #schema, Typ = #trivial>) -> ::rust_query::Select<'_t, #schema, Self> {
                     let col = ::rust_query::IntoExpr::into_expr(col);

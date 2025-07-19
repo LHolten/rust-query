@@ -91,7 +91,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
         new_name: TmpTable,
     ) -> impl Iterator<Item = (i64, Out)>
     where
-        Out: FromExpr<'static, FromSchema, M::From>,
+        Out: FromExpr<FromSchema, M::From>,
     {
         let data = self.inner.query(|rows| {
             let old = rows.join(<M::From as Table>::TOKEN);
@@ -121,7 +121,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<
         M: Migration<'static, FromSchema = FromSchema>,
-        X: FromExpr<'static, FromSchema, M::From>,
+        X: FromExpr<FromSchema, M::From>,
     >(
         &mut self,
         mut f: impl FnMut(X) -> Option<M>,
@@ -150,7 +150,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     /// This can then be used as proof that there will be no foreign key violations.
     pub fn migrate<
         M: Migration<'static, FromSchema = FromSchema>,
-        X: FromExpr<'static, FromSchema, M::From>,
+        X: FromExpr<FromSchema, M::From>,
     >(
         &mut self,
         mut f: impl FnMut(X) -> M,
@@ -169,7 +169,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     /// It can only be used when the migration is known to never cause unique constraint conflicts.
     pub fn migrate_ok<
         M: Migration<'static, FromSchema = FromSchema, Conflict = Infallible>,
-        X: FromExpr<'static, FromSchema, M::From>,
+        X: FromExpr<FromSchema, M::From>,
     >(
         &mut self,
         f: impl FnMut(X) -> M,

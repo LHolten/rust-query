@@ -8,7 +8,7 @@ use super::MyTyp;
 /// Together with the [crate::IntoExpr] trait.
 ///
 /// Note that this trait can also be implemented using the [derive@rust_query::FromExpr] derive macro.
-pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
+pub trait FromExpr<S, From>: 'static + Sized {
     /// How to turn a column reference into a [Select].
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = From>,
@@ -17,7 +17,7 @@ pub trait FromExpr<'transaction, S, From>: 'transaction + Sized {
 
 macro_rules! from_expr {
     ($typ:ty) => {
-        impl<S> FromExpr<'static, S, $typ> for $typ {
+        impl<S> FromExpr<S, $typ> for $typ {
             fn from_expr<'columns>(
                 col: impl IntoExpr<'columns, S, Typ = $typ>,
             ) -> Select<'columns, S, Self> {
@@ -33,7 +33,7 @@ from_expr! {i64}
 from_expr! {f64}
 from_expr! {bool}
 
-impl<T: Table> FromExpr<'static, T::Schema, T> for TableRow<T> {
+impl<T: Table> FromExpr<T::Schema, T> for TableRow<T> {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, T::Schema, Typ = T>,
     ) -> Select<'columns, T::Schema, Self> {
@@ -41,9 +41,9 @@ impl<T: Table> FromExpr<'static, T::Schema, T> for TableRow<T> {
     }
 }
 
-impl<S, T, From: MyTyp> FromExpr<'static, S, Option<From>> for Option<T>
+impl<S, T, From: MyTyp> FromExpr<S, Option<From>> for Option<T>
 where
-    T: FromExpr<'static, S, From>,
+    T: FromExpr<S, From>,
 {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = Option<From>>,
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<S, From> FromExpr<'static, S, From> for () {
+impl<S, From> FromExpr<S, From> for () {
     fn from_expr<'columns>(
         _col: impl IntoExpr<'columns, S, Typ = From>,
     ) -> Select<'columns, S, Self> {
