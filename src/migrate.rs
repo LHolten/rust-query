@@ -63,21 +63,21 @@ pub trait Migration<'t> {
 }
 
 /// Transaction type for use in migrations.
-pub struct TransactionMigrate<'t, FromSchema> {
-    inner: Transaction<'t, FromSchema>,
+pub struct TransactionMigrate<FromSchema> {
+    inner: Transaction<'static, FromSchema>,
     scope: Scope,
     rename_map: HashMap<&'static str, TmpTable>,
 }
 
-impl<'t, FromSchema> Deref for TransactionMigrate<'t, FromSchema> {
-    type Target = Transaction<'t, FromSchema>;
+impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
+    type Target = Transaction<'static, FromSchema>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
+impl<FromSchema> TransactionMigrate<FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
@@ -86,12 +86,12 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
         })
     }
 
-    fn unmigrated<M: Migration<'t, FromSchema = FromSchema>, Out>(
+    fn unmigrated<M: Migration<'static, FromSchema = FromSchema>, Out>(
         &self,
         new_name: TmpTable,
     ) -> impl Iterator<Item = (i64, Out)>
     where
-        Out: FromExpr<'t, FromSchema, M::From>,
+        Out: FromExpr<'static, FromSchema, M::From>,
     {
         let data = self.inner.query(|rows| {
             let old = rows.join(<M::From as Table>::TOKEN);
@@ -120,8 +120,8 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     /// - 0 => [Infallible]
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<
-        M: Migration<'t, FromSchema = FromSchema>,
-        X: FromExpr<'t, FromSchema, M::From>,
+        M: Migration<'static, FromSchema = FromSchema>,
+        X: FromExpr<'static, FromSchema, M::From>,
     >(
         &mut self,
         mut f: impl FnMut(X) -> Option<M>,
@@ -149,12 +149,12 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     /// However, this method will return [Migrated] when all rows are migrated.
     /// This can then be used as proof that there will be no foreign key violations.
     pub fn migrate<
-        M: Migration<'t, FromSchema = FromSchema>,
-        X: FromExpr<'t, FromSchema, M::From>,
+        M: Migration<'static, FromSchema = FromSchema>,
+        X: FromExpr<'static, FromSchema, M::From>,
     >(
         &mut self,
         mut f: impl FnMut(X) -> M,
-    ) -> Result<Migrated<'t, FromSchema, M::To>, M::Conflict> {
+    ) -> Result<Migrated<'static, FromSchema, M::To>, M::Conflict> {
         self.migrate_optional::<M, X>(|x| Some(f(x)))?;
 
         Ok(Migrated {
@@ -167,19 +167,19 @@ impl<'t, FromSchema> TransactionMigrate<'t, FromSchema> {
     ///
     /// It can only be used when the migration is known to never cause unique constraint conflicts.
     pub fn migrate_ok<
-        M: Migration<'t, FromSchema = FromSchema, Conflict = Infallible>,
-        X: FromExpr<'t, FromSchema, M::From>,
+        M: Migration<'static, FromSchema = FromSchema, Conflict = Infallible>,
+        X: FromExpr<'static, FromSchema, M::From>,
     >(
         &mut self,
         f: impl FnMut(X) -> M,
-    ) -> Migrated<'t, FromSchema, M::To> {
+    ) -> Migrated<'static, FromSchema, M::To> {
         let Ok(res) = self.migrate(f);
         res
     }
 }
 
 pub struct SchemaBuilder<'t, FromSchema> {
-    inner: TransactionMigrate<'t, FromSchema>,
+    inner: TransactionMigrate<FromSchema>,
     drop: Vec<TableDropStatement>,
     foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
 }
@@ -385,7 +385,7 @@ impl<S: Schema> Migrator<S> {
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<M>(
         self,
-        m: impl Send + FnOnce(&mut TransactionMigrate<'static, S>) -> M,
+        m: impl Send + FnOnce(&mut TransactionMigrate<S>) -> M,
     ) -> Migrator<M::To>
     where
         M: SchemaMigration<'static, From = S>,
