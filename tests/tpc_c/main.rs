@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use rand::{Rng, rngs::ThreadRng};
 use rust_query::{
-    Database, IntoExpr, LocalClient, Select, TableRow, Transaction,
+    Database, IntoExpr, Select, TableRow, Transaction,
     migration::{Config, schema},
 };
 
@@ -126,9 +126,7 @@ pub mod vN {
 use v0::*;
 
 fn main() {
-    let mut client = LocalClient::try_new().unwrap();
-    let db: Database<Schema> = client
-        .migrator(Config::open_in_memory())
+    let db: Database<Schema> = Database::migrator(Config::open_in_memory())
         .expect("database should not be too old")
         .finish()
         .expect("database should not be too new");

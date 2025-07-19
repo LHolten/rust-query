@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, LocalClient,
+    Database,
     migration::{Config, schema},
 };
 
@@ -12,11 +12,7 @@ pub mod vN {
 use v0::*;
 
 fn main() {
-    // Get a LocalClient to prove that we have our own thread.
-    // This is necessary to keep transactions separated.
-    let mut client = LocalClient::try_new().unwrap();
-    let database: Database<Schema> = client
-        .migrator(Config::open_in_memory())
+    let database: Database<Schema> = Database::migrator(Config::open_in_memory())
         .expect("database version is before supported versions")
         // migrations go here
         .finish()

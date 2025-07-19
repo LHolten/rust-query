@@ -1,6 +1,4 @@
-use rust_query::{
-    Database, LocalClient, Select, TableRow, Transaction, aggregate, migration::schema, optional,
-};
+use rust_query::{Database, Select, TableRow, Transaction, aggregate, migration::schema, optional};
 
 #[schema(Schema)]
 #[version(0..=1)]
@@ -63,8 +61,7 @@ mod using_v0 {
 }
 
 fn main() {
-    let mut client = LocalClient::try_new().unwrap();
-    let db = using_v1::migrate(&mut client);
+    let db = using_v1::migrate();
     db.transaction_mut(using_v1::do_stuff)
 }
 
@@ -73,9 +70,8 @@ mod using_v1 {
     use rust_query::{TransactionMut, TransactionWeak, migration::Config};
     use v1::*;
 
-    pub fn migrate(client: &mut LocalClient) -> Database<Schema> {
-        let m = client
-            .migrator(Config::open("db.sqlite"))
+    pub fn migrate() -> Database<Schema> {
+        let m = Database::migrator(Config::open("db.sqlite"))
             .expect("database should not be older than supported versions");
         let m = m.migrate(|txn| v0::migrate::Schema {
             measurement: txn.migrate_ok(|old: v0::Measurement!(score)| v0::migrate::Measurement {

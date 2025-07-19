@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromExpr, LocalClient, TransactionMut,
+    Database, FromExpr, TransactionMut,
     migration::{Config, schema},
     optional,
 };
@@ -22,9 +22,7 @@ pub mod vN {
 use v0::*;
 
 fn main() {
-    let mut client = LocalClient::try_new().unwrap();
-    let database: Database<Schema> = client
-        .migrator(Config::open_in_memory())
+    let database: Database<Schema> = Database::migrator(Config::open_in_memory())
         .expect("database version is before supported versions")
         // migrations go here
         .finish()

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database, LocalClient,
+    Database,
     migration::{Config, Migrated, schema},
 };
 
@@ -128,7 +128,7 @@ pub mod vN {
     }
 }
 
-pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
+pub fn migrate() -> Database<v2::Schema> {
     if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {
         panic!(
             "test data file 'Chinook_Sqlite.sqlite' does not exist.
@@ -140,7 +140,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v2::Schema> {
         .init_stmt(include_str!("migrate.sql"));
 
     let genre_extra = HashMap::from([("rock", 10)]);
-    let m = client.migrator(config).unwrap();
+    let m = Database::migrator(config).unwrap();
     let m = m.migrate(|txn| v0::migrate::Schema {
         genre_new: txn.migrate_ok(|old: v0::Genre!(name)| v0::migrate::GenreNew { name: old.name }),
         short_genre: {

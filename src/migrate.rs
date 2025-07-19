@@ -15,7 +15,6 @@ use self_cell::MutBorrow;
 use crate::{
     FromExpr, IntoExpr, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
-    client::LocalClient,
     hash,
     schema_pragma::read_schema,
     transaction::{Database, OwnedTransaction, try_insert_private},
@@ -297,11 +296,11 @@ impl Config {
     }
 }
 
-impl LocalClient {
+impl<S: Schema> Database<S> {
     /// Create a [Migrator] to migrate a database.
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.
-    pub fn migrator<S: Schema>(&mut self, config: Config) -> Option<Migrator<'_, S>> {
+    pub fn migrator(config: Config) -> Option<Migrator<'static, S>> {
         use r2d2::ManageConnection;
         let conn = config.manager.connect().unwrap();
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
@@ -340,7 +339,6 @@ impl LocalClient {
             manager: config.manager,
             transaction: Rc::new(txn),
             _p: PhantomData,
-            _local: PhantomData,
             _p0: PhantomData,
         })
     }
@@ -355,10 +353,6 @@ pub struct Migrator<'t, S> {
     transaction: Rc<OwnedTransaction>,
     _p0: PhantomData<fn(&'t ()) -> &'t ()>,
     _p: PhantomData<S>,
-    // We want to make sure that Migrator is always used with the same LocalClient
-    // so we make it local to the current thread.
-    // This is mostly important because the LocalClient can have a reference to our transaction.
-    _local: PhantomData<LocalClient>,
 }
 
 /// [Migrated] provides a proof of migration.
@@ -393,7 +387,7 @@ impl<'t, S: Schema> Migrator<'t, S> {
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<M>(
         self,
-        m: impl FnOnce(&mut TransactionMigrate<'t, S>) -> M,
+        m: impl Send + FnOnce(&mut TransactionMigrate<'t, S>) -> M,
     ) -> Migrator<'t, M::To>
     where
         M: SchemaMigration<'t, From = S>,
@@ -438,7 +432,6 @@ impl<'t, S: Schema> Migrator<'t, S> {
             manager: self.manager,
             transaction: self.transaction,
             _p: PhantomData,
-            _local: PhantomData,
             _p0: PhantomData,
         }
     }

@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, LocalClient, Transaction, TransactionMut, aggregate,
+    Database, Transaction, TransactionMut, aggregate,
     migration::{Config, schema},
 };
 
@@ -71,9 +71,8 @@ fn query_data(txn: &Transaction<Schema>) {
     }
 }
 
-pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
-    let m = client
-        .migrator(Config::open_in_memory())
+pub fn migrate() -> Database<v1::Schema> {
+    let m = Database::migrator(Config::open_in_memory())
         .expect("database is older than supported versions");
     let m = m.migrate(|txn| v0::migrate::Schema {
         user: txn.migrate_ok(|old_user: v0::User!(name)| v0::migrate::User {
@@ -85,8 +84,7 @@ pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
 }
 
 fn main() {
-    let mut client = LocalClient::try_new().unwrap();
-    let db = migrate(&mut client);
+    let db = migrate();
     db.transaction_mut(|mut txn| {
         insert_data(&mut txn);
         query_data(&txn);

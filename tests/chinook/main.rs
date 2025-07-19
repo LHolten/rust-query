@@ -4,8 +4,8 @@ use std::fmt::Debug;
 
 use expect_test::expect_file;
 use rust_query::{
-    Expr, IntoExpr, IntoSelect, LocalClient, Select, TableRow, Transaction, TransactionMut, Update,
-    aggregate, optional,
+    Expr, IntoExpr, IntoSelect, Select, TableRow, Transaction, TransactionMut, Update, aggregate,
+    optional,
 };
 use schema::*;
 
@@ -24,8 +24,7 @@ fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>
 
 #[test]
 fn test_queries() {
-    let mut client = LocalClient::try_new().unwrap();
-    let db = migrate(&mut client);
+    let db = migrate();
     db.transaction_mut(run_queries);
 }
 

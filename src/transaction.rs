@@ -10,7 +10,6 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
-    client::LocalClient,
     migrate::schema_version,
     private::Reader,
     query::Query,
@@ -147,7 +146,7 @@ pub struct Transaction<'t, S> {
     pub(crate) transaction: Rc<OwnedTransaction>,
     pub(crate) _p: PhantomData<fn(&'t ()) -> &'t ()>,
     pub(crate) _p2: PhantomData<S>,
-    pub(crate) _local: PhantomData<LocalClient>,
+    pub(crate) _local: PhantomData<*const ()>,
 }
 
 impl<'t, S> Transaction<'t, S> {

@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, IntoExpr, LocalClient,
+    Database, IntoExpr,
     migration::{Config, schema},
 };
 
@@ -9,9 +9,7 @@ pub mod vN {
 }
 
 pub fn main() {
-    let mut client = LocalClient::try_new().unwrap();
-    let db: Database<v0::Schema> = client
-        .migrator(Config::open_in_memory())
+    let db: Database<v0::Schema> = Database::migrator(Config::open_in_memory())
         .expect("database is older than supported versions")
         .finish()
         .expect("database is newer than supported versions");

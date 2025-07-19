@@ -8,7 +8,6 @@ extern crate static_assertions;
 
 mod alias;
 mod ast;
-mod client;
 mod db;
 mod dummy_impl;
 mod hash;
@@ -21,7 +20,6 @@ mod transaction;
 mod value;
 mod writable;
 
-pub use client::LocalClient;
 pub use db::TableRow;
 pub use dummy_impl::{IntoSelect, Select};
 use hash::TypBuilder;
@@ -110,7 +108,7 @@ pub mod private {
     impl<'t, S, T> UpdateOrUnit<'t, S, T> for () {}
 
     pub mod doctest {
-        use crate::{LocalClient, TransactionMut, migrate::Config, migration};
+        use crate::{Database, TransactionMut, migrate::Config, migration};
 
         #[migration::schema(Empty)]
         pub mod vN {
@@ -121,15 +119,8 @@ pub mod private {
         }
         pub use v0::*;
 
-        pub fn get_client() -> LocalClient {
-            LocalClient::try_new().unwrap()
-        }
-        pub fn get_txn(
-            client: &mut LocalClient,
-            f: impl Send + FnOnce(TransactionMut<'static, Empty>),
-        ) {
-            let db = client
-                .migrator(Config::open_in_memory())
+        pub fn get_txn(f: impl Send + FnOnce(TransactionMut<'static, Empty>)) {
+            let db = Database::migrator(Config::open_in_memory())
                 .unwrap()
                 .finish()
                 .unwrap();

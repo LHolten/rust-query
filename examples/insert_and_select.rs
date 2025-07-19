@@ -1,5 +1,5 @@
 use rust_query::{
-    LocalClient, TransactionMut,
+    Database, TransactionMut,
     migration::{Config, schema},
 };
 
@@ -19,11 +19,7 @@ use v0::*;
 
 // Use your schema to initalize a database.
 fn main() {
-    // Get a LocalClient to prove that we have our own thread.
-    // This is necessary to keep transactions separated.
-    let mut client = LocalClient::try_new().unwrap();
-    let database = client
-        .migrator(Config::open_in_memory())
+    let database = Database::migrator(Config::open_in_memory())
         .expect("database version is before supported versions")
         // migrations go here
         .finish()
