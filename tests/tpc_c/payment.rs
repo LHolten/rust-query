@@ -3,16 +3,13 @@ use rust_query::{FromExpr, TableRow, Transaction, TransactionMut, Update};
 
 pub fn random_payment(
     txn: TransactionMut<Schema>,
-    warehouse: TableRow<'static, Warehouse>,
-) -> PaymentOutput<'static> {
+    warehouse: TableRow<Warehouse>,
+) -> PaymentOutput {
     let input = generate_input(&txn, warehouse);
     payment(txn, input)
 }
 
-fn generate_input(
-    txn: &Transaction<Schema>,
-    warehouse: TableRow<'static, Warehouse>,
-) -> PaymentInput<'static> {
+fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> PaymentInput {
     let mut rng = rand::rng();
     let district = txn
         .query_one(District::unique(warehouse, rng.random_range(1..=10)))
@@ -36,17 +33,14 @@ fn generate_input(
     }
 }
 
-struct PaymentInput<'a> {
-    district: TableRow<'a, District>,
+struct PaymentInput {
+    district: TableRow<District>,
     customer: CustomerIdent,
     amount: i64,
     date: SystemTime,
 }
 
-fn payment<'a>(
-    mut txn: TransactionMut<Schema>,
-    input: PaymentInput<'static>,
-) -> PaymentOutput<'static> {
+fn payment(mut txn: TransactionMut<Schema>, input: PaymentInput) -> PaymentOutput {
     let district = input.district;
     let warehouse = &district.into_expr().warehouse;
     let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
@@ -153,9 +147,9 @@ struct CustomerInfo {
 }
 
 #[expect(unused)]
-pub struct PaymentOutput<'a> {
-    district: TableRow<'a, District>,
-    customer: TableRow<'a, Customer>,
+pub struct PaymentOutput {
+    district: TableRow<District>,
+    customer: TableRow<Customer>,
     warehouse_info: LocationYtd,
     district_info: LocationYtd,
     customer_info: CustomerInfo,

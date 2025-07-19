@@ -79,13 +79,13 @@ fn run_queries(mut txn: TransactionMut<Schema>) {
 }
 
 #[derive(Debug, Select, PartialEq, PartialOrd)]
-struct InvoiceInfo<'a> {
+struct InvoiceInfo {
     track: String,
     artist: String,
-    ivl_id: TableRow<'a, InvoiceLine>,
+    ivl_id: TableRow<InvoiceLine>,
 }
 
-fn invoice_info<'a>(db: &'a Transaction<Schema>) -> Vec<InvoiceInfo<'a>> {
+fn invoice_info(db: &Transaction<Schema>) -> Vec<InvoiceInfo> {
     db.query(|rows| {
         let ivl = rows.join(InvoiceLine);
         rows.into_vec(InvoiceInfoSelect {
@@ -298,7 +298,7 @@ struct ArtistDetails {
     track_stats: TrackStats,
 }
 
-fn artist_details(db: &Transaction<Schema>, artist: TableRow<'static, Artist>) -> ArtistDetails {
+fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistDetails {
     db.query_one(ArtistDetailsSelect {
         name: &artist.into_expr().name,
         album_count: aggregate(|rows| {

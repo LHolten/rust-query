@@ -108,7 +108,7 @@ mod using_v1 {
         total_duration: i64,
     }
 
-    fn location_info(txn: &Transaction<Schema>, loc: TableRow<'static, Location>) -> Option<Info> {
+    fn location_info(txn: &Transaction<Schema>, loc: TableRow<Location>) -> Option<Info> {
         txn.query_one(aggregate(|rows| {
             let m = rows.join(Measurement);
             rows.filter(m.location.eq(loc));

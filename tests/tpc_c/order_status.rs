@@ -3,16 +3,13 @@ use rust_query::{FromExpr, TableRow, Transaction, aggregate, optional};
 
 pub fn random_order_status(
     txn: &Transaction<Schema>,
-    warehouse: TableRow<'static, Warehouse>,
+    warehouse: TableRow<Warehouse>,
 ) -> OrderStatus {
     let input = generate_input(txn, warehouse);
     order_status(txn, input)
 }
 
-fn generate_input(
-    txn: &Transaction<Schema>,
-    warehouse: TableRow<'static, Warehouse>,
-) -> CustomerIdent {
+fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> CustomerIdent {
     let mut rng = rand::rng();
     let district = txn
         .query_one(District::unique(warehouse, rng.random_range(1..=10)))

@@ -168,7 +168,7 @@ fn main() {
     });
 }
 
-fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<'static, Warehouse> {
+fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<Warehouse> {
     txn.query_one(Warehouse::unique(0))
         .expect("warehouse should exist")
 }
@@ -199,12 +199,12 @@ pub fn random_to_last_name(num: i64) -> String {
 }
 
 enum CustomerIdent {
-    Number(TableRow<'static, Customer>),
-    Name(TableRow<'static, District>, String),
+    Number(TableRow<Customer>),
+    Name(TableRow<District>, String),
 }
 
 impl CustomerIdent {
-    pub fn lookup_customer(self, txn: &Transaction<Schema>) -> TableRow<'static, Customer> {
+    pub fn lookup_customer(self, txn: &Transaction<Schema>) -> TableRow<Customer> {
         match self {
             CustomerIdent::Number(customer) => customer,
             CustomerIdent::Name(district, last_name) => {
@@ -227,7 +227,7 @@ impl CustomerIdent {
 fn customer_ident(
     txn: &Transaction<Schema>,
     rng: &mut ThreadRng,
-    customer_district: TableRow<'static, District>,
+    customer_district: TableRow<District>,
 ) -> CustomerIdent {
     if rng.random_ratio(60, 100) {
         CustomerIdent::Name(
