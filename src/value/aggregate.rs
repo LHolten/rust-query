@@ -155,8 +155,7 @@ impl<S, T> Aggr<S, T> {
 /// ```
 /// # use rust_query::aggregate;
 /// # use rust_query::private::doctest::*;
-/// # let mut client = get_client();
-/// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+/// # rust_query::private::doctest::get_txn(|txn| {
 /// let res = txn.query_one(aggregate(|rows| {
 ///     let user = rows.join(User);
 ///     rows.count_distinct(user)

@@ -9,8 +9,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(1.into_expr().add(2)), 3);
     /// assert_eq!(txn.query_one(1.0.into_expr().add(2.0)), 3.0);
     /// # });
@@ -25,8 +24,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(1.into_expr().sub(2)), -1);
     /// assert_eq!(txn.query_one(1.0.into_expr().sub(2.0)), -1.0);
     /// # });
@@ -41,8 +39,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(2.into_expr().mul(3)), 6);
     /// assert_eq!(txn.query_one(2.0.into_expr().mul(3.0)), 6.0);
     /// # });
@@ -57,8 +54,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(2.into_expr().lt(3)), true);
     /// assert_eq!(txn.query_one(1.into_expr().lt(1)), false);
     /// assert_eq!(txn.query_one(3.0.into_expr().lt(1.0)), false);
@@ -74,8 +70,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(2.into_expr().lte(2)), true);
     /// assert_eq!(txn.query_one(3.0.into_expr().lte(1.0)), false);
     /// # });
@@ -90,8 +85,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(2.into_expr().gt(2)), false);
     /// assert_eq!(txn.query_one(3.0.into_expr().gt(1.0)), true);
     /// # });
@@ -106,8 +100,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(2.into_expr().gte(3)), false);
     /// assert_eq!(txn.query_one(3.0.into_expr().gte(3.0)), true);
     /// # });
@@ -124,8 +117,7 @@ impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(2.into_expr().eq(2)), true);
     /// assert_eq!(txn.query_one(3.0.into_expr().eq(3.0)), true);
     /// assert_eq!(txn.query_one("test".into_expr().eq("test")), true);
@@ -147,8 +139,7 @@ impl<'column, S> Expr<'column, S, bool> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(true.into_expr().not()), false);
     /// assert_eq!(txn.query_one(false.into_expr().not()), true);
     /// # });
@@ -162,8 +153,7 @@ impl<'column, S> Expr<'column, S, bool> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(true.into_expr().and(true)), true);
     /// assert_eq!(txn.query_one(false.into_expr().and(true)), false);
     /// assert_eq!(txn.query_one(false.into_expr().and(false)), false);
@@ -179,8 +169,7 @@ impl<'column, S> Expr<'column, S, bool> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(true.into_expr().or(true)), true);
     /// assert_eq!(txn.query_one(false.into_expr().or(true)), true);
     /// assert_eq!(txn.query_one(false.into_expr().or(false)), false);
@@ -198,8 +187,7 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(Some(10).into_expr().unwrap_or(5)), 10);
     /// assert_eq!(txn.query_one(None::<String>.into_expr().unwrap_or("foo")), "foo");
     /// # });
@@ -217,8 +205,7 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(Some(10).into_expr().is_some()), true);
     /// assert_eq!(txn.query_one(None::<i64>.into_expr().is_some()), false);
     /// # });
@@ -232,8 +219,7 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(Some(10).into_expr().is_none()), false);
     /// assert_eq!(txn.query_one(None::<i64>.into_expr().is_none()), true);
     /// # });
@@ -249,8 +235,7 @@ impl<'column, S> Expr<'column, S, i64> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(10.into_expr().as_float()), 10.0);
     /// # });
     /// ```
@@ -267,8 +252,7 @@ impl<'column, S> Expr<'column, S, String> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().starts_with("hello")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().starts_with("Hello")), false);
     /// # });
@@ -283,8 +267,7 @@ impl<'column, S> Expr<'column, S, String> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().ends_with("world")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().ends_with("World")), false);
     /// # });
@@ -299,8 +282,7 @@ impl<'column, S> Expr<'column, S, String> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one("rhubarb".into_expr().contains("bar")), true);
     /// assert_eq!(txn.query_one("rhubarb".into_expr().contains("Bar")), false);
     /// # });
@@ -317,8 +299,7 @@ impl<'column, S> Expr<'column, S, String> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().glob("?ello*")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().glob("Hell*")), false);
     /// # });
@@ -337,8 +318,7 @@ impl<'column, S> Expr<'column, S, String> {
     ///
     /// ```
     /// # use rust_query::IntoExpr;
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one("hello world".into_expr().like("HELLO%")), true);
     /// assert_eq!(txn.query_one("hello world".into_expr().like("he_o%")), false);
     /// # });

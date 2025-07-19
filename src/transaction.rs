@@ -192,8 +192,7 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// ```
     /// # use rust_query::{private::doctest::*};
-    /// # let mut client = get_client();
-    /// # get_txn(&mut client, |txn| {
+    /// # get_txn(|txn| {
     /// let user_names = txn.query(|rows| {
     ///     let user = rows.join(User);
     ///     rows.into_vec(&user.name)
@@ -225,8 +224,7 @@ impl<'t, S> Transaction<'t, S> {
     ///
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+    /// # rust_query::private::doctest::get_txn(|txn| {
     /// let res = txn.query_one("test".into_expr());
     /// assert_eq!(res, "test");
     /// # });
@@ -250,8 +248,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |mut txn| {
+    /// # rust_query::private::doctest::get_txn(|mut txn| {
     /// let res = txn.insert(User {
     ///     name: "Bob",
     /// });
@@ -295,8 +292,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |mut txn| {
+    /// # rust_query::private::doctest::get_txn(|mut txn| {
     /// let bob = txn.insert(User {
     ///     name: "Bob",
     /// }).unwrap();
@@ -329,8 +325,7 @@ impl<'t, S: 'static> TransactionMut<'t, S> {
     ///
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr, Update};
-    /// # let mut client = rust_query::private::doctest::get_client();
-    /// # rust_query::private::doctest::get_txn(&mut client, |mut txn| {
+    /// # rust_query::private::doctest::get_txn(|mut txn| {
     /// let bob = txn.insert(User {
     ///     name: "Bob",
     /// }).unwrap();

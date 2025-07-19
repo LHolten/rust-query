@@ -13,8 +13,7 @@ use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
 ///
 /// ```
 /// # use rust_query::IntoExpr;
-/// # let mut client = rust_query::private::doctest::get_client();
-/// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+/// # rust_query::private::doctest::get_txn(|txn| {
 /// # use rust_query::optional;
 /// let res = txn.query_one(optional(|row| {
 ///     let x = row.and(Some("test"));
@@ -27,8 +26,7 @@ use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
 ///
 /// ```
 /// # use rust_query::IntoExpr;
-/// # let mut client = rust_query::private::doctest::get_client();
-/// # rust_query::private::doctest::get_txn(&mut client, |txn| {
+/// # rust_query::private::doctest::get_txn(|txn| {
 /// # use rust_query::optional;
 /// let res = txn.query_one(optional(|row| {
 ///     let x = row.and(Some("test"));

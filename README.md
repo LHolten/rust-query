@@ -35,15 +35,9 @@ pub mod vN {
     }
 }
 ```
-Get proof that we are running on a unique thread:
-```rust
-# use rust_query::LocalClient;
-let mut client = LocalClient::try_new().unwrap();
-```
 Initialize a database:
 ```rust,ignore
-let database = client
-    .migrator(Config::open("my_database.sqlite"))
+let database = Database::migrator(Config::open("my_database.sqlite"))
     .expect("database version is before supported versions")
     // migrations go here
     .finish()
@@ -51,10 +45,11 @@ let database = client
 ```
 Perform a transaction!
 ```rust,ignore
-let mut txn = client.transaction_mut(&database);
-do_stuff_with_database(&mut txn);
-// After we are done we commit the changes!
-txn.commit();
+database.transaction_mut(|mut txn| {
+    do_stuff_with_database(&mut txn);
+    // After we are done we commit the changes!
+    txn.commit();
+});
 ```
 Insert in the database:
 ```rust,ignore

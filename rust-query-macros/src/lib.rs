@@ -107,7 +107,7 @@ mod table;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// use rust_query::migration::{schema, Config};
-/// use rust_query::{LocalClient, Database};
+/// use rust_query::Database;
 /// #[schema(Schema)]
 /// #[version(0..=1)]
 /// pub mod vN {
@@ -122,8 +122,8 @@ mod table;
 /// }
 /// // In this case it is required to provide a value for each row that already exists.
 /// // This is done with the `v0::migrate::User` struct:
-/// pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
-///     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
+/// pub fn migrate() -> Database<v1::Schema> {
+///     let m = Database::migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
 ///     let m = m.migrate(|txn| v0::migrate::Schema {
 ///         user: txn.migrate_ok(|old: v0::User!(email)| v0::migrate::User {
@@ -172,7 +172,7 @@ mod table;
 ///
 /// ```rust
 /// # use rust_query::migration::{schema, Config};
-/// # use rust_query::{Database, LocalClient};
+/// # use rust_query::Database;
 /// # fn main() {}
 /// # #[schema(Schema)]
 /// # #[version(0..=1)]
@@ -190,8 +190,8 @@ mod table;
 /// #         pub author: Author,
 /// #     }
 /// # }
-/// # pub fn migrate(client: &mut LocalClient) -> Database<v1::Schema> {
-/// #     let m = client.migrator(Config::open_in_memory()) // we use an in memory database for this test
+/// # pub fn migrate() -> Database<v1::Schema> {
+/// #     let m = Database::migrator(Config::open_in_memory()) // we use an in memory database for this test
 /// #         .expect("database version is before supported versions");
 /// let m = m.migrate(|txn| v0::migrate::Schema {
 ///     author: txn.migrate_ok(|old: v0::User!(name)| v0::migrate::Author {
@@ -263,12 +263,12 @@ pub fn schema(
 ///         let thing = rows.join(Thing);
 ///
 ///         rows.into_vec(MyDataSelect {
-///             seconds: thing.seconds(),
-///             is_it_real: thing.seconds().lt(100),
-///             name: thing.details().name(),
+///             seconds: &thing.seconds,
+///             is_it_real: thing.seconds.lt(100),
+///             name: &thing.details.name,
 ///             other: OtherDataSelect {
-///                 alpha: thing.beta().add(2.0),
-///                 beta: thing.beta(),
+///                 alpha: thing.beta.add(2.0),
+///                 beta: &thing.beta,
 ///             },
 ///         })
 ///     })
