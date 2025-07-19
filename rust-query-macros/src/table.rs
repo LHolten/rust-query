@@ -297,7 +297,7 @@ fn define_table(
             }
         };
 
-        impl<'t #(, #generic)*> ::rust_query::private::TableInsert<'t> for #table_ident<#(#generic),*>
+        impl<#(#generic),*> ::rust_query::private::TableInsert for #table_ident<#(#generic),*>
         where
             #(#generic: ::rust_query::IntoExpr<'static, #schema, Typ = #col_typ>,)*
         {

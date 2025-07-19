@@ -256,7 +256,7 @@ impl<S: 'static> TransactionMut<S> {
     /// ```
     pub fn insert<T: Table<Schema = S>>(
         &mut self,
-        val: impl TableInsert<'static, T = T>,
+        val: impl TableInsert<T = T>,
     ) -> Result<TableRow<T>, T::Conflict> {
         try_insert_private(
             &self.transaction,
@@ -272,7 +272,7 @@ impl<S: 'static> TransactionMut<S> {
     /// The new row is added to the table and the row reference is returned.
     pub fn insert_ok<T: Table<Schema = S, Conflict = Infallible>>(
         &mut self,
-        val: impl TableInsert<'static, T = T>,
+        val: impl TableInsert<T = T>,
     ) -> TableRow<T> {
         let Ok(row) = self.insert(val);
         row
@@ -299,7 +299,7 @@ impl<S: 'static> TransactionMut<S> {
     /// ```
     pub fn find_or_insert<T: Table<Schema = S, Conflict = TableRow<T>>>(
         &mut self,
-        val: impl TableInsert<'static, T = T>,
+        val: impl TableInsert<T = T>,
     ) -> TableRow<T> {
         match self.insert(val) {
             Ok(row) => row,

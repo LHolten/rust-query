@@ -44,7 +44,7 @@ impl<'t, S: 't, Typ: NumTyp> Update<'t, S, Typ> {
 }
 
 /// this trait has to be implemented by the `schema` macro.
-pub trait TableInsert<'t> {
+pub trait TableInsert {
     type T: Table;
     fn into_insert(self) -> <Self::T as Table>::Insert;
 }
