@@ -1,10 +1,8 @@
 error: lifetime may not live long enough
   --> tests/compile/aggregate_invariant.rs:16:44
    |
-12 |     db.transaction(|txn| {
-   |                     --- lifetime `'2` appears in the type of `txn`
 13 |         let total = txn.query(|rows| {
-   |                                ---- has type `&mut Query<'_, '1, v0::Schema>`
+   |                                ---- has type `&mut Query<'1, v0::Schema>`
 ...
 16 |             txn.query_one(aggregate(|rows| rows.sum(&item.score)))
-   |                                            ^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+   |                                            ^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'static`

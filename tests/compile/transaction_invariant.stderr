@@ -1,14 +1,14 @@
 error[E0521]: borrowed data escapes outside of closure
   --> tests/compile/transaction_invariant.rs:16:13
    |
-12 |     db.transaction(|txn| {
-   |                     --- `txn` declared here, outside of the closure body
 13 |         let name = txn.query(|rows| {
-   |                               ---- `rows` is a reference that is only valid in the closure body
+   |                               ----
+   |                               |
+   |                               `rows` is a reference that is only valid in the closure body
+   |                               has type `&mut Query<'1, v0::Schema>`
 ...
 16 |             txn.query_one(&item.name)
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^ `rows` escapes the closure body here
-   |
-   = note: requirement occurs because of the type `Transaction<'_, v0::Schema>`, which makes the generic argument `'_` invariant
-   = note: the struct `Transaction<'t, S>` is invariant over the parameter `'t`
-   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |             |
+   |             `rows` escapes the closure body here
+   |             argument requires that `'1` must outlive `'static`

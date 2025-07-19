@@ -16,7 +16,7 @@ error: lifetime may not live long enough
 25 |         let names = txn.query(|rows| {
    |                                ----- return type of closure is rust_query::query::Iter<'2, String>
    |                                |
-   |                                has type `&mut Query<'_, '1, v0::Schema>`
+   |                                has type `&mut Query<'1, v0::Schema>`
 26 |             let item = rows.join(MyTable);
 27 |             rows.into_iter(&item.name)
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
