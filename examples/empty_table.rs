@@ -19,6 +19,5 @@ pub fn main() {
         let id = txn.query_one(id.into_expr());
         let txn = txn.downgrade();
         assert!(txn.delete(id).unwrap());
-        txn.commit();
     })
 }

@@ -70,8 +70,6 @@ fn queries(txn: &'static mut Transaction<Schema>) {
 
     let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player::unique(pub_id)));
     assert!(info.is_some());
-
-    txn.commit();
 }
 
 #[test]

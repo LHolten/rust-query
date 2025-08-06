@@ -92,6 +92,4 @@ fn delivery(txn: &'static mut Transaction<Schema>, input: DeliveryInput) {
     for new_order in new_orders {
         assert!(txn.delete_ok(new_order));
     }
-
-    txn.commit();
 }

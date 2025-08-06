@@ -34,7 +34,6 @@ fn main() {
         for id in ids {
             assert!(!txn.delete_ok(id));
         }
-        txn.commit();
     })
 }
 

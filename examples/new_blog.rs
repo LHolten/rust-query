@@ -97,8 +97,6 @@ mod using_v1 {
             .delete(loc)
             .expect("there should be no fk references to this row");
         assert!(is_not_deleted_twice);
-
-        txn.commit();
     }
 
     #[expect(unused)]

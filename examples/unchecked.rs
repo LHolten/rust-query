@@ -36,8 +36,6 @@ fn main() {
                 println!("{name}")
             }
         });
-
-        txn.commit();
     })
 }
 

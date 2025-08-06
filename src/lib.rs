@@ -126,8 +126,10 @@ pub mod private {
                 .unwrap();
             db.transaction_mut(|txn| {
                 txn.insert(User { name: "Alice" }).unwrap();
-                f(txn)
+                f(txn);
+                Ok::<(), ()>(())
             })
+            .unwrap();
         }
     }
 }

@@ -110,10 +110,10 @@ impl<S: Send + Sync + 'static> Database<S> {
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
-    pub fn transaction_mut<R: Send>(
+    pub fn try_transaction_mut<O: Send, E: Send>(
         &self,
-        f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
-    ) -> R {
+        f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
+    ) -> Result<O, E> {
         std::thread::scope(|scope| {
             scope
                 .spawn(|| {
@@ -129,11 +129,28 @@ impl<S: Send + Sync + 'static> Database<S> {
                     });
 
                     let txn = Transaction::<S>::new_checked(owned, self.schema_version);
-                    f(txn)
+                    let res = f(txn);
+
+                    let owned = TXN.take().unwrap();
+
+                    if res.is_ok() {
+                        owned.with(|x| x.commit().unwrap());
+                    } else {
+                        owned.with(|x| x.rollback().unwrap());
+                    }
+                    res
                 })
                 .join()
                 .unwrap()
         })
+    }
+
+    pub fn transaction_mut<R: Send>(
+        &self,
+        f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
+    ) -> R {
+        self.try_transaction_mut(|txn| Ok::<R, Infallible>(f(txn)))
+            .unwrap()
     }
 
     /// Create a new [rusqlite::Connection] to the database.
@@ -416,19 +433,10 @@ impl<S: 'static> Transaction<S> {
         }
     }
 
-    /// Make the changes made in this [TransactionMut] permanent.
-    ///
-    /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
-    pub fn commit(&'static mut self) {
-        TXN.take().unwrap().with(|x| x.commit().unwrap())
-    }
-
     /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
     pub fn downgrade(&'static mut self) -> &'static mut TransactionWeak<S> {
         // TODO: clean this up
-        Box::leak(Box::new(TransactionWeak {
-            inner: Transaction::new(),
-        }))
+        Box::leak(Box::new(TransactionWeak { inner: PhantomData }))
     }
 }
 
@@ -439,7 +447,7 @@ impl<S: 'static> Transaction<S> {
 ///
 /// [TransactionWeak] is useful because it allowes deleting rows.
 pub struct TransactionWeak<S> {
-    inner: Transaction<S>,
+    inner: PhantomData<Transaction<S>>,
 }
 
 impl<S: 'static> TransactionWeak<S> {
@@ -504,13 +512,6 @@ impl<S: 'static> TransactionWeak<S> {
     /// may result in a panic.**
     pub fn rusqlite_transaction<R>(&mut self, f: impl FnOnce(&rusqlite::Transaction) -> R) -> R {
         TXN.with_borrow(|txn| f(txn.as_ref().unwrap().get()))
-    }
-
-    /// Make the changes made in this [TransactionWeak] permanent.
-    ///
-    /// If the [TransactionWeak] is dropped without calling this function, then the changes are rolled back.
-    pub fn commit(&'static mut self) {
-        self.inner.commit();
     }
 }
 

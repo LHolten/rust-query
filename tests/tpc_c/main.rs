@@ -144,12 +144,13 @@ fn main() {
             ytd: 100,
         })
         .unwrap();
-        txn.commit();
     });
 
-    db.transaction_mut(|txn| {
+    let _ = db.transaction_mut(|txn| {
         let warehouse = get_primary_warehouse(&txn);
-        new_order::random_new_order(txn, warehouse);
+        new_order::random_new_order(txn, warehouse)
+            .map(|_| ())
+            .map_err(|_| ())
     });
 
     db.transaction_mut(|txn| {

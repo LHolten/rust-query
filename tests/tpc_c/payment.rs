@@ -2,7 +2,7 @@ use super::*;
 use rust_query::{FromExpr, TableRow, Transaction, Update};
 
 pub fn random_payment(
-    txn: &'static mut Transaction<Schema>,
+    txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
 ) -> PaymentOutput {
     let input = generate_input(&txn, warehouse);
@@ -40,7 +40,7 @@ struct PaymentInput {
     date: SystemTime,
 }
 
-fn payment(txn: &'static mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
+fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
     let district = input.district;
     let warehouse = &district.into_expr().warehouse;
     let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
@@ -98,8 +98,6 @@ fn payment(txn: &'static mut Transaction<Schema>, input: PaymentInput) -> Paymen
         amount: input.amount,
         data,
     });
-
-    txn.commit();
 
     PaymentOutput {
         district,

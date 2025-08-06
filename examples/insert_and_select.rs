@@ -28,7 +28,6 @@ fn main() {
     database.transaction_mut(|mut txn| {
         do_stuff_with_database(&mut txn);
         // After we are done we commit the changes!
-        txn.commit();
     })
 }
 

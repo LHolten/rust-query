@@ -3,9 +3,9 @@ use rust_query::{FromExpr, TableRow, Transaction, Update, optional};
 use std::time::SystemTime;
 
 pub fn random_new_order(
-    txn: &'static mut Transaction<Schema>,
+    txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
-) -> OutputData {
+) -> Result<OutputData, OutputData> {
     let input = generate_input(&txn, warehouse);
     new_order(txn, input)
 }
@@ -56,7 +56,10 @@ struct ItemInput {
     quantity: i64,
 }
 
-fn new_order(txn: &'static mut Transaction<Schema>, input: NewOrderInput) -> OutputData {
+fn new_order(
+    txn: &mut Transaction<Schema>,
+    input: NewOrderInput,
+) -> Result<OutputData, OutputData> {
     let district = txn.query_one(&input.customer.into_expr().district);
 
     let district_info: District!(warehouse, number, tax, next_order) =
@@ -196,13 +199,7 @@ fn new_order(txn: &'static mut Transaction<Schema>, input: NewOrderInput) -> Out
         * (1. - customer_info.discount)
         * (1. + warehouse_tax + district_info.tax);
 
-    if input_valid {
-        txn.commit();
-    } else {
-        // rollback if there are input errors
-    }
-
-    OutputData {
+    let out = OutputData {
         warehouse: district_info.warehouse,
         district,
         customer: input.customer,
@@ -216,7 +213,9 @@ fn new_order(txn: &'static mut Transaction<Schema>, input: NewOrderInput) -> Out
         total_amount: total_amount as i64,
         order_lines: output_order_lines,
         input_valid,
-    }
+    };
+
+    if input_valid { Ok(out) } else { Err(out) }
 }
 
 #[expect(unused)]
