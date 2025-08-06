@@ -96,7 +96,7 @@ impl<'inner, S> Query<'inner, S> {
             println!("{values:?}");
         }
         if GET_PLAN.get() {
-            let node = get_node(&self.conn, &values, &sql);
+            let node = get_node(self.conn, &values, &sql);
             PLAN.set(Some(node));
         }
 

@@ -25,8 +25,8 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    database.transaction_mut_ok(|mut txn| {
-        do_stuff_with_database(&mut txn);
+    database.transaction_mut_ok(|txn| {
+        do_stuff_with_database(txn);
         // After we are done we commit the changes!
     })
 }

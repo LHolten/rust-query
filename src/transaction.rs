@@ -406,7 +406,7 @@ impl<S: 'static> Transaction<S> {
                     // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
                     Err(T::get_conflict_unchecked(self, &val))
                 }
-                Err(err) => panic!("{:?}", err),
+                Err(err) => panic!("{err:?}"),
             }
         })
     }
@@ -480,7 +480,7 @@ impl<S: 'static> TransactionWeak<S> {
                     // Some foreign key constraint got violated
                     Err(T::get_referer_unchecked())
                 }
-                Err(err) => panic!("{:?}", err),
+                Err(err) => panic!("{err:?}"),
             }
         })
     }
@@ -528,7 +528,7 @@ pub fn try_insert_private<T: Table>(
 
     let mut insert = InsertStatement::new();
     insert.into_table(table);
-    insert.columns(col_names.into_iter().map(|name| Alias::new(name)));
+    insert.columns(col_names.into_iter().map(Alias::new));
     if is_empty {
         // select always has at least one column, so we leave it out when there are no columns
         insert.or_default_values();
@@ -557,7 +557,7 @@ pub fn try_insert_private<T: Table>(
                 // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
                 Err(T::get_conflict_unchecked(&Transaction::new(), &val))
             }
-            Err(err) => panic!("{:?}", err),
+            Err(err) => panic!("{err:?}"),
         }
     })
 }

@@ -51,7 +51,7 @@ impl sea_query::Iden for Field {
     fn unquoted(&self, s: &mut dyn std::fmt::Write) {
         match self {
             Field::U64(alias) => alias.unquoted(s),
-            Field::Str(name) => write!(s, "{}", name).unwrap(),
+            Field::Str(name) => write!(s, "{name}").unwrap(),
         }
     }
 }

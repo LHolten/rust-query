@@ -6,7 +6,7 @@ pub fn random_new_order(
     txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
 ) -> Result<OutputData, OutputData> {
-    let input = generate_input(&txn, warehouse);
+    let input = generate_input(txn, warehouse);
     new_order(txn, input)
 }
 

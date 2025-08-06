@@ -28,30 +28,30 @@ fn test_queries() {
 }
 
 fn run_queries(txn: &'static mut Transaction<Schema>) {
-    assert_dbg("invoice_info", || invoice_info(&txn));
-    assert_dbg("playlist_track_count", || playlist_track_count(&txn));
+    assert_dbg("invoice_info", || invoice_info(txn));
+    assert_dbg("playlist_track_count", || playlist_track_count(txn));
     assert_dbg("avg_album_track_count_for_artist", || {
-        avg_album_track_count_for_artist(&txn)
+        avg_album_track_count_for_artist(txn)
     });
-    assert_dbg("count_reporting", || count_reporting(&txn));
-    assert_dbg("list_all_genres", || list_all_genres(&txn));
+    assert_dbg("count_reporting", || count_reporting(txn));
+    assert_dbg("list_all_genres", || list_all_genres(txn));
     assert_dbg("filtered_track", || {
-        filtered_track(&txn, "Metal", 1000 * 60)
+        filtered_track(txn, "Metal", 1000 * 60)
     });
-    assert_dbg("genre_statistics", || genre_statistics(&txn));
-    assert_dbg("customer_spending", || all_customer_spending(&txn));
-    assert_dbg("the_artists", || get_the_artists(&txn));
-    assert_dbg("ten_space_tracks", || ten_space_tracks(&txn));
-    assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(&txn));
+    assert_dbg("genre_statistics", || genre_statistics(txn));
+    assert_dbg("customer_spending", || all_customer_spending(txn));
+    assert_dbg("the_artists", || get_the_artists(txn));
+    assert_dbg("ten_space_tracks", || ten_space_tracks(txn));
+    assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(txn));
     let artist = txn.query_one(Artist::unique("U2")).unwrap();
-    assert_dbg("artist_details", || vec![artist_details(&txn, artist)]);
+    assert_dbg("artist_details", || vec![artist_details(txn, artist)]);
     assert_eq!(
-        customer_spending_by_email(&txn, "vstevens@yahoo.com"),
+        customer_spending_by_email(txn, "vstevens@yahoo.com"),
         Some(42.62)
     );
-    assert_eq!(customer_spending_by_email(&txn, "asdf"), None);
+    assert_eq!(customer_spending_by_email(txn, "asdf"), None);
 
-    free_reference(&txn);
+    free_reference(txn);
 
     txn.insert(Artist { name: "first" }).unwrap();
     let id = txn.insert(Artist { name: "second" }).unwrap();
@@ -106,7 +106,7 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
         let pl = rows.join(Playlist);
         let track_count = aggregate(|rows| {
             let plt = rows.join(PlaylistTrack);
-            rows.filter(&plt.playlist.eq(&pl));
+            rows.filter(plt.playlist.eq(&pl));
             rows.count_distinct(plt)
         });
 
@@ -197,7 +197,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         let genre = rows.join(Genre);
         let (bytes, milis) = aggregate(|rows| {
             let track = rows.join(Track);
-            rows.filter(&track.genre.eq(&genre));
+            rows.filter(track.genre.eq(&genre));
             (
                 rows.avg(track.bytes.as_float()),
                 rows.avg(track.milliseconds.as_float()),

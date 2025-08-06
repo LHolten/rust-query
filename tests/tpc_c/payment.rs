@@ -5,7 +5,7 @@ pub fn random_payment(
     txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
 ) -> PaymentOutput {
-    let input = generate_input(&txn, warehouse);
+    let input = generate_input(txn, warehouse);
     payment(txn, input)
 }
 
@@ -63,7 +63,7 @@ fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput 
         },
     );
 
-    let customer = input.customer.lookup_customer(&txn);
+    let customer = input.customer.lookup_customer(txn);
     let customer_info: CustomerInfo = txn.query_one(FromExpr::from_expr(customer));
 
     txn.update_ok(

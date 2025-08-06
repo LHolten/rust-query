@@ -147,25 +147,25 @@ fn main() {
     });
 
     let _ = db.transaction_mut_ok(|txn| {
-        let warehouse = get_primary_warehouse(&txn);
+        let warehouse = get_primary_warehouse(txn);
         new_order::random_new_order(txn, warehouse)
             .map(|_| ())
             .map_err(|_| ())
     });
 
     db.transaction_mut_ok(|txn| {
-        let warehouse = get_primary_warehouse(&txn);
+        let warehouse = get_primary_warehouse(txn);
         delivery::random_delivery(txn, warehouse);
     });
 
     db.transaction_mut_ok(|txn| {
-        let warehouse = get_primary_warehouse(&txn);
+        let warehouse = get_primary_warehouse(txn);
         payment::random_payment(txn, warehouse);
     });
 
     db.transaction(|txn| {
-        let warehouse = get_primary_warehouse(&txn);
-        order_status::random_order_status(&txn, warehouse);
+        let warehouse = get_primary_warehouse(txn);
+        order_status::random_order_status(txn, warehouse);
     });
 }
 
