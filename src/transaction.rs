@@ -50,6 +50,15 @@ self_cell!(
     }
 );
 
+/// SAFETY:
+/// `RTransaction: !Send` because it borrows from `Connection` and `Connection: !Sync`.
+/// `OwnedTransaction` can be `Send` because we know that `dependent` is the only
+/// borrow of `owner` and `OwnedTransaction: !Sync` so `dependent` can not be borrowed
+/// from multiple threads.
+unsafe impl Send for OwnedTransaction {}
+
+assert_not_impl_any! {OwnedTransaction: Sync}
+
 thread_local! {
     pub(crate) static TXN: RefCell<Option<OwnedTransaction>> = const { RefCell::new(None) };
 }
@@ -118,9 +127,8 @@ impl<S: Send + Sync + 'static> Database<S> {
                             .unwrap();
                         Some(txn)
                     });
-                    let txn = Transaction::<S>::new_checked(owned, self.schema_version);
 
-                    // TODO: replace this with `txn` and remove ::<S>
+                    let txn = Transaction::<S>::new_checked(owned, self.schema_version);
                     f(txn)
                 })
                 .join()

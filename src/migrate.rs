@@ -4,7 +4,6 @@ use std::{
     marker::PhantomData,
     ops::{Deref, Not},
     path::Path,
-    rc::Rc,
     sync::atomic::AtomicBool,
 };
 
@@ -334,7 +333,7 @@ impl<S: Schema> Database<S> {
 
         Some(Migrator {
             manager: config.manager,
-            transaction: Rc::new(txn),
+            transaction: txn,
             _p: PhantomData,
         })
     }
@@ -346,7 +345,7 @@ impl<S: Schema> Database<S> {
 /// [Migrator::finish].
 pub struct Migrator<S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    transaction: Rc<OwnedTransaction>,
+    transaction: OwnedTransaction,
     _p: PhantomData<S>,
 }
 
@@ -382,46 +381,58 @@ impl<S: Schema> Migrator<S> {
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn migrate<'x, M>(
-        self,
+        mut self,
         m: impl Send + FnOnce(&mut TransactionMigrate<S>) -> M,
     ) -> Migrator<M::To>
     where
         M: SchemaMigration<'x, From = S>,
     {
         if user_version(self.transaction.get()).unwrap() == S::VERSION {
-            check_schema::<S>();
+            self.transaction = std::thread::scope(|s| {
+                s.spawn(|| {
+                    TXN.set(Some(self.transaction));
 
-            let mut txn = TransactionMigrate {
-                inner: Transaction::new(),
-                scope: Default::default(),
-                rename_map: HashMap::new(),
-            };
-            let m = m(&mut txn);
+                    check_schema::<S>();
 
-            let mut builder = SchemaBuilder {
-                drop: vec![],
-                foreign_key: HashMap::new(),
-                inner: txn,
-            };
-            m.tables(&mut builder);
+                    let mut txn = TransactionMigrate {
+                        inner: Transaction::new(),
+                        scope: Default::default(),
+                        rename_map: HashMap::new(),
+                    };
+                    let m = m(&mut txn);
 
-            for drop in builder.drop {
-                let sql = drop.to_string(SqliteQueryBuilder);
-                self.transaction.get().execute(&sql, []).unwrap();
-            }
-            for (to, tmp) in builder.inner.rename_map {
-                let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
-                let sql = rename.to_string(SqliteQueryBuilder);
-                self.transaction.get().execute(&sql, []).unwrap();
-            }
-            if let Some(fk) = foreign_key_check(self.transaction.get()) {
-                (builder.foreign_key.remove(&*fk).unwrap())();
-            }
-            #[allow(
-                unreachable_code,
-                reason = "rustc is stupid and thinks this is unreachable"
-            )]
-            set_user_version(self.transaction.get(), M::To::VERSION).unwrap();
+                    let mut builder = SchemaBuilder {
+                        drop: vec![],
+                        foreign_key: HashMap::new(),
+                        inner: txn,
+                    };
+                    m.tables(&mut builder);
+
+                    let transaction = TXN.take().unwrap();
+
+                    for drop in builder.drop {
+                        let sql = drop.to_string(SqliteQueryBuilder);
+                        transaction.get().execute(&sql, []).unwrap();
+                    }
+                    for (to, tmp) in builder.inner.rename_map {
+                        let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
+                        let sql = rename.to_string(SqliteQueryBuilder);
+                        transaction.get().execute(&sql, []).unwrap();
+                    }
+                    if let Some(fk) = foreign_key_check(transaction.get()) {
+                        (builder.foreign_key.remove(&*fk).unwrap())();
+                    }
+                    #[allow(
+                        unreachable_code,
+                        reason = "rustc is stupid and thinks this is unreachable"
+                    )]
+                    set_user_version(transaction.get(), M::To::VERSION).unwrap();
+
+                    transaction
+                })
+                .join()
+                .unwrap()
+            });
         }
 
         Migrator {
@@ -436,12 +447,21 @@ impl<S: Schema> Migrator<S> {
     /// Returns [None] if the database schema version is newer than `S`.
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
-    pub fn finish(self) -> Option<Database<S>> {
+    pub fn finish(mut self) -> Option<Database<S>> {
         let conn = &self.transaction;
         if user_version(conn.get()).unwrap() != S::VERSION {
             return None;
         }
-        check_schema::<S>();
+
+        self.transaction = std::thread::scope(|s| {
+            s.spawn(|| {
+                TXN.set(Some(self.transaction));
+                check_schema::<S>();
+                TXN.take().unwrap()
+            })
+            .join()
+            .unwrap()
+        });
 
         // adds an sqlite_stat1 table
         self.transaction
@@ -449,10 +469,8 @@ impl<S: Schema> Migrator<S> {
             .execute_batch("PRAGMA optimize;")
             .unwrap();
 
-        let schema_version = schema_version(conn.get());
-        Rc::into_inner(self.transaction)
-            .unwrap()
-            .with(|x| x.commit().unwrap());
+        let schema_version = schema_version(self.transaction.get());
+        self.transaction.with(|x| x.commit().unwrap());
 
         Some(Database {
             manager: self.manager,
