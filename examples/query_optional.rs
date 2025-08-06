@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, FromExpr, TransactionMut,
+    Database, FromExpr, Transaction,
     migration::{Config, schema},
     optional,
 };
@@ -31,7 +31,7 @@ fn main() {
     database.transaction_mut(queries);
 }
 
-fn queries(txn: &'static mut TransactionMut<Schema>) {
+fn queries(txn: &'static mut Transaction<Schema>) {
     let pub_id = 100;
 
     #[expect(unused)]

@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, TransactionMut,
+    Database, Transaction,
     migration::{Config, schema},
 };
 
@@ -33,7 +33,7 @@ fn main() {
 }
 
 // Use the database to insert and query.
-fn do_stuff_with_database(txn: &mut TransactionMut<MySchema>) {
+fn do_stuff_with_database(txn: &mut Transaction<MySchema>) {
     // Lets make a new user 'mike',
     let mike = User { name: "mike" };
     let mike_id = txn.insert_ok(mike);

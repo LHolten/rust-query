@@ -1,4 +1,4 @@
-use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, ops::Deref};
+use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData};
 
 use rusqlite::ErrorCode;
 use sea_query::{
@@ -103,7 +103,7 @@ impl<S: Send + Sync + 'static> Database<S> {
     /// additional migrations.
     pub fn transaction_mut<R: Send>(
         &self,
-        f: impl Send + FnOnce(&'static mut TransactionMut<S>) -> R,
+        f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
     ) -> R {
         std::thread::scope(|scope| {
             scope
@@ -118,12 +118,10 @@ impl<S: Send + Sync + 'static> Database<S> {
                             .unwrap();
                         Some(txn)
                     });
-                    let _txn = Transaction::<S>::new_checked(owned, self.schema_version);
+                    let txn = Transaction::<S>::new_checked(owned, self.schema_version);
 
                     // TODO: replace this with `txn` and remove ::<S>
-                    f(Box::leak(Box::new(TransactionMut {
-                        inner: Transaction::new(),
-                    })))
+                    f(txn)
                 })
                 .join()
                 .unwrap()
@@ -142,14 +140,17 @@ impl<S: Send + Sync + 'static> Database<S> {
     }
 }
 
-/// [Transaction] can be used to query the database.
+/// [Transaction] can be used to query and update the database.
 ///
-/// From the perspective of a [Transaction] each [TransactionMut] is fully applied or not at all.
-/// Futhermore, the effects of [TransactionMut]s have a global order.
+/// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
+/// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
 ///
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
+///
+/// To make mutations to the database permanent you need to use [Transaction::commit].
+/// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
 pub struct Transaction<S> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
@@ -161,24 +162,6 @@ impl<S> Transaction<S> {
             _p2: PhantomData,
             _local: PhantomData,
         }
-    }
-}
-
-/// Same as [Transaction], but allows inserting new rows.
-///
-/// [TransactionMut] always uses the latest version of the database, with the effects of all previous [TransactionMut]s applied.
-///
-/// To make mutations to the database permanent you need to use [TransactionMut::commit].
-/// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
-pub struct TransactionMut<S> {
-    pub(crate) inner: Transaction<S>,
-}
-
-impl<S> Deref for TransactionMut<S> {
-    type Target = Transaction<S>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
     }
 }
 
@@ -249,7 +232,7 @@ impl<S> Transaction<S> {
     }
 }
 
-impl<S: 'static> TransactionMut<S> {
+impl<S: 'static> Transaction<S> {
     /// Try inserting a value into the database.
     ///
     /// Returns [Ok] with a reference to the new inserted value or an [Err] with conflict information.
@@ -436,9 +419,7 @@ impl<S: 'static> TransactionMut<S> {
     pub fn downgrade(&'static mut self) -> &'static mut TransactionWeak<S> {
         // TODO: clean this up
         Box::leak(Box::new(TransactionWeak {
-            inner: TransactionMut {
-                inner: Transaction::new(),
-            },
+            inner: Transaction::new(),
         }))
     }
 }
@@ -450,7 +431,7 @@ impl<S: 'static> TransactionMut<S> {
 ///
 /// [TransactionWeak] is useful because it allowes deleting rows.
 pub struct TransactionWeak<S> {
-    inner: TransactionMut<S>,
+    inner: Transaction<S>,
 }
 
 impl<S: 'static> TransactionWeak<S> {

@@ -4,8 +4,7 @@ use std::fmt::Debug;
 
 use expect_test::expect_file;
 use rust_query::{
-    Expr, IntoExpr, IntoSelect, Select, TableRow, Transaction, TransactionMut, Update, aggregate,
-    optional,
+    Expr, IntoExpr, IntoSelect, Select, TableRow, Transaction, Update, aggregate, optional,
 };
 use schema::*;
 
@@ -28,7 +27,7 @@ fn test_queries() {
     db.transaction_mut(run_queries);
 }
 
-fn run_queries(txn: &'static mut TransactionMut<Schema>) {
+fn run_queries(txn: &'static mut Transaction<Schema>) {
     assert_dbg("invoice_info", || invoice_info(&txn));
     assert_dbg("playlist_track_count", || playlist_track_count(&txn));
     assert_dbg("avg_album_track_count_for_artist", || {

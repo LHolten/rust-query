@@ -67,7 +67,7 @@ fn main() {
 
 mod using_v1 {
     use super::*;
-    use rust_query::{TransactionMut, migration::Config};
+    use rust_query::{Transaction, migration::Config};
     use v1::*;
 
     pub fn migrate() -> Database<Schema> {
@@ -82,7 +82,7 @@ mod using_v1 {
             .expect("database should not be newer than supported versions")
     }
 
-    pub fn do_stuff(txn: &'static mut TransactionMut<Schema>) {
+    pub fn do_stuff(txn: &'static mut Transaction<Schema>) {
         let loc: TableRow<Location> = txn.insert_ok(Location { name: "Amsterdam" });
         let _ = location_info(&txn, loc);
 

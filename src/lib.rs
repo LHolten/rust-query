@@ -25,7 +25,7 @@ pub use dummy_impl::{IntoSelect, Select};
 use hash::TypBuilder;
 use private::Reader;
 pub use rust_query_macros::{FromExpr, Select};
-pub use transaction::{Database, Transaction, TransactionMut, TransactionWeak};
+pub use transaction::{Database, Transaction, TransactionWeak};
 use value::MyTyp;
 pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
@@ -108,7 +108,7 @@ pub mod private {
     impl<S, T> UpdateOrUnit<S, T> for () {}
 
     pub mod doctest {
-        use crate::{Database, TransactionMut, migrate::Config, migration};
+        use crate::{Database, Transaction, migrate::Config, migration};
 
         #[migration::schema(Empty)]
         pub mod vN {
@@ -119,7 +119,7 @@ pub mod private {
         }
         pub use v0::*;
 
-        pub fn get_txn(f: impl Send + FnOnce(&'static mut TransactionMut<Empty>)) {
+        pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
             let db = Database::migrator(Config::open_in_memory())
                 .unwrap()
                 .finish()

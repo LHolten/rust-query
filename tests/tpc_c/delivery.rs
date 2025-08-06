@@ -1,10 +1,10 @@
 use std::time::UNIX_EPOCH;
 
-use rust_query::{TransactionMut, Update, aggregate, optional};
+use rust_query::{Transaction, Update, aggregate, optional};
 
 use super::*;
 
-pub fn random_delivery(txn: &'static mut TransactionMut<Schema>, warehouse: TableRow<Warehouse>) {
+pub fn random_delivery(txn: &'static mut Transaction<Schema>, warehouse: TableRow<Warehouse>) {
     delivery(txn, generate_input(warehouse));
 }
 
@@ -24,7 +24,7 @@ struct DeliveryInput {
     delivery_d: i64,
 }
 
-fn delivery(txn: &'static mut TransactionMut<Schema>, input: DeliveryInput) {
+fn delivery(txn: &'static mut Transaction<Schema>, input: DeliveryInput) {
     let mut new_orders = vec![];
     for district_num in 0..10 {
         let district = txn
