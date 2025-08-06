@@ -1,4 +1,4 @@
-use std::{convert::Infallible, iter::zip, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, ops::Deref};
 
 use rusqlite::ErrorCode;
 use sea_query::{
@@ -50,6 +50,10 @@ self_cell!(
     }
 );
 
+thread_local! {
+    pub(crate) static TXN: RefCell<Option<OwnedTransaction>> = const { RefCell::new(None) };
+}
+
 impl OwnedTransaction {
     pub fn get(&self) -> &rusqlite::Transaction<'_> {
         self.borrow_dependent().as_ref().unwrap()
@@ -60,13 +64,13 @@ impl OwnedTransaction {
     }
 }
 
-impl<S: Send + Sync> Database<S> {
+impl<S: Send + Sync + 'static> Database<S> {
     /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
     ///
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
-    pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(Transaction<S>) -> R) -> R {
+    pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
         std::thread::scope(|scope| {
             scope
                 .spawn(|| {
@@ -76,8 +80,9 @@ impl<S: Send + Sync> Database<S> {
                     let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
                         Some(conn.borrow_mut().transaction().unwrap())
                     });
+
                     let txn = Transaction::new_checked(owned, self.schema_version);
-                    return f(txn);
+                    f(txn)
                 })
                 .join()
                 .unwrap()
@@ -96,7 +101,10 @@ impl<S: Send + Sync> Database<S> {
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
-    pub fn transaction_mut<R: Send>(&self, f: impl Send + FnOnce(TransactionMut<S>) -> R) -> R {
+    pub fn transaction_mut<R: Send>(
+        &self,
+        f: impl Send + FnOnce(&'static mut TransactionMut<S>) -> R,
+    ) -> R {
         std::thread::scope(|scope| {
             scope
                 .spawn(|| {
@@ -110,9 +118,12 @@ impl<S: Send + Sync> Database<S> {
                             .unwrap();
                         Some(txn)
                     });
-                    let txn = Transaction::new_checked(owned, self.schema_version);
+                    let _txn = Transaction::<S>::new_checked(owned, self.schema_version);
 
-                    return f(TransactionMut { inner: txn });
+                    // TODO: replace this with `txn` and remove ::<S>
+                    f(Box::leak(Box::new(TransactionMut {
+                        inner: Transaction::new(),
+                    })))
                 })
                 .join()
                 .unwrap()
@@ -140,15 +151,13 @@ impl<S: Send + Sync> Database<S> {
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
 pub struct Transaction<S> {
-    pub(crate) transaction: Rc<OwnedTransaction>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
 }
 
 impl<S> Transaction<S> {
-    pub(crate) fn new(raw: Rc<OwnedTransaction>) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            transaction: raw,
             _p2: PhantomData,
             _local: PhantomData,
         }
@@ -175,12 +184,17 @@ impl<S> Deref for TransactionMut<S> {
 
 impl<S> Transaction<S> {
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: OwnedTransaction, expected: i64) -> Self {
+    pub(crate) fn new_checked(txn: OwnedTransaction, expected: i64) -> &'static mut Self {
         if schema_version(txn.get()) != expected {
             panic!("The database schema was updated unexpectedly")
         }
+        TXN.set(Some(txn));
 
-        Self::new(Rc::new(txn))
+        const {
+            assert!(size_of::<Self>() == 0);
+        }
+        // no memory is leaked because Self is zero sized
+        Box::leak(Box::new(Self::new()))
     }
 
     /// Execute a query with multiple results.
@@ -202,16 +216,19 @@ impl<S> Transaction<S> {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
-        let conn: &rusqlite::Connection = self.transaction.get();
-        let q = Rows {
-            phantom: PhantomData,
-            ast: Default::default(),
-            _p: PhantomData,
-        };
-        f(&mut Query {
-            q,
-            phantom: PhantomData,
-            conn,
+
+        TXN.with_borrow(|txn| {
+            let conn = txn.as_ref().unwrap().get();
+            let q = Rows {
+                phantom: PhantomData,
+                ast: Default::default(),
+                _p: PhantomData,
+            };
+            f(&mut Query {
+                q,
+                phantom: PhantomData,
+                conn,
+            })
         })
     }
 
@@ -259,7 +276,6 @@ impl<S: 'static> TransactionMut<S> {
         val: impl TableInsert<T = T>,
     ) -> Result<TableRow<T>, T::Conflict> {
         try_insert_private(
-            &self.transaction,
             Alias::new(T::NAME).into_table_ref(),
             None,
             val.into_insert(),
@@ -373,18 +389,22 @@ impl<S: 'static> TransactionMut<S> {
 
         let (query, args) = update.with(with_clause).build_rusqlite(SqliteQueryBuilder);
 
-        let mut stmt = self.transaction.get().prepare_cached(&query).unwrap();
-        match stmt.execute(&*args.as_params()) {
-            Ok(1) => Ok(()),
-            Ok(n) => panic!("unexpected number of updates: {n}"),
-            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-                if kind.code == ErrorCode::ConstraintViolation =>
-            {
-                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                Err(T::get_conflict_unchecked(self, &val))
+        TXN.with_borrow(|txn| {
+            let txn = txn.as_ref().unwrap().get();
+
+            let mut stmt = txn.prepare_cached(&query).unwrap();
+            match stmt.execute(&*args.as_params()) {
+                Ok(1) => Ok(()),
+                Ok(n) => panic!("unexpected number of updates: {n}"),
+                Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                    if kind.code == ErrorCode::ConstraintViolation =>
+                {
+                    // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+                    Err(T::get_conflict_unchecked(self, &val))
+                }
+                Err(err) => panic!("{:?}", err),
             }
-            Err(err) => panic!("{:?}", err),
-        }
+        })
     }
 
     /// This is a convenience function to use [TransactionMut::update] for updates
@@ -408,10 +428,8 @@ impl<S: 'static> TransactionMut<S> {
     /// Make the changes made in this [TransactionMut] permanent.
     ///
     /// If the [TransactionMut] is dropped without calling this function, then the changes are rolled back.
-    pub fn commit(self) {
-        Rc::into_inner(self.inner.transaction)
-            .unwrap()
-            .with(|x| x.commit().unwrap());
+    pub fn commit(&'static mut self) {
+        TXN.take().unwrap().with(|x| x.commit().unwrap())
     }
 
     /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
@@ -447,22 +465,26 @@ impl<S: 'static> TransactionWeak<S> {
             .to_owned();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
-        let mut stmt = self.inner.transaction.get().prepare_cached(&query).unwrap();
 
-        match stmt.execute(&*args.as_params()) {
-            Ok(0) => Ok(false),
-            Ok(1) => Ok(true),
-            Ok(n) => {
-                panic!("unexpected number of deletes {n}")
+        TXN.with_borrow(|txn| {
+            let txn = txn.as_ref().unwrap().get();
+            let mut stmt = txn.prepare_cached(&query).unwrap();
+
+            match stmt.execute(&*args.as_params()) {
+                Ok(0) => Ok(false),
+                Ok(1) => Ok(true),
+                Ok(n) => {
+                    panic!("unexpected number of deletes {n}")
+                }
+                Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                    if kind.code == ErrorCode::ConstraintViolation =>
+                {
+                    // Some foreign key constraint got violated
+                    Err(T::get_referer_unchecked())
+                }
+                Err(err) => panic!("{:?}", err),
             }
-            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-                if kind.code == ErrorCode::ConstraintViolation =>
-            {
-                // Some foreign key constraint got violated
-                Err(T::get_referer_unchecked())
-            }
-            Err(err) => panic!("{:?}", err),
-        }
+        })
     }
 
     /// Delete a row from the database.
@@ -486,20 +508,19 @@ impl<S: 'static> TransactionWeak<S> {
     ///
     /// **When this method is used to break [rust_query] invariants, all other [rust_query] function calls
     /// may result in a panic.**
-    pub fn rusqlite_transaction(&mut self) -> &rusqlite::Transaction {
-        self.inner.transaction.get()
+    pub fn rusqlite_transaction<R>(&mut self, f: impl FnOnce(&rusqlite::Transaction) -> R) -> R {
+        TXN.with_borrow(|txn| f(txn.as_ref().unwrap().get()))
     }
 
     /// Make the changes made in this [TransactionWeak] permanent.
     ///
     /// If the [TransactionWeak] is dropped without calling this function, then the changes are rolled back.
-    pub fn commit(self) {
+    pub fn commit(&'static mut self) {
         self.inner.commit();
     }
 }
 
 pub fn try_insert_private<T: Table>(
-    transaction: &Rc<OwnedTransaction>,
     table: sea_query::TableRef,
     idx: Option<i64>,
     val: T::Insert,
@@ -527,24 +548,25 @@ pub fn try_insert_private<T: Table>(
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-    let mut statement = transaction.get().prepare_cached(&sql).unwrap();
-    let mut res = statement
-        .query_map(&*values.as_params(), |row| {
-            Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?)?)
-        })
-        .unwrap();
+    TXN.with_borrow(|txn| {
+        let txn = txn.as_ref().unwrap().get();
 
-    match res.next().unwrap() {
-        Ok(id) => Ok(id),
-        Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-            if kind.code == ErrorCode::ConstraintViolation =>
-        {
-            // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-            Err(T::get_conflict_unchecked(
-                &Transaction::new(transaction.clone()),
-                &val,
-            ))
+        let mut statement = txn.prepare_cached(&sql).unwrap();
+        let mut res = statement
+            .query_map(&*values.as_params(), |row| {
+                Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?)?)
+            })
+            .unwrap();
+
+        match res.next().unwrap() {
+            Ok(id) => Ok(id),
+            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                if kind.code == ErrorCode::ConstraintViolation =>
+            {
+                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+                Err(T::get_conflict_unchecked(&Transaction::new(), &val))
+            }
+            Err(err) => panic!("{:?}", err),
         }
-        Err(err) => panic!("{:?}", err),
-    }
+    })
 }

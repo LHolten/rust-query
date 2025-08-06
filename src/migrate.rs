@@ -17,7 +17,7 @@ use crate::{
     alias::{Scope, TmpTable},
     hash,
     schema_pragma::read_schema,
-    transaction::{Database, OwnedTransaction, try_insert_private},
+    transaction::{Database, OwnedTransaction, TXN, try_insert_private},
 };
 
 pub struct TableTypBuilder<S> {
@@ -81,7 +81,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
-            new_table::<T>(self.inner.transaction.get(), new_table_name);
+            TXN.with_borrow(|txn| new_table::<T>(txn.as_ref().unwrap().get(), new_table_name));
             new_table_name
         })
     }
@@ -98,7 +98,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
             rows.into_vec((&old, Out::from_expr(&old)))
         });
 
-        let migrated = Transaction::new(self.inner.transaction.clone()).query(|rows| {
+        let migrated = Transaction::new().query(|rows| {
             let new = rows.join_tmp::<M::From>(new_name);
             rows.into_vec(new)
         });
@@ -131,7 +131,6 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
         for (idx, x) in self.unmigrated::<M, X>(new_name) {
             if let Some(new) = f(x) {
                 try_insert_private::<M::To>(
-                    &self.transaction,
                     new_name.into_table_ref(),
                     Some(idx),
                     M::prepare(new, TableRow::new(idx).into_expr()),
@@ -390,10 +389,10 @@ impl<S: Schema> Migrator<S> {
         M: SchemaMigration<'x, From = S>,
     {
         if user_version(self.transaction.get()).unwrap() == S::VERSION {
-            check_schema::<S>(&self.transaction);
+            check_schema::<S>();
 
             let mut txn = TransactionMigrate {
-                inner: Transaction::new(self.transaction.clone()),
+                inner: Transaction::new(),
                 scope: Default::default(),
                 rename_map: HashMap::new(),
             };
@@ -442,7 +441,7 @@ impl<S: Schema> Migrator<S> {
         if user_version(conn.get()).unwrap() != S::VERSION {
             return None;
         }
-        check_schema::<S>(&self.transaction);
+        check_schema::<S>();
 
         // adds an sqlite_stat1 table
         self.transaction
@@ -478,12 +477,12 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-fn check_schema<S: Schema>(conn: &Rc<OwnedTransaction>) {
+fn check_schema<S: Schema>() {
     let mut b = TableTypBuilder::default();
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
         b.ast,
-        read_schema(&crate::Transaction::new(conn.clone())),
+        read_schema(&crate::Transaction::new()),
         "schema is different (expected left, but got right)",
     );
 }
