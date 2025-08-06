@@ -22,7 +22,7 @@ use crate::{
 ///
 /// Creating a [Database] requires going through the steps to migrate an existing database to
 /// the required schema, or creating a new database from scratch (See also [crate::migration::Config]).
-/// Please see [LocalClient::migrator] to get started.
+/// Please see [Database::migrator] to get started.
 ///
 /// Having done the setup to create a compatible database is sadly not a guarantee that the
 /// database will stay compatible for the lifetime of the [Database] struct.
@@ -30,8 +30,6 @@ use crate::{
 /// modifications to the schema and gives us the ability to panic when this is detected.
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
-///
-/// For information on how to create transactions, please refer to [LocalClient].
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema_version: i64,
@@ -90,16 +88,15 @@ impl<S: Send + Sync + 'static> Database<S> {
                         Some(conn.borrow_mut().transaction().unwrap())
                     });
 
-                    let txn = Transaction::new_checked(owned, self.schema_version);
-                    f(txn)
+                    f(Transaction::new_checked(owned, self.schema_version))
                 })
                 .join()
                 .unwrap()
         })
     }
 
-    /// Create a [TransactionMut].
-    /// This operation needs to wait for all other [TransactionMut]s for this database to be finished.
+    /// Create a [&mut Transaction].
+    /// This operation needs to wait for all other [&mut Transaction]s for this database to be finished.
     ///
     /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
     /// This makes it work across processes.
@@ -110,7 +107,7 @@ impl<S: Send + Sync + 'static> Database<S> {
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
-    pub fn try_transaction_mut<O: Send, E: Send>(
+    pub fn transaction_mut<O: Send, E: Send>(
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
@@ -128,8 +125,7 @@ impl<S: Send + Sync + 'static> Database<S> {
                         Some(txn)
                     });
 
-                    let txn = Transaction::<S>::new_checked(owned, self.schema_version);
-                    let res = f(txn);
+                    let res = f(Transaction::new_checked(owned, self.schema_version));
 
                     let owned = TXN.take().unwrap();
 
@@ -145,11 +141,14 @@ impl<S: Send + Sync + 'static> Database<S> {
         })
     }
 
-    pub fn transaction_mut<R: Send>(
+    /// Same as [Self::transaction_mut], but always commits the transaction.
+    ///
+    /// Only exception is if the closure panics, in that case the transaction is rolled back.
+    pub fn transaction_mut_ok<R: Send>(
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
     ) -> R {
-        self.try_transaction_mut(|txn| Ok::<R, Infallible>(f(txn)))
+        self.transaction_mut(|txn| Ok::<R, Infallible>(f(txn)))
             .unwrap()
     }
 
@@ -173,9 +172,6 @@ impl<S: Send + Sync + 'static> Database<S> {
 ///
 /// All [TableRow] references retrieved from the database live for at most `'a`.
 /// This makes these references effectively local to this [Transaction].
-///
-/// To make mutations to the database permanent you need to use [Transaction::commit].
-/// This is to make sure that if a function panics while holding a mutable transaction, it will roll back those changes.
 pub struct Transaction<S> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
@@ -290,7 +286,7 @@ impl<S: 'static> Transaction<S> {
         )
     }
 
-    /// This is a convenience function to make using [TransactionMut::insert]
+    /// This is a convenience function to make using [Transaction::insert]
     /// easier for tables without unique constraints.
     ///
     /// The new row is added to the table and the row reference is returned.
@@ -302,7 +298,7 @@ impl<S: 'static> Transaction<S> {
         row
     }
 
-    /// This is a convenience function to make using [TransactionMut::insert]
+    /// This is a convenience function to make using [Transaction::insert]
     /// easier for tables with exactly one unique constraints.
     ///
     /// The new row is inserted and the reference to the row is returned OR
@@ -333,7 +329,7 @@ impl<S: 'static> Transaction<S> {
 
     /// Try updating a row in the database to have new column values.
     ///
-    /// Updating can fail just like [TransactionMut::insert] because of unique constraint conflicts.
+    /// Updating can fail just like [Transaction::insert] because of unique constraint conflicts.
     /// This happens when the new values are in conflict with an existing different row.
     ///
     /// When the update succeeds, this function returns [Ok<()>], when it fails it returns [Err] with one of
@@ -415,7 +411,7 @@ impl<S: 'static> Transaction<S> {
         })
     }
 
-    /// This is a convenience function to use [TransactionMut::update] for updates
+    /// This is a convenience function to use [Transaction::update] for updates
     /// that can not cause unique constraint violations.
     ///
     /// This method can be used for all tables, it just does not allow modifying
@@ -433,14 +429,14 @@ impl<S: 'static> Transaction<S> {
         }
     }
 
-    /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
+    /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
     pub fn downgrade(&'static mut self) -> &'static mut TransactionWeak<S> {
         // TODO: clean this up
         Box::leak(Box::new(TransactionWeak { inner: PhantomData }))
     }
 }
 
-/// This is the weak version of [TransactionMut].
+/// This is the weak version of [Transaction].
 ///
 /// The reason that it is called `weak` is because [TransactionWeak] can not guarantee
 /// that [TableRow]s prove the existence of their particular row.

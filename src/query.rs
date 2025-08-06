@@ -80,7 +80,7 @@ impl<'inner, S> Query<'inner, S> {
         self.into_iter(select).collect()
     }
 
-    /// Turn a database query into an [Iter] of results.
+    /// Turn a database query into an iterator of results.
     ///
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,

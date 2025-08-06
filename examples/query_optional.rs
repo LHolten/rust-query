@@ -28,7 +28,7 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    database.transaction_mut(queries);
+    database.transaction_mut_ok(queries);
 }
 
 fn queries(txn: &'static mut Transaction<Schema>) {

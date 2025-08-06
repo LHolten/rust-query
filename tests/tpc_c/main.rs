@@ -131,7 +131,7 @@ fn main() {
         .finish()
         .expect("database should not be too new");
 
-    db.transaction_mut(|txn| {
+    db.transaction_mut_ok(|txn| {
         txn.insert(Warehouse {
             number: 0,
             name: "test",
@@ -146,19 +146,19 @@ fn main() {
         .unwrap();
     });
 
-    let _ = db.transaction_mut(|txn| {
+    let _ = db.transaction_mut_ok(|txn| {
         let warehouse = get_primary_warehouse(&txn);
         new_order::random_new_order(txn, warehouse)
             .map(|_| ())
             .map_err(|_| ())
     });
 
-    db.transaction_mut(|txn| {
+    db.transaction_mut_ok(|txn| {
         let warehouse = get_primary_warehouse(&txn);
         delivery::random_delivery(txn, warehouse);
     });
 
-    db.transaction_mut(|txn| {
+    db.transaction_mut_ok(|txn| {
         let warehouse = get_primary_warehouse(&txn);
         payment::random_payment(txn, warehouse);
     });

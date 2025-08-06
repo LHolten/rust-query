@@ -62,7 +62,7 @@ mod using_v0 {
 
 fn main() {
     let db = using_v1::migrate();
-    db.transaction_mut(using_v1::do_stuff)
+    db.transaction_mut_ok(using_v1::do_stuff)
 }
 
 mod using_v1 {

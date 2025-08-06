@@ -124,12 +124,10 @@ pub mod private {
                 .unwrap()
                 .finish()
                 .unwrap();
-            db.transaction_mut(|txn| {
+            db.transaction_mut_ok(|txn| {
                 txn.insert(User { name: "Alice" }).unwrap();
-                f(txn);
-                Ok::<(), ()>(())
+                f(txn)
             })
-            .unwrap();
         }
     }
 }
@@ -161,9 +159,9 @@ pub trait Table: Sized + 'static {
     /// This is the same type that is used for row updates too.
     type Conflict;
 
-    /// The type of updates used by [TransactionMut::update_ok].
+    /// The type of updates used by [Transaction::update_ok].
     type UpdateOk;
-    /// The type of updates used by [TransactionMut::update].
+    /// The type of updates used by [Transaction::update].
     type Update;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;

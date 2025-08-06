@@ -230,8 +230,8 @@ pub trait SchemaMigration<'a> {
 ///
 /// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html).
 /// The effect of this mode is that there can be any number of readers with one concurrent writer.
-/// What is nice about this is that a [Transaction] can always be made immediately.
-/// Making a [crate::TransactionMut] has to wait until all other [crate::TransactionMut]s are finished.
+/// What is nice about this is that a [& crate::Transaction] can always be made immediately.
+/// Making a [&mut crate::Transaction] has to wait until all other [&mut crate::Transaction]s are finished.
 ///
 /// Sqlite is also configured with [`synchronous=NORMAL`](https://www.sqlite.org/pragma.html#pragma_synchronous). This gives better performance by fsyncing less.
 /// The database will not lose transactions due to application crashes, but it might due to system crashes or power loss.

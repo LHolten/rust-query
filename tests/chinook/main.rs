@@ -24,7 +24,7 @@ fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>
 #[test]
 fn test_queries() {
     let db = migrate();
-    db.transaction_mut(run_queries);
+    db.transaction_mut_ok(run_queries);
 }
 
 fn run_queries(txn: &'static mut Transaction<Schema>) {

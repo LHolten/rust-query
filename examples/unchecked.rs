@@ -18,7 +18,7 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    database.transaction_mut(|txn| {
+    database.transaction_mut_ok(|txn| {
         let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
             .into_iter()
             .map(|name| txn.insert_ok(Name { name }))

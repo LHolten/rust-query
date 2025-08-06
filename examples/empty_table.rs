@@ -14,7 +14,7 @@ pub fn main() {
         .finish()
         .expect("database is newer than supported versions");
 
-    db.transaction_mut(|txn| {
+    db.transaction_mut_ok(|txn| {
         let id = txn.insert(v0::Empty).unwrap();
         let id = txn.query_one(id.into_expr());
         let txn = txn.downgrade();
