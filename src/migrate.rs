@@ -4,7 +4,6 @@ use std::{
     marker::PhantomData,
     ops::{Deref, Not},
     path::Path,
-    sync::atomic::AtomicBool,
 };
 
 use rusqlite::{Connection, config::DbConfig};
@@ -240,8 +239,6 @@ pub struct Config {
     init: Box<dyn FnOnce(&rusqlite::Transaction)>,
 }
 
-static ALLOWED: AtomicBool = AtomicBool::new(true);
-
 impl Config {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
@@ -261,7 +258,6 @@ impl Config {
     }
 
     fn open_internal(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
-        assert!(ALLOWED.swap(false, std::sync::atomic::Ordering::Relaxed));
         let manager = manager.with_init(|inner| {
             inner.pragma_update(None, "journal_mode", "WAL")?;
             inner.pragma_update(None, "synchronous", "NORMAL")?;
@@ -513,4 +509,13 @@ fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {
         .unwrap()
         .next();
     error.transpose().unwrap()
+}
+
+#[test]
+fn open_multiple() {
+    #[crate::migration::schema(Empty)]
+    pub mod vN {}
+
+    let _a = Database::<v0::Empty>::migrator(Config::open_in_memory());
+    let _b = Database::<v0::Empty>::migrator(Config::open_in_memory());
 }
