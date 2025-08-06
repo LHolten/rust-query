@@ -1,14 +1,14 @@
-error[E0502]: cannot borrow `txn` as mutable because it is also borrowed as immutable
+error[E0500]: closure requires unique access to `*txn` but it is already borrowed
   --> tests/compile/iterator_invalidation.rs:16:19
    |
 16 |         txn.query(|_rows| {
-   |         --- ----- ^^^^^^^ mutable borrow occurs here
+   |         --- ----- ^^^^^^^ closure construction occurs here
    |         |   |
-   |         |   immutable borrow later used by call
-   |         immutable borrow occurs here
+   |         |   first borrow later used by call
+   |         borrow occurs here
 17 |             // can not insert inside of `query`
 18 |             txn.insert_ok(MyTable { name: "test" });
-   |             --- second borrow occurs due to use of `txn` in closure
+   |             --- second borrow occurs due to use of `*txn` in closure
 
 error: lifetime may not live long enough
   --> tests/compile/iterator_invalidation.rs:27:13

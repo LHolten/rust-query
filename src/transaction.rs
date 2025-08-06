@@ -433,8 +433,13 @@ impl<S: 'static> TransactionMut<S> {
     }
 
     /// Convert the [TransactionMut] into a [TransactionWeak] to allow deletions.
-    pub fn downgrade(self) -> TransactionWeak<S> {
-        TransactionWeak { inner: self }
+    pub fn downgrade(&'static mut self) -> &'static mut TransactionWeak<S> {
+        // TODO: clean this up
+        Box::leak(Box::new(TransactionWeak {
+            inner: TransactionMut {
+                inner: Transaction::new(),
+            },
+        }))
     }
 }
 

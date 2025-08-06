@@ -31,7 +31,7 @@ fn main() {
     database.transaction_mut(queries);
 }
 
-fn queries(mut txn: TransactionMut<Schema>) {
+fn queries(txn: &'static mut TransactionMut<Schema>) {
     let pub_id = 100;
 
     #[expect(unused)]

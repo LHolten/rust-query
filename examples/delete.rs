@@ -21,13 +21,13 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    database.transaction_mut(|mut txn| {
+    database.transaction_mut(|txn| {
         let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
             .into_iter()
             .map(|name| txn.insert_ok(Name { name }))
             .collect();
 
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
         for id in ids.clone() {
             assert!(txn.delete_ok(id));
         }

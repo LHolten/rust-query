@@ -124,7 +124,7 @@ pub mod private {
                 .unwrap()
                 .finish()
                 .unwrap();
-            db.transaction_mut(|mut txn| {
+            db.transaction_mut(|txn| {
                 txn.insert(User { name: "Alice" }).unwrap();
                 f(txn)
             })

@@ -18,23 +18,24 @@ fn main() {
         .finish()
         .expect("database version is after supported versions");
 
-    database.transaction_mut(|mut txn| {
+    database.transaction_mut(|txn| {
         let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
             .into_iter()
             .map(|name| txn.insert_ok(Name { name }))
             .collect();
 
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
 
-        let raw_txn = txn.rusqlite_transaction();
-        for id in ids {
-            let name: String = raw_txn
-                .query_row("select name from Name where id = $1", [&id], |row| {
-                    row.get(0)
-                })
-                .unwrap();
-            println!("{name}")
-        }
+        txn.rusqlite_transaction(|raw_txn| {
+            for id in ids {
+                let name: String = raw_txn
+                    .query_row("select name from Name where id = $1", [&id], |row| {
+                        row.get(0)
+                    })
+                    .unwrap();
+                println!("{name}")
+            }
+        });
 
         txn.commit();
     })

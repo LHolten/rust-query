@@ -131,7 +131,7 @@ fn main() {
         .finish()
         .expect("database should not be too new");
 
-    db.transaction_mut(|mut txn| {
+    db.transaction_mut(|txn| {
         txn.insert(Warehouse {
             number: 0,
             name: "test",
