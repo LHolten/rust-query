@@ -76,7 +76,7 @@ pub struct Select<'columns, S, Out> {
     pub(crate) _p2: PhantomData<S>,
 }
 
-impl<'columns, 'transaction, S, Out: 'static> Select<'columns, S, Out> {
+impl<'columns, S, Out: 'static> Select<'columns, S, Out> {
     /// Map the result of a [Select] using native rust.
     ///
     /// This is useful when implementing [IntoSelect].
