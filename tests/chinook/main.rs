@@ -35,9 +35,7 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     });
     assert_dbg("count_reporting", || count_reporting(txn));
     assert_dbg("list_all_genres", || list_all_genres(txn));
-    assert_dbg("filtered_track", || {
-        filtered_track(txn, "Metal", 1000 * 60)
-    });
+    assert_dbg("filtered_track", || filtered_track(txn, "Metal", 1000 * 60));
     assert_dbg("genre_statistics", || genre_statistics(txn));
     assert_dbg("customer_spending", || all_customer_spending(txn));
     assert_dbg("the_artists", || get_the_artists(txn));

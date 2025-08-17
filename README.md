@@ -1,18 +1,65 @@
 [![Latest Version](https://img.shields.io/crates/v/rust-query.svg)](https://crates.io/crates/rust-query)
 [![Documentation](https://docs.rs/rust-query/badge.svg)](https://docs.rs/rust-query)
 
-# Type safe SQLite using the Rust type system
-The goal of this library is to allow using relational databases (only SQLite right now) using familiar Rust syntax.
-The library should guarantee that queries and migrations can not fail when they compile. While rust-query goes quite far to achieve this, there are still some exceptions that can cause queries to fail, such as integer overflow.
+- [Overview of types](#overview-of-types)
+- [How to provide `IntoSelect`](#how-to-provide-intoselect)
+- [How to work with optional rows](#how-to-work-with-optional-rows)
+- [FAQ](#faq)
+- [What it looks like](#what-it-looks-like)
 
-Writing queries using this library involves:
-- Interaction with row/column references as Rust values.
-- Lifetimes to check the scopes of row/column references.
-- Procedural mutation of row sets with methods like `filter` and `join`.
-- "Combinators" like `optional` and `aggregate`.
+## Overview of types
 
-Notably writing queries itself does not involve any new syntax or macro, while still being completely type safe.
-(There are macros to define the schema and to simplify defining composite types to retrieve from queries)
+There is a hierarchy of types that can be used to build queries.
+- [TableRow], [i64], [f64], [bool], `&[u8]`, `&str`:
+  These are the base types for building expressions. They all
+  implement [IntoExpr] and are [Copy]. Note that [TableRow] is special
+  because it refers to a table row that is guaranteed to exist.
+- [Expr] is the type that all [IntoExpr] values can be converted into.
+  It has a lot of methods to combine expressions into more complicated expressions.
+  Most importantly, it implements [std::ops::Deref], if the expression is a table expression.
+  This can be used to get access to the columns of the table, which can themselves be table expressions.
+  Note that combinators like [optional] and [aggregate] also have [Expr] as return type.
+- `()`, [Expr] and `(Expr, Expr)` implement [IntoSelect]
+  These types can be used as the return type of a query.
+  They specify exactly which values should be returned for each row in the result set.
+- [struct@Select] is the type that all [IntoSelect] value can be converted into.
+  It has the [Select::map] method which allows changing the type that is returned from the query.
+
+## How to provide [IntoSelect]
+
+Making a selection of values to return for each row in the result set is the final step when
+building queries. [rust_query] has many different methods of selecting.
+- First, you can specify the columns that you want directly.
+  `into_vec(&user.name)` or `into_vec((&user.name, aggregate(...)))`
+  Note that the method only supports tuples of size 2 (which can be nested).
+  If you want to have more expressions, then you probably want to use one of the other methods.
+- Derive [derive@Select], super useful when some of the values are aggregates.
+- Derive [derive@FromExpr], choose this method if you just want (a subset of) existing columns.
+- Use `YourTableName!(columns, that, you, want)` to do the same as the [derive@FromExpr] derive.
+  This last option is especially useful for migrations. Note that you have to import both the table name and the special `MacroRoot` type that is defined as part of the [migration::schema] macro.
+- Finally, you can implement [trait@IntoSelect] manually, for maximum flexibility.
+
+## How to work with optional rows
+
+A single optional row is quite common as the result of using unique constraint.
+For example you might create a `Expr<Option<User>>` with something like `User::unique_name(name)`.
+[trait@FromExpr] is automatically implemented for `Option<T>` if it is implemented for `T`, so
+you can do something like `Option::<User!(name, score)>::from_expr(User::unique_name(name))`.
+For more complicated queries you have to use the [optional] combinator.
+
+## FAQ
+- Q: How do I get a full row from the database?
+
+  A: There is no special syntax to get all columns of a row, but you can use
+  the facilities for getting [multiple columns](#how-to-provide-intoselect).
+- Q: How do I retrieve some columns + the [TableRow] of a row?
+
+  A: With something like this: `q.into_vec((&user, User!(name, score)::from_expr(&user)))`.
+- Q: Why is [TableRow] `!Send`?
+
+  A: This prevents moving the [TableRow] between transactions. Moving a [TableRow] between transactions
+  would make it possible for the refered row to already be deleted in the new transaction.
+
 
 ## What it looks like
 
@@ -78,10 +125,6 @@ let mike_pictures = txn.query(|rows| {
 
 println!("{mike_pictures:?}"); // This should print `["dog"]`.
 ```
-The full example code can be found in [insert_and_select.rs](examples/insert_and_select.rs)
-
-## Examples
-For more examples you can look at [the examples directory](/examples).
 
 ## Roadmap
 
@@ -110,4 +153,4 @@ Advanced operations:
 - [ ] Window
 - [ ] Limit
 
-Despite these limitations, I am dogfooding this query builder and using it in my own project: [advent-of-wasm](https://github.com/LHolten/advent-of-wasm).
+[Some future work is funded by NLnet!](https://nlnet.nl/project/rust-query/)
