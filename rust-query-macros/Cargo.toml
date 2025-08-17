@@ -1,6 +1,6 @@
 [package]
 name = "rust-query-macros"
-version = "0.4.4"
+version = "0.5.0"
 edition = "2021"
 description = "Proc-macro crate for rust-query."
 repository = "https://github.com/LHolten/rust-query/"
@@ -16,5 +16,4 @@ syn = { version = "2.0.63", features = ["full"] }
 heck = "0.5.0"
 
 [dev-dependencies]
-ref-cast = "1.0.23"
 rust-query = { path = ".." }
