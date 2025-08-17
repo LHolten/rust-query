@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sea_query::Nullable;
+use sea_query::{ExprTrait, Nullable};
 
 use crate::{
     IntoSelect,

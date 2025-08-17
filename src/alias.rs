@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use sea_query::Iden;
+use sea_query::{DynIden, FunctionCall};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum Field {
@@ -47,34 +47,29 @@ pub(super) struct TmpTable {
     name: u64,
 }
 
-impl sea_query::Iden for Field {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+impl sea_query::IntoIden for Field {
+    fn into_iden(self) -> sea_query::DynIden {
         match self {
-            Field::U64(alias) => alias.unquoted(s),
-            Field::Str(name) => write!(s, "{name}").unwrap(),
+            Field::U64(alias) => alias.into_iden(),
+            Field::Str(name) => name.into_iden(),
         }
     }
 }
 
-impl sea_query::Iden for MyAlias {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "_{}", self.name).unwrap()
+impl sea_query::IntoIden for MyAlias {
+    fn into_iden(self) -> sea_query::DynIden {
+        format!("_{}", self.name).into_iden()
     }
 }
 
-impl sea_query::Iden for TmpTable {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "_tmp{}", self.name).unwrap()
+impl sea_query::IntoIden for TmpTable {
+    fn into_iden(self) -> sea_query::DynIden {
+        format!("_tmp{}", self.name).into_iden()
     }
 }
 
-pub(crate) struct RawAlias(pub(crate) String);
-
-impl Iden for RawAlias {
-    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
-        write!(s, "{}", self.0).unwrap()
-    }
-    fn prepare(&self, s: &mut dyn std::fmt::Write, _q: sea_query::Quote) {
-        self.unquoted(s)
-    }
+#[derive(Clone)]
+pub(crate) enum JoinableTable {
+    Normal(DynIden),
+    Pragma(FunctionCall),
 }

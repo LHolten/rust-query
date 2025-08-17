@@ -9,7 +9,7 @@ use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
 
 use crate::{
     IntoSelect, Select, Table,
-    alias::{Field, MyAlias, RawAlias, Scope},
+    alias::{Field, MyAlias, Scope},
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
     hash,
@@ -287,7 +287,7 @@ pub struct UnixEpoch;
 impl Typed for UnixEpoch {
     type Typ = i64;
     fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
-        sea_query::Expr::col(RawAlias("unixepoch('now')".to_owned())).into()
+        sea_query::Expr::cust("unixepoch('now')").into()
     }
 }
 

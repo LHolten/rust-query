@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{Func, SelectStatement, SimpleExpr};
+use sea_query::{ExprTrait, Func, SelectStatement, SimpleExpr};
 
 use crate::{
     Expr,

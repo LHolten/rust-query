@@ -1,7 +1,11 @@
 use std::{collections::HashMap, convert::Infallible};
 
+use sea_query::Func;
+
 use crate::{
-    Expr, FromExpr, Table, Transaction, hash,
+    Expr, FromExpr, Table, Transaction,
+    alias::JoinableTable,
+    hash,
     private::{Reader, new_column},
 };
 
@@ -38,7 +42,7 @@ macro_rules! table {
             type Referer = ();
             fn get_referer_unchecked() -> Self::Referer {}
 
-            fn name(&self) -> String {
+            fn name(&self) -> JoinableTable {
                 let $var = self;
                 $name
             }
@@ -83,7 +87,7 @@ pub struct Pragma;
 struct TableList;
 
 table! {
-    TableList, _ => "pragma_table_list".to_owned(), TableList,
+    TableList, _ => JoinableTable::Normal("pragma_table_list".into()), TableList,
     TableListSelect {
         schema: String,
         name: String,
@@ -97,7 +101,8 @@ table! {
 struct TableInfo(pub String);
 
 table! {
-    TableInfo, val => format!("pragma_table_info('{}', 'main')", val.0), TableInfo(String::new()),
+    TableInfo, val => JoinableTable::Pragma(Func::cust("pragma_table_info").arg(&val.0).arg("main")),
+    TableInfo(String::new()),
     TableInfoSelect {
         name: String,
         r#type: String,
@@ -109,7 +114,8 @@ table! {
 struct ForeignKeyList(pub String);
 
 table! {
-    ForeignKeyList, val => format!("pragma_foreign_key_list('{}', 'main')", val.0), ForeignKeyList(String::new()),
+    ForeignKeyList, val => JoinableTable::Pragma(Func::cust("pragma_foreign_key_list").arg(&val.0).arg("main")),
+    ForeignKeyList(String::new()),
     ForeignKeyListSelect {
         table: String,
         from: String,
@@ -120,7 +126,8 @@ table! {
 struct IndexList(String);
 
 table! {
-    IndexList, val => format!("pragma_index_list('{}', 'main')", val.0), IndexList(String::new()),
+    IndexList, val => JoinableTable::Pragma(Func::cust("pragma_index_list").arg(&val.0).arg("main")),
+    IndexList(String::new()),
     IndexListSelect {
         name: String,
         unique: bool,
@@ -131,7 +138,8 @@ table! {
 
 struct IndexInfo(String);
 
-table! {IndexInfo, val => format!("pragma_index_info('{}', 'main')", val.0), IndexInfo(String::new()),
+table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").arg(&val.0).arg("main")),
+    IndexInfo(String::new()),
     IndexInfoSelect {
         name: Option<String>,
     }

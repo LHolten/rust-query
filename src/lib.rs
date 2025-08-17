@@ -32,6 +32,8 @@ pub use value::trivial::FromExpr;
 pub use value::{Expr, IntoExpr, UnixEpoch, optional::optional};
 pub use writable::Update;
 
+use crate::alias::JoinableTable;
+
 /// Types that are used as closure arguments.
 ///
 /// You generally don't need to import these types.
@@ -189,8 +191,8 @@ pub trait Table: Sized + 'static {
 
     // used for the first join (useful for pragmas)
     #[doc(hidden)]
-    fn name(&self) -> String {
-        Self::NAME.to_owned()
+    fn name(&self) -> JoinableTable {
+        JoinableTable::Normal(Self::NAME.into())
     }
     #[doc(hidden)]
     fn typs(f: &mut TypBuilder<Self::Schema>);

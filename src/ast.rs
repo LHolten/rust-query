@@ -1,9 +1,11 @@
 use std::rc::Rc;
 
-use sea_query::{Alias, Asterisk, Condition, Expr, NullAlias, SelectStatement, SimpleExpr};
+use sea_query::{
+    Alias, Asterisk, Condition, Expr, ExprTrait, NullAlias, SelectStatement, SimpleExpr,
+};
 
 use crate::{
-    alias::{Field, MyAlias, RawAlias, Scope},
+    alias::{Field, JoinableTable, MyAlias, Scope},
     value::{DynTyped, DynTypedExpr, Typed, ValueBuilder},
 };
 
@@ -12,7 +14,7 @@ pub struct MySelect {
     // this is used to check which `MySelect` a table is from
     pub(crate) scope_rc: Rc<()>,
     // tables to join, adding more requires mutating
-    pub(super) tables: Vec<String>,
+    pub(super) tables: Vec<JoinableTable>,
     // all conditions to check
     pub(super) filters: Vec<DynTyped<bool>>,
 }
@@ -78,8 +80,15 @@ impl ValueBuilder {
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
-            let tbl_ref = (Alias::new("main"), RawAlias(table.clone()));
-            select.from_as(tbl_ref, MyAlias::new(idx));
+            match table {
+                JoinableTable::Normal(table_name) => {
+                    let tbl_ref = ("main", table_name.clone());
+                    select.from_as(tbl_ref, MyAlias::new(idx));
+                }
+                JoinableTable::Pragma(func) => {
+                    select.from_function(func.clone(), MyAlias::new(idx));
+                }
+            }
             any_from = true;
         }
 

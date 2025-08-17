@@ -12,13 +12,13 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 
 [dependencies]
-sea-query = "0.32"
-sea-query-rusqlite = "0.7"
-rusqlite = { version = "0.32", features = ["modern_sqlite", "unlock_notify"] }
+sea-query = "1.0.0-rc.8"
+sea-query-rusqlite = "0.8.0-rc.8"
+rusqlite = { version = "0.37", features = ["modern_sqlite", "unlock_notify"] }
 k12 = {version = "0.3", optional = true}
 rust-query-macros = { path = "rust-query-macros", version = "=0.4.4" }
 pretty_assertions = "1.4.0"
-r2d2_sqlite = "0.25.0"
+r2d2_sqlite = "0.31.0"
 r2d2 = "0.8"
 static_assertions = "1.1.0"
 self_cell = "1.2.0"

@@ -1,10 +1,10 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use sea_query::Iden;
+use sea_query::IntoIden;
 
 use crate::{
     Expr, Table,
-    alias::TmpTable,
+    alias::{JoinableTable, TmpTable},
     ast::MySelect,
     db::Join,
     value::{IntoExpr, MyTableRef, MyTyp, Typed},
@@ -32,20 +32,19 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// The expression that is returned refers to the joined table.
     pub fn join<T: Table<Schema = S>>(&mut self, _: T) -> Expr<'inner, S, T> {
-        self.join_string(T::NAME.to_owned())
+        self.join_inner(JoinableTable::Normal(T::NAME.into()))
     }
 
     pub(crate) fn join_custom<T: Table<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
-        self.join_string(t.name())
+        self.join_inner(t.name())
     }
 
     pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
-        let mut tmp_string = String::new();
-        tmp.unquoted(&mut tmp_string);
-        self.join_string(tmp_string)
+        let tmp_string = tmp.into_iden();
+        self.join_inner(JoinableTable::Normal(tmp_string))
     }
 
-    fn join_string<T: Table<Schema = S>>(&mut self, name: String) -> Expr<'inner, S, T> {
+    fn join_inner<T: Table<Schema = S>>(&mut self, name: JoinableTable) -> Expr<'inner, S, T> {
         let table_idx = self.ast.tables.len();
         Rc::make_mut(&mut self.ast).tables.push(name);
         Expr::new(Join::new(MyTableRef {

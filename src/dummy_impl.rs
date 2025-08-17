@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sea_query::Iden;
+use sea_query::IntoIden;
 
 use crate::{
     Expr,
@@ -53,9 +53,9 @@ impl<'x> Row<'x> {
     }
 
     pub fn get<T: SecretFromSql>(&self, val: Cached<T>) -> T {
-        let field = self.fields[val.idx];
-        let idx = &*field.to_string();
-        T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
+        let field = self.fields[val.idx].into_iden();
+        let idx = field.inner();
+        T::from_sql(self.row.get_ref_unwrap(&*idx)).unwrap()
     }
 }
 

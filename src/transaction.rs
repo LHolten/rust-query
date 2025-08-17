@@ -2,7 +2,7 @@ use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData};
 
 use rusqlite::ErrorCode;
 use sea_query::{
-    Alias, CommonTableExpression, DeleteStatement, Expr, InsertStatement, IntoTableRef,
+    Alias, CommonTableExpression, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoTableRef,
     SelectStatement, SimpleExpr, SqliteQueryBuilder, UpdateStatement, WithClause,
 };
 use sea_query_rusqlite::RusqliteBinder;
@@ -279,11 +279,7 @@ impl<S: 'static> Transaction<S> {
         &mut self,
         val: impl TableInsert<T = T>,
     ) -> Result<TableRow<T>, T::Conflict> {
-        try_insert_private(
-            Alias::new(T::NAME).into_table_ref(),
-            None,
-            val.into_insert(),
-        )
+        try_insert_private(T::NAME.into_table_ref(), None, val.into_insert())
     }
 
     /// This is a convenience function to make using [Transaction::insert]
@@ -372,11 +368,8 @@ impl<S: 'static> Transaction<S> {
         let with_clause = WithClause::new().cte(cte).to_owned();
 
         let mut update = UpdateStatement::new()
-            .table((Alias::new("main"), Alias::new(T::NAME)))
-            .cond_where(
-                Expr::col((Alias::new("main"), Alias::new(T::NAME), Alias::new(T::ID)))
-                    .in_subquery(id),
-            )
+            .table(("main", T::NAME))
+            .cond_where(Expr::col(("main", T::NAME, T::ID)).in_subquery(id))
             .to_owned();
 
         for (name, field) in zip(col_names, col_fields) {
@@ -455,11 +448,8 @@ impl<S: 'static> TransactionWeak<S> {
     /// - `false` if the row was deleted previously in this transaction.
     pub fn delete<T: Table<Schema = S>>(&mut self, val: TableRow<T>) -> Result<bool, T::Referer> {
         let stmt = DeleteStatement::new()
-            .from_table((Alias::new("main"), Alias::new(T::NAME)))
-            .cond_where(
-                Expr::col((Alias::new("main"), Alias::new(T::NAME), Alias::new(T::ID)))
-                    .eq(val.inner.idx),
-            )
+            .from_table(("main", T::NAME))
+            .cond_where(Expr::col(("main", T::NAME, T::ID)).eq(val.inner.idx))
             .to_owned();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
@@ -535,7 +525,7 @@ pub fn try_insert_private<T: Table>(
     } else {
         insert.select_from(select).unwrap();
     }
-    insert.returning_col(Alias::new(T::ID));
+    insert.returning_col(T::ID);
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
