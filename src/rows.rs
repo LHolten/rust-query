@@ -29,6 +29,8 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// After this operation [Rows] has rows for the combinations of each original row with each row of the table.
     /// (Also called the "Carthesian product")
+    ///
+    /// The expression that is returned refers to the joined table.
     pub fn join<T: Table<Schema = S>>(&mut self, _: T) -> Expr<'inner, S, T> {
         self.join_string(T::NAME.to_owned())
     }
@@ -57,15 +59,15 @@ impl<'inner, S> Rows<'inner, S> {
     //     todo!()
     // }
 
-    /// Filter rows based on a column.
+    /// Filter rows based on an expression.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
         let prop = prop.into_expr();
         Rc::make_mut(&mut self.ast).filters.push(prop.inner);
     }
 
-    /// Filter out rows where this column is [None].
+    /// Filter out rows where this expression is [None].
     ///
-    /// Returns a new column with the unwrapped type.
+    /// Returns a new expression with the unwrapped type.
     pub fn filter_some<Typ: MyTyp>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,

@@ -290,7 +290,29 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ///
 /// The implementation of `FromExpr` will initialize every field from the column with
 /// the corresponding name. It is also possible to change the type of each field
-/// as long as the type implements `FromExpr`.
+/// as long as the new field type implements `FromExpr`.
+///
+/// ```
+/// # use rust_query::migration::schema;
+/// # use rust_query::{TableRow, FromExpr};
+/// #[schema(Example)]
+/// pub mod vN {
+///     pub struct User {
+///         pub name: String,
+///         pub score: i64,
+///         pub best_game: Option<Game>,
+///     }
+///     pub struct Game;
+/// }
+///
+/// #[derive(FromExpr)]
+/// #[rust_query(From = v0::User)]
+/// struct MyUserFields {
+///     name: String,
+///     best_game: Option<TableRow<v0::Game>>,
+/// }
+/// # fn main() {}
+/// ```
 #[proc_macro_derive(FromExpr, attributes(rust_query))]
 pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);

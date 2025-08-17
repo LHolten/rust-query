@@ -37,7 +37,7 @@ impl<T: Table> Typed for Join<T> {
 
 /// Row reference that can be used in any query in the same transaction.
 ///
-/// [TableRow] is covariant in `'t` and restricted to a single thread to prevent it from being used in a different transaction.
+/// [TableRow] is restricted to a single thread to prevent it from being used in a different transaction.
 pub struct TableRow<T: Table> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: TableRowInner<T>,

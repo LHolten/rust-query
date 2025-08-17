@@ -95,12 +95,15 @@ impl<S: Send + Sync + 'static> Database<S> {
         })
     }
 
-    /// Create a [&mut Transaction].
-    /// This operation needs to wait for all other [&mut Transaction]s for this database to be finished.
+    /// Create a mutable [Transaction].
+    /// This operation needs to wait for all other mutable [Transaction]s for this database to be finished.
+    ///
+    /// Whether the transaction is commited depends on the result of the closure.
+    /// The transaction is only commited if the closure return [Ok]. In the case that it returns [Err]
+    /// or when the closure panics, a rollback is performed.
     ///
     /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
     /// This makes it work across processes.
-    ///
     /// Note: you can create a deadlock if you are holding on to another lock while trying to
     /// get a mutable transaction!
     ///
@@ -143,7 +146,7 @@ impl<S: Send + Sync + 'static> Database<S> {
 
     /// Same as [Self::transaction_mut], but always commits the transaction.
     ///
-    /// Only exception is if the closure panics, in that case the transaction is rolled back.
+    /// The only exception is that if the closure panics, a rollback is performed.
     pub fn transaction_mut_ok<R: Send>(
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
@@ -169,9 +172,6 @@ impl<S: Send + Sync + 'static> Database<S> {
 /// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
 /// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
-///
-/// All [TableRow] references retrieved from the database live for at most `'a`.
-/// This makes these references effectively local to this [Transaction].
 pub struct Transaction<S> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
@@ -332,7 +332,7 @@ impl<S: 'static> Transaction<S> {
     /// Updating can fail just like [Transaction::insert] because of unique constraint conflicts.
     /// This happens when the new values are in conflict with an existing different row.
     ///
-    /// When the update succeeds, this function returns [Ok<()>], when it fails it returns [Err] with one of
+    /// When the update succeeds, this function returns [Ok], when it fails it returns [Err] with one of
     /// three conflict types:
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [Expr] reference to the conflicting table row.

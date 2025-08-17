@@ -280,7 +280,7 @@ where
     }
 }
 
-/// Use this a value in a query to get the current datetime as a number.
+/// Use this a value in a query to get the current datetime as a number of miliseconds.
 #[derive(Clone, Copy)]
 pub struct UnixEpoch;
 
@@ -432,7 +432,7 @@ impl<T: SecretFromSql> SecretFromSql for Option<T> {
 /// - The type parameter `S` specifies the expected schema of the query.
 /// - And finally the type paramter `T` specifies the type of the expression.
 ///
-/// [Expr] implements [Deref] to have table extension methods in case the type is a table type.
+/// [Expr] implements [Deref] to have column fields in case the expression has a table type.
 pub struct Expr<'column, S, T: MyTyp> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: DynTyped<T>,

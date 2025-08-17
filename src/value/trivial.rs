@@ -9,7 +9,7 @@ use super::MyTyp;
 ///
 /// Note that this trait can also be implemented using the [derive@rust_query::FromExpr] derive macro.
 pub trait FromExpr<S, From>: 'static + Sized {
-    /// How to turn a column reference into a [Select].
+    /// How to turn the expression into a [Select].
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, S, Typ = From>,
     ) -> Select<'columns, S, Self>;

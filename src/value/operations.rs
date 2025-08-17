@@ -291,7 +291,7 @@ impl<'column, S> Expr<'column, S, String> {
         self.glob(format!("*{}*", escape_glob(pattern)))
     }
 
-    /// Check if the expression matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// This is a case-sensitive version of [like](Self::like). It uses Unix file globbing syntax for wild
     /// cards. `*` matches any sequence of characters and `?` matches any single character. `[0-9]` matches
@@ -310,7 +310,7 @@ impl<'column, S> Expr<'column, S, String> {
         Expr::adhoc(move |b| sea_query::Expr::expr(lhs.build_expr(b)).glob(rhs.build_expr(b)))
     }
 
-    /// Check if the expression matches the pattern [docs](https://www.sqlite.org/lang_expr.html#like).
+    /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// As noted in the docs, it is **case-insensitive** for ASCII characters. Other characters are case-sensitive.
     /// For creating patterns it uses `%` as a wildcard for any sequence of characters and `_` for any single character.
