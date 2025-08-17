@@ -92,8 +92,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {
-        const NULL: sea_query::SimpleExpr =
-            sea_query::SimpleExpr::Keyword(sea_query::Keyword::Null);
+        const NULL: sea_query::Expr = sea_query::Expr::Keyword(sea_query::Keyword::Null);
 
         let col = col.into_expr().inner;
         let is_none = self.is_none().inner;

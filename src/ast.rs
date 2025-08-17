@@ -1,8 +1,6 @@
 use std::rc::Rc;
 
-use sea_query::{
-    Alias, Asterisk, Condition, Expr, ExprTrait, NullAlias, SelectStatement, SimpleExpr,
-};
+use sea_query::{Alias, Asterisk, Condition, Expr, ExprTrait, NullAlias, SelectStatement};
 
 use crate::{
     alias::{Field, JoinableTable, MyAlias, Scope},
@@ -21,7 +19,7 @@ pub struct MySelect {
 
 #[derive(PartialEq, Clone)]
 pub(super) struct Source {
-    pub(super) conds: Vec<(Field, SimpleExpr)>,
+    pub(super) conds: Vec<(Field, sea_query::Expr)>,
     pub(super) kind: SourceKind,
 }
 
@@ -133,7 +131,8 @@ impl ValueBuilder {
 
             // this constant refers to the 1 indexed output column.
             // should work on postgresql and sqlite.
-            let constant = SimpleExpr::Constant(sea_query::Value::BigInt(Some((idx + 1) as i64)));
+            let constant =
+                sea_query::Expr::Constant(sea_query::Value::BigInt(Some((idx + 1) as i64)));
             select.add_group_by([constant]);
             any_group = true;
         }

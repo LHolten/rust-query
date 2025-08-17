@@ -5,7 +5,7 @@ pub mod trivial;
 
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
-use sea_query::{Alias, Nullable, SelectStatement, SimpleExpr};
+use sea_query::{Alias, Nullable, SelectStatement};
 
 use crate::{
     IntoSelect, Select, Table,
@@ -31,7 +31,7 @@ impl ValueBuilder {
     pub(crate) fn get_aggr(
         &mut self,
         aggr: Rc<SelectStatement>,
-        conds: Vec<SimpleExpr>,
+        conds: Vec<sea_query::Expr>,
     ) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Aggregate(aggr),
@@ -45,7 +45,7 @@ impl ValueBuilder {
         *self.extra.get_or_init(source, new_alias)
     }
 
-    pub(crate) fn get_join<T: Table>(&mut self, expr: SimpleExpr) -> MyAlias {
+    pub(crate) fn get_join<T: Table>(&mut self, expr: sea_query::Expr) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: vec![(Field::Str(T::ID), expr)],
@@ -54,7 +54,10 @@ impl ValueBuilder {
         *self.extra.get_or_init(source, new_alias)
     }
 
-    pub fn get_unique<T: Table>(&mut self, conds: Box<[(&'static str, SimpleExpr)]>) -> SimpleExpr {
+    pub fn get_unique<T: Table>(
+        &mut self,
+        conds: Box<[(&'static str, sea_query::Expr)]>,
+    ) -> sea_query::Expr {
         let source = Source {
             kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
             conds: conds.into_iter().map(|x| (Field::Str(x.0), x.1)).collect(),
@@ -131,7 +134,7 @@ pub trait Typed {
     type Typ;
 
     #[doc(hidden)]
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr;
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr;
     #[doc(hidden)]
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
@@ -154,7 +157,7 @@ pub trait IntoExpr<'column, S> {
 impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
     type Typ = Option<T::Typ>;
 
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         self.as_ref()
             .map(|x| T::build_expr(x, b))
             .unwrap_or(X::Sql::null().into())
@@ -172,8 +175,8 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> Into
 
 impl Typed for String {
     type Typ = String;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
-        SimpleExpr::from(self)
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
+        sea_query::Expr::from(self)
     }
 }
 
@@ -193,8 +196,8 @@ impl<'column, S> IntoExpr<'column, S> for &str {
 
 impl Typed for Vec<u8> {
     type Typ = Vec<u8>;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
-        SimpleExpr::from(self.to_owned())
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
+        sea_query::Expr::from(self.to_owned())
     }
 }
 
@@ -214,8 +217,8 @@ impl<'column, S> IntoExpr<'column, S> for &[u8] {
 
 impl Typed for bool {
     type Typ = bool;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
-        SimpleExpr::from(*self)
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
+        sea_query::Expr::from(*self)
     }
 }
 
@@ -228,8 +231,8 @@ impl<'column, S> IntoExpr<'column, S> for bool {
 
 impl Typed for i64 {
     type Typ = i64;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
-        SimpleExpr::from(*self)
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
+        sea_query::Expr::from(*self)
     }
 }
 
@@ -242,8 +245,8 @@ impl<'column, S> IntoExpr<'column, S> for i64 {
 
 impl Typed for f64 {
     type Typ = f64;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
-        SimpleExpr::from(*self)
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
+        sea_query::Expr::from(*self)
     }
 }
 
@@ -259,7 +262,7 @@ where
     T: Typed,
 {
     type Typ = T::Typ;
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         T::build_expr(self, b)
     }
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
@@ -286,7 +289,7 @@ pub struct UnixEpoch;
 
 impl Typed for UnixEpoch {
     type Typ = i64;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::cust("unixepoch('now')").into()
     }
 }
@@ -459,7 +462,7 @@ impl<'column, S, T: MyTyp> Expr<'column, S, T> {
 }
 
 pub fn adhoc_expr<S, T: MyTyp>(
-    f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
+    f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
 ) -> Expr<'static, S, T> {
     Expr::adhoc(f)
 }
@@ -486,16 +489,16 @@ pub fn into_owned<'x, S, T: MyTyp>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyp
 }
 
 struct AdHoc<F, T>(F, PhantomData<T>);
-impl<F: Fn(&mut ValueBuilder) -> SimpleExpr, T> Typed for AdHoc<F, T> {
+impl<F: Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
     type Typ = T;
 
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         (self.0)(b)
     }
 }
 
 impl<S, T: MyTyp> Expr<'_, S, T> {
-    pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr) -> Self {
+    pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
         Self::new(AdHoc(f, PhantomData))
     }
 
@@ -523,10 +526,10 @@ impl<S, T: MyTyp> Clone for Expr<'_, S, T> {
 }
 
 #[derive(Clone)]
-pub struct DynTypedExpr(pub(crate) Rc<dyn Fn(&mut ValueBuilder) -> SimpleExpr>);
+pub struct DynTypedExpr(pub(crate) Rc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr>);
 
 impl DynTypedExpr {
-    pub fn new(f: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr) -> Self {
+    pub fn new(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
         Self(Rc::new(f))
     }
 }
@@ -544,7 +547,7 @@ pub struct MigratedExpr<Typ> {
 
 impl<Typ> Typed for MigratedExpr<Typ> {
     type Typ = Typ;
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         self.prev.0(b)
     }
 }
@@ -566,7 +569,7 @@ impl<T> Clone for DynTyped<T> {
 impl<Typ: 'static> Typed for DynTyped<Typ> {
     type Typ = Typ;
 
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         self.0.build_expr(b)
     }
 

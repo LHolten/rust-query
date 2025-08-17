@@ -3,7 +3,7 @@ use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData};
 use rusqlite::ErrorCode;
 use sea_query::{
     Alias, CommonTableExpression, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoTableRef,
-    SelectStatement, SimpleExpr, SqliteQueryBuilder, UpdateStatement, WithClause,
+    SelectStatement, SqliteQueryBuilder, UpdateStatement, WithClause,
 };
 use sea_query_rusqlite::RusqliteBinder;
 use self_cell::{MutBorrow, self_cell};
@@ -377,7 +377,7 @@ impl<S: 'static> Transaction<S> {
                 .from(Alias::new("cte"))
                 .column(field)
                 .to_owned();
-            let value = SimpleExpr::SubQuery(
+            let value = sea_query::Expr::SubQuery(
                 None,
                 Box::new(sea_query::SubQueryStatement::SelectStatement(select)),
             );

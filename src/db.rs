@@ -1,6 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData};
 
-use sea_query::{Alias, SimpleExpr};
+use sea_query::Alias;
 
 use crate::{
     Expr, IntoExpr, Table,
@@ -27,7 +27,7 @@ impl<T> Join<T> {
 
 impl<T: Table> Typed for Join<T> {
     type Typ = T;
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
@@ -109,7 +109,7 @@ impl<T: Table> From<TableRow<T>> for sea_query::Value {
 
 impl<T: Table> Typed for TableRowInner<T> {
     type Typ = T;
-    fn build_expr(&self, _: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::val(self.idx).into()
     }
 }

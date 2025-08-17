@@ -69,7 +69,6 @@ pub mod private {
     pub use crate::writable::{Reader, TableInsert};
 
     pub use rust_query_macros::fields;
-    pub use sea_query::SimpleExpr;
 
     pub struct Native;
     pub struct Ignore;

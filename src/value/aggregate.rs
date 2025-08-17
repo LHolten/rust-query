@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{ExprTrait, Func, SelectStatement, SimpleExpr};
+use sea_query::{ExprTrait, Func, SelectStatement};
 
 use crate::{
     Expr,
@@ -38,7 +38,7 @@ impl<S> DerefMut for Aggregate<'_, '_, S> {
 impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     fn select<T>(
         &self,
-        expr: impl 'static + Fn(&mut ValueBuilder) -> SimpleExpr,
+        expr: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
     ) -> Aggr<S, Option<T>> {
         let expr = DynTypedExpr(Rc::new(expr));
         let mut builder = self.query.ast.clone().full();
@@ -91,7 +91,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(val.build_expr(b))
-                .if_null(SimpleExpr::Constant(T::ZERO.into_sea_value()))
+                .if_null(sea_query::Expr::Constant(T::ZERO.into_sea_value()))
         })
     }
 
@@ -104,13 +104,13 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let val = self.select::<i64>(move |b| Func::count_distinct(val.build_expr(b)).into());
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(val.build_expr(b))
-                .if_null(SimpleExpr::Constant(0i64.into_sea_value()))
+                .if_null(sea_query::Expr::Constant(0i64.into_sea_value()))
         })
     }
 
     /// Return whether there are any rows.
     pub fn exists(&self) -> Expr<'outer, S, bool> {
-        let val = self.select::<i64>(|_| SimpleExpr::Constant(1.into_sea_value()));
+        let val = self.select::<i64>(|_| sea_query::Expr::Constant(1.into_sea_value()));
         Expr::adhoc(move |b| sea_query::Expr::expr(val.build_expr(b)).is_not_null())
     }
 }
@@ -135,7 +135,7 @@ impl<S, T> Clone for Aggr<S, T> {
 
 impl<S, T: MyTyp> Typed for Aggr<S, T> {
     type Typ = T;
-    fn build_expr(&self, b: &mut ValueBuilder) -> SimpleExpr {
+    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::col((self.build_table(b), self.field)).into()
     }
 }
