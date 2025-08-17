@@ -12,7 +12,7 @@ pub mod vN {
 use v0::*;
 
 fn test1(db: Database<Schema>) {
-    db.transaction_mut(|txn| {
+    db.transaction_mut_ok(|txn| {
         txn.query(|_rows| {
             // can not insert inside of `query`
             txn.insert_ok(MyTable { name: "test" });

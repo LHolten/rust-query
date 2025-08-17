@@ -18,7 +18,7 @@ error[E0277]: `*const ()` cannot be sent between threads safely
 note: required because it appears within the type `PhantomData<*const ()>`
   --> $RUST/core/src/marker.rs
    |
-   | pub struct PhantomData<T: ?Sized>;
+   | pub struct PhantomData<T: PointeeSized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `TableRow<v0::MyTable>`
   --> src/db.rs
@@ -28,7 +28,7 @@ note: required because it appears within the type `TableRow<v0::MyTable>`
 note: required because it appears within the type `PhantomData<TableRow<v0::MyTable>>`
   --> $RUST/core/src/marker.rs
    |
-   | pub struct PhantomData<T: ?Sized>;
+   | pub struct PhantomData<T: PointeeSized>;
    |            ^^^^^^^^^^^
 note: required because it appears within the type `alloc::raw_vec::RawVec<TableRow<v0::MyTable>>`
   --> $RUST/alloc/src/raw_vec/mod.rs
