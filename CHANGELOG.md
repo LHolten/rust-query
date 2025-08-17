@@ -2,15 +2,24 @@
 
 # 0.5.0
 
-- Changed foreign key join syntax from methods `artist.name()` to fields `&artist.name`.
-- Removed support for foreign key join syntax on `TableRow`.
-- Remove deprecated `Table::join`.
-- Remove deprecated `IntoSelectExt` (wit the `map_select` method).
-- Remove deprecated `Aggregate::filter_on`.
+## Changed table column syntax
+- Instead of methods `artist.name()`, you should now use fields `&artist.name`.
+- `TableRow` does not have support for accessing columns anymore, instead convert the `TableRow` to an `Expr` using `IntoExpr`.
+- Removed `ref_cast` dependency.
 
-## Internal improvement
+## All transactions now run on separate threads
+- Removed all transaction lifetimes (`TableRow` no longer has a lifetime).
+- Removed `LocalClient` (methods have been moved to `Database`).
+- `Database::transaction` and `Database::transaction_mut` now accept a closure to run on a new thread.
+- Removed `TransactionMut::commit` (commit now depends on the result returned from the transaction).
+- Added `Database::transaction_mut_ok` for when the transaction is always commited.
+- Removed `TransactionMut`, it is replaced by `&mut Transaction`.
 
-- Removed `ref_cast` dependency and remaining unsafe code.
+## Other
+- Removed deprecated `Table::join`.
+- Removed deprecated `IntoSelectExt` (wit the `map_select` method).
+- Removed deprecated `Aggregate::filter_on`.
+- Updated to rusqlite 0.37
 
 # 0.4.4
 
