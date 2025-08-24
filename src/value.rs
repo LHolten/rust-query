@@ -283,7 +283,7 @@ where
     }
 }
 
-/// Use this a value in a query to get the current datetime as a number of miliseconds.
+/// Use this a value in a query to get the current datetime as a number of seconds.
 #[derive(Clone, Copy)]
 pub struct UnixEpoch;
 
