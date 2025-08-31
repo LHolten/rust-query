@@ -30,8 +30,8 @@ There is a hierarchy of types that can be used to build queries.
 Making a selection of values to return for each row in the result set is the final step when
 building queries. [rust_query] has many different methods of selecting.
 - First, you can specify the columns that you want directly.
-  `into_vec(&user.name)` or `into_vec((&user.name, aggregate(...)))`
-  Note that the method only supports tuples of size 2 (which can be nested).
+  `into_vec(&user.name)` or `into_vec((&user.name, some_other_expr))`
+  Note that this method only supports tuples of size 2 (which can be nested).
   If you want to have more expressions, then you probably want to use one of the other methods.
 - Derive [derive@Select], super useful when some of the values are aggregates.
 - Derive [derive@FromExpr], choose this method if you just want (a subset of) existing columns.
