@@ -229,14 +229,41 @@ pub trait SchemaMigration<'a> {
 ///
 /// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html).
 /// The effect of this mode is that there can be any number of readers with one concurrent writer.
-/// What is nice about this is that a [& crate::Transaction] can always be made immediately.
-/// Making a [&mut crate::Transaction] has to wait until all other [&mut crate::Transaction]s are finished.
-///
-/// Sqlite is also configured with [`synchronous=NORMAL`](https://www.sqlite.org/pragma.html#pragma_synchronous). This gives better performance by fsyncing less.
-/// The database will not lose transactions due to application crashes, but it might due to system crashes or power loss.
+/// What is nice about this is that a `&`[crate::Transaction] can always be made immediately.
+/// Making a `&mut`[crate::Transaction] has to wait until all other `&mut`[crate::Transaction]s are finished.
 pub struct Config {
     manager: r2d2_sqlite::SqliteConnectionManager,
     init: Box<dyn FnOnce(&rusqlite::Transaction)>,
+    /// Configure how often SQLite will synchronize the database to disk.
+    ///
+    /// The default is [Synchronous::Full].
+    pub synchronous: Synchronous,
+}
+
+/// <https://www.sqlite.org/pragma.html#pragma_synchronous>
+///
+/// Note that the database uses WAL mode, so make sure to read the WAL specific section.
+#[non_exhaustive]
+pub enum Synchronous {
+    /// SQLite will fsync after every transaction.
+    ///
+    /// Transactions are durable, even following a power failure or hard reboot.
+    Full,
+
+    /// SQLite will only do essential fsync to prevent corruption.
+    ///
+    /// The database will not rollback transactions due to application crashes, but it might rollback due to a hardware reset or power loss.
+    /// Use this when performance is more important than durability.
+    Normal,
+}
+
+impl Synchronous {
+    fn as_str(self) -> &'static str {
+        match self {
+            Synchronous::Full => "FULL",
+            Synchronous::Normal => "NORMAL",
+        }
+    }
 }
 
 impl Config {
@@ -258,25 +285,16 @@ impl Config {
     }
 
     fn open_internal(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
-        let manager = manager.with_init(|inner| {
-            inner.pragma_update(None, "journal_mode", "WAL")?;
-            inner.pragma_update(None, "synchronous", "NORMAL")?;
-            inner.pragma_update(None, "foreign_keys", "ON")?;
-            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
-            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
-            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
-            Ok(())
-        });
-
         Self {
             manager,
             init: Box::new(|_| {}),
+            synchronous: Synchronous::Full,
         }
     }
 
-    /// Execute a raw sql statement if the database was just created.
+    /// Append a raw sql statement to be executed if the database was just created.
     ///
-    /// The statement is executed after creating the empty database and executingall previous statements.
+    /// The statement is executed after creating the empty database and executing all previous statements.
     pub fn init_stmt(mut self, sql: &'static str) -> Self {
         self.init = Box::new(move |txn| {
             (self.init)(txn);
@@ -293,8 +311,19 @@ impl<S: Schema> Database<S> {
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.
     pub fn migrator(config: Config) -> Option<Migrator<S>> {
+        let synchronous = config.synchronous.as_str();
+        let manager = config.manager.with_init(move |inner| {
+            inner.pragma_update(None, "journal_mode", "WAL")?;
+            inner.pragma_update(None, "synchronous", synchronous)?;
+            inner.pragma_update(None, "foreign_keys", "ON")?;
+            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
+            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
+            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+            Ok(())
+        });
+
         use r2d2::ManageConnection;
-        let conn = config.manager.connect().unwrap();
+        let conn = manager.connect().unwrap();
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
         let txn = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             Some(
@@ -328,7 +357,7 @@ impl<S: Schema> Database<S> {
         );
 
         Some(Migrator {
-            manager: config.manager,
+            manager,
             transaction: txn,
             _p: PhantomData,
         })

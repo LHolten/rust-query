@@ -1,5 +1,8 @@
 # Unreleased
 
+- Changed default `synchronous` to `FULL`.
+- Added the option to congiure `synchronous` to `NORMAL`.
+
 # 0.5.0
 
 ## Changed table column syntax
