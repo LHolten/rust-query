@@ -11,6 +11,10 @@ repository = "https://github.com/LHolten/rust-query/"
 license = "MIT OR Apache-2.0"
 rust-version = "1.85"
 
+[[test]]
+name = "tpc_c"
+harness = false
+
 [dependencies]
 sea-query = { version = "=1.0.0-rc.12", default-features = false, features = ["backend-sqlite"] }
 sea-query-rusqlite = "=0.8.0-rc.8"

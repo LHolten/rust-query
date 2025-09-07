@@ -142,6 +142,10 @@ fn main() {
         .expect("database should not be too new");
 
     db.transaction_mut_ok(|txn| {
+        populate::populate(txn, 1);
+    });
+
+    db.transaction_mut_ok(|txn| {
         txn.insert(Warehouse {
             number: 0,
             name: "test",

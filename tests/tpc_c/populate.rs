@@ -1,4 +1,4 @@
-use std::{array, iter};
+use std::iter;
 
 use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
 use rust_query::{TableRow, Transaction, UnixEpoch};
@@ -28,7 +28,7 @@ fn n_string(min_len: usize, max_len: usize) -> String {
         .collect()
 }
 
-pub fn zip_code() -> String {
+fn zip_code() -> String {
     n_string(4, 4) + "11111"
 }
 
@@ -42,16 +42,18 @@ fn data() -> String {
 }
 
 pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: usize) {
-    let items = Box::new(array::from_fn(|number| {
-        txn.insert(Item {
-            number: number as i64,
-            image_id: rand::random_range(1..=10_000),
-            name: a_string(14, 24),
-            price: rand::random_range(1 * 100..=100 * 100),
-            data: data(),
+    let items: Box<[_]> = (0..100_000)
+        .map(|number| {
+            txn.insert(Item {
+                number: number as i64,
+                image_id: rand::random_range(1..=10_000),
+                name: a_string(14, 24),
+                price: rand::random_range(1 * 100..=100 * 100),
+                data: data(),
+            })
+            .expect("number is unique")
         })
-        .expect("number is unique")
-    }));
+        .collect();
 
     for number in 0..warehouse_cnt as i64 {
         let warehouse = txn
@@ -71,34 +73,37 @@ pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: usize) {
     }
 }
 
-pub fn populate_warehouse(
+fn populate_warehouse(
     txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
-    items: &[TableRow<Item>; 100_000],
+    items: &[TableRow<Item>],
 ) {
-    let stock = Box::new(items.map(|item| {
-        txn.insert(Stock {
-            warehouse,
-            item,
-            quantity: rand::random_range(10..=100),
-            dist_00: a_string(24, 24),
-            dist_01: a_string(24, 24),
-            dist_02: a_string(24, 24),
-            dist_03: a_string(24, 24),
-            dist_04: a_string(24, 24),
-            dist_05: a_string(24, 24),
-            dist_06: a_string(24, 24),
-            dist_07: a_string(24, 24),
-            dist_08: a_string(24, 24),
-            dist_09: a_string(24, 24),
-            dist_10: a_string(24, 24),
-            ytd: 0,
-            order_cnt: 0,
-            remote_cnt: 0,
-            data: data(),
+    let stock: Box<_> = items
+        .iter()
+        .map(|item| {
+            txn.insert(Stock {
+                warehouse,
+                item,
+                quantity: rand::random_range(10..=100),
+                dist_00: a_string(24, 24),
+                dist_01: a_string(24, 24),
+                dist_02: a_string(24, 24),
+                dist_03: a_string(24, 24),
+                dist_04: a_string(24, 24),
+                dist_05: a_string(24, 24),
+                dist_06: a_string(24, 24),
+                dist_07: a_string(24, 24),
+                dist_08: a_string(24, 24),
+                dist_09: a_string(24, 24),
+                dist_10: a_string(24, 24),
+                ytd: 0,
+                order_cnt: 0,
+                remote_cnt: 0,
+                data: data(),
+            })
+            .expect("warehouse + item is unique")
         })
-        .expect("warehouse + item is unique")
-    }));
+        .collect();
 
     for number in 0..10 {
         let district = txn
@@ -124,7 +129,7 @@ pub fn populate_warehouse(
 fn populate_district(
     txn: &mut Transaction<Schema>,
     district: TableRow<District>,
-    stock: &[TableRow<Stock>; 100_000],
+    stock: &[TableRow<Stock>],
 ) {
     let mut customers = vec![];
     for number in 0..3000 {
@@ -175,17 +180,15 @@ fn populate_district(
     customers.shuffle(&mut rand::rng());
 
     for (order_number, customer) in customers.into_iter().enumerate() {
+        let delivered = order_number < 2101;
+
         let order_line_cnt = rand::random_range(5..=15);
         let order = txn
             .insert(Order {
                 customer,
                 number: order_number as i64,
                 entry_d: UnixEpoch,
-                carrier_id: if order_number < 2101 {
-                    Some(rand::random_range(1..=10))
-                } else {
-                    None
-                },
+                carrier_id: delivered.then_some(rand::random_range(1..=10)),
                 order_line_cnt,
                 all_local: 1,
             })
@@ -199,13 +202,9 @@ fn populate_district(
                 stock: stock
                     .choose(&mut rand::rng())
                     .expect("stock array is not empty"),
-                delivery_d: if order_number < 2101 {
-                    Some(UnixEpoch)
-                } else {
-                    None
-                },
+                delivery_d: delivered.then_some(UnixEpoch),
                 quantity: 5,
-                amount: if order_number < 2101 {
+                amount: if delivered {
                     0
                 } else {
                     rand::random_range(1..=999999)
@@ -215,7 +214,7 @@ fn populate_district(
             .expect("order + number is unique");
         }
 
-        if order_number > 2100 {
+        if !delivered {
             txn.insert(NewOrder { order }).expect("order is unique");
         }
     }
