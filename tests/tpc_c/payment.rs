@@ -10,25 +10,24 @@ pub fn random_payment(
 }
 
 fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> PaymentInput {
-    let mut rng = rand::rng();
     let district = txn
-        .query_one(District::unique(warehouse, rng.random_range(1..=10)))
+        .query_one(District::unique(warehouse, rand::random_range(1..=10)))
         .unwrap();
 
-    let customer_district = if rng.random_ratio(85, 100) {
+    let customer_district = if rand::random_ratio(85, 100) {
         district
     } else {
         // TODO: select a different warehouse here
-        txn.query_one(District::unique(warehouse, rng.random_range(1..=10)))
+        txn.query_one(District::unique(warehouse, rand::random_range(1..=10)))
             .unwrap()
     };
 
-    let customer = customer_ident(txn, &mut rng, customer_district);
+    let customer = customer_ident(txn, customer_district);
 
     PaymentInput {
         district,
         customer,
-        amount: rng.random_range(100..=500000),
+        amount: rand::random_range(100..=500000),
         date: SystemTime::now(),
     }
 }
