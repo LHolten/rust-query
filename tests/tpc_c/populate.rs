@@ -4,7 +4,7 @@ use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
 use rust_query::{TableRow, Transaction, UnixEpoch};
 
 use crate::{
-    nurand, random_to_last_name,
+    Nu, random_to_last_name,
     v0::{Customer, District, History, Item, NewOrder, Order, OrderLine, Schema, Stock, Warehouse},
 };
 
@@ -142,8 +142,7 @@ fn populate_district(
                 last: if number < 1001 {
                     random_to_last_name(number - 1)
                 } else {
-                    // TODO: choose different constant C
-                    random_to_last_name(nurand(255, 0..=999))
+                    random_to_last_name(Nu::LastNameLoad.rand())
                 },
                 street_1: a_string(10, 20),
                 street_2: a_string(10, 20),

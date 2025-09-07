@@ -1,8 +1,4 @@
-use std::{
-    ops::RangeInclusive,
-    sync::{LazyLock, atomic::AtomicI64},
-    time::SystemTime,
-};
+use std::{ops::RangeInclusive, sync::OnceLock, time::SystemTime};
 
 use rust_query::{
     Database, IntoExpr, Select, TableRow, Transaction,
@@ -181,13 +177,54 @@ fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<Warehouse> {
         .expect("warehouse should exist")
 }
 
-static C: LazyLock<AtomicI64> = LazyLock::new(|| AtomicI64::new(rand::random_range(0..=255)));
+enum Nu {
+    LastNameLoad,
+    LastNameRun,
+    CustomerId,
+    ItemId,
+}
 
-fn nurand(a: i64, range: RangeInclusive<i64>) -> i64 {
-    let x = *range.start();
-    let y = *range.end();
-    let c = C.load(std::sync::atomic::Ordering::SeqCst);
-    (((rand::random_range(0..=a) | rand::random_range(x..=y)) + c) % (y - x + 1)) + x
+struct NuStats {
+    a: i64,
+    range: RangeInclusive<i64>,
+    c: i64,
+}
+
+impl Nu {
+    fn stats(self) -> NuStats {
+        static C_LOAD: OnceLock<i64> = OnceLock::new();
+        static C_RUN: OnceLock<i64> = OnceLock::new();
+        static C_CUSTOMER: OnceLock<i64> = OnceLock::new();
+        static C_ITEM: OnceLock<i64> = OnceLock::new();
+        let (a, range, c) = match self {
+            Nu::LastNameLoad => (255, 0..=999, &C_LOAD),
+            Nu::LastNameRun => (255, 0..=999, &C_RUN),
+            Nu::CustomerId => (1023, 1..=3000, &C_CUSTOMER),
+            Nu::ItemId => (8191, 1..=100_000, &C_ITEM),
+        };
+
+        let c = match self {
+            Nu::LastNameRun => *c.get_or_init(|| {
+                let c_load = Nu::LastNameLoad.stats().c;
+                loop {
+                    let candidate = rand::random_range(0..=a);
+                    let c_diff = c_load.abs_diff(candidate);
+                    if (65..=119).contains(&c_diff) && c_diff != 96 && c_diff != 112 {
+                        break candidate;
+                    }
+                }
+            }),
+            _ => *c.get_or_init(|| rand::random_range(0..=a)),
+        };
+        NuStats { a, range, c }
+    }
+
+    fn rand(self) -> i64 {
+        let NuStats { a, range, c } = self.stats();
+        let (x, y) = (*range.start(), *range.end());
+
+        (((rand::random_range(0..=a) | rand::random_range(x..=y)) + c) % (y - x + 1)) + x
+    }
 }
 
 /// `num` must be in range `0..=999`
@@ -237,10 +274,13 @@ fn customer_ident(
     customer_district: TableRow<District>,
 ) -> CustomerIdent {
     if rand::random_ratio(60, 100) {
-        CustomerIdent::Name(customer_district, random_to_last_name(nurand(255, 0..=999)))
+        CustomerIdent::Name(
+            customer_district,
+            random_to_last_name(Nu::LastNameRun.rand()),
+        )
     } else {
         let customer = txn
-            .query_one(Customer::unique(customer_district, nurand(1023, 1..=3000)))
+            .query_one(Customer::unique(customer_district, Nu::CustomerId.rand()))
             .unwrap();
         CustomerIdent::Number(customer)
     }
