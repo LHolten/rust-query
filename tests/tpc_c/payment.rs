@@ -1,25 +1,34 @@
 use super::*;
+use rand::seq::IndexedRandom;
 use rust_query::{FromExpr, TableRow, Transaction, Update};
 
 pub fn random_payment(
     txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
+    other: &[TableRow<Warehouse>],
 ) -> PaymentOutput {
-    let input = generate_input(txn, warehouse);
+    let input = generate_input(txn, warehouse, other);
     payment(txn, input)
 }
 
-fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> PaymentInput {
+fn generate_input(
+    txn: &Transaction<Schema>,
+    warehouse: TableRow<Warehouse>,
+    other: &[TableRow<Warehouse>],
+) -> PaymentInput {
     let district = txn
         .query_one(District::unique(warehouse, rand::random_range(1..=10)))
         .unwrap();
 
-    let customer_district = if rand::random_ratio(85, 100) {
+    let customer_district = if rand::random_ratio(85, 100) || other.is_empty() {
         district
     } else {
-        // TODO: select a different warehouse here
-        txn.query_one(District::unique(warehouse, rand::random_range(1..=10)))
-            .unwrap()
+        let remote_warehouse = other.choose(&mut rand::rng()).expect("other is not empty");
+        txn.query_one(District::unique(
+            remote_warehouse,
+            rand::random_range(1..=10),
+        ))
+        .unwrap()
     };
 
     let customer = customer_ident(txn, customer_district);
