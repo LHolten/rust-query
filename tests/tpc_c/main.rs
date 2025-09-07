@@ -10,6 +10,7 @@ mod delivery;
 mod new_order;
 mod order_status;
 mod payment;
+mod populate;
 
 #[schema(Schema)]
 pub mod vN {
@@ -23,6 +24,7 @@ pub mod vN {
         pub state: String,
         pub zip: String,
         pub tax: f64,
+        // stored multiplied by 100
         pub ytd: i64,
     }
     #[unique(warehouse, number)]
@@ -36,6 +38,7 @@ pub mod vN {
         pub state: String,
         pub zip: String,
         pub tax: f64,
+        // stored multiplied by 100
         pub ytd: i64,
         pub next_order: i64, // next available order id
     }
@@ -54,9 +57,12 @@ pub mod vN {
         pub phone: String,
         pub since: i64,
         pub credit: String,
+        // stored multiplied by 100
         pub credit_lim: i64,
         pub discount: f64,
+        // stored multiplied by 100
         pub balance: i64,
+        // stored multiplied by 100
         pub ytd_payment: i64,
         pub payment_cnt: i64,
         pub delivery_cnt: i64,
@@ -90,6 +96,7 @@ pub mod vN {
         pub stock: Stock,
         pub delivery_d: Option<i64>,
         pub quantity: i64,
+        // stored multiplied by 100
         pub amount: i64, // total cost of this line
         pub dist_info: String,
     }
@@ -98,6 +105,7 @@ pub mod vN {
         pub number: i64,
         pub image_id: i64,
         pub name: String,
+        // stored multiplied by 100
         pub price: i64,
         pub data: String,
     }
@@ -117,6 +125,7 @@ pub mod vN {
         pub dist_08: String,
         pub dist_09: String,
         pub dist_10: String,
+        // stored multiplied by 100
         pub ytd: i64,
         pub order_cnt: i64,
         pub remote_cnt: i64,
@@ -187,6 +196,8 @@ impl NuRand for ThreadRng {
 
 /// `num` must be in range `0..=999`
 pub fn random_to_last_name(num: i64) -> String {
+    assert!((0..=999).contains(&num));
+
     let mut out = String::new();
     for position in [100, 10, 1] {
         let digit = (num / position) % 10;
