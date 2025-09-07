@@ -145,21 +145,6 @@ fn main() {
         populate::populate(txn, 1);
     });
 
-    db.transaction_mut_ok(|txn| {
-        txn.insert(Warehouse {
-            number: 0,
-            name: "test",
-            street_1: "",
-            street_2: "",
-            city: "",
-            state: "",
-            zip: "",
-            tax: 0.5,
-            ytd: 100,
-        })
-        .unwrap();
-    });
-
     let _ = db.transaction_mut_ok(|txn| {
         let warehouse = get_primary_warehouse(txn);
         new_order::random_new_order(txn, warehouse)
