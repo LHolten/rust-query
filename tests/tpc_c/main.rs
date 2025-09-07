@@ -136,7 +136,7 @@ pub mod vN {
 use v0::*;
 
 fn main() {
-    let db: Database<Schema> = Database::migrator(Config::open_in_memory())
+    let db: Database<Schema> = Database::migrator(Config::open("tpc.sqlite"))
         .expect("database should not be too old")
         .finish()
         .expect("database should not be too new");
@@ -169,7 +169,7 @@ fn main() {
 }
 
 fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<Warehouse> {
-    txn.query_one(Warehouse::unique(0))
+    txn.query_one(Warehouse::unique(1))
         .expect("warehouse should exist")
 }
 

@@ -1,4 +1,4 @@
-use std::iter;
+use std::iter::{self, zip};
 
 use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
 use rust_query::{TableRow, Transaction, UnixEpoch};
@@ -42,7 +42,7 @@ fn data() -> String {
 }
 
 pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: usize) {
-    let items: Box<[_]> = (0..100_000)
+    let items: Box<[_]> = (1..=100_000)
         .map(|number| {
             txn.insert(Item {
                 number: number as i64,
@@ -55,7 +55,7 @@ pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: usize) {
         })
         .collect();
 
-    for number in 0..warehouse_cnt as i64 {
+    for number in 1..=warehouse_cnt as i64 {
         let warehouse = txn
             .insert(Warehouse {
                 number,
@@ -105,7 +105,7 @@ fn populate_warehouse(
         })
         .collect();
 
-    for number in 0..10 {
+    for number in 1..=10 {
         let district = txn
             .insert(District {
                 warehouse,
@@ -132,15 +132,15 @@ fn populate_district(
     stock: &[TableRow<Stock>],
 ) {
     let mut customers = vec![];
-    for number in 0..3000 {
+    for number in 1..=3000 {
         let customer = txn
             .insert(Customer {
                 district,
                 number,
                 first: a_string(8, 16),
                 middle: "OE",
-                last: if number < 1000 {
-                    random_to_last_name(number)
+                last: if number < 1001 {
+                    random_to_last_name(number - 1)
                 } else {
                     // TODO: choose different constant C
                     random_to_last_name(rand::rng().nurand(255, 0, 999))
@@ -179,7 +179,7 @@ fn populate_district(
 
     customers.shuffle(&mut rand::rng());
 
-    for (order_number, customer) in customers.into_iter().enumerate() {
+    for (order_number, customer) in zip(1.., customers) {
         let delivered = order_number < 2101;
 
         let order_line_cnt = rand::random_range(5..=15);
@@ -194,8 +194,7 @@ fn populate_district(
             })
             .expect("customer + number is unique");
 
-        for line_number in 0..order_line_cnt {
-            // let stock = Stock::unique(warehouse, item)
+        for line_number in 1..=order_line_cnt {
             txn.insert(OrderLine {
                 order,
                 number: line_number,
