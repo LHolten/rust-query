@@ -1,10 +1,11 @@
 use std::array;
 
+use rand::seq::{IndexedRandom, SliceRandom};
 use rust_query::{TableRow, Transaction, UnixEpoch};
 
 use crate::{
     NuRand, random_to_last_name,
-    v0::{Customer, District, Item, Schema, Stock, Warehouse},
+    v0::{Customer, District, History, Item, NewOrder, Order, OrderLine, Schema, Stock, Warehouse},
 };
 
 /// String of alphanumeric characters
@@ -65,7 +66,7 @@ pub fn populate_warehouse(
     warehouse: TableRow<Warehouse>,
     items: &[TableRow<Item>; 100_000],
 ) {
-    for item in items {
+    let stock = Box::new(items.map(|item| {
         txn.insert(Stock {
             warehouse,
             item,
@@ -86,8 +87,8 @@ pub fn populate_warehouse(
             remote_cnt: 0,
             data: data(),
         })
-        .expect("warehouse + item is unique");
-    }
+        .expect("warehouse + item is unique")
+    }));
 
     for number in 0..10 {
         let district = txn
@@ -106,44 +107,106 @@ pub fn populate_warehouse(
             })
             .expect("warehouse + number is unique");
 
-        populate_district(txn, district);
+        populate_district(txn, district, &stock);
     }
 }
 
-fn populate_district(txn: &mut Transaction<Schema>, district: TableRow<District>) {
+fn populate_district(
+    txn: &mut Transaction<Schema>,
+    district: TableRow<District>,
+    stock: &[TableRow<Stock>; 100_000],
+) {
+    let mut customers = vec![];
     for number in 0..3000 {
-        txn.insert(Customer {
+        let customer = txn
+            .insert(Customer {
+                district,
+                number,
+                first: a_string(8, 16),
+                middle: "OE",
+                last: if number < 1000 {
+                    random_to_last_name(number)
+                } else {
+                    // TODO: choose different constant C
+                    random_to_last_name(rand::rng().nurand(255, 0, 999))
+                },
+                street_1: a_string(10, 20),
+                street_2: a_string(10, 20),
+                city: a_string(10, 20),
+                state: a_string(2, 2),
+                zip: zip_code(),
+                phone: n_string(16, 16),
+                since: UnixEpoch,
+                credit: if rand::random_ratio(10, 100) {
+                    "BC"
+                } else {
+                    "GC"
+                },
+                credit_lim: 50_000 * 100,
+                discount: rand::random_range(0.0..=0.5),
+                balance: -10 * 100,
+                ytd_payment: 10 * 100,
+                payment_cnt: 1,
+                delivery_cnt: 0,
+                data: a_string(300, 500),
+            })
+            .expect("district + customer is unique");
+
+        txn.insert_ok(History {
+            customer,
             district,
-            number,
-            first: a_string(8, 16),
-            middle: "OE",
-            last: if number < 1000 {
-                random_to_last_name(number)
-            } else {
-                let mut rng = rand::rng();
-                // TODO: choose different constant C
-                random_to_last_name(rng.nurand(255, 0, 999))
-            },
-            street_1: a_string(10, 20),
-            street_2: a_string(10, 20),
-            city: a_string(10, 20),
-            state: a_string(2, 2),
-            zip: zip_code(),
-            phone: n_string(16, 16),
-            since: UnixEpoch,
-            credit: if rand::random_ratio(10, 100) {
-                "BC"
-            } else {
-                "GC"
-            },
-            credit_lim: 50_000 * 100,
-            discount: rand::random_range(0.0..=0.5),
-            balance: -10 * 100,
-            ytd_payment: 10 * 100,
-            payment_cnt: 1,
-            delivery_cnt: 0,
-            data: a_string(300, 500),
-        })
-        .expect("district + customer is unique");
+            date: UnixEpoch,
+            amount: 10 * 100,
+            data: a_string(12, 24),
+        });
+        customers.push(customer);
+    }
+
+    customers.shuffle(&mut rand::rng());
+
+    for (order_number, customer) in customers.into_iter().enumerate() {
+        let order_line_cnt = rand::random_range(5..=15);
+        let order = txn
+            .insert(Order {
+                customer,
+                number: order_number as i64,
+                entry_d: UnixEpoch,
+                carrier_id: if order_number < 2101 {
+                    Some(rand::random_range(1..=10))
+                } else {
+                    None
+                },
+                order_line_cnt,
+                all_local: 1,
+            })
+            .expect("customer + number is unique");
+
+        for line_number in 0..order_line_cnt {
+            // let stock = Stock::unique(warehouse, item)
+            txn.insert(OrderLine {
+                order,
+                number: line_number,
+                stock: stock
+                    .choose(&mut rand::rng())
+                    .expect("stock array is not empty"),
+                delivery_d: if order_number < 2101 {
+                    Some(UnixEpoch)
+                } else {
+                    None
+                },
+                quantity: 5,
+                amount: if order_number < 2101 {
+                    0
+                } else {
+                    rand::random_range(1..=999999)
+                },
+                dist_info: a_string(24, 24),
+            })
+            .expect("order + number is unique");
+        }
+
+        if order_number > 2100 {
+            txn.insert(NewOrder { order }).expect("order is unique");
+        }
     }
 }
