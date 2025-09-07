@@ -151,7 +151,7 @@ fn main() {
 
     let _ = db.transaction_mut_ok(|txn| {
         let warehouse = get_primary_warehouse(txn);
-        new_order::random_new_order(txn, warehouse)
+        new_order::random_new_order(txn, warehouse, &[])
             .map(|_| ())
             .map_err(|_| ())
     });
@@ -163,7 +163,7 @@ fn main() {
 
     db.transaction_mut_ok(|txn| {
         let warehouse = get_primary_warehouse(txn);
-        payment::random_payment(txn, warehouse);
+        payment::random_payment(txn, warehouse, &[]);
     });
 
     db.transaction(|txn| {

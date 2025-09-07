@@ -1,16 +1,22 @@
 use super::*;
+use rand::seq::IndexedRandom;
 use rust_query::{FromExpr, TableRow, Transaction, Update, optional};
 use std::time::SystemTime;
 
 pub fn random_new_order(
     txn: &mut Transaction<Schema>,
     warehouse: TableRow<Warehouse>,
+    other: &[TableRow<Warehouse>],
 ) -> Result<OutputData, OutputData> {
-    let input = generate_input(txn, warehouse);
+    let input = generate_input(txn, warehouse, other);
     new_order(txn, input)
 }
 
-fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> NewOrderInput {
+fn generate_input(
+    txn: &Transaction<Schema>,
+    warehouse: TableRow<Warehouse>,
+    other: &[TableRow<Warehouse>],
+) -> NewOrderInput {
     let district = txn
         .query_one(District::unique(warehouse, rand::random_range(1..=10)))
         .unwrap();
@@ -30,8 +36,11 @@ fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> 
 
         items.push(ItemInput {
             item_number,
-            // TODO: support remote warehouses in case there are multiple
-            supplying_warehouse: warehouse,
+            supplying_warehouse: if rand::random_ratio(99, 100) || other.is_empty() {
+                warehouse
+            } else {
+                *other.choose(&mut rand::rng()).expect("other is not empty")
+            },
             quantity: rand::random_range(1..=10),
         });
     }
