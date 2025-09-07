@@ -135,8 +135,13 @@ pub mod vN {
 }
 use v0::*;
 
+const DB_FILE: &'static str = "tpc.sqlite";
 fn main() {
-    let db: Database<Schema> = Database::migrator(Config::open("tpc.sqlite"))
+    if std::fs::exists(DB_FILE).unwrap() {
+        std::fs::remove_file(DB_FILE).unwrap();
+    };
+
+    let db: Database<Schema> = Database::migrator(Config::open(DB_FILE))
         .expect("database should not be too old")
         .finish()
         .expect("database should not be too new");
