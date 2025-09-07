@@ -78,7 +78,7 @@ impl<S: Send + Sync + 'static> Database<S> {
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
-        std::thread::scope(|scope| {
+        let res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
                     use r2d2::ManageConnection;
@@ -91,8 +91,11 @@ impl<S: Send + Sync + 'static> Database<S> {
                     f(Transaction::new_checked(owned, self.schema_version))
                 })
                 .join()
-                .unwrap()
-        })
+        });
+        match res {
+            Ok(val) => val,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     }
 
     /// Create a mutable [Transaction].
@@ -114,8 +117,8 @@ impl<S: Send + Sync + 'static> Database<S> {
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
-        std::thread::scope(|scope| {
-            let res = scope
+        let res = std::thread::scope(|scope| {
+            scope
                 .spawn(|| {
                     use r2d2::ManageConnection;
 
@@ -139,12 +142,12 @@ impl<S: Send + Sync + 'static> Database<S> {
                     }
                     res
                 })
-                .join();
-            match res {
-                Ok(val) => val,
-                Err(payload) => std::panic::resume_unwind(payload),
-            }
-        })
+                .join()
+        });
+        match res {
+            Ok(val) => val,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     }
 
     /// Same as [Self::transaction_mut], but always commits the transaction.
