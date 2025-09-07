@@ -1,6 +1,6 @@
-use std::array;
+use std::{array, iter};
 
-use rand::seq::{IndexedRandom, SliceRandom};
+use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
 use rust_query::{TableRow, Transaction, UnixEpoch};
 
 use crate::{
@@ -10,12 +10,22 @@ use crate::{
 
 /// String of alphanumeric characters
 fn a_string(min_len: usize, max_len: usize) -> String {
-    todo!()
+    iter::repeat_with(|| {
+        ('a'..='z')
+            .chain('A'..='Z')
+            .chain('0'..='9')
+            .choose(&mut rand::rng())
+            .unwrap()
+    })
+    .take(rand::random_range(min_len..=max_len))
+    .collect()
 }
 
 /// String of numbers
 fn n_string(min_len: usize, max_len: usize) -> String {
-    todo!()
+    iter::repeat_with(|| ('0'..='9').choose(&mut rand::rng()).unwrap())
+        .take(rand::random_range(min_len..=max_len))
+        .collect()
 }
 
 pub fn zip_code() -> String {
