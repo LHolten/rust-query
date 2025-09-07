@@ -26,7 +26,7 @@ struct DeliveryInput {
 
 fn delivery(txn: &'static mut Transaction<Schema>, input: DeliveryInput) {
     let mut new_orders = vec![];
-    for district_num in 0..10 {
+    for district_num in 1..=10 {
         let district = txn
             .query_one(District::unique(input.warehouse, district_num))
             .unwrap();
