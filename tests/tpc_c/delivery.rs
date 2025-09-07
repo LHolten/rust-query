@@ -9,11 +9,9 @@ pub fn random_delivery(txn: &'static mut Transaction<Schema>, warehouse: TableRo
 }
 
 fn generate_input(warehouse: TableRow<Warehouse>) -> DeliveryInput {
-    let mut rng = rand::rng();
-
     DeliveryInput {
         warehouse,
-        carrier_id: rng.random_range(1..=10),
+        carrier_id: rand::random_range(1..=10),
         delivery_d: UNIX_EPOCH.elapsed().unwrap().as_millis() as i64,
     }
 }

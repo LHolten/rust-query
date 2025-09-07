@@ -1,6 +1,9 @@
-use std::{ops::RangeInclusive, time::SystemTime};
+use std::{
+    ops::RangeInclusive,
+    sync::{LazyLock, atomic::AtomicI64},
+    time::SystemTime,
+};
 
-use rand::{Rng, rngs::ThreadRng};
 use rust_query::{
     Database, IntoExpr, Select, TableRow, Transaction,
     migration::{Config, schema},
@@ -178,17 +181,13 @@ fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<Warehouse> {
         .expect("warehouse should exist")
 }
 
-trait NuRand {
-    fn nurand(&mut self, a: i64, range: RangeInclusive<i64>) -> i64;
-}
-impl NuRand for ThreadRng {
-    fn nurand(&mut self, a: i64, range: RangeInclusive<i64>) -> i64 {
-        let x = *range.start();
-        let y = *range.end();
-        // TODO: select C at runtime?
-        const C: i64 = 5;
-        (((self.random_range(0..=a) | self.random_range(x..=y)) + C) % (y - x + 1)) + x
-    }
+static C: LazyLock<AtomicI64> = LazyLock::new(|| AtomicI64::new(rand::random_range(0..=255)));
+
+fn nurand(a: i64, range: RangeInclusive<i64>) -> i64 {
+    let x = *range.start();
+    let y = *range.end();
+    let c = C.load(std::sync::atomic::Ordering::SeqCst);
+    (((rand::random_range(0..=a) | rand::random_range(x..=y)) + c) % (y - x + 1)) + x
 }
 
 /// `num` must be in range `0..=999`
@@ -235,20 +234,13 @@ impl CustomerIdent {
 
 fn customer_ident(
     txn: &Transaction<Schema>,
-    rng: &mut ThreadRng,
     customer_district: TableRow<District>,
 ) -> CustomerIdent {
-    if rng.random_ratio(60, 100) {
-        CustomerIdent::Name(
-            customer_district,
-            random_to_last_name(rng.nurand(255, 0..=999)),
-        )
+    if rand::random_ratio(60, 100) {
+        CustomerIdent::Name(customer_district, random_to_last_name(nurand(255, 0..=999)))
     } else {
         let customer = txn
-            .query_one(Customer::unique(
-                customer_district,
-                rng.nurand(1023, 1..=3000),
-            ))
+            .query_one(Customer::unique(customer_district, nurand(1023, 1..=3000)))
             .unwrap();
         CustomerIdent::Number(customer)
     }

@@ -10,12 +10,11 @@ pub fn random_order_status(
 }
 
 fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> CustomerIdent {
-    let mut rng = rand::rng();
     let district = txn
-        .query_one(District::unique(warehouse, rng.random_range(1..=10)))
+        .query_one(District::unique(warehouse, rand::random_range(1..=10)))
         .unwrap();
 
-    customer_ident(txn, &mut rng, district)
+    customer_ident(txn, district)
 }
 
 fn order_status(txn: &Transaction<Schema>, input: CustomerIdent) -> OrderStatus {
