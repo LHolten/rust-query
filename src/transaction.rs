@@ -115,7 +115,7 @@ impl<S: Send + Sync + 'static> Database<S> {
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
         std::thread::scope(|scope| {
-            scope
+            let res = scope
                 .spawn(|| {
                     use r2d2::ManageConnection;
 
@@ -139,8 +139,11 @@ impl<S: Send + Sync + 'static> Database<S> {
                     }
                     res
                 })
-                .join()
-                .unwrap()
+                .join();
+            match res {
+                Ok(val) => val,
+                Err(payload) => std::panic::resume_unwind(payload),
+            }
         })
     }
 
