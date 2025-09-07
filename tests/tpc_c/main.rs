@@ -72,6 +72,7 @@ pub mod vN {
         pub customer: Customer,
         pub district: District,
         pub date: i64,
+        // stored multiplied by 100
         pub amount: i64,
         pub data: String,
     }
