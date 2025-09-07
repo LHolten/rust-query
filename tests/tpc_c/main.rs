@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::{ops::RangeInclusive, time::SystemTime};
 
 use rand::{Rng, rngs::ThreadRng};
 use rust_query::{
@@ -179,10 +179,12 @@ fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<Warehouse> {
 }
 
 trait NuRand {
-    fn nurand(&mut self, a: i64, x: i64, y: i64) -> i64;
+    fn nurand(&mut self, a: i64, range: RangeInclusive<i64>) -> i64;
 }
 impl NuRand for ThreadRng {
-    fn nurand(&mut self, a: i64, x: i64, y: i64) -> i64 {
+    fn nurand(&mut self, a: i64, range: RangeInclusive<i64>) -> i64 {
+        let x = *range.start();
+        let y = *range.end();
         // TODO: select C at runtime?
         const C: i64 = 5;
         (((self.random_range(0..=a) | self.random_range(x..=y)) + C) % (y - x + 1)) + x
@@ -239,13 +241,13 @@ fn customer_ident(
     if rng.random_ratio(60, 100) {
         CustomerIdent::Name(
             customer_district,
-            random_to_last_name(rng.nurand(255, 0, 999)),
+            random_to_last_name(rng.nurand(255, 0..=999)),
         )
     } else {
         let customer = txn
             .query_one(Customer::unique(
                 customer_district,
-                rng.nurand(1023, 1, 3000),
+                rng.nurand(1023, 1..=3000),
             ))
             .unwrap();
         CustomerIdent::Number(customer)

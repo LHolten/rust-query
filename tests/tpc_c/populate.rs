@@ -143,7 +143,7 @@ fn populate_district(
                     random_to_last_name(number - 1)
                 } else {
                     // TODO: choose different constant C
-                    random_to_last_name(rand::rng().nurand(255, 0, 999))
+                    random_to_last_name(rand::rng().nurand(255, 0..=999))
                 },
                 street_1: a_string(10, 20),
                 street_2: a_string(10, 20),

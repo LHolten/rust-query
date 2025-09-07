@@ -16,14 +16,14 @@ fn generate_input(txn: &Transaction<Schema>, warehouse: TableRow<Warehouse>) -> 
         .query_one(District::unique(warehouse, rng.random_range(1..=10)))
         .unwrap();
     let customer = txn
-        .query_one(Customer::unique(district, rng.nurand(1023, 1, 3000)))
+        .query_one(Customer::unique(district, rng.nurand(1023, 1..=3000)))
         .unwrap();
     let item_count = rng.random_range(5..=15);
     let rbk = rng.random_ratio(1, 100);
 
     let mut items = vec![];
     for i in 1..=item_count {
-        let mut item_number = rng.nurand(8191, 1, 100000);
+        let mut item_number = rng.nurand(8191, 1..=100_000);
         if rbk && i == item_count {
             // emulate input error
             item_number = -1
