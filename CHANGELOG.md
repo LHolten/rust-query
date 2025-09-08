@@ -1,7 +1,11 @@
 # Unreleased
 
+# 0.5.1
+
 - Changed default `synchronous` to `FULL`.
-- Added the option to congiure `synchronous` to `NORMAL`.
+- Added the option to configure `synchronous` to `NORMAL`.
+- Fixed panic propagation from transaction closures.
+- Pinned sea-query release candidate version.
 
 # 0.5.0
 
