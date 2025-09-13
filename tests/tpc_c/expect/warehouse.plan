@@ -1,8 +1,5 @@
 QUERY PLAN [
-    CO-ROUTINE  [
-        SCAN CONSTANT ROW,
-    ],
-    SCAN ,
+    SCAN CONSTANT ROW,
     SCAN stock USING COVERING INDEX sqlite_autoindex_stock_1,
     SCAN district USING COVERING INDEX sqlite_autoindex_district_1,
 ]

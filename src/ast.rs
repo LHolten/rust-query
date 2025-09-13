@@ -90,6 +90,7 @@ impl ValueBuilder {
             any_from = true;
         }
 
+        let mut need_from = false;
         for (source, table_alias) in self.extra.iter() {
             let mut cond = Condition::all();
             for (field, outer_value) in &source.conds {
@@ -110,6 +111,7 @@ impl ValueBuilder {
                     select.join_as(join_type, tbl_ref, *table_alias, cond);
                 }
             }
+            need_from = true;
         }
 
         for filter in filters {
@@ -147,24 +149,28 @@ impl ValueBuilder {
             any_expr = true;
         }
 
-        if !any_from {
-            select.from_values([1], NullAlias);
+        if need_from && !any_from {
+            select.from_subquery(SelectStatement::new().expr(CONST_1).take(), NullAlias);
             any_from = true;
         }
-        assert!(any_from);
+        assert!(any_from || !need_from);
 
         if !any_expr {
-            select.expr_as(Expr::val(1), NullAlias);
+            select.expr_as(CONST_1, NullAlias);
             any_expr = true
         }
         assert!(any_expr);
 
-        if !any_group && must_group {
+        if must_group && !any_group {
             select.expr_as(Expr::count(Expr::col(Asterisk)), NullAlias);
             any_group = true;
         }
+        // It is not possible to have a group by expression when it is not required.
+        // So these must always be equal.
         assert_eq!(any_group, must_group);
 
         (select, out_fields)
     }
 }
+
+const CONST_1: Expr = Expr::Constant(sea_query::Value::BigInt(Some(1)));

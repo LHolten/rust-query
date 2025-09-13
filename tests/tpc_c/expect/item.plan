@@ -1,7 +1,4 @@
 QUERY PLAN [
-    CO-ROUTINE  [
-        SCAN CONSTANT ROW,
-    ],
-    SCAN ,
+    SCAN CONSTANT ROW,
     SEARCH stock USING COVERING INDEX sqlite_autoindex_stock_1 (item=?),
 ]
