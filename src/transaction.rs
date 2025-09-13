@@ -12,7 +12,7 @@ use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
     migrate::schema_version,
     private::Reader,
-    query::Query,
+    query::{Query, track_stmt},
     rows::Rows,
     value::{SecretFromSql, ValueBuilder},
     writable::TableInsert,
@@ -537,6 +537,7 @@ pub fn try_insert_private<T: Table>(
 
     TXN.with_borrow(|txn| {
         let txn = txn.as_ref().unwrap().get();
+        track_stmt(txn, &sql, &values);
 
         let mut statement = txn.prepare_cached(&sql).unwrap();
         let mut res = statement

@@ -6,6 +6,7 @@ use rust_query::{
 };
 
 mod delivery;
+mod expect;
 mod new_order;
 mod order_status;
 mod payment;
@@ -146,7 +147,9 @@ fn main() {
         .expect("database should not be too new");
 
     db.transaction_mut_ok(|txn| {
-        populate::populate(txn, 1);
+        expect::collect_all(|| {
+            populate::populate(txn, 1);
+        })
     });
 
     let _ = db.transaction_mut_ok(|txn| {
