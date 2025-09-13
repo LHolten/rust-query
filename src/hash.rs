@@ -113,6 +113,14 @@ pub struct Schema {
     pub tables: MyVec<(String, Table)>,
 }
 
+impl Schema {
+    pub(crate) fn new<S: crate::migrate::Schema>() -> Self {
+        let mut b = crate::migrate::TableTypBuilder::default();
+        S::typs(&mut b);
+        b.ast
+    }
+}
+
 #[cfg(feature = "dev")]
 pub mod dev {
     use std::{
@@ -154,10 +162,8 @@ pub mod dev {
     ///
     /// This is useful in a test to make sure that old schema versions are not accidentally modified.
     pub fn hash_schema<S: crate::migrate::Schema>() -> String {
-        let mut b = crate::migrate::TableTypBuilder::default();
-        S::typs(&mut b);
         let mut hasher = KangarooHasher::default();
-        b.ast.hash(&mut hasher);
+        super::Schema::new::<S>().hash(&mut hasher);
         format!("{:x}", hasher.finish())
     }
 }

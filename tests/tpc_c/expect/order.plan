@@ -1,5 +1,0 @@
-QUERY PLAN [
-    SCAN CONSTANT ROW,
-    SCAN order_line USING COVERING INDEX sqlite_autoindex_order_line_1,
-    SEARCH new_order USING COVERING INDEX sqlite_autoindex_new_order_1 (order=?),
-]
