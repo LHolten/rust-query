@@ -87,10 +87,11 @@ fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput 
     if customer_info.credit == "BC" {
         let data = txn.query_one(&customer.into_expr().data);
         let mut data = format!("{customer:?},{};{data}", input.amount);
+        data.truncate(500);
         txn.update_ok(
             customer,
             Customer {
-                data: Update::set(&data[..500]),
+                data: Update::set(&data),
                 ..Default::default()
             },
         );

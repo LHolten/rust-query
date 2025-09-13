@@ -1,0 +1,8 @@
+QUERY PLAN [
+    CO-ROUTINE  [
+        SCAN CONSTANT ROW,
+    ],
+    SCAN ,
+    SEARCH order USING COVERING INDEX sqlite_autoindex_order_1 (customer=?),
+    SCAN history,
+]

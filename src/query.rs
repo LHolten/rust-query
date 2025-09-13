@@ -92,12 +92,7 @@ impl<'inner, S> Query<'inner, S> {
 
         let (select, cached) = self.ast.clone().full().simple(cacher.columns);
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
-        if COLLECT.get() {
-            SQL_AND_PLAN.with_borrow_mut(|map| {
-                map.entry(sql.clone())
-                    .or_insert_with(|| get_node(self.conn, &values, &sql));
-            });
-        }
+        track_stmt(self.conn, &sql, &values);
 
         let statement = MutBorrow::new(self.conn.prepare_cached(&sql).unwrap());
 
@@ -108,6 +103,15 @@ impl<'inner, S> Query<'inner, S> {
             prepared,
             cached,
         }
+    }
+}
+
+pub(crate) fn track_stmt(conn: &Connection, sql: &String, values: &RusqliteValues) {
+    if COLLECT.get() {
+        SQL_AND_PLAN.with_borrow_mut(|map| {
+            map.entry(sql.clone())
+                .or_insert_with(|| get_node(conn, values, sql));
+        });
     }
 }
 

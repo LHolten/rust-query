@@ -1,0 +1,6 @@
+QUERY PLAN [
+    CO-ROUTINE  [
+        SCAN CONSTANT ROW,
+    ],
+    SCAN ,
+]
