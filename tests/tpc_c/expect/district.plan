@@ -1,8 +1,5 @@
 QUERY PLAN [
-    CO-ROUTINE  [
-        SCAN CONSTANT ROW,
-    ],
-    SCAN ,
+    SCAN CONSTANT ROW,
     SCAN history,
     SEARCH customer USING COVERING INDEX sqlite_autoindex_customer_1 (district=?),
 ]
