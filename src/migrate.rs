@@ -413,7 +413,7 @@ impl<S: Schema> Migrator<S> {
         M: SchemaMigration<'x, From = S>,
     {
         if user_version(self.transaction.get()).unwrap() == S::VERSION {
-            self.transaction = std::thread::scope(|s| {
+            let res = std::thread::scope(|s| {
                 s.spawn(|| {
                     TXN.set(Some(self.transaction));
 
@@ -456,8 +456,11 @@ impl<S: Schema> Migrator<S> {
                     transaction
                 })
                 .join()
-                .unwrap()
             });
+            match res {
+                Ok(val) => self.transaction = val,
+                Err(payload) => std::panic::resume_unwind(payload),
+            }
         }
 
         Migrator {
@@ -478,15 +481,18 @@ impl<S: Schema> Migrator<S> {
             return None;
         }
 
-        self.transaction = std::thread::scope(|s| {
+        let res = std::thread::scope(|s| {
             s.spawn(|| {
                 TXN.set(Some(self.transaction));
                 check_schema::<S>();
                 TXN.take().unwrap()
             })
             .join()
-            .unwrap()
         });
+        match res {
+            Ok(val) => self.transaction = val,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
 
         // adds an sqlite_stat1 table
         self.transaction
