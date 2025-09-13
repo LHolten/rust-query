@@ -10,7 +10,7 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
-    migrate::schema_version,
+    migrate::{Schema, schema_version},
     private::Reader,
     query::{Query, track_stmt},
     rows::Rows,
@@ -445,7 +445,7 @@ pub struct TransactionWeak<S> {
     inner: PhantomData<Transaction<S>>,
 }
 
-impl<S: 'static> TransactionWeak<S> {
+impl<S: Schema> TransactionWeak<S> {
     /// Try to delete a row from the database.
     ///
     /// This will return an [Err] if there is a row that references the row that is being deleted.
@@ -453,28 +453,58 @@ impl<S: 'static> TransactionWeak<S> {
     /// - `true` if the row was just deleted.
     /// - `false` if the row was deleted previously in this transaction.
     pub fn delete<T: Table<Schema = S>>(&mut self, val: TableRow<T>) -> Result<bool, T::Referer> {
+        let schema = crate::hash::Schema::new::<S>();
+
+        // This is a manual check that foreign key constraints are not violated.
+        // We do this manually because we don't want to enabled foreign key constraints for the whole
+        // transaction (and is not possible to enable for part of a transaction).
+        let mut checks = vec![];
+        for (table_name, table) in &*schema.tables {
+            for col in table.columns.iter().filter_map(|col| {
+                col.fk
+                    .as_ref()
+                    .is_some_and(|(t, c)| t == T::NAME && c == T::ID)
+                    .then_some(&col.name)
+            }) {
+                let stmt = SelectStatement::new()
+                    .expr(
+                        val.in_subquery(
+                            SelectStatement::new()
+                                .from(Alias::new(table_name))
+                                .column(Alias::new(col))
+                                .take(),
+                        ),
+                    )
+                    .take();
+                checks.push(stmt.build_rusqlite(SqliteQueryBuilder));
+            }
+        }
+
         let stmt = DeleteStatement::new()
             .from_table(("main", T::NAME))
             .cond_where(Expr::col(("main", T::NAME, T::ID)).eq(val.inner.idx))
-            .to_owned();
+            .take();
 
         let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
 
         TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
-            let mut stmt = txn.prepare_cached(&query).unwrap();
 
+            for (query, args) in checks {
+                let mut stmt = txn.prepare_cached(&query).unwrap();
+                match stmt.query_one(&*args.as_params(), |r| r.get(0)) {
+                    Ok(true) => return Err(T::get_referer_unchecked()),
+                    Ok(false) => {}
+                    Err(err) => panic!("{err:?}"),
+                }
+            }
+
+            let mut stmt = txn.prepare_cached(&query).unwrap();
             match stmt.execute(&*args.as_params()) {
                 Ok(0) => Ok(false),
                 Ok(1) => Ok(true),
                 Ok(n) => {
                     panic!("unexpected number of deletes {n}")
-                }
-                Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-                    if kind.code == ErrorCode::ConstraintViolation =>
-                {
-                    // Some foreign key constraint got violated
-                    Err(T::get_referer_unchecked())
                 }
                 Err(err) => panic!("{err:?}"),
             }

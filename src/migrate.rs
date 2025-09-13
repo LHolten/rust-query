@@ -315,7 +315,7 @@ impl<S: Schema> Database<S> {
         let manager = config.manager.with_init(move |inner| {
             inner.pragma_update(None, "journal_mode", "WAL")?;
             inner.pragma_update(None, "synchronous", synchronous)?;
-            inner.pragma_update(None, "foreign_keys", "ON")?;
+            inner.pragma_update(None, "foreign_keys", "OFF")?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;

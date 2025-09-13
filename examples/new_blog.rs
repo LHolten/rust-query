@@ -65,6 +65,11 @@ fn main() {
     db.transaction_mut_ok(using_v1::do_stuff)
 }
 
+#[test]
+fn run() {
+    main();
+}
+
 mod using_v1 {
     use super::*;
     use rust_query::{Transaction, migration::Config};

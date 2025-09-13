@@ -30,3 +30,8 @@ pub fn main() {
         assert!(txn.delete(id2).unwrap());
     })
 }
+
+#[test]
+fn run() {
+    main();
+}

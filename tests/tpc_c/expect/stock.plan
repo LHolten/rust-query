@@ -1,4 +1,0 @@
-QUERY PLAN [
-    SCAN CONSTANT ROW,
-    SCAN order_line,
-]
