@@ -62,7 +62,7 @@ pub mod private {
 
     pub use crate::hash::TypBuilder;
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
-    pub use crate::query::{get_plan, show_sql};
+    pub use crate::query::get_plan;
     pub use crate::value::{
         MyTyp, Typed, ValueBuilder, adhoc_expr, assume_expr, into_owned, new_column, new_dummy,
     };

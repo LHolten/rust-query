@@ -10,6 +10,7 @@ use schema::*;
 
 fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>) {
     let (mut val, plan) = rust_query::private::get_plan(f);
+    let [plan] = plan.into_values().collect::<Vec<_>>().try_into().unwrap();
     let mut val = &mut val[..];
     val.sort_by(|a, b| a.partial_cmp(b).unwrap());
     if val.len() > 20 {

@@ -1,5 +1,6 @@
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
     fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -91,13 +92,11 @@ impl<'inner, S> Query<'inner, S> {
 
         let (select, cached) = self.ast.clone().full().simple(cacher.columns);
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
-        if SHOW_SQL.get() {
-            println!("{sql}");
-            println!("{values:?}");
-        }
-        if GET_PLAN.get() {
-            let node = get_node(self.conn, &values, &sql);
-            PLAN.set(Some(node));
+        if COLLECT.get() {
+            SQL_AND_PLAN.with_borrow_mut(|map| {
+                map.entry(sql.clone())
+                    .or_insert_with(|| get_node(self.conn, &values, &sql));
+            });
         }
 
         let statement = MutBorrow::new(self.conn.prepare_cached(&sql).unwrap());
@@ -113,25 +112,16 @@ impl<'inner, S> Query<'inner, S> {
 }
 
 thread_local! {
-    static SHOW_SQL: Cell<bool> = const { Cell::new(false) };
-    static GET_PLAN: Cell<bool> = const { Cell::new(false) };
-    static PLAN: Cell<Option<Node>> = const { Cell::new(None) };
+    static COLLECT: Cell<bool> = const { Cell::new(false) };
+    static SQL_AND_PLAN: RefCell<BTreeMap<String, Node>> = const { RefCell::new(BTreeMap::new()) };
 }
 
-pub fn show_sql<R>(f: impl FnOnce() -> R) -> R {
-    let old = SHOW_SQL.get();
-    SHOW_SQL.set(true);
+pub fn get_plan<R>(f: impl FnOnce() -> R) -> (R, BTreeMap<String, Node>) {
+    let old = COLLECT.get();
+    COLLECT.set(true);
     let res = f();
-    SHOW_SQL.set(old);
-    res
-}
-
-pub fn get_plan<R>(f: impl FnOnce() -> R) -> (R, Node) {
-    let old = GET_PLAN.get();
-    GET_PLAN.set(true);
-    let res = f();
-    GET_PLAN.set(old);
-    (res, PLAN.take().unwrap())
+    COLLECT.set(old);
+    (res, SQL_AND_PLAN.take())
 }
 
 fn get_node(conn: &Connection, values: &RusqliteValues, sql: &str) -> Node {
