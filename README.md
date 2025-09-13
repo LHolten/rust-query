@@ -92,10 +92,9 @@ let database = Database::migrator(Config::open("my_database.sqlite"))
 ```
 Perform a transaction!
 ```rust,ignore
-database.transaction_mut(|mut txn| {
-    do_stuff_with_database(&mut txn);
-    // After we are done we commit the changes!
-    txn.commit();
+database.transaction_mut_ok(|txn| {
+    do_stuff_with_database(txn);
+    // Changes are committed at the end of the closure!
 });
 ```
 Insert in the database:
