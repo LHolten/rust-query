@@ -27,8 +27,8 @@ fn main() {
 
     database.transaction_mut_ok(|txn| {
         do_stuff_with_database(txn);
-        // After we are done we commit the changes!
-    })
+        // Changes are committed at the end of the closure!
+    });
 }
 
 // Use the database to insert and query.
