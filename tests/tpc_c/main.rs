@@ -137,6 +137,8 @@ pub mod vN {
 }
 use v0::*;
 
+use crate::emulated_user::loop_emulate;
+
 const DB_FILE: &'static str = "tpc.sqlite";
 fn main() {
     if std::fs::exists(DB_FILE).unwrap() {
@@ -156,32 +158,7 @@ fn main() {
         })
     });
 
-    let _ = db.transaction_mut(|txn| {
-        let warehouse = get_primary_warehouse(txn);
-        new_order::random_new_order(txn, warehouse, &[])
-            .map(|_| ())
-            .map_err(|_| ())
-    });
-
-    db.transaction_mut_ok(|txn| {
-        let warehouse = get_primary_warehouse(txn);
-        delivery::random_delivery(txn, warehouse);
-    });
-
-    db.transaction_mut_ok(|txn| {
-        let warehouse = get_primary_warehouse(txn);
-        payment::random_payment(txn, warehouse, &[]);
-    });
-
-    db.transaction(|txn| {
-        let warehouse = get_primary_warehouse(txn);
-        order_status::random_order_status(txn, warehouse);
-    });
-}
-
-fn get_primary_warehouse(txn: &Transaction<Schema>) -> TableRow<Warehouse> {
-    txn.query_one(Warehouse::unique(1))
-        .expect("warehouse should exist")
+    loop_emulate(db, 1, 1);
 }
 
 enum Nu {
@@ -235,7 +212,7 @@ impl Nu {
 }
 
 /// `num` must be in range `0..=999`
-pub fn random_to_last_name(num: i64) -> String {
+fn random_to_last_name(num: i64) -> String {
     assert!((0..=999).contains(&num));
 
     let mut out = String::new();
@@ -256,7 +233,7 @@ enum CustomerIdent {
 }
 
 impl CustomerIdent {
-    pub fn lookup_customer(self, txn: &Transaction<Schema>) -> TableRow<Customer> {
+    fn lookup_customer(self, txn: &Transaction<Schema>) -> TableRow<Customer> {
         match self {
             CustomerIdent::Number(customer) => customer,
             CustomerIdent::Name(district, last_name) => {
