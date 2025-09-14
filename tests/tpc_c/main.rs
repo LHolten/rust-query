@@ -141,7 +141,9 @@ fn main() {
         std::fs::remove_file(DB_FILE).unwrap();
     };
 
-    let db: Database<Schema> = Database::migrator(Config::open(DB_FILE))
+    let mut config = Config::open(DB_FILE);
+    config.foreign_keys = rust_query::migration::ForeignKeys::Rust;
+    let db: Database<Schema> = Database::migrator(config)
         .expect("database should not be too old")
         .finish()
         .expect("database should not be too new");

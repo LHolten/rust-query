@@ -167,9 +167,13 @@ impl<S: Send + Sync + 'static> Database<S> {
     /// [rust_query] connections. The only thing you should not do here is changing the schema.
     /// Schema changes are detected with the `schema_version` pragma and will result in a panic when creating a new
     /// [rust_query] transaction.
+    ///
+    /// The `foreign_keys` pragma is always enabled here, even if [crate::migrate::ForeignKeys::SQLite] is not used.
     pub fn rusqlite_connection(&self) -> rusqlite::Connection {
         use r2d2::ManageConnection;
-        self.manager.connect().unwrap()
+        let conn = self.manager.connect().unwrap();
+        conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+        conn
     }
 }
 
@@ -528,10 +532,11 @@ impl<S: Schema> TransactionWeak<S> {
     ///
     /// Note that there are some things that you should not do with the transaction, such as:
     /// - Changes to the schema, these will result in a panic as described in [Database].
-    /// - Changes to the connection configuration such as disabling foreign key checks.
+    /// - Making changes that violate foreign-key constraints (see below).
     ///
-    /// **When this method is used to break [rust_query] invariants, all other [rust_query] function calls
-    /// may result in a panic.**
+    /// Sadly it is not possible to enable (or disable) the `foreign_keys` pragma during a transaction.
+    /// This means that whether this pragma is enabled depends on which [crate::migrate::ForeignKeys]
+    /// option is used and can not be changed.
     pub fn rusqlite_transaction<R>(&mut self, f: impl FnOnce(&rusqlite::Transaction) -> R) -> R {
         TXN.with_borrow(|txn| f(txn.as_ref().unwrap().get()))
     }

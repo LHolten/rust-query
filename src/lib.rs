@@ -50,7 +50,9 @@ pub mod args {
 pub mod migration {
     #[cfg(feature = "dev")]
     pub use crate::hash::dev::hash_schema;
-    pub use crate::migrate::{Config, Migrated, Migrator, Synchronous, TransactionMigrate};
+    pub use crate::migrate::{
+        Config, ForeignKeys, Migrated, Migrator, Synchronous, TransactionMigrate,
+    };
     pub use rust_query_macros::schema;
 }
 

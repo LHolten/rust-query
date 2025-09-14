@@ -238,6 +238,8 @@ pub struct Config {
     ///
     /// The default is [Synchronous::Full].
     pub synchronous: Synchronous,
+    /// Configure how foreign keys should be checked.
+    pub foreign_keys: ForeignKeys,
 }
 
 /// <https://www.sqlite.org/pragma.html#pragma_synchronous>
@@ -266,6 +268,41 @@ impl Synchronous {
     }
 }
 
+/// Which method should be used to check foreign-key constraints.
+///
+/// The default is [ForeignKeys::SQLite], but this is likely to change to [ForeignKeys::Rust].
+#[non_exhaustive]
+pub enum ForeignKeys {
+    /// Foreign-key constraints are checked by rust-query only.
+    ///
+    /// Most foreign-key checks are done at compile time and are thus completely free.
+    /// However, some runtime checks are required for deletes.
+    Rust,
+
+    /// Foreign-key constraints are checked by SQLite in addition to the checks done by rust-query.
+    ///
+    /// This is useful when using rust-query with [crate::TransactionWeak::rusqlite_transaction]
+    /// or when other software can write to the database.
+    /// Both can result in "dangling" foreign keys (which point at a non-existent row) if written incorrectly.
+    /// Dangling foreign keys can result in wrong results, but these dangling foreign keys can also turn
+    /// into "false" foreign keys if a new record is inserted that makes the foreign key valid.
+    /// This is a lot worse than a dangling foreign key, because it is generally not possible to detect.
+    ///
+    /// With the [ForeignKeys::SQLite] option, rust-query will prevent creating such false foreign keys
+    /// and panic instead.
+    /// The downside is that indexes are required on all foreign keys to make the checks efficient.
+    SQLite,
+}
+
+impl ForeignKeys {
+    fn as_str(self) -> &'static str {
+        match self {
+            ForeignKeys::Rust => "OFF",
+            ForeignKeys::SQLite => "ON",
+        }
+    }
+}
+
 impl Config {
     /// Open a database that is stored in a file.
     /// Creates the database if it does not exist.
@@ -289,6 +326,7 @@ impl Config {
             manager,
             init: Box::new(|_| {}),
             synchronous: Synchronous::Full,
+            foreign_keys: ForeignKeys::SQLite,
         }
     }
 
@@ -312,10 +350,11 @@ impl<S: Schema> Database<S> {
     /// Returns [None] if the database `user_version` on disk is older than `S`.
     pub fn migrator(config: Config) -> Option<Migrator<S>> {
         let synchronous = config.synchronous.as_str();
+        let foreign_keys = config.foreign_keys.as_str();
         let manager = config.manager.with_init(move |inner| {
             inner.pragma_update(None, "journal_mode", "WAL")?;
             inner.pragma_update(None, "synchronous", synchronous)?;
-            inner.pragma_update(None, "foreign_keys", "OFF")?;
+            inner.pragma_update(None, "foreign_keys", foreign_keys)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
