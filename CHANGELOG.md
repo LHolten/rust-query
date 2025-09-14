@@ -1,5 +1,8 @@
 # Unreleased
 
+- Add option to configure `foreign_keys`.
+- Simplify generated query without joins.
+
 # 0.5.1
 
 - Changed default `synchronous` to `FULL`.
