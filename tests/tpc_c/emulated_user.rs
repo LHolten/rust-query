@@ -119,5 +119,6 @@ fn think_time(txn_kind: TxnKind) {
         TxnKind::Delivery | TxnKind::StockLevel => 5.,
     };
     let secs = -rand::random::<f64>().ln() * mean_secs;
+    let secs = secs.min(10. * mean_secs);
     sleep(Duration::from_secs_f64(secs));
 }
