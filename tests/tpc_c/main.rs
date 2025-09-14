@@ -6,6 +6,7 @@ use rust_query::{
 };
 
 mod delivery;
+mod emulated_user;
 mod expect;
 mod new_order;
 mod order_status;
@@ -154,7 +155,7 @@ fn main() {
         })
     });
 
-    let _ = db.transaction_mut_ok(|txn| {
+    let _ = db.transaction_mut(|txn| {
         let warehouse = get_primary_warehouse(txn);
         new_order::random_new_order(txn, warehouse, &[])
             .map(|_| ())
