@@ -12,6 +12,7 @@ mod new_order;
 mod order_status;
 mod payment;
 mod populate;
+mod stock_level;
 
 #[schema(Schema)]
 pub mod vN {

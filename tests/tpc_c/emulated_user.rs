@@ -1,9 +1,17 @@
-use std::{hint::black_box, iter::repeat_n, thread::sleep, time::Duration};
+use std::{
+    hint::black_box,
+    iter::repeat_n,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
 use rand::seq::SliceRandom;
 use rust_query::Database;
 
-use crate::{delivery, get_primary_warehouse, new_order, order_status, payment, v0::Schema};
+use crate::{
+    delivery, get_primary_warehouse, new_order, order_status, payment, stock_level,
+    v0::{District, Schema},
+};
 
 fn emulate(txn_deck: &mut Vec<TxnKind>, db: Database<Schema>) {
     let txn_kind = select_transaction(txn_deck);
@@ -43,6 +51,7 @@ fn keying_time(txn_kind: TxnKind) {
 }
 
 fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind) {
+    let before = Instant::now();
     match txn_kind {
         TxnKind::NewOrder => {
             let _ = db.transaction_mut(|txn| {
@@ -68,8 +77,16 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind) {
             let warehouse = get_primary_warehouse(txn);
             black_box(delivery::random_delivery(txn, warehouse));
         }),
-        TxnKind::StockLevel => todo!(),
+        TxnKind::StockLevel => db.transaction(|txn| {
+            let warehouse = get_primary_warehouse(txn);
+            // TODO: select a unique district
+            let district = txn
+                .query_one(District::unique(warehouse, 1))
+                .expect("district should exist");
+            black_box(stock_level::random_stock_level(txn, district));
+        }),
     }
+    let elapsed = before.elapsed();
 }
 
 fn think_time(txn_kind: TxnKind) {
