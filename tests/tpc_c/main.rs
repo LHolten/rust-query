@@ -159,7 +159,7 @@ fn main() {
     let db = Arc::new(db);
 
     // every warehouse is ~70MB
-    const WAREHOUSE_CNT: i64 = 1;
+    const WAREHOUSE_CNT: i64 = 2;
     db.transaction_mut_ok(|txn| {
         expect::collect_all(|| {
             populate::populate(txn, WAREHOUSE_CNT);

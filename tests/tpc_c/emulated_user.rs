@@ -88,13 +88,21 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         txn.query_one(District::unique(get_warehouse(txn), district))
             .expect("district exists")
     };
+    let stats = match txn_kind {
+        TxnKind::NewOrder => &STATS.new_order,
+        TxnKind::Payment => &STATS.payment,
+        TxnKind::OrderStatus => &STATS.order_status,
+        TxnKind::Delivery => &STATS.delivery,
+        TxnKind::StockLevel => &STATS.stock_level,
+    };
     let before = Instant::now();
     match txn_kind {
         TxnKind::NewOrder => {
             let _ = db.transaction_mut(|txn| {
                 let warehouse = get_warehouse(txn);
                 // TODO: need to initialize other warehouses
-                new_order::random_new_order(txn, warehouse, &[])
+                stats
+                    .add_individual_time(|| new_order::random_new_order(txn, warehouse, &[]))
                     .map(|val| {
                         black_box(val);
                     })
@@ -106,26 +114,31 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         TxnKind::Payment => db.transaction_mut_ok(|txn| {
             let warehouse = get_warehouse(txn);
             // TODO: need to initialize other warehouses
-            black_box(payment::random_payment(txn, warehouse, &[]));
+            black_box(stats.add_individual_time(|| payment::random_payment(txn, warehouse, &[])));
         }),
         TxnKind::OrderStatus => db.transaction(|txn| {
             let warehouse = get_warehouse(txn);
-            black_box(order_status::random_order_status(txn, warehouse));
+            black_box(
+                stats.add_individual_time(|| order_status::random_order_status(txn, warehouse)),
+            );
         }),
-        TxnKind::Delivery => black_box(delivery::random_delivery(db, warehouse)),
+        TxnKind::Delivery => {
+            let input = delivery::generate_input(warehouse);
+            for district_num in 1..=10 {
+                // use separate transactions to allow other threads to do stuff in between
+                db.transaction_mut_ok(|txn| {
+                    // TODO: add output to this function and black_box it
+                    stats.add_individual_time(|| delivery::delivery(txn, &input, district_num));
+                })
+            }
+        }
         TxnKind::StockLevel => db.transaction(|txn| {
             let district = get_district(txn);
             black_box(stock_level::random_stock_level(txn, district));
         }),
     }
     let elapsed = before.elapsed();
-    match txn_kind {
-        TxnKind::NewOrder => STATS.new_order.add_sample(elapsed),
-        TxnKind::Payment => STATS.payment.add_sample(elapsed),
-        TxnKind::OrderStatus => STATS.order_status.add_sample(elapsed),
-        TxnKind::Delivery => STATS.delivery.add_sample(elapsed),
-        TxnKind::StockLevel => STATS.stock_level.add_sample(elapsed),
-    }
+    stats.add_total_time(elapsed);
 }
 
 fn think_time(txn_kind: TxnKind) -> ControlFlow<()> {
@@ -170,8 +183,9 @@ pub fn stop_emulation() {
 
 struct TxnStats {
     cnt: AtomicU64,
-    time_ms: AtomicU64,
     late: AtomicU64,
+    time_ms: AtomicU64,
+    time_cnt: AtomicU64,
     max_time: Duration,
 }
 
@@ -180,11 +194,12 @@ impl std::fmt::Display for TxnStats {
         let cnt = self.cnt.load(std::sync::atomic::Ordering::Acquire);
         let late = self.late.load(std::sync::atomic::Ordering::Acquire);
         let time = Duration::from_millis(self.time_ms.load(std::sync::atomic::Ordering::Acquire));
+        let time_cnt = self.time_cnt.load(std::sync::atomic::Ordering::Acquire);
         write!(
             f,
             "cnt: {cnt}, late: {}%, avg: {}ms",
             late as f64 / cnt as f64 * 100.,
-            time.checked_div(cnt as u32)
+            time.checked_div(time_cnt as u32)
                 .map(|x| x.as_millis())
                 .unwrap_or_default()
         )
@@ -195,20 +210,33 @@ impl TxnStats {
     pub const fn new(max_time: Duration) -> Self {
         Self {
             cnt: AtomicU64::new(0),
-            time_ms: AtomicU64::new(0),
             late: AtomicU64::new(0),
+            time_ms: AtomicU64::new(0),
+            time_cnt: AtomicU64::new(0),
             max_time,
         }
     }
 
-    pub fn add_sample(&self, dur: Duration) {
-        let time_ms = dur.as_millis() as u64;
+    /// This is the time that includes beginning the transaction and committing.
+    /// For `delivery` it includes all parts of the delivery.
+    pub fn add_total_time(&self, dur: Duration) {
         self.cnt.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.time_ms
-            .fetch_add(time_ms, std::sync::atomic::Ordering::Relaxed);
         if dur > self.max_time {
             self.late.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+    }
+
+    /// This is the time after begginging the transaction and before committing.
+    /// For `delivery` it includes only one district.
+    pub fn add_individual_time<R>(&self, f: impl FnOnce() -> R) -> R {
+        let start = Instant::now();
+        let res = f();
+        let dur = start.elapsed();
+        self.time_cnt
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.time_ms
+            .fetch_add(dur.as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
+        res
     }
 }
 
