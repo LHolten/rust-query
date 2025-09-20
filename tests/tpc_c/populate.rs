@@ -41,7 +41,7 @@ fn data() -> String {
     data
 }
 
-pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: usize) {
+pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: i64) {
     let items: Box<[_]> = (1..=100_000)
         .map(|number| {
             txn.insert(Item {
@@ -55,7 +55,7 @@ pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: usize) {
         })
         .collect();
 
-    for number in 1..=warehouse_cnt as i64 {
+    for number in 1..=warehouse_cnt {
         let warehouse = txn
             .insert(Warehouse {
                 number,
