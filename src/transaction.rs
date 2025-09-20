@@ -1,4 +1,4 @@
-use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData};
+use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::Mutex};
 
 use rusqlite::ErrorCode;
 use sea_query::{
@@ -34,6 +34,9 @@ pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema_version: i64,
     pub(crate) schema: PhantomData<S>,
+    // TODO: this should technically not be required with `unlock_notify`.
+    // see <https://github.com/rusqlite/rusqlite/issues/1736>
+    pub(crate) mut_lock: Mutex<()>,
 }
 
 use rusqlite::Connection;
@@ -117,6 +120,7 @@ impl<S: Send + Sync + 'static> Database<S> {
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
+        let _guard = self.mut_lock.lock().unwrap();
         let res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
