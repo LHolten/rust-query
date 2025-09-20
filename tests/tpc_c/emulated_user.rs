@@ -1,8 +1,8 @@
 use std::{
     hint::black_box,
     iter::repeat_n,
-    sync::atomic::AtomicU64,
-    thread::sleep,
+    ops::ControlFlow,
+    sync::{Condvar, Mutex, atomic::AtomicU64},
     time::{Duration, Instant},
 };
 
@@ -14,19 +14,22 @@ use crate::{
     v0::{District, Schema, Warehouse},
 };
 
-pub(crate) fn loop_emulate(db: Database<Schema>, warehouse: i64, district: i64) {
+pub(crate) fn loop_emulate(db: &Database<Schema>, warehouse: i64, district: i64) {
     let mut txn_deck = Vec::new();
-    // TODO: Need to put this on a thread with a signal to stop
-    for _ in 0..100 {
-        emulate(&mut txn_deck, &db, warehouse, district);
-    }
+    while let ControlFlow::Continue(()) = emulate(&mut txn_deck, db, warehouse, district) {}
 }
 
-fn emulate(txn_deck: &mut Vec<TxnKind>, db: &Database<Schema>, warehouse: i64, district: i64) {
+fn emulate(
+    txn_deck: &mut Vec<TxnKind>,
+    db: &Database<Schema>,
+    warehouse: i64,
+    district: i64,
+) -> ControlFlow<()> {
     let txn_kind = select_transaction(txn_deck);
-    keying_time(txn_kind);
+    keying_time(txn_kind)?;
     measure_txn_rt(&db, txn_kind, warehouse, district);
-    think_time(txn_kind);
+    think_time(txn_kind)?;
+    ControlFlow::Continue(())
 }
 
 #[derive(Clone, Copy)]
@@ -50,17 +53,27 @@ fn select_transaction(txn_deck: &mut Vec<TxnKind>) -> TxnKind {
     txn_deck.pop().unwrap()
 }
 
-fn keying_time(txn_kind: TxnKind) {
+fn keying_time(txn_kind: TxnKind) -> ControlFlow<()> {
     let secs = match txn_kind {
         TxnKind::NewOrder => 18,
         TxnKind::Payment => 3,
         TxnKind::OrderStatus | TxnKind::Delivery | TxnKind::StockLevel => 2,
     };
-    sleep(Duration::from_secs(secs))
+    sleep_or_break(Duration::from_secs(secs))
 }
 
 static ON_TIME: AtomicU64 = AtomicU64::new(0);
 static LATE: AtomicU64 = AtomicU64::new(0);
+
+pub fn print_stats() {
+    let on_time = ON_TIME.load(std::sync::atomic::Ordering::Acquire);
+    let late = LATE.load(std::sync::atomic::Ordering::Acquire);
+    println!(
+        "{} new orders inserted, {}% late",
+        on_time + late,
+        late as f64 / (on_time + late) as f64 * 100.
+    )
+}
 
 fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, district: i64) {
     let get_warehouse = |txn: &Transaction<Schema>| {
@@ -112,7 +125,7 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
     }
 }
 
-fn think_time(txn_kind: TxnKind) {
+fn think_time(txn_kind: TxnKind) -> ControlFlow<()> {
     let mean_secs = match txn_kind {
         TxnKind::NewOrder | TxnKind::Payment => 12.,
         TxnKind::OrderStatus => 10.,
@@ -120,5 +133,34 @@ fn think_time(txn_kind: TxnKind) {
     };
     let secs = -rand::random::<f64>().ln() * mean_secs;
     let secs = secs.min(10. * mean_secs);
-    sleep(Duration::from_secs_f64(secs));
+    sleep_or_break(Duration::from_secs_f64(secs))
+}
+
+fn sleep_or_break(dur: Duration) -> ControlFlow<()> {
+    let (_guard, res) = STOP
+        .condvar
+        .wait_timeout_while(STOP.should_stop.lock().unwrap(), dur, |should_stop| {
+            !*should_stop
+        })
+        .unwrap();
+    if res.timed_out() {
+        ControlFlow::Continue(())
+    } else {
+        ControlFlow::Break(())
+    }
+}
+
+struct Stop {
+    should_stop: Mutex<bool>,
+    condvar: Condvar,
+}
+
+static STOP: Stop = Stop {
+    should_stop: Mutex::new(false),
+    condvar: Condvar::new(),
+};
+
+pub fn stop_emulation() {
+    *STOP.should_stop.lock().unwrap() = true;
+    STOP.condvar.notify_all();
 }

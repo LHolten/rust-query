@@ -1,4 +1,9 @@
-use std::{ops::RangeInclusive, sync::OnceLock, time::SystemTime};
+use std::{
+    ops::RangeInclusive,
+    sync::{Arc, OnceLock},
+    thread,
+    time::{Duration, SystemTime},
+};
 
 use rust_query::{
     Database, IntoExpr, Select, TableRow, Transaction,
@@ -137,7 +142,7 @@ pub mod vN {
 }
 use v0::*;
 
-use crate::emulated_user::loop_emulate;
+use crate::emulated_user::{loop_emulate, print_stats, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
 fn main() {
@@ -151,14 +156,30 @@ fn main() {
         .expect("database should not be too old")
         .finish()
         .expect("database should not be too new");
+    let db = Arc::new(db);
 
     db.transaction_mut_ok(|txn| {
         expect::collect_all(|| {
             populate::populate(txn, 1);
         })
     });
+    println!("initialization complete");
 
-    loop_emulate(db, 1, 1);
+    let mut threads = vec![];
+    for district in 1..=10 {
+        let db = db.clone();
+        threads.push(thread::spawn(move || loop_emulate(&db, 1, district)));
+    }
+
+    thread::sleep(Duration::from_secs(5));
+
+    println!("benchmark complete");
+    stop_emulation();
+    for thread in threads {
+        thread.join().unwrap();
+    }
+
+    print_stats();
 }
 
 enum Nu {
