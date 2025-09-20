@@ -2,7 +2,8 @@ use std::{
     hint::black_box,
     iter::repeat_n,
     ops::ControlFlow,
-    sync::{Condvar, Mutex, atomic::AtomicU64},
+    sync::{Arc, Condvar, Mutex, atomic::AtomicU64},
+    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
@@ -14,22 +15,38 @@ use crate::{
     v0::{District, Schema, Warehouse},
 };
 
-pub(crate) fn loop_emulate(db: &Database<Schema>, warehouse: i64, district: i64) {
-    let mut txn_deck = Vec::new();
-    while let ControlFlow::Continue(()) = emulate(&mut txn_deck, db, warehouse, district) {}
+pub(crate) struct Emulate {
+    pub db: Arc<Database<Schema>>,
+    pub warehouse: i64,
+    pub district: i64,
+    pub queue: Vec<JoinHandle<()>>,
 }
 
-fn emulate(
-    txn_deck: &mut Vec<TxnKind>,
-    db: &Database<Schema>,
-    warehouse: i64,
-    district: i64,
-) -> ControlFlow<()> {
-    let txn_kind = select_transaction(txn_deck);
-    keying_time(txn_kind)?;
-    measure_txn_rt(&db, txn_kind, warehouse, district);
-    think_time(txn_kind)?;
-    ControlFlow::Continue(())
+impl Emulate {
+    pub fn loop_emulate(mut self) {
+        let mut txn_deck = Vec::new();
+        while let ControlFlow::Continue(()) = self.emulate(&mut txn_deck) {}
+        for thread in self.queue {
+            thread.join().unwrap();
+        }
+    }
+
+    fn emulate(&mut self, txn_deck: &mut Vec<TxnKind>) -> ControlFlow<()> {
+        let txn_kind = select_transaction(txn_deck);
+        keying_time(txn_kind)?;
+        if let TxnKind::Delivery = txn_kind {
+            let warehouse = self.warehouse;
+            let district = self.district;
+            let db = self.db.clone();
+            self.queue.push(thread::spawn(move || {
+                measure_txn_rt(&db, txn_kind, warehouse, district)
+            }));
+        } else {
+            measure_txn_rt(&self.db, txn_kind, self.warehouse, self.district)
+        }
+        think_time(txn_kind)?;
+        ControlFlow::Continue(())
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -88,17 +105,14 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         }
         TxnKind::Payment => db.transaction_mut_ok(|txn| {
             let warehouse = get_warehouse(txn);
+            // TODO: need to initialize other warehouses
             black_box(payment::random_payment(txn, warehouse, &[]));
         }),
         TxnKind::OrderStatus => db.transaction(|txn| {
             let warehouse = get_warehouse(txn);
             black_box(order_status::random_order_status(txn, warehouse));
         }),
-        TxnKind::Delivery => db.transaction_mut_ok(|txn| {
-            // TODO: this transaction can be queued.
-            let warehouse = get_warehouse(txn);
-            black_box(delivery::random_delivery(txn, warehouse));
-        }),
+        TxnKind::Delivery => black_box(delivery::random_delivery(db, warehouse)),
         TxnKind::StockLevel => db.transaction(|txn| {
             let district = get_district(txn);
             black_box(stock_level::random_stock_level(txn, district));
@@ -202,7 +216,7 @@ static STATS: Stats = Stats {
     new_order: TxnStats::new(Duration::from_secs(5)),
     payment: TxnStats::new(Duration::from_secs(5)),
     order_status: TxnStats::new(Duration::from_secs(5)),
-    delivery: TxnStats::new(Duration::from_secs(5)),
+    delivery: TxnStats::new(Duration::from_secs(80)),
     stock_level: TxnStats::new(Duration::from_secs(20)),
 };
 

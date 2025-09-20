@@ -142,7 +142,7 @@ pub mod vN {
 }
 use v0::*;
 
-use crate::emulated_user::{loop_emulate, print_stats, stop_emulation};
+use crate::emulated_user::{Emulate, print_stats, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
 fn main() {
@@ -172,7 +172,13 @@ fn main() {
         for district in 1..=10 {
             let db = db.clone();
             threads.push(thread::spawn(move || {
-                loop_emulate(&db, warehouse, district)
+                Emulate {
+                    db,
+                    warehouse,
+                    district,
+                    queue: vec![],
+                }
+                .loop_emulate();
             }));
         }
     }
