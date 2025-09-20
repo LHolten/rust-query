@@ -1,4 +1,10 @@
-use std::{cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::Mutex};
+use std::{
+    cell::RefCell,
+    convert::Infallible,
+    iter::zip,
+    marker::PhantomData,
+    sync::{Mutex, atomic::AtomicI64},
+};
 
 use rusqlite::ErrorCode;
 use sea_query::{
@@ -10,7 +16,7 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
-    migrate::{Schema, schema_version},
+    migrate::{Schema, check_schema, schema_version, user_version},
     private::Reader,
     query::{Query, track_stmt},
     rows::Rows,
@@ -32,7 +38,7 @@ use crate::{
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
-    pub(crate) schema_version: i64,
+    pub(crate) schema_version: AtomicI64,
     pub(crate) schema: PhantomData<S>,
     // TODO: this should technically not be required with `unlock_notify`.
     // see <https://github.com/rusqlite/rusqlite/issues/1736>
@@ -74,7 +80,7 @@ impl OwnedTransaction {
     }
 }
 
-impl<S: Send + Sync + 'static> Database<S> {
+impl<S: Send + Sync + Schema> Database<S> {
     /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
     ///
     /// This function will panic if the schema was modified compared to when the [Database] value
@@ -91,7 +97,7 @@ impl<S: Send + Sync + 'static> Database<S> {
                         Some(conn.borrow_mut().transaction().unwrap())
                     });
 
-                    f(Transaction::new_checked(owned, self.schema_version))
+                    f(Transaction::new_checked(owned, &self.schema_version))
                 })
                 .join()
         });
@@ -135,7 +141,7 @@ impl<S: Send + Sync + 'static> Database<S> {
                         Some(txn)
                     });
 
-                    let res = f(Transaction::new_checked(owned, self.schema_version));
+                    let res = f(Transaction::new_checked(owned, &self.schema_version));
 
                     let owned = TXN.take().unwrap();
 
@@ -200,13 +206,23 @@ impl<S> Transaction<S> {
     }
 }
 
-impl<S> Transaction<S> {
+impl<S: Schema> Transaction<S> {
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: OwnedTransaction, expected: i64) -> &'static mut Self {
-        if schema_version(txn.get()) != expected {
-            panic!("The database schema was updated unexpectedly")
+    pub(crate) fn new_checked(txn: OwnedTransaction, expected: &AtomicI64) -> &'static mut Self {
+        let schema_version = schema_version(txn.get());
+        // If the schema version is not the expected version then we
+        // check if the changes are acceptable.
+        if schema_version != expected.load(std::sync::atomic::Ordering::Relaxed) {
+            if user_version(txn.get()).unwrap() != S::VERSION {
+                panic!("The database user_version changed unexpectedly")
+            }
+
+            TXN.set(Some(txn));
+            check_schema::<S>();
+            expected.store(schema_version, std::sync::atomic::Ordering::Relaxed);
+        } else {
+            TXN.set(Some(txn));
         }
-        TXN.set(Some(txn));
 
         const {
             assert!(size_of::<Self>() == 0);
@@ -214,7 +230,9 @@ impl<S> Transaction<S> {
         // no memory is leaked because Self is zero sized
         Box::leak(Box::new(Self::new()))
     }
+}
 
+impl<S> Transaction<S> {
     /// Execute a query with multiple results.
     ///
     /// ```

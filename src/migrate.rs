@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
     ops::{Deref, Not},
     path::Path,
-    sync::Mutex,
+    sync::{Mutex, atomic::AtomicI64},
 };
 
 use rusqlite::{Connection, config::DbConfig};
@@ -545,7 +545,7 @@ impl<S: Schema> Migrator<S> {
 
         Some(Database {
             manager: self.manager,
-            schema_version,
+            schema_version: AtomicI64::new(schema_version),
             schema: PhantomData,
             mut_lock: Mutex::new(()),
         })
@@ -558,7 +558,7 @@ pub fn schema_version(conn: &rusqlite::Transaction) -> i64 {
 }
 
 // Read user version field from the SQLite db
-fn user_version(conn: &rusqlite::Transaction) -> Result<i64, rusqlite::Error> {
+pub fn user_version(conn: &rusqlite::Transaction) -> Result<i64, rusqlite::Error> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0))
 }
 
@@ -567,7 +567,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-fn check_schema<S: Schema>() {
+pub(crate) fn check_schema<S: Schema>() {
     let mut b = TableTypBuilder::default();
     S::typs(&mut b);
     pretty_assertions::assert_eq!(
