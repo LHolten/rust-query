@@ -48,15 +48,48 @@ pub struct Table {
 }
 
 /// Special [Vec] wrapper with a hash that is independent of the item order
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MyVec<T> {
     inner: Vec<T>,
+    original: Vec<usize>,
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for MyVec<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
+impl<T: std::hash::Hash> std::hash::Hash for MyVec<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl<T: PartialEq> PartialEq for MyVec<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<T: Eq> Eq for MyVec<T> {}
+
+impl<T: PartialOrd> PartialOrd for MyVec<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl<T: Ord> Ord for MyVec<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
 }
 
 impl<T> Default for MyVec<T> {
     fn default() -> Self {
         Self {
             inner: Default::default(),
+            original: Default::default(),
         }
     }
 }
@@ -64,6 +97,7 @@ impl<T> Default for MyVec<T> {
 impl<T: Ord> MyVec<T> {
     pub fn insert(&mut self, item: T) {
         let index = self.inner.partition_point(|x| x < &item);
+        self.original.insert(index, self.inner.len());
         self.inner.insert(index, item);
     }
 }
@@ -73,6 +107,15 @@ impl<T> Deref for MyVec<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl<T> MyVec<T> {
+    pub fn original_order(&self) -> impl Iterator<Item = &T> {
+        // TODO: replace with ordered map or something
+        (0..self.original.len())
+            .map(|x| self.original.iter().position(|a| a == &x).unwrap())
+            .map(|i| &self.inner[i])
     }
 }
 
@@ -99,7 +142,9 @@ impl Table {
         }
         for unique in &*self.uniques {
             let mut index = sea_query::Index::create().unique().take();
-            for col in &*unique.columns {
+            // Preserve the original order of columns in the unique constraint.
+            // This lets users optimize queries by using covered indexes.
+            for col in unique.columns.original_order() {
                 index.col(Alias::new(col));
             }
             create.index(&mut index);
