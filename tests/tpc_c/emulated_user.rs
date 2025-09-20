@@ -62,19 +62,6 @@ fn keying_time(txn_kind: TxnKind) -> ControlFlow<()> {
     sleep_or_break(Duration::from_secs(secs))
 }
 
-static ON_TIME: AtomicU64 = AtomicU64::new(0);
-static LATE: AtomicU64 = AtomicU64::new(0);
-
-pub fn print_stats() {
-    let on_time = ON_TIME.load(std::sync::atomic::Ordering::Acquire);
-    let late = LATE.load(std::sync::atomic::Ordering::Acquire);
-    println!(
-        "{} new orders inserted, {}% late",
-        on_time + late,
-        late as f64 / (on_time + late) as f64 * 100.
-    )
-}
-
 fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, district: i64) {
     let get_warehouse = |txn: &Transaction<Schema>| {
         txn.query_one(Warehouse::unique(warehouse))
@@ -84,9 +71,9 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         txn.query_one(District::unique(get_warehouse(txn), district))
             .expect("district exists")
     };
+    let before = Instant::now();
     match txn_kind {
         TxnKind::NewOrder => {
-            let before = Instant::now();
             let _ = db.transaction_mut(|txn| {
                 let warehouse = get_warehouse(txn);
                 // TODO: need to initialize other warehouses
@@ -98,12 +85,6 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
                         black_box(val);
                     })
             });
-            let elapsed = before.elapsed();
-            if elapsed <= Duration::from_secs(5) {
-                ON_TIME.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            } else {
-                LATE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
         }
         TxnKind::Payment => db.transaction_mut_ok(|txn| {
             let warehouse = get_warehouse(txn);
@@ -122,6 +103,14 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
             let district = get_district(txn);
             black_box(stock_level::random_stock_level(txn, district));
         }),
+    }
+    let elapsed = before.elapsed();
+    match txn_kind {
+        TxnKind::NewOrder => STATS.new_order.add_sample(elapsed),
+        TxnKind::Payment => STATS.payment.add_sample(elapsed),
+        TxnKind::OrderStatus => STATS.order_status.add_sample(elapsed),
+        TxnKind::Delivery => STATS.delivery.add_sample(elapsed),
+        TxnKind::StockLevel => STATS.stock_level.add_sample(elapsed),
     }
 }
 
@@ -163,4 +152,72 @@ static STOP: Stop = Stop {
 pub fn stop_emulation() {
     *STOP.should_stop.lock().unwrap() = true;
     STOP.condvar.notify_all();
+}
+
+struct TxnStats {
+    cnt: AtomicU64,
+    time_ms: AtomicU64,
+    late: AtomicU64,
+    max_time: Duration,
+}
+
+impl std::fmt::Display for TxnStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let cnt = self.cnt.load(std::sync::atomic::Ordering::Acquire);
+        let late = self.late.load(std::sync::atomic::Ordering::Acquire);
+        let time = Duration::from_millis(self.time_ms.load(std::sync::atomic::Ordering::Acquire));
+        write!(
+            f,
+            "cnt: {cnt}, late: {}%, avg: {}ms",
+            late as f64 / cnt as f64 * 100.,
+            time.checked_div(cnt as u32)
+                .map(|x| x.as_millis())
+                .unwrap_or_default()
+        )
+    }
+}
+
+impl TxnStats {
+    pub const fn new(max_time: Duration) -> Self {
+        Self {
+            cnt: AtomicU64::new(0),
+            time_ms: AtomicU64::new(0),
+            late: AtomicU64::new(0),
+            max_time,
+        }
+    }
+
+    pub fn add_sample(&self, dur: Duration) {
+        let time_ms = dur.as_millis() as u64;
+        self.cnt.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.time_ms
+            .fetch_add(time_ms, std::sync::atomic::Ordering::Relaxed);
+        if dur > self.max_time {
+            self.late.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+}
+
+static STATS: Stats = Stats {
+    new_order: TxnStats::new(Duration::from_secs(5)),
+    payment: TxnStats::new(Duration::from_secs(5)),
+    order_status: TxnStats::new(Duration::from_secs(5)),
+    delivery: TxnStats::new(Duration::from_secs(5)),
+    stock_level: TxnStats::new(Duration::from_secs(20)),
+};
+
+struct Stats {
+    new_order: TxnStats,
+    payment: TxnStats,
+    order_status: TxnStats,
+    delivery: TxnStats,
+    stock_level: TxnStats,
+}
+
+pub fn print_stats() {
+    println!("new_order:    {}", STATS.new_order);
+    println!("delivery:     {}", STATS.delivery);
+    println!("order_status: {}", STATS.order_status);
+    println!("payment:      {}", STATS.payment);
+    println!("stock_level:  {}", STATS.stock_level);
 }

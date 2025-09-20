@@ -158,7 +158,8 @@ fn main() {
         .expect("database should not be too new");
     let db = Arc::new(db);
 
-    const WAREHOUSE_CNT: i64 = 10;
+    // every warehouse is ~70MB
+    const WAREHOUSE_CNT: i64 = 1;
     db.transaction_mut_ok(|txn| {
         expect::collect_all(|| {
             populate::populate(txn, WAREHOUSE_CNT);
@@ -176,7 +177,7 @@ fn main() {
         }
     }
 
-    thread::sleep(Duration::from_secs(5));
+    thread::sleep(Duration::from_secs(60));
 
     println!("benchmark complete");
     stop_emulation();
