@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use sea_query::{Alias, Asterisk, Condition, Expr, ExprTrait, NullAlias, SelectStatement};
+use sea_query::{Alias, Condition, Expr, ExprTrait, NullAlias, SelectStatement};
 
 use crate::{
     alias::{Field, JoinableTable, MyAlias, Scope},
@@ -59,14 +59,13 @@ impl ValueBuilder {
     }
 
     pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<MyAlias>) {
-        let res = self.build_select(false, select);
+        let res = self.build_select(select);
         assert!(self.forwarded.is_empty());
         res
     }
 
     pub fn build_select(
         &mut self,
-        must_group: bool,
         select_out: Vec<DynTypedExpr>,
     ) -> (SelectStatement, Vec<MyAlias>) {
         let mut select = SelectStatement::new();
@@ -119,7 +118,6 @@ impl ValueBuilder {
         }
 
         let mut any_expr = false;
-        let mut any_group = false;
 
         for (idx, group) in self.forwarded.iter().enumerate() {
             select.from_as((Alias::new("main"), Alias::new(group.1.0)), group.1.2);
@@ -136,7 +134,6 @@ impl ValueBuilder {
             let constant =
                 sea_query::Expr::Constant(sea_query::Value::BigInt(Some((idx + 1) as i64)));
             select.add_group_by([constant]);
-            any_group = true;
         }
 
         let forwarded_len = self.forwarded.len();
@@ -160,14 +157,6 @@ impl ValueBuilder {
             any_expr = true
         }
         assert!(any_expr);
-
-        if must_group && !any_group {
-            select.expr_as(Expr::count(Expr::col(Asterisk)), NullAlias);
-            any_group = true;
-        }
-        // It is not possible to have a group by expression when it is not required.
-        // So these must always be equal.
-        assert_eq!(any_group, must_group);
 
         (select, out_fields)
     }

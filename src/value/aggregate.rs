@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{ExprTrait, Func, SelectStatement};
+use sea_query::{Asterisk, ExprTrait, Func, SelectStatement};
 
 use crate::{
     Expr,
@@ -36,13 +36,15 @@ impl<S> DerefMut for Aggregate<'_, '_, S> {
 }
 
 impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
+    /// This must be used with an aggregating expression.
+    /// otherwise there is a change that there are multiple rows.
     fn select<T>(
         &self,
         expr: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
     ) -> Aggr<S, Option<T>> {
         let expr = DynTypedExpr(Rc::new(expr));
         let mut builder = self.query.ast.clone().full();
-        let (select, mut fields) = builder.build_select(true, vec![expr]);
+        let (select, mut fields) = builder.build_select(vec![expr]);
 
         let conds = builder.forwarded.into_iter().map(|x| x.1.1).collect();
 
@@ -110,7 +112,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
     /// Return whether there are any rows.
     pub fn exists(&self) -> Expr<'outer, S, bool> {
-        let val = self.select::<i64>(|_| sea_query::Expr::Constant(1.into_sea_value()));
+        let val = self.select::<i64>(|_| Func::count(sea_query::Expr::col(Asterisk)).into());
         Expr::adhoc(move |b| sea_query::Expr::expr(val.build_expr(b)).is_not_null())
     }
 }

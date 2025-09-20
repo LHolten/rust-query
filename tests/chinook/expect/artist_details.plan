@@ -3,7 +3,6 @@ QUERY PLAN [
         SCAN CONSTANT ROW,
     ],
     MATERIALIZE _1 [
-        USE TEMP B-TREE FOR count(DISTINCT),
         SCAN _0,
     ],
     MATERIALIZE _2 [
