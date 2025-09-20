@@ -158,17 +158,22 @@ fn main() {
         .expect("database should not be too new");
     let db = Arc::new(db);
 
+    const WAREHOUSE_CNT: i64 = 10;
     db.transaction_mut_ok(|txn| {
         expect::collect_all(|| {
-            populate::populate(txn, 1);
+            populate::populate(txn, WAREHOUSE_CNT);
         })
     });
     println!("initialization complete");
 
     let mut threads = vec![];
-    for district in 1..=10 {
-        let db = db.clone();
-        threads.push(thread::spawn(move || loop_emulate(&db, 1, district)));
+    for warehouse in 1..=WAREHOUSE_CNT {
+        for district in 1..=10 {
+            let db = db.clone();
+            threads.push(thread::spawn(move || {
+                loop_emulate(&db, warehouse, district)
+            }));
+        }
     }
 
     thread::sleep(Duration::from_secs(5));
