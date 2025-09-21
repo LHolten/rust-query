@@ -7,7 +7,7 @@ use crate::{
     alias::{JoinableTable, TmpTable},
     ast::MySelect,
     db::Join,
-    value::{IntoExpr, MyTableRef, MyTyp, Typed},
+    value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -60,7 +60,7 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on an expression.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
-        let prop = prop.into_expr().inner.erase();
+        let prop = DynTypedExpr::erase(prop);
         Rc::make_mut(&mut self.ast).filters.push(prop);
     }
 
@@ -74,7 +74,7 @@ impl<'inner, S> Rows<'inner, S> {
         let val = val.into_expr();
         Rc::make_mut(&mut self.ast)
             .filters
-            .push(val.is_some().inner.erase());
+            .push(DynTypedExpr::erase(val.is_some()));
 
         Expr::adhoc(move |b| val.inner.build_expr(b))
     }

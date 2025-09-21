@@ -155,12 +155,12 @@ pub trait IntoExpr<'column, S> {
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
 }
 
-impl<T: Typed<Typ = X>, X: MyTyp<Sql: Nullable>> Typed for Option<T> {
-    type Typ = Option<T::Typ>;
+impl<X: MyTyp<Sql: Nullable>> Typed for Option<Rc<dyn Typed<Typ = X>>> {
+    type Typ = Option<X>;
 
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         self.as_ref()
-            .map(|x| T::build_expr(x, b))
+            .map(|x| x.build_expr(b))
             .unwrap_or(X::Sql::null().into())
     }
 }
@@ -439,7 +439,7 @@ impl<T: SecretFromSql> SecretFromSql for Option<T> {
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
 pub struct Expr<'column, S, T: MyTyp> {
     pub(crate) _local: PhantomData<*const ()>,
-    pub(crate) inner: DynTyped<T>,
+    pub(crate) inner: Rc<dyn Typed<Typ = T>>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
@@ -456,7 +456,7 @@ impl<'column, S, T: MyTyp> Expr<'column, S, T> {
     #[doc(hidden)]
     pub fn _migrate<OldS>(prev: impl IntoExpr<'column, OldS>) -> Self {
         Self::new(MigratedExpr {
-            prev: prev.into_expr().inner.erase(),
+            prev: DynTypedExpr::erase(prev),
             _p: PhantomData,
         })
     }
@@ -485,10 +485,6 @@ pub fn new_dummy<'x, S, T: MyTyp>(val: impl Typed<Typ = T> + 'static) -> Select<
     IntoSelect::into_select(Expr::new(val))
 }
 
-pub fn into_owned<'x, S>(val: impl IntoExpr<'x, S>) -> DynTypedExpr {
-    val.into_expr().inner.erase()
-}
-
 struct AdHoc<F, T>(F, PhantomData<T>);
 impl<F: Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
     type Typ = T;
@@ -506,7 +502,7 @@ impl<S, T: MyTyp> Expr<'_, S, T> {
     pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
         Self {
             _local: PhantomData,
-            inner: DynTyped(Rc::new(val)),
+            inner: Rc::new(val),
             _p: PhantomData,
             _p2: PhantomData,
             ext: OnceCell::new(),
@@ -535,11 +531,9 @@ impl DynTypedExpr {
     pub fn new(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
         Self { func: Rc::new(f) }
     }
-}
-
-impl<Typ: 'static> DynTyped<Typ> {
-    pub fn erase(self) -> DynTypedExpr {
-        DynTypedExpr::new(move |b| self.build_expr(b))
+    pub fn erase<'x, S>(expr: impl IntoExpr<'x, S>) -> Self {
+        let typed = expr.into_expr().inner;
+        Self::new(move |b| typed.build_expr(b))
     }
 }
 
@@ -552,29 +546,6 @@ impl<Typ> Typed for MigratedExpr<Typ> {
     type Typ = Typ;
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         (self.prev.func)(b)
-    }
-}
-
-pub struct DynTyped<Typ>(pub(crate) Rc<dyn Typed<Typ = Typ>>);
-
-impl<T> Clone for DynTyped<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<Typ: 'static> Typed for DynTyped<Typ> {
-    type Typ = Typ;
-
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        self.0.build_expr(b)
-    }
-
-    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        self.0.build_table(b)
     }
 }
 

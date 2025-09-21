@@ -92,7 +92,7 @@ fn define_table(
                 -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
             {
                 #(
-                    let #col = ::rust_query::private::into_owned(#col);
+                    let #col = ::rust_query::private::DynTypedExpr::erase(#col);
                 )*
                 ::rust_query::private::adhoc_expr(move |_b| {
                     #(
