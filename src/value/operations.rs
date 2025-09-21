@@ -2,7 +2,7 @@ use sea_query::{Alias, ExprTrait, extension::sqlite::SqliteExpr};
 
 use crate::value::MyTyp;
 
-use super::{EqTyp, Expr, IntoExpr, NumTyp, Typed};
+use super::{EqTyp, Expr, IntoExpr, NumTyp};
 
 impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// Add two expressions together.

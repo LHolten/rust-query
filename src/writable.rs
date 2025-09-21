@@ -65,7 +65,7 @@ impl<S> Default for Reader<S> {
 
 impl<S> Reader<S> {
     pub fn col(&mut self, name: &'static str, val: impl IntoExpr<'static, S>) {
-        self.col_erased(name, val.into_expr().inner.erase());
+        self.col_erased(name, DynTypedExpr::erase(val));
     }
 
     pub(crate) fn col_erased(&mut self, name: &'static str, val: DynTypedExpr) {

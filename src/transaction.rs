@@ -20,7 +20,7 @@ use crate::{
     private::Reader,
     query::{Query, track_stmt},
     rows::Rows,
-    value::{SecretFromSql, ValueBuilder},
+    value::{DynTypedExpr, SecretFromSql, ValueBuilder},
     writable::TableInsert,
 };
 
@@ -384,7 +384,7 @@ impl<S: 'static> Transaction<S> {
     ) -> Result<(), T::Conflict> {
         let mut id = ValueBuilder::default();
         let row = row.into_expr();
-        let (id, _) = id.simple_one(row.inner.clone().erase());
+        let (id, _) = id.simple_one(DynTypedExpr::erase(&row));
 
         let val = T::apply_try_update(val, row);
         let mut reader = Reader::default();

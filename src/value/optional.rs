@@ -8,7 +8,7 @@ use crate::{
     value::DynTypedExpr,
 };
 
-use super::{Expr, IntoExpr, MyTyp, Typed};
+use super::{Expr, IntoExpr, MyTyp};
 
 /// This is a combinator function that allows constructing single row optional queries.
 ///
@@ -68,7 +68,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
         let column = col.into_expr();
-        self.nulls.push(column.is_none().into_expr().inner.erase());
+        self.nulls.push(DynTypedExpr::erase(column.is_none()));
         Expr::adhoc(move |b| column.inner.build_expr(b))
     }
 
@@ -112,7 +112,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Select::new(OptionalImpl {
             inner: d.into_select().inner,
             is_some: ColumnImpl {
-                expr: self.is_some().into_expr().inner.erase(),
+                expr: DynTypedExpr::erase(self.is_some()),
                 _p: PhantomData,
             },
         })

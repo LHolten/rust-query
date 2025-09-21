@@ -255,7 +255,7 @@ where
 
     fn into_select(self) -> Select<'columns, S, Self::Out> {
         Select::new(ColumnImpl {
-            expr: self.inner.erase(),
+            expr: DynTypedExpr::erase(self),
             _p: PhantomData,
         })
     }
