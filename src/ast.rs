@@ -4,7 +4,7 @@ use sea_query::{Alias, Condition, Expr, ExprTrait, NullAlias, SelectStatement};
 
 use crate::{
     alias::{Field, JoinableTable, MyAlias, Scope},
-    value::{DynTyped, DynTypedExpr, Typed, ValueBuilder},
+    value::{DynTypedExpr, ValueBuilder},
 };
 
 #[derive(Default, Clone)]
@@ -14,7 +14,7 @@ pub struct MySelect {
     // tables to join, adding more requires mutating
     pub(super) tables: Vec<JoinableTable>,
     // all conditions to check
-    pub(super) filters: Vec<DynTyped<bool>>,
+    pub(super) filters: Vec<DynTypedExpr>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -73,7 +73,7 @@ impl ValueBuilder {
 
         // this stuff adds more to the self.extra list and self.forwarded list
         let select_out: Vec<_> = select_out.into_iter().map(|val| (val.0)(self)).collect();
-        let filters: Vec<_> = from.filters.iter().map(|x| x.build_expr(self)).collect();
+        let filters: Vec<_> = from.filters.iter().map(|x| (x.0)(self)).collect();
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {

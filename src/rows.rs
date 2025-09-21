@@ -60,8 +60,8 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on an expression.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
-        let prop = prop.into_expr();
-        Rc::make_mut(&mut self.ast).filters.push(prop.inner);
+        let prop = prop.into_expr().inner.erase();
+        Rc::make_mut(&mut self.ast).filters.push(prop);
     }
 
     /// Filter out rows where this expression is [None].
@@ -74,7 +74,7 @@ impl<'inner, S> Rows<'inner, S> {
         let val = val.into_expr();
         Rc::make_mut(&mut self.ast)
             .filters
-            .push(val.is_some().inner);
+            .push(val.is_some().inner.erase());
 
         Expr::adhoc(move |b| val.inner.build_expr(b))
     }
