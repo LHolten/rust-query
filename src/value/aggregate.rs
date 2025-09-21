@@ -42,7 +42,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         &self,
         expr: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
     ) -> Aggr<S, Option<T>> {
-        let expr = DynTypedExpr(Rc::new(expr));
+        let expr = DynTypedExpr::new(expr);
         let mut builder = self.query.ast.clone().full();
         let (select, mut fields) = builder.build_select(vec![expr]);
 
@@ -144,7 +144,7 @@ impl<S, T: MyTyp> Typed for Aggr<S, T> {
 
 impl<S, T> Aggr<S, T> {
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
-        let conds = self.conds.iter().map(|expr| (expr.0)(b)).collect();
+        let conds = self.conds.iter().map(|expr| (expr.func)(b)).collect();
         b.get_aggr(self.select.clone(), conds)
     }
 }
