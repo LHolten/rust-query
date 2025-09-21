@@ -1,5 +1,6 @@
 use std::iter::{self, zip};
 
+use indicatif::{ProgressIterator, ProgressStyle};
 use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
 use rust_query::{TableRow, Transaction, UnixEpoch};
 
@@ -55,10 +56,11 @@ pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: i64) {
         })
         .collect();
 
-    for number in 1..=warehouse_cnt {
+    let style = ProgressStyle::with_template("{pos}/{len} eta {eta} {wide_bar}").unwrap();
+    for number in (0..warehouse_cnt as usize).progress_with_style(style) {
         let warehouse = txn
             .insert(Warehouse {
-                number,
+                number: (number + 1) as i64,
                 name: a_string(6, 10),
                 street_1: a_string(10, 20),
                 street_2: a_string(10, 20),

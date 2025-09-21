@@ -31,6 +31,7 @@ self_cell = "1.2.0"
 trybuild = "1.0.97"
 expect-test = "1"
 rand = "0.9.1"
+indicatif = "0.18.0"
 
 [features]
 default = ["dev"]
