@@ -5,7 +5,7 @@ pub mod trivial;
 
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
-use sea_query::{Alias, Nullable, SelectStatement};
+use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
     IntoSelect, Select, Table,
@@ -45,9 +45,18 @@ impl ValueBuilder {
         *self.extra.get_or_init(source, new_alias)
     }
 
-    pub(crate) fn get_join<T: Table>(&mut self, expr: sea_query::Expr) -> MyAlias {
+    pub(crate) fn get_join<T: Table>(
+        &mut self,
+        expr: sea_query::Expr,
+        possible_null: bool,
+    ) -> MyAlias {
+        let join_type = if possible_null {
+            JoinType::LeftJoin
+        } else {
+            JoinType::Join
+        };
         let source = Source {
-            kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
+            kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned(), join_type),
             conds: vec![(Field::Str(T::ID), expr)],
         };
         let new_alias = || self.scope.new_alias();
@@ -59,7 +68,7 @@ impl ValueBuilder {
         conds: Box<[(&'static str, sea_query::Expr)]>,
     ) -> sea_query::Expr {
         let source = Source {
-            kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned()),
+            kind: crate::ast::SourceKind::Implicit(T::NAME.to_owned(), JoinType::LeftJoin),
             conds: conds.into_iter().map(|x| (Field::Str(x.0), x.1)).collect(),
         };
 
@@ -134,15 +143,17 @@ impl<T: Table> EqTyp for T {}
 pub trait Typed {
     type Typ;
 
-    #[doc(hidden)]
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr;
-    #[doc(hidden)]
+    fn maybe_optional(&self) -> bool {
+        true
+    }
+
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
         Self::Typ: Table,
     {
         let expr = self.build_expr(b);
-        b.get_join::<Self::Typ>(expr)
+        b.get_join::<Self::Typ>(expr, self.maybe_optional())
     }
 }
 
@@ -265,6 +276,9 @@ where
     type Typ = T::Typ;
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         T::build_expr(self, b)
+    }
+    fn maybe_optional(&self) -> bool {
+        T::maybe_optional(self)
     }
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
     where
@@ -473,30 +487,55 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
     name: &'static str,
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
-    Expr::adhoc(move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into())
-}
-
-pub fn assume_expr<S, T: MyTyp>(e: Expr<S, Option<T>>) -> Expr<S, T> {
-    let inner = e.inner;
-    Expr::adhoc(move |b| inner.build_expr(b))
+    let possible_null = table.maybe_optional();
+    Expr::adhoc_promise(
+        move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into(),
+        possible_null,
+    )
 }
 
 pub fn new_dummy<'x, S, T: MyTyp>(val: impl Typed<Typ = T> + 'static) -> Select<'x, S, T::Out> {
     IntoSelect::into_select(Expr::new(val))
 }
 
-struct AdHoc<F, T>(F, PhantomData<T>);
+struct AdHoc<F, T> {
+    func: F,
+    maybe_optional: bool,
+    _p: PhantomData<T>,
+}
 impl<F: Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
     type Typ = T;
 
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        (self.0)(b)
+        (self.func)(b)
+    }
+    fn maybe_optional(&self) -> bool {
+        self.maybe_optional
     }
 }
 
 impl<S, T: MyTyp> Expr<'_, S, T> {
     pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
-        Self::new(AdHoc(f, PhantomData))
+        Self::new(AdHoc {
+            func: f,
+            maybe_optional: true,
+            _p: PhantomData,
+        })
+    }
+
+    /// Only set `maybe_optional` to `false` if you are absolutely sure that the
+    /// value is not null. The [crate::optional] combinator makes this more difficult.
+    /// There is no reason to use this for values that can not be foreign keys.
+    /// This is used to optimize implicit joins from LEFT JOIN to just JOIN.
+    pub(crate) fn adhoc_promise(
+        f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
+        maybe_optional: bool,
+    ) -> Self {
+        Self::new(AdHoc {
+            func: f,
+            maybe_optional,
+            _p: PhantomData,
+        })
     }
 
     pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {

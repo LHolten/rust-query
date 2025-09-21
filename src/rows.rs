@@ -76,6 +76,7 @@ impl<'inner, S> Rows<'inner, S> {
             .filters
             .push(DynTypedExpr::erase(val.is_some()));
 
-        Expr::adhoc(move |b| val.inner.build_expr(b))
+        // we already removed all rows with null, so this is ok.
+        Expr::adhoc_promise(move |b| val.inner.build_expr(b), false)
     }
 }

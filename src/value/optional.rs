@@ -69,6 +69,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     ) -> Expr<'inner, S, T> {
         let column = col.into_expr();
         self.nulls.push(DynTypedExpr::erase(column.is_none()));
+        // `Expr::adhoc` is used here to reset `maybe_optional` to `true`.
         Expr::adhoc(move |b| column.inner.build_expr(b))
     }
 
