@@ -18,7 +18,11 @@ pub struct DeliveryInput {
     delivery_d: i64,
 }
 
-pub fn delivery(txn: &'static mut Transaction<Schema>, input: &DeliveryInput, district_num: i64) {
+pub fn delivery(
+    txn: &'static mut Transaction<Schema>,
+    input: &DeliveryInput,
+    district_num: i64,
+) -> Option<DeliveryOutput> {
     let warehouse = txn.query_one(Warehouse::unique(input.warehouse)).unwrap();
     let district = txn
         .query_one(District::unique(warehouse, district_num))
@@ -42,10 +46,11 @@ pub fn delivery(txn: &'static mut Transaction<Schema>, input: &DeliveryInput, di
         })
     }));
     let Some(new_order) = new_order else {
-        return;
+        return None;
     };
 
     let order = &new_order.into_expr().order;
+    let order_num = txn.query_one(&order.number);
 
     txn.update_ok(
         order,
@@ -82,4 +87,15 @@ pub fn delivery(txn: &'static mut Transaction<Schema>, input: &DeliveryInput, di
 
     let txn = txn.downgrade();
     assert!(txn.delete_ok(new_order));
+
+    Some(DeliveryOutput {
+        district: district_num,
+        order: order_num,
+    })
+}
+
+#[expect(unused)]
+pub struct DeliveryOutput {
+    district: i64,
+    order: i64,
 }
