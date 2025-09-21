@@ -84,6 +84,13 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         txn.query_one(Warehouse::unique(warehouse))
             .expect("warehouse exists")
     };
+    let other_warehouses = |txn: &Transaction<Schema>| {
+        txn.query(|rows| {
+            let w = rows.join(Warehouse);
+            rows.filter(w.number.eq(warehouse).not());
+            rows.into_vec(w)
+        })
+    };
     let get_district = |txn: &Transaction<Schema>| {
         txn.query_one(District::unique(get_warehouse(txn), district))
             .expect("district exists")
@@ -100,9 +107,11 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         TxnKind::NewOrder => {
             let _ = db.transaction_mut(|txn| {
                 let warehouse = get_warehouse(txn);
-                // TODO: need to initialize other warehouses
+                let other_warehouses = other_warehouses(txn);
                 stats
-                    .add_individual_time(|| new_order::random_new_order(txn, warehouse, &[]))
+                    .add_individual_time(|| {
+                        new_order::random_new_order(txn, warehouse, &other_warehouses)
+                    })
                     .map(|val| {
                         black_box(val);
                     })
@@ -113,8 +122,10 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         }
         TxnKind::Payment => db.transaction_mut_ok(|txn| {
             let warehouse = get_warehouse(txn);
-            // TODO: need to initialize other warehouses
-            black_box(stats.add_individual_time(|| payment::random_payment(txn, warehouse, &[])));
+            let other_warehouses = other_warehouses(txn);
+            black_box(stats.add_individual_time(|| {
+                payment::random_payment(txn, warehouse, &other_warehouses)
+            }));
         }),
         TxnKind::OrderStatus => db.transaction(|txn| {
             let warehouse = get_warehouse(txn);
@@ -127,8 +138,9 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
             for district_num in 1..=10 {
                 // use separate transactions to allow other threads to do stuff in between
                 db.transaction_mut_ok(|txn| {
-                    // TODO: add output to this function and black_box it
-                    stats.add_individual_time(|| delivery::delivery(txn, &input, district_num));
+                    black_box(
+                        stats.add_individual_time(|| delivery::delivery(txn, &input, district_num)),
+                    );
                 })
             }
         }
