@@ -184,7 +184,7 @@ pub fn stop_emulation() {
 struct TxnStats {
     cnt: AtomicU64,
     late: AtomicU64,
-    time_ms: AtomicU64,
+    time_us: AtomicU64,
     time_cnt: AtomicU64,
     max_time: Duration,
 }
@@ -193,15 +193,11 @@ impl std::fmt::Display for TxnStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cnt = self.cnt.load(std::sync::atomic::Ordering::Acquire);
         let late = self.late.load(std::sync::atomic::Ordering::Acquire);
-        let time = Duration::from_millis(self.time_ms.load(std::sync::atomic::Ordering::Acquire));
-        let time_cnt = self.time_cnt.load(std::sync::atomic::Ordering::Acquire);
         write!(
             f,
-            "cnt: {cnt}, late: {}%, avg: {}ms",
+            "cnt: {cnt}, late: {:.2}%, avg: {}us",
             late as f64 / cnt as f64 * 100.,
-            time.checked_div(time_cnt as u32)
-                .map(|x| x.as_millis())
-                .unwrap_or_default()
+            self.average_time().as_micros()
         )
     }
 }
@@ -211,7 +207,7 @@ impl TxnStats {
         Self {
             cnt: AtomicU64::new(0),
             late: AtomicU64::new(0),
-            time_ms: AtomicU64::new(0),
+            time_us: AtomicU64::new(0),
             time_cnt: AtomicU64::new(0),
             max_time,
         }
@@ -234,9 +230,15 @@ impl TxnStats {
         let dur = start.elapsed();
         self.time_cnt
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.time_ms
-            .fetch_add(dur.as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.time_us
+            .fetch_add(dur.as_micros() as u64, std::sync::atomic::Ordering::Relaxed);
         res
+    }
+
+    pub fn average_time(&self) -> Duration {
+        let time = Duration::from_micros(self.time_us.load(std::sync::atomic::Ordering::Acquire));
+        let time_cnt = self.time_cnt.load(std::sync::atomic::Ordering::Acquire);
+        time.checked_div(time_cnt as u32).unwrap_or_default()
     }
 }
 
@@ -262,4 +264,14 @@ pub fn print_stats() {
     println!("order_status: {}", STATS.order_status);
     println!("payment:      {}", STATS.payment);
     println!("stock_level:  {}", STATS.stock_level);
+
+    // order_status and stock_level are not included because they are read only.
+    // the mutable transactions are each run 10 times. (delivery is split in 10)
+    let total_time_for_cycle = STATS.new_order.average_time()
+        + STATS.payment.average_time()
+        + STATS.delivery.average_time();
+    println!(
+        "expected max tpmC: {}",
+        (Duration::from_secs(60).as_nanos() as f64 / total_time_for_cycle.as_nanos() as f64) as u64
+    )
 }
