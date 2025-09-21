@@ -134,7 +134,7 @@ fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, dist
         }
         TxnKind::StockLevel => db.transaction(|txn| {
             let district = get_district(txn);
-            black_box(stock_level::random_stock_level(txn, district));
+            black_box(stats.add_individual_time(|| stock_level::random_stock_level(txn, district)));
         }),
     }
     let elapsed = before.elapsed();
