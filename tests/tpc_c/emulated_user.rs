@@ -8,12 +8,9 @@ use std::{
 };
 
 use rand::seq::SliceRandom;
-use rust_query::{Database, Transaction};
+use rust_query::Database;
 
-use crate::{
-    delivery, new_order, order_status, payment, stock_level,
-    v0::{District, Schema, Warehouse},
-};
+use crate::{delivery, new_order, order_status, payment, stock_level, v0::Schema};
 
 pub(crate) struct EmutateWithQueue {
     pub info: Arc<Emulate>,
@@ -84,14 +81,6 @@ fn keying_time(txn_kind: TxnKind) -> ControlFlow<()> {
 impl Emulate {
     fn measure_txn_rt(&self, txn_kind: TxnKind) {
         let db = &self.db;
-        let get_warehouse = |txn: &Transaction<Schema>| {
-            txn.query_one(Warehouse::unique(self.warehouse))
-                .expect("warehouse exists")
-        };
-        let get_district = |txn: &Transaction<Schema>| {
-            txn.query_one(District::unique(get_warehouse(txn), self.district))
-                .expect("district exists")
-        };
         let stats = match txn_kind {
             TxnKind::NewOrder => &STATS.new_order,
             TxnKind::Payment => &STATS.payment,
@@ -123,21 +112,17 @@ impl Emulate {
                 let input = delivery::generate_input(self.warehouse);
                 for district_num in 1..=10 {
                     // use separate transactions to allow other threads to do stuff in between
-                    db.transaction_mut_ok(|txn| {
-                        black_box(
-                            stats.add_individual_time(|| {
-                                delivery::delivery(txn, &input, district_num)
-                            }),
-                        );
-                    })
+                    black_box(db.transaction_mut_ok(|txn| {
+                        stats.add_individual_time(|| delivery::delivery(txn, &input, district_num))
+                    }));
                 }
             }
-            TxnKind::StockLevel => db.transaction(|txn| {
-                let district = get_district(txn);
-                black_box(
-                    stats.add_individual_time(|| stock_level::random_stock_level(txn, district)),
-                );
-            }),
+            TxnKind::StockLevel => {
+                let input = stock_level::generate_input(self.warehouse, self.district);
+                black_box(db.transaction(|txn| {
+                    stats.add_individual_time(|| stock_level::stock_level(txn, input))
+                }));
+            }
         }
         let elapsed = before.elapsed();
         stats.add_total_time(elapsed);
