@@ -113,12 +113,12 @@ impl Emulate {
                     stats.add_individual_time(|| payment::payment(txn, input))
                 }));
             }
-            TxnKind::OrderStatus => db.transaction(|txn| {
-                let warehouse = get_warehouse(txn);
-                black_box(
-                    stats.add_individual_time(|| order_status::random_order_status(txn, warehouse)),
-                );
-            }),
+            TxnKind::OrderStatus => {
+                let input = order_status::generate_input(self.warehouse);
+                black_box(db.transaction(|txn| {
+                    stats.add_individual_time(|| order_status::order_status(txn, input))
+                }));
+            }
             TxnKind::Delivery => {
                 let input = delivery::generate_input(self.warehouse);
                 for district_num in 1..=10 {

@@ -24,7 +24,7 @@ pub fn generate_input(warehouse: i64, other: &[i64]) -> PaymentInput {
     }
 }
 
-struct PaymentInput {
+pub struct PaymentInput {
     warehouse: i64,
     district: i64,
     customer: CustomerIdent,
