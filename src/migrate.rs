@@ -390,7 +390,7 @@ impl<S: Schema> Database<S> {
         if user_version < S::VERSION {
             return None;
         }
-        assert_eq!(
+        debug_assert_eq!(
             foreign_key_check(txn.get()),
             None,
             "foreign key constraint violated"

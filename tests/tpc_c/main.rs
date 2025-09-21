@@ -145,8 +145,12 @@ use v0::*;
 use crate::emulated_user::{Emulate, print_stats, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
+const INIT: bool = true;
+// every warehouse is ~70MB
+const WAREHOUSE_CNT: i64 = 1;
+
 fn main() {
-    if std::fs::exists(DB_FILE).unwrap() {
+    if INIT && std::fs::exists(DB_FILE).unwrap() {
         std::fs::remove_file(DB_FILE).unwrap();
     };
 
@@ -158,13 +162,13 @@ fn main() {
         .expect("database should not be too new");
     let db = Arc::new(db);
 
-    // every warehouse is ~70MB
-    const WAREHOUSE_CNT: i64 = 2;
-    db.transaction_mut_ok(|txn| {
-        expect::collect_all(|| {
-            populate::populate(txn, WAREHOUSE_CNT);
-        })
-    });
+    if INIT {
+        db.transaction_mut_ok(|txn| {
+            expect::collect_all(|| {
+                populate::populate(txn, WAREHOUSE_CNT);
+            })
+        });
+    }
     println!("initialization complete");
 
     let mut threads = vec![];
