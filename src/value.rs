@@ -485,8 +485,8 @@ pub fn new_dummy<'x, S, T: MyTyp>(val: impl Typed<Typ = T> + 'static) -> Select<
     IntoSelect::into_select(Expr::new(val))
 }
 
-pub fn into_owned<'x, S, T: MyTyp>(val: impl IntoExpr<'x, S, Typ = T>) -> DynTyped<T> {
-    val.into_expr().inner
+pub fn into_owned<'x, S>(val: impl IntoExpr<'x, S>) -> DynTypedExpr {
+    val.into_expr().inner.erase()
 }
 
 struct AdHoc<F, T>(F, PhantomData<T>);
@@ -528,7 +528,7 @@ impl<S, T: MyTyp> Clone for Expr<'_, S, T> {
 
 #[derive(Clone)]
 pub struct DynTypedExpr {
-    pub(crate) func: Rc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr>,
+    pub func: Rc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr>,
 }
 
 impl DynTypedExpr {
@@ -556,12 +556,6 @@ impl<Typ> Typed for MigratedExpr<Typ> {
 }
 
 pub struct DynTyped<Typ>(pub(crate) Rc<dyn Typed<Typ = Typ>>);
-
-impl<Typ> DynTyped<Typ> {
-    pub fn new(val: impl 'static + Typed<Typ = Typ>) -> Self {
-        Self(Rc::new(val))
-    }
-}
 
 impl<T> Clone for DynTyped<T> {
     fn clone(&self) -> Self {
