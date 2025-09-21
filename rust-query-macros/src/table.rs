@@ -96,7 +96,7 @@ fn define_table(
                 )*
                 ::rust_query::private::adhoc_expr(move |_b| {
                     #(
-                        let #col = ::rust_query::private::Typed::build_expr(&#col, _b);
+                        let #col = (#col.func)(_b);
                     )*
                     _b.get_unique::<#table_ident>(Box::new([#(
                         (#col_str, #col),
