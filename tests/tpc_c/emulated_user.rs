@@ -15,14 +15,19 @@ use crate::{
     v0::{District, Schema, Warehouse},
 };
 
+pub(crate) struct EmutateWithQueue {
+    pub info: Arc<Emulate>,
+    pub queue: Vec<JoinHandle<()>>,
+}
+
 pub(crate) struct Emulate {
     pub db: Arc<Database<Schema>>,
     pub warehouse: i64,
     pub district: i64,
-    pub queue: Vec<JoinHandle<()>>,
+    pub other_warehouses: Vec<i64>,
 }
 
-impl Emulate {
+impl EmutateWithQueue {
     pub fn loop_emulate(mut self) {
         let mut txn_deck = Vec::new();
         while let ControlFlow::Continue(()) = self.emulate(&mut txn_deck) {}
@@ -35,14 +40,11 @@ impl Emulate {
         let txn_kind = select_transaction(txn_deck);
         keying_time(txn_kind)?;
         if let TxnKind::Delivery = txn_kind {
-            let warehouse = self.warehouse;
-            let district = self.district;
-            let db = self.db.clone();
-            self.queue.push(thread::spawn(move || {
-                measure_txn_rt(&db, txn_kind, warehouse, district)
-            }));
+            let info = self.info.clone();
+            self.queue
+                .push(thread::spawn(move || info.measure_txn_rt(txn_kind)));
         } else {
-            measure_txn_rt(&self.db, txn_kind, self.warehouse, self.district)
+            self.info.measure_txn_rt(txn_kind)
         }
         think_time(txn_kind)?;
         ControlFlow::Continue(())
@@ -79,78 +81,74 @@ fn keying_time(txn_kind: TxnKind) -> ControlFlow<()> {
     sleep_or_break(Duration::from_secs(secs))
 }
 
-fn measure_txn_rt(db: &Database<Schema>, txn_kind: TxnKind, warehouse: i64, district: i64) {
-    let get_warehouse = |txn: &Transaction<Schema>| {
-        txn.query_one(Warehouse::unique(warehouse))
-            .expect("warehouse exists")
-    };
-    let other_warehouses = |txn: &Transaction<Schema>| {
-        txn.query(|rows| {
-            let w = rows.join(Warehouse);
-            rows.filter(w.number.eq(warehouse).not());
-            rows.into_vec(w)
-        })
-    };
-    let get_district = |txn: &Transaction<Schema>| {
-        txn.query_one(District::unique(get_warehouse(txn), district))
-            .expect("district exists")
-    };
-    let stats = match txn_kind {
-        TxnKind::NewOrder => &STATS.new_order,
-        TxnKind::Payment => &STATS.payment,
-        TxnKind::OrderStatus => &STATS.order_status,
-        TxnKind::Delivery => &STATS.delivery,
-        TxnKind::StockLevel => &STATS.stock_level,
-    };
-    let before = Instant::now();
-    match txn_kind {
-        TxnKind::NewOrder => {
-            let _ = db.transaction_mut(|txn| {
-                let warehouse = get_warehouse(txn);
-                let other_warehouses = other_warehouses(txn);
-                stats
-                    .add_individual_time(|| {
-                        new_order::random_new_order(txn, warehouse, &other_warehouses)
-                    })
-                    .map(|val| {
-                        black_box(val);
-                    })
-                    .map_err(|val| {
-                        black_box(val);
-                    })
-            });
-        }
-        TxnKind::Payment => db.transaction_mut_ok(|txn| {
-            let warehouse = get_warehouse(txn);
-            let other_warehouses = other_warehouses(txn);
-            black_box(stats.add_individual_time(|| {
-                payment::random_payment(txn, warehouse, &other_warehouses)
-            }));
-        }),
-        TxnKind::OrderStatus => db.transaction(|txn| {
-            let warehouse = get_warehouse(txn);
-            black_box(
-                stats.add_individual_time(|| order_status::random_order_status(txn, warehouse)),
-            );
-        }),
-        TxnKind::Delivery => {
-            let input = delivery::generate_input(warehouse);
-            for district_num in 1..=10 {
-                // use separate transactions to allow other threads to do stuff in between
-                db.transaction_mut_ok(|txn| {
-                    black_box(
-                        stats.add_individual_time(|| delivery::delivery(txn, &input, district_num)),
-                    );
-                })
+impl Emulate {
+    fn measure_txn_rt(&self, txn_kind: TxnKind) {
+        let db = &self.db;
+        let get_warehouse = |txn: &Transaction<Schema>| {
+            txn.query_one(Warehouse::unique(self.warehouse))
+                .expect("warehouse exists")
+        };
+        let get_district = |txn: &Transaction<Schema>| {
+            txn.query_one(District::unique(get_warehouse(txn), self.district))
+                .expect("district exists")
+        };
+        let stats = match txn_kind {
+            TxnKind::NewOrder => &STATS.new_order,
+            TxnKind::Payment => &STATS.payment,
+            TxnKind::OrderStatus => &STATS.order_status,
+            TxnKind::Delivery => &STATS.delivery,
+            TxnKind::StockLevel => &STATS.stock_level,
+        };
+        let before = Instant::now();
+        match txn_kind {
+            TxnKind::NewOrder => {
+                let _ = db.transaction_mut(|txn| {
+                    stats
+                        .add_individual_time(|| {
+                            new_order::random_new_order(txn, self.warehouse, &self.other_warehouses)
+                        })
+                        .map(|val| {
+                            black_box(val);
+                        })
+                        .map_err(|val| {
+                            black_box(val);
+                        })
+                });
             }
+            TxnKind::Payment => db.transaction_mut_ok(|txn| {
+                black_box(stats.add_individual_time(|| {
+                    payment::random_payment(txn, self.warehouse, &self.other_warehouses)
+                }));
+            }),
+            TxnKind::OrderStatus => db.transaction(|txn| {
+                let warehouse = get_warehouse(txn);
+                black_box(
+                    stats.add_individual_time(|| order_status::random_order_status(txn, warehouse)),
+                );
+            }),
+            TxnKind::Delivery => {
+                let input = delivery::generate_input(self.warehouse);
+                for district_num in 1..=10 {
+                    // use separate transactions to allow other threads to do stuff in between
+                    db.transaction_mut_ok(|txn| {
+                        black_box(
+                            stats.add_individual_time(|| {
+                                delivery::delivery(txn, &input, district_num)
+                            }),
+                        );
+                    })
+                }
+            }
+            TxnKind::StockLevel => db.transaction(|txn| {
+                let district = get_district(txn);
+                black_box(
+                    stats.add_individual_time(|| stock_level::random_stock_level(txn, district)),
+                );
+            }),
         }
-        TxnKind::StockLevel => db.transaction(|txn| {
-            let district = get_district(txn);
-            black_box(stats.add_individual_time(|| stock_level::random_stock_level(txn, district)));
-        }),
+        let elapsed = before.elapsed();
+        stats.add_total_time(elapsed);
     }
-    let elapsed = before.elapsed();
-    stats.add_total_time(elapsed);
 }
 
 fn think_time(txn_kind: TxnKind) -> ControlFlow<()> {

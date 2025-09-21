@@ -4,18 +4,15 @@ use rust_query::{FromExpr, TableRow, Transaction, Update};
 
 pub fn random_payment(
     txn: &mut Transaction<Schema>,
-    warehouse: TableRow<Warehouse>,
-    other: &[TableRow<Warehouse>],
+    warehouse: i64,
+    other: &[i64],
 ) -> PaymentOutput {
     let input = generate_input(txn, warehouse, other);
     payment(txn, input)
 }
 
-fn generate_input(
-    txn: &Transaction<Schema>,
-    warehouse: TableRow<Warehouse>,
-    other: &[TableRow<Warehouse>],
-) -> PaymentInput {
+fn generate_input(txn: &Transaction<Schema>, warehouse: i64, other: &[i64]) -> PaymentInput {
+    let warehouse = txn.query_one(Warehouse::unique(warehouse)).unwrap();
     let district = txn
         .query_one(District::unique(warehouse, rand::random_range(1..=10)))
         .unwrap();
@@ -25,7 +22,7 @@ fn generate_input(
     } else {
         let remote_warehouse = other.choose(&mut rand::rng()).expect("other is not empty");
         txn.query_one(District::unique(
-            remote_warehouse,
+            txn.query_one(Warehouse::unique(remote_warehouse)).unwrap(),
             rand::random_range(1..=10),
         ))
         .unwrap()
