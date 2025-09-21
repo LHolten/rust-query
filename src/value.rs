@@ -72,11 +72,12 @@ impl ValueBuilder {
         if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
             MyAlias::new(table.idx)
         } else {
+            let join = Join::<T>::new(table.clone());
             self.forwarded
-                .get_or_init(table.clone(), || {
+                .get_or_init(table, || {
                     (
                         T::NAME,
-                        DynTyped::new(Join::<T>::new(table)).erase(),
+                        DynTypedExpr::new(move |b| join.build_expr(b)),
                         self.scope.new_alias(),
                     )
                 })

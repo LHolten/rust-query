@@ -5,9 +5,10 @@ use sea_query::{ExprTrait, Nullable};
 use crate::{
     IntoSelect,
     dummy_impl::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
+    value::DynTypedExpr,
 };
 
-use super::{DynTyped, Expr, IntoExpr, MyTyp, Typed};
+use super::{Expr, IntoExpr, MyTyp, Typed};
 
 /// This is a combinator function that allows constructing single row optional queries.
 ///
@@ -52,7 +53,7 @@ pub fn optional<'outer, S, R>(
 /// Joining more optional columns can be done with the [Optional::and] method.
 /// Finally it is possible to return selections or expressions using [Optional::then] and [Optional::then_expr].
 pub struct Optional<'outer, 'inner, S> {
-    nulls: Vec<DynTyped<bool>>,
+    nulls: Vec<DynTypedExpr>,
     _p: PhantomData<fn(&'inner ()) -> &'inner &'outer ()>,
     _p2: PhantomData<S>,
 }
@@ -67,7 +68,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
         let column = col.into_expr();
-        self.nulls.push(column.is_none().into_expr().inner);
+        self.nulls.push(column.is_none().into_expr().inner.erase());
         Expr::adhoc(move |b| column.inner.build_expr(b))
     }
 
@@ -76,7 +77,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Expr::adhoc(move |b| {
             nulls
                 .iter()
-                .map(|x| x.build_expr(b))
+                .map(|x| x.0(b))
                 .reduce(|a, b| a.or(b))
                 .unwrap_or(false.into())
         })
