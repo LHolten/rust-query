@@ -6,7 +6,7 @@ use std::{
 };
 
 use rust_query::{
-    Database, IntoExpr, Select, TableRow, Transaction,
+    Database, FromExpr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction,
     migration::{Config, schema},
 };
 
@@ -319,5 +319,28 @@ impl<'column> IntoExpr<'column, Schema> for SystemTime {
             .unwrap()
             .as_millis();
         (millis as i64).into_expr()
+    }
+}
+
+struct WithId<T: Table, F: FromExpr<Schema, T>> {
+    info: F,
+    row: TableRow<T>,
+}
+
+impl<T: Table, F: FromExpr<Schema, T>> std::ops::Deref for WithId<T, F> {
+    type Target = F;
+
+    fn deref(&self) -> &Self::Target {
+        &self.info
+    }
+}
+impl<T: Table<Schema = Schema>, F: FromExpr<Schema, T>> FromExpr<Schema, T> for WithId<T, F> {
+    fn from_expr<'columns>(
+        col: impl IntoExpr<'columns, Schema, Typ = T>,
+    ) -> Select<'columns, Schema, Self> {
+        let col = col.into_expr();
+        (TableRow::from_expr(&col), F::from_expr(&col))
+            .into_select()
+            .map(|(row, info)| Self { info, row })
     }
 }
