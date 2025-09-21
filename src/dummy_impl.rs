@@ -5,7 +5,7 @@ use sea_query::IntoIden;
 use crate::{
     Expr,
     alias::MyAlias,
-    value::{DynTyped, DynTypedExpr, MyTyp, SecretFromSql},
+    value::{DynTypedExpr, MyTyp, SecretFromSql},
 };
 
 /// Opaque type used to implement [crate::Select].
@@ -230,17 +230,18 @@ impl<T: SecretFromSql> Prepared for Cached<T> {
     }
 }
 
-pub struct ColumnImpl<T> {
-    pub(crate) expr: DynTyped<T>,
+pub struct ColumnImpl<Out> {
+    pub(crate) expr: DynTypedExpr,
+    pub(crate) _p: PhantomData<Out>,
 }
 
-impl<T: MyTyp> SelectImpl for ColumnImpl<T> {
-    type Out = T::Out;
-    type Prepared = Cached<Self::Out>;
+impl<Out: SecretFromSql> SelectImpl for ColumnImpl<Out> {
+    type Out = Out;
+    type Prepared = Cached<Out>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
         Cached {
-            idx: cacher.cache_erased(self.expr.erase()),
+            idx: cacher.cache_erased(self.expr),
             _p: PhantomData,
         }
     }
@@ -253,7 +254,10 @@ where
     type Out = T::Out;
 
     fn into_select(self) -> Select<'columns, S, Self::Out> {
-        Select::new(ColumnImpl { expr: self.inner })
+        Select::new(ColumnImpl {
+            expr: self.inner.erase(),
+            _p: PhantomData,
+        })
     }
 }
 
