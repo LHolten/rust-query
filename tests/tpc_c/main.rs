@@ -142,7 +142,7 @@ pub mod vN {
 }
 use v0::*;
 
-use crate::emulated_user::{Emulate, print_stats, stop_emulation};
+use crate::emulated_user::{Emulate, EmutateWithQueue, print_stats, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
 const INIT: bool = true;
@@ -176,10 +176,13 @@ fn main() {
         for district in 1..=10 {
             let db = db.clone();
             threads.push(thread::spawn(move || {
-                Emulate {
-                    db,
-                    warehouse,
-                    district,
+                EmutateWithQueue {
+                    info: Arc::new(Emulate {
+                        db,
+                        warehouse,
+                        district,
+                        other_warehouses: (1..=WAREHOUSE_CNT).filter(|x| x != &warehouse).collect(),
+                    }),
                     queue: vec![],
                 }
                 .loop_emulate();

@@ -5,18 +5,15 @@ use std::time::SystemTime;
 
 pub fn random_new_order(
     txn: &mut Transaction<Schema>,
-    warehouse: TableRow<Warehouse>,
-    other: &[TableRow<Warehouse>],
+    warehouse: i64,
+    other: &[i64],
 ) -> Result<OutputData, OutputData> {
     let input = generate_input(txn, warehouse, other);
     new_order(txn, input)
 }
 
-fn generate_input(
-    txn: &Transaction<Schema>,
-    warehouse: TableRow<Warehouse>,
-    other: &[TableRow<Warehouse>],
-) -> NewOrderInput {
+fn generate_input(txn: &Transaction<Schema>, warehouse: i64, other: &[i64]) -> NewOrderInput {
+    let warehouse = txn.query_one(Warehouse::unique(warehouse)).unwrap();
     let district = txn
         .query_one(District::unique(warehouse, rand::random_range(1..=10)))
         .unwrap();
@@ -39,7 +36,10 @@ fn generate_input(
             supplying_warehouse: if rand::random_ratio(99, 100) || other.is_empty() {
                 warehouse
             } else {
-                *other.choose(&mut rand::rng()).expect("other is not empty")
+                txn.query_one(Warehouse::unique(
+                    *other.choose(&mut rand::rng()).expect("other is not empty"),
+                ))
+                .unwrap()
             },
             quantity: rand::random_range(1..=10),
         });
