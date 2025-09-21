@@ -8,7 +8,7 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
-    IntoSelect, Select, Table,
+    Table,
     alias::{Field, MyAlias, Scope},
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
@@ -492,10 +492,6 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
         move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into(),
         possible_null,
     )
-}
-
-pub fn new_dummy<'x, S, T: MyTyp>(val: impl Typed<Typ = T> + 'static) -> Select<'x, S, T::Out> {
-    IntoSelect::into_select(Expr::new(val))
 }
 
 struct AdHoc<F, T> {
