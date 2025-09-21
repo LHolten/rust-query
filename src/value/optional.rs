@@ -111,7 +111,8 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Select::new(OptionalImpl {
             inner: d.into_select().inner,
             is_some: ColumnImpl {
-                expr: self.is_some().into_expr().inner,
+                expr: self.is_some().into_expr().inner.erase(),
+                _p: PhantomData,
             },
         })
     }
