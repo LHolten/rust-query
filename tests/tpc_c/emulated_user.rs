@@ -102,18 +102,10 @@ impl Emulate {
         let before = Instant::now();
         match txn_kind {
             TxnKind::NewOrder => {
-                let _ = db.transaction_mut(|txn| {
-                    stats
-                        .add_individual_time(|| {
-                            new_order::random_new_order(txn, self.warehouse, &self.other_warehouses)
-                        })
-                        .map(|val| {
-                            black_box(val);
-                        })
-                        .map_err(|val| {
-                            black_box(val);
-                        })
-                });
+                let input = new_order::generate_input(self.warehouse, &self.other_warehouses);
+                let _ = black_box(db.transaction_mut(|txn| {
+                    stats.add_individual_time(|| new_order::new_order(txn, input))
+                }));
             }
             TxnKind::Payment => db.transaction_mut_ok(|txn| {
                 black_box(stats.add_individual_time(|| {

@@ -1,25 +1,11 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{FromExpr, TableRow, Transaction, Update, optional};
+use rust_query::{FromExpr, Transaction, Update, optional};
 use std::time::SystemTime;
 
-pub fn random_new_order(
-    txn: &mut Transaction<Schema>,
-    warehouse: i64,
-    other: &[i64],
-) -> Result<OutputData, OutputData> {
-    let input = generate_input(txn, warehouse, other);
-    new_order(txn, input)
-}
-
-fn generate_input(txn: &Transaction<Schema>, warehouse: i64, other: &[i64]) -> NewOrderInput {
-    let warehouse = txn.query_one(Warehouse::unique(warehouse)).unwrap();
-    let district = txn
-        .query_one(District::unique(warehouse, rand::random_range(1..=10)))
-        .unwrap();
-    let customer = txn
-        .query_one(Customer::unique(district, Nu::CustomerId.rand()))
-        .unwrap();
+pub fn generate_input(warehouse: i64, other: &[i64]) -> NewOrderInput {
+    let district = rand::random_range(1..=10);
+    let customer = Nu::CustomerId.rand();
     let item_count = rand::random_range(5..=15);
     let rbk = rand::random_ratio(1, 100);
 
@@ -36,65 +22,71 @@ fn generate_input(txn: &Transaction<Schema>, warehouse: i64, other: &[i64]) -> N
             supplying_warehouse: if rand::random_ratio(99, 100) || other.is_empty() {
                 warehouse
             } else {
-                txn.query_one(Warehouse::unique(
-                    *other.choose(&mut rand::rng()).expect("other is not empty"),
-                ))
-                .unwrap()
+                *other.choose(&mut rand::rng()).expect("other is not empty")
             },
             quantity: rand::random_range(1..=10),
         });
     }
 
     NewOrderInput {
+        warehouse,
+        district,
         customer,
         items,
         entry_date: SystemTime::now(),
     }
 }
 
-struct NewOrderInput {
-    customer: TableRow<Customer>,
+pub struct NewOrderInput {
+    warehouse: i64,
+    district: i64,
+    customer: i64,
     items: Vec<ItemInput>,
     entry_date: SystemTime,
 }
 
 struct ItemInput {
     item_number: i64,
-    supplying_warehouse: TableRow<Warehouse>,
+    supplying_warehouse: i64,
     quantity: i64,
 }
 
-fn new_order(
+type CustomerInfo = WithId<Customer, Customer!(district as DistrictInfo, discount, last, credit)>;
+type DistrictInfo = WithId<District, District!(warehouse as WarehouseInfo, tax, next_order)>;
+type WarehouseInfo = Warehouse!(tax);
+
+pub fn new_order(
     txn: &mut Transaction<Schema>,
     input: NewOrderInput,
 ) -> Result<OutputData, OutputData> {
-    let district = txn.query_one(&input.customer.into_expr().district);
-
-    let district_info: District!(warehouse, number, tax, next_order) =
-        txn.query_one(FromExpr::from_expr(district));
-
-    let warehouse_tax = txn.query_one(&district.into_expr().warehouse.tax);
+    let customer = txn
+        .query_one(optional(|row| {
+            let warehouse = row.and(Warehouse::unique(input.warehouse));
+            let district = row.and(District::unique(warehouse, input.district));
+            let customer = row.and(Customer::unique(district, input.customer));
+            row.then(CustomerInfo::from_expr(customer))
+        }))
+        .unwrap();
+    let district = &customer.district;
+    let warehouse = &district.warehouse;
 
     txn.update_ok(
-        district,
+        district.row,
         District {
             next_order: Update::add(1),
             ..Default::default()
         },
     );
 
-    let customer_info: Customer!(discount, last, credit) =
-        txn.query_one(FromExpr::from_expr(input.customer));
-
     let local = input
         .items
         .iter()
-        .all(|item| item.supplying_warehouse == district_info.warehouse);
+        .all(|item| item.supplying_warehouse == input.warehouse);
 
     let order = txn
         .insert(Order {
-            number: district_info.next_order,
-            customer: input.customer,
+            number: district.next_order,
+            customer: customer.row,
             entry_d: input.entry_date,
             carrier_id: None::<i64>,
             all_local: local as i64,
@@ -116,53 +108,55 @@ fn new_order(
         },
     ) in input.items.into_iter().enumerate()
     {
-        let Some((item, item_info)): Option<(_, Item!(price, name, data))> =
-            txn.query_one(optional(|row| {
-                let item = row.and(Item::unique(item_number));
-                row.then((&item, FromExpr::from_expr(&item)))
-            }))
+        type ItemInfo = WithId<Item, Item!(price, name, data)>;
+        let Some(item) = txn.query_one(Option::<ItemInfo>::from_expr(Item::unique(item_number)))
         else {
             input_valid = false;
             continue;
         };
 
-        let stock = Stock::unique(supplying_warehouse, item);
-        let stock = txn.query_one(stock).unwrap();
-        let stock_expr = stock.into_expr();
-
         #[derive(Select)]
         struct StockInfo {
+            row: TableRow<Stock>,
             quantity: i64,
             dist_xx: String,
             data: String,
         }
-        let stock_info = txn.query_one(StockInfoSelect {
-            quantity: &stock_expr.quantity,
-            dist_xx: &[
-                &stock_expr.dist_00,
-                &stock_expr.dist_01,
-                &stock_expr.dist_02,
-                &stock_expr.dist_03,
-                &stock_expr.dist_04,
-                &stock_expr.dist_05,
-                &stock_expr.dist_06,
-                &stock_expr.dist_07,
-                &stock_expr.dist_08,
-                &stock_expr.dist_09,
-                &stock_expr.dist_10,
-            ][district_info.number as usize],
-            data: &stock_expr.data,
-        });
 
-        let new_quantity = if stock_info.quantity >= quantity + 10 {
-            stock_info.quantity - quantity
+        let stock = txn
+            .query_one(optional(|row| {
+                let supplying_warehouse = row.and(Warehouse::unique(supplying_warehouse));
+                let stock = row.and(Stock::unique(supplying_warehouse, item.row));
+                row.then(StockInfoSelect {
+                    row: &stock,
+                    quantity: &stock.quantity,
+                    dist_xx: &[
+                        &stock.dist_00,
+                        &stock.dist_01,
+                        &stock.dist_02,
+                        &stock.dist_03,
+                        &stock.dist_04,
+                        &stock.dist_05,
+                        &stock.dist_06,
+                        &stock.dist_07,
+                        &stock.dist_08,
+                        &stock.dist_09,
+                        &stock.dist_10,
+                    ][input.district as usize],
+                    data: &stock.data,
+                })
+            }))
+            .unwrap();
+
+        let new_quantity = if stock.quantity >= quantity + 10 {
+            stock.quantity - quantity
         } else {
-            stock_info.quantity - quantity + 91
+            stock.quantity - quantity + 91
         };
 
-        let is_remote = supplying_warehouse != district_info.warehouse;
+        let is_remote = supplying_warehouse != input.warehouse;
         txn.update_ok(
-            stock,
+            stock.row,
             Stock {
                 ytd: Update::add(quantity),
                 quantity: Update::set(new_quantity),
@@ -172,51 +166,50 @@ fn new_order(
             },
         );
 
-        let amount = quantity * item_info.price;
-        let brand_generic =
-            if item_info.data.contains("ORIGINAL") && stock_info.data.contains("ORIGINAL") {
-                "B"
-            } else {
-                "G"
-            };
+        let amount = quantity * item.price;
+        let brand_generic = if item.data.contains("ORIGINAL") && stock.data.contains("ORIGINAL") {
+            "B"
+        } else {
+            "G"
+        };
 
         txn.insert(OrderLine {
             order,
             number: number as i64,
-            stock,
+            stock: stock.row,
             delivery_d: None::<i64>,
             quantity,
             amount,
-            dist_info: stock_info.dist_xx,
+            dist_info: stock.dist_xx,
         })
         .unwrap();
 
         output_order_lines.push(OutputLine {
             supplying_warehouse,
-            item,
-            item_name: item_info.name,
+            item: item_number,
+            item_name: item.name.clone(),
             quantity,
-            stock_quantity: stock_info.quantity,
+            stock_quantity: stock.quantity,
             brand_generic,
-            item_price: item_info.price,
+            item_price: item.price,
             amount,
         });
     }
 
     let total_amount = output_order_lines.iter().map(|x| x.amount).sum::<i64>() as f64
-        * (1. - customer_info.discount)
-        * (1. + warehouse_tax + district_info.tax);
+        * (1. - customer.discount)
+        * (1. + warehouse.tax + district.tax);
 
     let out = OutputData {
-        warehouse: district_info.warehouse,
-        district,
+        warehouse: input.warehouse,
+        district: input.district,
         customer: input.customer,
-        order,
-        customer_last_name: customer_info.last,
-        customer_credit: customer_info.credit,
-        customer_discount: customer_info.discount,
-        warehouse_tax,
-        district_tax: district_info.tax,
+        order: district.next_order,
+        customer_last_name: customer.last.clone(),
+        customer_credit: customer.credit.clone(),
+        customer_discount: customer.discount,
+        warehouse_tax: warehouse.tax,
+        district_tax: district.tax,
         order_entry_date: input.entry_date,
         total_amount: total_amount as i64,
         order_lines: output_order_lines,
@@ -228,10 +221,10 @@ fn new_order(
 
 #[expect(unused)]
 pub struct OutputData {
-    warehouse: TableRow<Warehouse>,
-    district: TableRow<District>,
-    customer: TableRow<Customer>,
-    order: TableRow<Order>,
+    warehouse: i64,
+    district: i64,
+    customer: i64,
+    order: i64,
     customer_last_name: String,
     customer_credit: String,
     customer_discount: f64,
@@ -246,8 +239,8 @@ pub struct OutputData {
 
 #[expect(unused)]
 pub struct OutputLine {
-    supplying_warehouse: TableRow<Warehouse>,
-    item: TableRow<Item>,
+    supplying_warehouse: i64,
+    item: i64,
     item_name: String,
     quantity: i64,
     stock_quantity: i64,
