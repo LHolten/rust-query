@@ -66,7 +66,7 @@ pub mod private {
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
     pub use crate::query::get_plan;
     pub use crate::value::{
-        DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, assume_expr, new_column, new_dummy,
+        DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column, new_dummy,
     };
     pub use crate::writable::{Reader, TableInsert};
 

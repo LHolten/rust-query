@@ -30,6 +30,10 @@ impl<T: Table> Typed for Join<T> {
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
     }
+    fn maybe_optional(&self) -> bool {
+        false // the table is joined so this column is not null
+    }
+
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
         b.get_table::<T>(self.table_idx.clone())
     }
@@ -111,6 +115,9 @@ impl<T: Table> Typed for TableRowInner<T> {
     type Typ = T;
     fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::val(self.idx).into()
+    }
+    fn maybe_optional(&self) -> bool {
+        false
     }
 }
 

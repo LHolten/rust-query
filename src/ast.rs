@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use sea_query::{Alias, Condition, Expr, ExprTrait, NullAlias, SelectStatement};
+use sea_query::{Alias, Condition, Expr, ExprTrait, JoinType, NullAlias, SelectStatement};
 
 use crate::{
     alias::{Field, JoinableTable, MyAlias, Scope},
@@ -26,14 +26,14 @@ pub(super) struct Source {
 #[derive(Clone)]
 pub(super) enum SourceKind {
     Aggregate(Rc<SelectStatement>),
-    // table and pk
-    Implicit(String),
+    Implicit(String, JoinType),
 }
 
 impl PartialEq for SourceKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Implicit(l0), Self::Implicit(r0)) => l0 == r0,
+            // TODO: possible optimization to unify the join_type?
+            (Self::Implicit(l0, l1), Self::Implicit(r0, r1)) => l0 == r0 && l1 == r1,
             (Self::Aggregate(l0), Self::Aggregate(l1)) => l0 == l1,
             _ => false,
         }
@@ -104,10 +104,9 @@ impl ValueBuilder {
                     let join_type = sea_query::JoinType::LeftJoin;
                     select.join_subquery(join_type, ast.as_ref().clone(), *table_alias, cond);
                 }
-                SourceKind::Implicit(table) => {
-                    let join_type = sea_query::JoinType::LeftJoin;
+                SourceKind::Implicit(table, join_type) => {
                     let tbl_ref = (Alias::new("main"), Alias::new(table));
-                    select.join_as(join_type, tbl_ref, *table_alias, cond);
+                    select.join_as(*join_type, tbl_ref, *table_alias, cond);
                 }
             }
             need_from = true;
