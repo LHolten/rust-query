@@ -77,7 +77,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Expr::adhoc(move |b| {
             nulls
                 .iter()
-                .map(|x| x.0(b))
+                .map(|x| (x.func)(b))
                 .reduce(|a, b| a.or(b))
                 .unwrap_or(false.into())
         })

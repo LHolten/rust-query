@@ -527,17 +527,19 @@ impl<S, T: MyTyp> Clone for Expr<'_, S, T> {
 }
 
 #[derive(Clone)]
-pub struct DynTypedExpr(pub(crate) Rc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr>);
+pub struct DynTypedExpr {
+    pub(crate) func: Rc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr>,
+}
 
 impl DynTypedExpr {
     pub fn new(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
-        Self(Rc::new(f))
+        Self { func: Rc::new(f) }
     }
 }
 
 impl<Typ: 'static> DynTyped<Typ> {
     pub fn erase(self) -> DynTypedExpr {
-        DynTypedExpr(Rc::new(move |b| self.build_expr(b)))
+        DynTypedExpr::new(move |b| self.build_expr(b))
     }
 }
 
@@ -549,7 +551,7 @@ pub struct MigratedExpr<Typ> {
 impl<Typ> Typed for MigratedExpr<Typ> {
     type Typ = Typ;
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        self.prev.0(b)
+        (self.prev.func)(b)
     }
 }
 

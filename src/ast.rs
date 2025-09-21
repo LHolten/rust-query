@@ -72,8 +72,8 @@ impl ValueBuilder {
         let from = self.from.clone();
 
         // this stuff adds more to the self.extra list and self.forwarded list
-        let select_out: Vec<_> = select_out.into_iter().map(|val| (val.0)(self)).collect();
-        let filters: Vec<_> = from.filters.iter().map(|x| (x.0)(self)).collect();
+        let select_out: Vec<_> = select_out.into_iter().map(|val| (val.func)(self)).collect();
+        let filters: Vec<_> = from.filters.iter().map(|x| (x.func)(self)).collect();
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
