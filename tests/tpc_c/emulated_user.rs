@@ -107,11 +107,12 @@ impl Emulate {
                     stats.add_individual_time(|| new_order::new_order(txn, input))
                 }));
             }
-            TxnKind::Payment => db.transaction_mut_ok(|txn| {
-                black_box(stats.add_individual_time(|| {
-                    payment::random_payment(txn, self.warehouse, &self.other_warehouses)
+            TxnKind::Payment => {
+                let input = payment::generate_input(self.warehouse, &self.other_warehouses);
+                black_box(db.transaction_mut_ok(|txn| {
+                    stats.add_individual_time(|| payment::payment(txn, input))
                 }));
-            }),
+            }
             TxnKind::OrderStatus => db.transaction(|txn| {
                 let warehouse = get_warehouse(txn);
                 black_box(

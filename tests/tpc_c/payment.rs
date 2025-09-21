@@ -1,78 +1,77 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{FromExpr, TableRow, Transaction, Update};
+use rust_query::{FromExpr, Transaction, Update, optional};
 
-pub fn random_payment(
-    txn: &mut Transaction<Schema>,
-    warehouse: i64,
-    other: &[i64],
-) -> PaymentOutput {
-    let input = generate_input(txn, warehouse, other);
-    payment(txn, input)
-}
+pub fn generate_input(warehouse: i64, other: &[i64]) -> PaymentInput {
+    let district = rand::random_range(1..=10);
 
-fn generate_input(txn: &Transaction<Schema>, warehouse: i64, other: &[i64]) -> PaymentInput {
-    let warehouse = txn.query_one(Warehouse::unique(warehouse)).unwrap();
-    let district = txn
-        .query_one(District::unique(warehouse, rand::random_range(1..=10)))
-        .unwrap();
-
-    let customer_district = if rand::random_ratio(85, 100) || other.is_empty() {
-        district
+    let (customer_warehouse, customer_district);
+    if rand::random_ratio(85, 100) || other.is_empty() {
+        (customer_district, customer_warehouse) = (district, warehouse);
     } else {
-        let remote_warehouse = other.choose(&mut rand::rng()).expect("other is not empty");
-        txn.query_one(District::unique(
-            txn.query_one(Warehouse::unique(remote_warehouse)).unwrap(),
-            rand::random_range(1..=10),
-        ))
-        .unwrap()
+        customer_warehouse = *other.choose(&mut rand::rng()).expect("other is not empty");
+        customer_district = rand::random_range(1..=10);
     };
 
-    let customer = customer_ident(txn, customer_district);
-
     PaymentInput {
+        warehouse,
         district,
-        customer,
+        customer: customer_ident(),
+        customer_warehouse,
+        customer_district,
         amount: rand::random_range(100..=500000),
         date: SystemTime::now(),
     }
 }
 
 struct PaymentInput {
-    district: TableRow<District>,
+    warehouse: i64,
+    district: i64,
     customer: CustomerIdent,
+    customer_warehouse: i64,
+    customer_district: i64,
     amount: i64,
     date: SystemTime,
 }
 
-fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
-    let district = input.district;
-    let warehouse = &district.into_expr().warehouse;
-    let warehouse_info = txn.query_one(LocationYtd::from_expr(&warehouse));
+type WarehouseInfo = WithId<Warehouse, LocationYtd>;
+type DistrictInfo = WithId<District, LocationYtd>;
+
+pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
+    let (warehouse, district) = txn
+        .query_one(optional(|row| {
+            let warehouse = row.and(Warehouse::unique(input.warehouse));
+            let district = row.and(District::unique(&warehouse, input.district));
+            row.then((
+                WarehouseInfo::from_expr(warehouse),
+                DistrictInfo::from_expr(district),
+            ))
+        }))
+        .unwrap();
 
     txn.update_ok(
-        &warehouse,
+        warehouse.row,
         Warehouse {
             ytd: Update::add(input.amount),
             ..Default::default()
         },
     );
 
-    let district_info = txn.query_one(LocationYtd::from_expr(district));
-
     txn.update_ok(
-        district,
+        district.row,
         District {
             ytd: Update::add(input.amount),
             ..Default::default()
         },
     );
 
-    let customer = input.customer.lookup_customer(txn);
-    let customer_info: CustomerInfo = txn.query_one(FromExpr::from_expr(customer));
+    let customer: WithId<Customer, CustomerInfo> =
+        input
+            .customer
+            .lookup_customer(txn, input.customer_warehouse, input.customer_district);
 
     txn.update_ok(
-        customer,
+        customer.row,
         Customer {
             ytd_payment: Update::add(input.amount),
             payment_cnt: Update::add(1),
@@ -81,12 +80,20 @@ fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput 
     );
 
     let mut credit_data = None;
-    if customer_info.credit == "BC" {
-        let data = txn.query_one(&customer.into_expr().data);
-        let mut data = format!("{customer:?},{};{data}", input.amount);
+    if customer.credit == "BC" {
+        let mut data = format!(
+            "{},{},{},{},{},{};{}",
+            customer.number,
+            input.customer_district,
+            input.customer_warehouse,
+            input.district,
+            input.warehouse,
+            input.amount,
+            customer.data
+        );
         data.truncate(500);
         txn.update_ok(
-            customer,
+            customer.row,
             Customer {
                 data: Update::set(&data),
                 ..Default::default()
@@ -96,21 +103,23 @@ fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput 
         credit_data = Some(data);
     }
 
-    let data = format!("{}    {}", warehouse_info.name, district_info.name);
     txn.insert_ok(History {
-        customer,
-        district,
+        customer: customer.row,
+        district: district.row,
         date: input.date,
         amount: input.amount,
-        data,
+        data: format!("{}    {}", warehouse.name, district.name),
     });
 
     PaymentOutput {
-        district,
-        customer,
-        warehouse_info,
-        district_info,
-        customer_info,
+        warehouse: input.warehouse,
+        district: input.district,
+        customer: customer.number,
+        customer_district: input.customer_district,
+        customer_warehouse: input.customer_warehouse,
+        warehouse_info: warehouse.info,
+        district_info: district.info,
+        customer_info: customer.info,
         data: credit_data,
         amount: input.amount,
         date: input.date,
@@ -121,19 +130,25 @@ fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput 
 #[derive(FromExpr)]
 #[rust_query(From = Warehouse, From = District)]
 struct LocationYtd {
+    #[doc(hidden)]
     name: String,
+
     street_1: String,
     street_2: String,
     city: String,
     state: String,
     zip: String,
-    ytd: i64,
 }
 
 #[expect(unused)]
 #[derive(FromExpr)]
 #[rust_query(From = Customer)]
 struct CustomerInfo {
+    #[doc(hidden)]
+    number: i64,
+    #[doc(hidden)]
+    data: String,
+
     first: String,
     middle: String,
     last: String,
@@ -152,8 +167,11 @@ struct CustomerInfo {
 
 #[expect(unused)]
 pub struct PaymentOutput {
-    district: TableRow<District>,
-    customer: TableRow<Customer>,
+    warehouse: i64,
+    district: i64,
+    customer: i64,
+    customer_district: i64,
+    customer_warehouse: i64,
     warehouse_info: LocationYtd,
     district_info: LocationYtd,
     customer_info: CustomerInfo,

@@ -8,6 +8,7 @@ use std::{
 use rust_query::{
     Database, FromExpr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction,
     migration::{Config, schema},
+    optional,
 };
 
 mod delivery;
@@ -268,20 +269,35 @@ fn random_to_last_name(num: i64) -> String {
 }
 
 enum CustomerIdent {
-    Number(TableRow<Customer>),
-    Name(TableRow<District>, String),
+    Number(i64),
+    Name(String),
 }
 
 impl CustomerIdent {
-    fn lookup_customer(self, txn: &Transaction<Schema>) -> TableRow<Customer> {
+    fn lookup_customer<O: FromExpr<Schema, Customer>>(
+        self,
+        txn: &Transaction<Schema>,
+        warehouse: i64,
+        district: i64,
+    ) -> O {
         match self {
-            CustomerIdent::Number(customer) => customer,
-            CustomerIdent::Name(district, last_name) => {
+            CustomerIdent::Number(customer) => txn
+                .query_one(optional(|row| {
+                    let warehouse = row.and(Warehouse::unique(warehouse));
+                    let district = row.and(District::unique(warehouse, district));
+                    let customer = row.and(Customer::unique(district, customer));
+                    row.then(FromExpr::from_expr(customer))
+                }))
+                .unwrap(),
+            CustomerIdent::Name(last_name) => {
                 let mut customers = txn.query(|rows| {
+                    let warehouse = rows.filter_some(Warehouse::unique(warehouse));
+                    let district = rows.filter_some(District::unique(warehouse, district));
+
                     let customer = rows.join(Customer);
                     rows.filter(customer.district.eq(district));
                     rows.filter(customer.last.eq(last_name));
-                    rows.into_vec((&customer.first, &customer))
+                    rows.into_vec((&customer.first, FromExpr::from_expr(&customer)))
                 });
                 customers.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -293,20 +309,11 @@ impl CustomerIdent {
     }
 }
 
-fn customer_ident(
-    txn: &Transaction<Schema>,
-    customer_district: TableRow<District>,
-) -> CustomerIdent {
+fn customer_ident() -> CustomerIdent {
     if rand::random_ratio(60, 100) {
-        CustomerIdent::Name(
-            customer_district,
-            random_to_last_name(Nu::LastNameRun.rand()),
-        )
+        CustomerIdent::Name(random_to_last_name(Nu::LastNameRun.rand()))
     } else {
-        let customer = txn
-            .query_one(Customer::unique(customer_district, Nu::CustomerId.rand()))
-            .unwrap();
-        CustomerIdent::Number(customer)
+        CustomerIdent::Number(Nu::CustomerId.rand())
     }
 }
 
@@ -339,7 +346,7 @@ impl<T: Table<Schema = Schema>, F: FromExpr<Schema, T>> FromExpr<Schema, T> for 
         col: impl IntoExpr<'columns, Schema, Typ = T>,
     ) -> Select<'columns, Schema, Self> {
         let col = col.into_expr();
-        (TableRow::from_expr(&col), F::from_expr(&col))
+        (&col, F::from_expr(&col))
             .into_select()
             .map(|(row, info)| Self { info, row })
     }
