@@ -228,6 +228,19 @@ impl TxnStats {
         let time_cnt = self.time_cnt.load(std::sync::atomic::Ordering::Acquire);
         time.checked_div(time_cnt as u32).unwrap_or_default()
     }
+
+    pub fn reset_ok(&self) -> bool {
+        let cnt = self.cnt.load(std::sync::atomic::Ordering::Relaxed);
+        let late = self.late.load(std::sync::atomic::Ordering::Relaxed);
+        self.cnt.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.late.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.time_us.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.time_cnt.store(0, std::sync::atomic::Ordering::Relaxed);
+        *STOP.should_stop.lock().unwrap() = false;
+
+        // check that at most 10% is late
+        late * 10 <= cnt
+    }
 }
 
 static STATS: Stats = Stats {
@@ -246,7 +259,7 @@ struct Stats {
     stock_level: TxnStats,
 }
 
-pub fn print_stats() {
+pub fn print_stats() -> bool {
     println!("new_order:    {}", STATS.new_order);
     println!("delivery:     {}", STATS.delivery);
     println!("order_status: {}", STATS.order_status);
@@ -261,5 +274,11 @@ pub fn print_stats() {
     println!(
         "expected max tpmC: {}",
         (Duration::from_secs(60).as_nanos() as f64 / total_time_for_cycle.as_nanos() as f64) as u64
-    )
+    );
+
+    STATS.new_order.reset_ok()
+        & STATS.delivery.reset_ok()
+        & STATS.order_status.reset_ok()
+        & STATS.payment.reset_ok()
+        & STATS.stock_level.reset_ok()
 }

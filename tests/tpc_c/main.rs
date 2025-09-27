@@ -1,4 +1,5 @@
 use std::{
+    env::args,
     ops::RangeInclusive,
     sync::{Arc, OnceLock},
     thread,
@@ -6,7 +7,7 @@ use std::{
 };
 
 use rust_query::{
-    Database, FromExpr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction,
+    Database, FromExpr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction, aggregate,
     migration::{Config, schema},
     optional,
 };
@@ -146,14 +147,14 @@ use v0::*;
 use crate::emulated_user::{Emulate, EmutateWithQueue, print_stats, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
-const INIT: bool = true;
-// every warehouse is ~70MB
-const WAREHOUSE_CNT: i64 = 1;
 
 fn main() {
-    if INIT && std::fs::exists(DB_FILE).unwrap() {
-        std::fs::remove_file(DB_FILE).unwrap();
-    };
+    // every warehouse is ~70MB
+    let warehouse_cnt = args()
+        .skip(1)
+        .next()
+        .map(|x| x.parse().unwrap())
+        .unwrap_or(10);
 
     let mut config = Config::open(DB_FILE);
     config.foreign_keys = rust_query::migration::ForeignKeys::Rust;
@@ -163,17 +164,28 @@ fn main() {
         .expect("database should not be too new");
     let db = Arc::new(db);
 
-    if INIT {
-        db.transaction_mut_ok(|txn| {
-            expect::collect_all(|| {
-                populate::populate(txn, WAREHOUSE_CNT);
-            })
-        });
+    for warehouse_cnt in (warehouse_cnt..).step_by(10) {
+        println!("testing with {warehouse_cnt} warehouses");
+        if !test_cnt(db.clone(), warehouse_cnt) {
+            return;
+        }
     }
+}
+
+fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
+    db.transaction_mut_ok(|txn| {
+        let warehouses_exist = txn.query_one(aggregate(|rows| {
+            let warehouse = rows.join(Warehouse);
+            rows.max(&warehouse.number).unwrap_or(0)
+        }));
+        expect::collect_all(|| {
+            populate::populate(txn, warehouses_exist..warehouse_cnt);
+        });
+    });
     println!("initialization complete");
 
     let mut threads = vec![];
-    for warehouse in 1..=WAREHOUSE_CNT {
+    for warehouse in 1..=warehouse_cnt {
         for district in 1..=10 {
             let db = db.clone();
             threads.push(thread::spawn(move || {
@@ -182,7 +194,7 @@ fn main() {
                         db,
                         warehouse,
                         district,
-                        other_warehouses: (1..=WAREHOUSE_CNT).filter(|x| x != &warehouse).collect(),
+                        other_warehouses: (1..=warehouse_cnt).filter(|x| x != &warehouse).collect(),
                     }),
                     queue: vec![],
                 }
@@ -199,7 +211,7 @@ fn main() {
         thread.join().unwrap();
     }
 
-    print_stats();
+    print_stats()
 }
 
 enum Nu {
