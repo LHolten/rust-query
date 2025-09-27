@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
     ops::{Deref, Not},
     path::Path,
-    sync::{Mutex, atomic::AtomicI64},
+    sync::atomic::AtomicI64,
 };
 
 use rusqlite::{Connection, config::DbConfig};
@@ -547,7 +547,7 @@ impl<S: Schema> Migrator<S> {
             manager: self.manager,
             schema_version: AtomicI64::new(schema_version),
             schema: PhantomData,
-            mut_lock: Mutex::new(()),
+            mut_lock: parking_lot::FairMutex::new(()),
         })
     }
 }
