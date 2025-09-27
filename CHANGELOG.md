@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.5.2
+
 - Add option to configure `foreign_keys`.
 - Simplify generated query without joins.
 - Preserve column definition order when creating unique constraint.

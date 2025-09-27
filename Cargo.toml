@@ -3,7 +3,7 @@ members = ["rust-query-macros"]
 
 [package]
 name = "rust-query"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2024"
 description = "A query builder using rust concepts."
 categories = ["database"]
@@ -14,13 +14,14 @@ rust-version = "1.85"
 [[test]]
 name = "tpc_c"
 harness = false
+test = false
 
 [dependencies]
 sea-query = { version = "=1.0.0-rc.12", default-features = false, features = ["backend-sqlite"] }
 sea-query-rusqlite = "=0.8.0-rc.8"
 rusqlite = { version = "0.37", features = ["modern_sqlite", "unlock_notify"] }
 k12 = { version = "0.3", optional = true }
-rust-query-macros = { path = "rust-query-macros", version = "=0.5.1" }
+rust-query-macros = { path = "rust-query-macros", version = "=0.5.2" }
 pretty_assertions = "1.4.0"
 r2d2_sqlite = "0.31.0"
 r2d2 = "0.8"
