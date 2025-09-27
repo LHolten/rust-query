@@ -122,38 +122,44 @@ impl<S: Send + Sync + Schema> Database<S> {
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
-        let _guard = self.mut_lock.lock();
-        let res = std::thread::scope(|scope| {
+        use r2d2::ManageConnection;
+        let conn = self.manager.connect().unwrap();
+
+        // Acquire the lock just before creating the transaction
+        let guard = self.mut_lock.lock();
+
+        let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+            let txn = conn
+                .borrow_mut()
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .unwrap();
+            Some(txn)
+        });
+        let join_res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
-                    use r2d2::ManageConnection;
-
-                    let conn = self.manager.connect().unwrap();
-                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
-                        let txn = conn
-                            .borrow_mut()
-                            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                            .unwrap();
-                        Some(txn)
-                    });
-
                     let res = f(Transaction::new_checked(owned, &self.schema_version));
-
                     let owned = TXN.take().unwrap();
-
-                    if res.is_ok() {
-                        owned.with(|x| x.commit().unwrap());
-                    } else {
-                        owned.with(|x| x.rollback().unwrap());
-                    }
-                    res
+                    (res, owned)
                 })
                 .join()
         });
-        match res {
+
+        // Drop the guard before commiting to let sqlite go to the next transaction
+        // more quickly while guaranteeing that the database will unlock soon.
+        drop(guard);
+
+        let (res, owned) = match join_res {
             Ok(val) => val,
             Err(payload) => std::panic::resume_unwind(payload),
+        };
+
+        if res.is_ok() {
+            owned.with(|x| x.commit().unwrap());
+        } else {
+            owned.with(|x| x.rollback().unwrap());
         }
+        res
     }
 
     /// Same as [Self::transaction_mut], but always commits the transaction.
