@@ -1,4 +1,7 @@
-use std::iter::{self, zip};
+use std::{
+    iter::{self, zip},
+    ops::Range,
+};
 
 use indicatif::{ProgressIterator, ProgressStyle};
 use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
@@ -42,22 +45,25 @@ fn data() -> String {
     data
 }
 
-pub fn populate(txn: &mut Transaction<Schema>, warehouse_cnt: i64) {
+// warehouse_range contains the new numbers - 1
+pub fn populate(txn: &mut Transaction<Schema>, warehouse_range: Range<i64>) {
     let items: Box<[_]> = (1..=100_000)
         .map(|number| {
-            txn.insert(Item {
+            // items may already exist
+            txn.find_or_insert(Item {
                 number: number as i64,
                 image_id: rand::random_range(1..=10_000),
                 name: a_string(14, 24),
                 price: rand::random_range(1 * 100..=100 * 100),
                 data: data(),
             })
-            .expect("number is unique")
         })
         .collect();
 
     let style = ProgressStyle::with_template("{pos}/{len} eta {eta} {wide_bar}").unwrap();
-    for number in (0..warehouse_cnt as usize).progress_with_style(style) {
+    for number in
+        (warehouse_range.start as usize..warehouse_range.end as usize).progress_with_style(style)
+    {
         let warehouse = txn
             .insert(Warehouse {
                 number: (number + 1) as i64,
