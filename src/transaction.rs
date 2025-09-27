@@ -1,9 +1,5 @@
 use std::{
-    cell::RefCell,
-    convert::Infallible,
-    iter::zip,
-    marker::PhantomData,
-    sync::{Mutex, atomic::AtomicI64},
+    cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::atomic::AtomicI64,
 };
 
 use rusqlite::ErrorCode;
@@ -42,7 +38,7 @@ pub struct Database<S> {
     pub(crate) schema: PhantomData<S>,
     // TODO: this should technically not be required with `unlock_notify`.
     // see <https://github.com/rusqlite/rusqlite/issues/1736>
-    pub(crate) mut_lock: Mutex<()>,
+    pub(crate) mut_lock: parking_lot::FairMutex<()>,
 }
 
 use rusqlite::Connection;
@@ -126,7 +122,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
-        let _guard = self.mut_lock.lock().unwrap();
+        let _guard = self.mut_lock.lock();
         let res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
