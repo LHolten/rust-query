@@ -1,3 +1,10 @@
+//! You can run this benchmark as `cargo test --release --test tpc_c`.
+//! It will run with increasingly more warehouses and users.
+//! The benchmark stops when any of the transaction types has more than 10% late.
+//! At that point you can read the previous number of `new_order` transactions executed
+//! divided by the number of minutes (default 2) as the approximate tpmC.
+//! Note that for a real measurement the performance needs to be measured for several hours.
+
 use std::{
     env::args,
     ops::RangeInclusive,
@@ -154,7 +161,7 @@ fn main() {
         .skip(1)
         .next()
         .map(|x| x.parse().unwrap())
-        .unwrap_or(10);
+        .unwrap_or(50);
 
     let mut config = Config::open(DB_FILE);
     config.foreign_keys = rust_query::migration::ForeignKeys::Rust;
@@ -203,7 +210,7 @@ fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
         }
     }
 
-    thread::sleep(Duration::from_secs(60));
+    thread::sleep(Duration::from_secs(120));
 
     println!("benchmark complete");
     stop_emulation();
