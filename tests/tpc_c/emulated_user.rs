@@ -89,23 +89,27 @@ impl Emulate {
             TxnKind::StockLevel => &STATS.stock_level,
         };
         let before = Instant::now();
+        let mut start = None;
         match txn_kind {
             TxnKind::NewOrder => {
                 let input = new_order::generate_input(self.warehouse, &self.other_warehouses);
                 let _ = black_box(db.transaction_mut(|txn| {
-                    stats.add_individual_time(|| new_order::new_order(txn, input))
+                    start = Some(Instant::now());
+                    new_order::new_order(txn, input)
                 }));
             }
             TxnKind::Payment => {
                 let input = payment::generate_input(self.warehouse, &self.other_warehouses);
                 black_box(db.transaction_mut_ok(|txn| {
-                    stats.add_individual_time(|| payment::payment(txn, input))
+                    start = Some(Instant::now());
+                    payment::payment(txn, input)
                 }));
             }
             TxnKind::OrderStatus => {
                 let input = order_status::generate_input(self.warehouse);
                 black_box(db.transaction(|txn| {
-                    stats.add_individual_time(|| order_status::order_status(txn, input))
+                    start = Some(Instant::now());
+                    order_status::order_status(txn, input)
                 }));
             }
             TxnKind::Delivery => {
@@ -113,19 +117,21 @@ impl Emulate {
                 for district_num in 1..=10 {
                     // use separate transactions to allow other threads to do stuff in between
                     black_box(db.transaction_mut_ok(|txn| {
-                        stats.add_individual_time(|| delivery::delivery(txn, &input, district_num))
+                        start = Some(Instant::now()); // we only measure the last one
+                        delivery::delivery(txn, &input, district_num)
                     }));
                 }
             }
             TxnKind::StockLevel => {
                 let input = stock_level::generate_input(self.warehouse, self.district);
                 black_box(db.transaction(|txn| {
-                    stats.add_individual_time(|| stock_level::stock_level(txn, input))
+                    start = Some(Instant::now());
+                    stock_level::stock_level(txn, input)
                 }));
             }
         }
-        let elapsed = before.elapsed();
-        stats.add_total_time(elapsed);
+        stats.add_total_time(before.elapsed());
+        stats.add_individual_time(start.unwrap().elapsed());
     }
 }
 
@@ -212,15 +218,11 @@ impl TxnStats {
 
     /// This is the time after begginging the transaction and before committing.
     /// For `delivery` it includes only one district.
-    pub fn add_individual_time<R>(&self, f: impl FnOnce() -> R) -> R {
-        let start = Instant::now();
-        let res = f();
-        let dur = start.elapsed();
+    pub fn add_individual_time(&self, dur: Duration) {
         self.time_cnt
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.time_us
             .fetch_add(dur.as_micros() as u64, std::sync::atomic::Ordering::Relaxed);
-        res
     }
 
     pub fn average_time(&self) -> Duration {
