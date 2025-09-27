@@ -2,6 +2,12 @@
 
 - Add option to configure `foreign_keys`.
 - Simplify generated query without joins.
+- Preserve column definition order when creating unique constraint.
+  This lets the user choose the ordering, allowing the unique constraint to be used as a covering index.
+- Add lock for mutable transactions to fix transaction timeout under load.
+  The lock is dropped before committing to allow the next mutable transaction to start.
+- Optimize `LEFT JOIN` to `JOIN` when the joined row is guaranteed to exist.
+  This allows sqlite to reorder more joins for faster execution plans.
 
 # 0.5.1
 
