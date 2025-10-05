@@ -151,6 +151,7 @@ fn define_table(
         )*}
         type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
 
+        #[doc(hidden)]
         pub struct #table_helper(());
         #[allow(non_upper_case_globals)]
         pub const #table_ident_with_span: #table_helper = #table_helper(());
