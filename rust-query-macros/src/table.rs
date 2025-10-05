@@ -187,6 +187,13 @@ fn define_table(
             #col_ident: (),
         )*};
 
+        impl<'inner> ::rust_query::private::Joinable<'inner, #schema> for #table_ident {
+            type Typ = #table_ident;
+            fn apply(self, rows: &mut ::rust_query::args::Rows<'inner, #schema>) -> ::rust_query::Expr<'inner, #schema, Self::Typ> {
+                rows.join_private::<#table_ident>()
+            }
+        }
+
         impl<#(#generic: ::rust_query::private::Apply),*> ::rust_query::private::Instantiate<#struct_id, (#(#generic),*)> for super::MacroRoot {
             type Out = (#table_ident<#(#generic::Out<#col_typ, #schema>),*>);
         }
@@ -247,8 +254,6 @@ fn define_table(
                 }
 
                 type Schema = #schema;
-
-                const TOKEN: Self = #table_ident;
 
                 fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
                     #(f.col::<#col_typ>(#col_str);)*

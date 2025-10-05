@@ -7,6 +7,7 @@ use crate::{
     alias::{JoinableTable, TmpTable},
     ast::MySelect,
     db::Join,
+    joinable::Joinable,
     value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
 };
 
@@ -31,7 +32,12 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// The expression that is returned refers to the joined table.
-    pub fn join<T: Table<Schema = S>>(&mut self, _: T) -> Expr<'inner, S, T> {
+    pub fn join<T: MyTyp>(&mut self, j: impl Joinable<'inner, S, Typ = T>) -> Expr<'inner, S, T> {
+        j.apply(self)
+    }
+
+    #[doc(hidden)]
+    pub fn join_private<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
         self.join_inner(JoinableTable::Normal(T::NAME.into()))
     }
 

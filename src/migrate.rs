@@ -93,7 +93,7 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
         Out: FromExpr<FromSchema, M::From>,
     {
         let data = self.inner.query(|rows| {
-            let old = rows.join(<M::From as Table>::TOKEN);
+            let old = rows.join_private::<M::From>();
             rows.into_vec((&old, Out::from_expr(&old)))
         });
 

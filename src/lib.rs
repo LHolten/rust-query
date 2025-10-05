@@ -11,6 +11,7 @@ mod ast;
 mod db;
 mod dummy_impl;
 mod hash;
+mod joinable;
 mod migrate;
 mod mymap;
 mod query;
@@ -63,6 +64,7 @@ pub mod private {
     use std::marker::PhantomData;
 
     pub use crate::hash::TypBuilder;
+    pub use crate::joinable::Joinable;
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
     pub use crate::query::get_plan;
     pub use crate::value::{DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column};
@@ -145,9 +147,6 @@ pub trait Table: Sized + 'static {
 
     #[doc(hidden)]
     fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t>;
-
-    #[doc(hidden)]
-    const TOKEN: Self;
 
     /// The schema that this table is a part of.
     type Schema;

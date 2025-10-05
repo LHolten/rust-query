@@ -36,8 +36,6 @@ macro_rules! table {
                 }
             }
 
-            const TOKEN: Self = $c;
-
             type Schema = Pragma;
             type Referer = ();
             fn get_referer_unchecked() -> Self::Referer {}
