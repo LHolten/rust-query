@@ -1,7 +1,7 @@
 use std::ops::{Not, Range};
 
 use quote::ToTokens;
-use syn::{punctuated::Punctuated, Attribute, Field, Ident, Item, Path, Token, Visibility};
+use syn::{punctuated::Punctuated, Attribute, Field, Ident, Item, Token, Visibility};
 
 use crate::multi::{Unique, VersionedColumn, VersionedSchema, VersionedTable};
 
@@ -26,10 +26,9 @@ impl VersionedColumn {
         let mut other_field_attr = vec![];
         let mut doc_comments = vec![];
         for attr in field.attrs {
-            if let Some(unique) = is_unique(attr.path()) {
+            if attr.path().is_ident("unique") {
                 attr.meta.require_path_only()?;
                 uniques.push(Unique {
-                    name: unique,
                     columns: vec![name.clone()],
                 })
             } else if attr.path().is_ident("doc") {
@@ -64,11 +63,10 @@ impl VersionedTable {
         let mut doc_comments = vec![];
 
         for attr in table.attrs {
-            if let Some(unique) = is_unique(attr.path()) {
+            if attr.path().is_ident("unique") {
                 let idents =
                     attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?;
                 uniques.push(Unique {
-                    name: unique,
                     columns: idents.into_iter().collect(),
                 })
             } else if attr.path().is_ident("no_reference") {
@@ -241,13 +239,4 @@ fn parse_version(attrs: &[Attribute]) -> syn::Result<Option<MyRange>> {
         }
     }
     Ok(version)
-}
-
-fn is_unique(path: &Path) -> Option<Ident> {
-    path.get_ident().and_then(|ident| {
-        ident
-            .to_string()
-            .starts_with("unique")
-            .then(|| ident.clone())
-    })
 }

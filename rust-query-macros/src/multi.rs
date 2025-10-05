@@ -6,7 +6,6 @@ use syn::{Attribute, Ident};
 
 #[derive(Clone)]
 pub(crate) struct Unique {
-    pub name: Ident,
     pub columns: Vec<Ident>,
 }
 
