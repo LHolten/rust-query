@@ -36,8 +36,6 @@ pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema_version: AtomicI64,
     pub(crate) schema: PhantomData<S>,
-    // TODO: this should technically not be required with `unlock_notify`.
-    // see <https://github.com/rusqlite/rusqlite/issues/1736>
     pub(crate) mut_lock: parking_lot::FairMutex<()>,
 }
 
@@ -106,14 +104,12 @@ impl<S: Send + Sync + Schema> Database<S> {
     /// Create a mutable [Transaction].
     /// This operation needs to wait for all other mutable [Transaction]s for this database to be finished.
     ///
+    /// Note: you can create a deadlock if you are holding on to another lock while trying to
+    /// get a mutable transaction!
+    ///
     /// Whether the transaction is commited depends on the result of the closure.
     /// The transaction is only commited if the closure return [Ok]. In the case that it returns [Err]
     /// or when the closure panics, a rollback is performed.
-    ///
-    /// The implementation uses the [unlock_notify](https://sqlite.org/unlock_notify.html) feature of sqlite.
-    /// This makes it work across processes.
-    /// Note: you can create a deadlock if you are holding on to another lock while trying to
-    /// get a mutable transaction!
     ///
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
