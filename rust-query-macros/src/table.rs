@@ -59,11 +59,12 @@ fn define_table(
     table.name.set_span(Span::call_site());
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
+    let table_helper = format_ident!("{table_ident}Index");
 
     let unique_tree = table.make_unique_tree();
     let unique_info = table.make_info(schema.clone());
     let unique_helpers =
-        crate::unique::unique_tree(table_ident, false, &unique_tree, &unique_info)?;
+        crate::unique::unique_tree(&table_helper, false, &unique_tree, &unique_info)?;
 
     let mut unique_typs = vec![];
     for unique in &table.uniques {
@@ -150,12 +151,11 @@ fn define_table(
         )*}
         type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
 
+        pub struct #table_helper(());
         #[allow(non_upper_case_globals)]
-        pub const #table_ident_with_span: #table_ident = #table_ident {#(
-            #col_ident: (),
-        )*};
+        pub const #table_ident_with_span: #table_helper = #table_helper(());
 
-        impl<'inner> ::rust_query::private::Joinable<'inner> for #table_ident {
+        impl<'inner> ::rust_query::private::Joinable<'inner> for #table_helper {
             type Typ = #table_ident;
             fn conds(self) -> ::std::vec::Vec<(&'static str, ::rust_query::private::DynTypedExpr)> {
                 ::std::vec::Vec::new()
