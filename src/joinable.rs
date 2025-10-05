@@ -1,6 +1,6 @@
-use crate::{Expr, rows::Rows, value::MyTyp};
+use crate::{Table, value::DynTypedExpr};
 
-pub trait Joinable<'inner, S> {
-    type Typ: MyTyp;
-    fn apply(self, rows: &mut Rows<'inner, S>) -> Expr<'inner, S, Self::Typ>;
+pub trait Joinable<'inner> {
+    type Typ: Table;
+    fn conds(self) -> Vec<(&'static str, DynTypedExpr)>;
 }

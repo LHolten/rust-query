@@ -1,10 +1,10 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use sea_query::IntoIden;
+use sea_query::{ExprTrait, IntoIden};
 
 use crate::{
     Expr, Table,
-    alias::{JoinableTable, TmpTable},
+    alias::{Field, JoinableTable, TmpTable},
     ast::MySelect,
     db::Join,
     joinable::Joinable,
@@ -32,8 +32,18 @@ impl<'inner, S> Rows<'inner, S> {
     /// (Also called the "Carthesian product")
     ///
     /// The expression that is returned refers to the joined table.
-    pub fn join<T: MyTyp>(&mut self, j: impl Joinable<'inner, S, Typ = T>) -> Expr<'inner, S, T> {
-        j.apply(self)
+    pub fn join<T: Table<Schema = S>>(
+        &mut self,
+        j: impl Joinable<'inner, Typ = T>,
+    ) -> Expr<'inner, S, T> {
+        let out = self.join_private::<T>();
+        for (name, val) in j.conds() {
+            let out = out.inner.clone();
+            self.filter(Expr::adhoc(move |b| {
+                sea_query::Expr::col((out.build_table(b), Field::Str(name))).eq((val.func)(b))
+            }));
+        }
+        out
     }
 
     #[doc(hidden)]

@@ -14,6 +14,7 @@ use crate::{
     db::{Join, TableRow, TableRowInner},
     hash,
     mymap::MyMap,
+    private::Joinable,
 };
 
 #[derive(Default)]
@@ -492,6 +493,19 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
         move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into(),
         possible_null,
     )
+}
+
+pub fn unique_from_joinable<'inner, T: Table>(
+    j: impl Joinable<'inner, Typ = T>,
+) -> Expr<'inner, T::Schema, Option<T>> {
+    let list = j.conds();
+    ::rust_query::private::adhoc_expr(move |_b| {
+        let list = list
+            .iter()
+            .map(|(name, col)| (*name, (col.func)(_b)))
+            .collect();
+        _b.get_unique::<T>(list)
+    })
 }
 
 struct AdHoc<F, T> {

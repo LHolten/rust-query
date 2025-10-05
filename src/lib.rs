@@ -67,7 +67,9 @@ pub mod private {
     pub use crate::joinable::Joinable;
     pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
     pub use crate::query::get_plan;
-    pub use crate::value::{DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column};
+    pub use crate::value::{
+        DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
+    };
     pub use crate::writable::{Reader, TableInsert};
 
     pub use rust_query_macros::fields;

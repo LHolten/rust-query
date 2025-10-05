@@ -155,10 +155,10 @@ fn define_table(
             #col_ident: (),
         )*};
 
-        impl<'inner> ::rust_query::private::Joinable<'inner, #schema> for #table_ident {
+        impl<'inner> ::rust_query::private::Joinable<'inner> for #table_ident {
             type Typ = #table_ident;
-            fn apply(self, rows: &mut ::rust_query::args::Rows<'inner, #schema>) -> ::rust_query::Expr<'inner, #schema, Self::Typ> {
-                rows.join_private::<#table_ident>()
+            fn conds(self) -> ::std::vec::Vec<(&'static str, ::rust_query::private::DynTypedExpr)> {
+                ::std::vec::Vec::new()
             }
         }
 
