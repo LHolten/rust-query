@@ -60,50 +60,18 @@ fn define_table(
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
 
+    let unique_tree = table.make_unique_tree();
+    let unique_info = table.make_info(schema.clone());
+    let unique_helpers =
+        crate::unique::unique_tree(table_ident, false, &unique_tree, &unique_info)?;
+
     let mut unique_typs = vec![];
-    let mut unique_funcs = vec![];
     for unique in &table.uniques {
-        let unique_name = &unique.name;
-
-        let col = &unique.columns;
-        let mut col_typ = vec![];
         let mut col_str = vec![];
-        for col in col {
-            let i = &table
-                .columns
-                .iter()
-                .find_map(|(i, x)| (&x.name == col).then_some(i))
-                .ok_or_else(|| {
-                    syn::Error::new_spanned(
-                        col,
-                        "Expected a column to exists for every name in the unique constraint.",
-                    )
-                })?;
-            let tmp = format_ident!("_{table_ident}{i}");
-
-            col_typ.push(tmp);
+        for col in &unique.columns {
             col_str.push(col.to_string());
         }
-
         unique_typs.push(quote! {f.unique(&[#(#col_str),*])});
-
-        unique_funcs.push(quote! {
-            pub fn #unique_name<'a>(#(#col: impl ::rust_query::IntoExpr<'a, #schema, Typ = #col_typ>),*)
-                -> ::rust_query::Expr<'a, #schema, Option<#table_ident>>
-            {
-                #(
-                    let #col = ::rust_query::private::DynTypedExpr::erase(#col);
-                )*
-                ::rust_query::private::adhoc_expr(move |_b| {
-                    #(
-                        let #col = (#col.func)(_b);
-                    )*
-                    _b.get_unique::<#table_ident>(Box::new([#(
-                        (#col_str, #col),
-                    )*]))
-                })
-            }
-        });
     }
 
     let (conflict_type, conflict_dummy_insert) = table.conflict();
@@ -314,10 +282,9 @@ fn define_table(
             }
         }
 
-        #[allow(unused)]
-        impl #table_ident {
-            #(#unique_funcs)*
-        }
+        const _: () = {
+            #unique_helpers
+        };
     })
 }
 
@@ -326,14 +293,13 @@ impl SingleVersionTable {
         match &*self.uniques {
             [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
             [unique] => {
-                let unique_name = &unique.name;
                 let table_ident = &self.name;
 
                 let col = &unique.columns;
                 (
                     quote! {::rust_query::TableRow<#table_ident>},
                     quote! {
-                        txn.query_one(#table_ident::#unique_name(#(&val.#col),*)).unwrap()
+                        txn.query_one(#table_ident #(.#col(&val.#col))*).unwrap()
                     },
                 )
             }

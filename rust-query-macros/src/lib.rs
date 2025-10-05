@@ -12,6 +12,7 @@ mod migrations;
 mod multi;
 mod parse;
 mod table;
+mod unique;
 
 /// Use this macro to define your schema.
 ///
