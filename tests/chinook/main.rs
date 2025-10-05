@@ -42,7 +42,7 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     assert_dbg("the_artists", || get_the_artists(txn));
     assert_dbg("ten_space_tracks", || ten_space_tracks(txn));
     assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(txn));
-    let artist = txn.query_one(Artist::unique("U2")).unwrap();
+    let artist = txn.query_one(Artist.name("U2")).unwrap();
     assert_dbg("artist_details", || vec![artist_details(txn, artist)]);
     assert_eq!(
         customer_spending_by_email(txn, "vstevens@yahoo.com"),
@@ -266,7 +266,7 @@ fn customer_spending<'t>(
 
 fn customer_spending_by_email(db: &Transaction<Schema>, email: &str) -> Option<f64> {
     db.query_one(optional(|row| {
-        let customer = row.and(Customer::unique_by_email(email));
+        let customer = row.and(Customer.email(email));
         row.then(customer_spending(customer))
     }))
 }

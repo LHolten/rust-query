@@ -45,17 +45,17 @@ fn queries(txn: &'static mut Transaction<Schema>) {
     type PlayerInfo2 = Player!(score, home);
 
     // old pattern, requires two queries
-    let player = txn.query_one(Player::unique(pub_id));
+    let player = txn.query_one(Player.pub_id(pub_id));
     let _info = player.map(|player| txn.query_one(PlayerInfo::from_expr(player)));
 
     // most powerful pattern, can retrieve optional data in one query
     let _info = txn.query_one(optional(|row| {
-        let player = row.and(Player::unique(pub_id));
+        let player = row.and(Player.pub_id(pub_id));
         row.then(PlayerInfo::from_expr(player))
     }));
 
     // for simple queries, use the trivial mapping
-    let info = txn.query_one(Option::<PlayerInfo2>::from_expr(Player::unique(pub_id)));
+    let info = txn.query_one(Option::<PlayerInfo2>::from_expr(Player.pub_id(pub_id)));
 
     assert!(info.is_none());
 
@@ -68,7 +68,7 @@ fn queries(txn: &'static mut Transaction<Schema>) {
     })
     .expect("there is no player with this pub_id yet");
 
-    let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player::unique(pub_id)));
+    let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player.pub_id(pub_id)));
     assert!(info.is_some());
 }
 

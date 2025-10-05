@@ -32,7 +32,7 @@ pub mod vN {
         pub country: String,
         pub postal_code: Option<String>,
         pub fax: Option<String>,
-        #[unique_by_email]
+        #[unique]
         pub email: String,
         pub support_rep: Employee,
     }
