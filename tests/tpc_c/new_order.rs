@@ -61,9 +61,9 @@ pub fn new_order(
 ) -> Result<OutputData, OutputData> {
     let customer = txn
         .query_one(optional(|row| {
-            let warehouse = row.and(Warehouse::unique(input.warehouse));
-            let district = row.and(District::unique(warehouse, input.district));
-            let customer = row.and(Customer::unique(district, input.customer));
+            let warehouse = row.and(Warehouse.number(input.warehouse));
+            let district = row.and(District.warehouse(warehouse).number(input.district));
+            let customer = row.and(Customer.district(district).number(input.customer));
             row.then(CustomerInfo::from_expr(customer))
         }))
         .unwrap();
@@ -109,7 +109,7 @@ pub fn new_order(
     ) in input.items.into_iter().enumerate()
     {
         type ItemInfo = WithId<Item, Item!(price, name, data)>;
-        let Some(item) = txn.query_one(Option::<ItemInfo>::from_expr(Item::unique(item_number)))
+        let Some(item) = txn.query_one(Option::<ItemInfo>::from_expr(Item.number(item_number)))
         else {
             input_valid = false;
             continue;
@@ -125,8 +125,8 @@ pub fn new_order(
 
         let stock = txn
             .query_one(optional(|row| {
-                let supplying_warehouse = row.and(Warehouse::unique(supplying_warehouse));
-                let stock = row.and(Stock::unique(supplying_warehouse, item.row));
+                let supplying_warehouse = row.and(Warehouse.number(supplying_warehouse));
+                let stock = row.and(Stock.warehouse(supplying_warehouse).item(item.row));
                 row.then(StockInfoSelect {
                     row: &stock,
                     quantity: &stock.quantity,

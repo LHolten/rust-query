@@ -22,14 +22,12 @@ pub fn order_status(txn: &Transaction<Schema>, input: OrderStatusInput) -> Order
             .lookup_customer(txn, input.warehouse, input.district);
     let last_order = txn
         .query_one(optional(|row| {
-            aggregate(|rows| {
-                let order = rows.join(Order);
-                rows.filter(order.customer.eq(customer));
-                let max_number = row.and(rows.max(&order.number));
-                rows.filter(order.number.eq(&max_number));
-                let order = row.and(Order::unique(customer, max_number));
-                row.then(order)
-            })
+            let max_number = row.and(aggregate(|rows| {
+                let order = rows.join(Order.customer(customer));
+                rows.max(&order.number)
+            }));
+            let order = row.and(Order.customer(customer).number(max_number));
+            row.then(order)
         }))
         .unwrap();
 

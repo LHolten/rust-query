@@ -23,9 +23,9 @@ pub fn delivery(
     input: &DeliveryInput,
     district_num: i64,
 ) -> Option<DeliveryOutput> {
-    let warehouse = txn.query_one(Warehouse::unique(input.warehouse)).unwrap();
+    let warehouse = txn.query_one(Warehouse.number(input.warehouse)).unwrap();
     let district = txn
-        .query_one(District::unique(warehouse, district_num))
+        .query_one(District.warehouse(warehouse).number(district_num))
         .unwrap();
 
     let new_order = txn.query_one(optional(|row| {
@@ -39,9 +39,9 @@ pub fn delivery(
             rows.filter(order.number.eq(&order_num));
 
             let customer_num = row.and(rows.min(&customer.number));
-            let customer = row.and(Customer::unique(district, customer_num));
-            let order = row.and(Order::unique(customer, order_num));
-            let new_order = row.and(NewOrder::unique(order));
+            let customer = row.and(Customer.district(district).number(customer_num));
+            let order = row.and(Order.customer(customer).number(order_num));
+            let new_order = row.and(NewOrder.order(order));
             row.then(new_order)
         })
     }));

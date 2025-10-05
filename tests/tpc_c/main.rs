@@ -302,19 +302,18 @@ impl CustomerIdent {
         match self {
             CustomerIdent::Number(customer) => txn
                 .query_one(optional(|row| {
-                    let warehouse = row.and(Warehouse::unique(warehouse));
-                    let district = row.and(District::unique(warehouse, district));
-                    let customer = row.and(Customer::unique(district, customer));
+                    let warehouse = row.and(Warehouse.number(warehouse));
+                    let district = row.and(District.warehouse(warehouse).number(district));
+                    let customer = row.and(Customer.district(district).number(customer));
                     row.then(FromExpr::from_expr(customer))
                 }))
                 .unwrap(),
             CustomerIdent::Name(last_name) => {
                 let mut customers = txn.query(|rows| {
-                    let warehouse = rows.filter_some(Warehouse::unique(warehouse));
-                    let district = rows.filter_some(District::unique(warehouse, district));
+                    let warehouse = rows.filter_some(Warehouse.number(warehouse));
+                    let district = rows.filter_some(District.warehouse(warehouse).number(district));
 
-                    let customer = rows.join(Customer);
-                    rows.filter(customer.district.eq(district));
+                    let customer = rows.join(Customer.district(district));
                     rows.filter(customer.last.eq(last_name));
                     rows.into_vec((&customer.first, FromExpr::from_expr(&customer)))
                 });

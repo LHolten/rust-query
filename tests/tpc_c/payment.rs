@@ -40,8 +40,8 @@ type DistrictInfo = WithId<District, LocationYtd>;
 pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
     let (warehouse, district) = txn
         .query_one(optional(|row| {
-            let warehouse = row.and(Warehouse::unique(input.warehouse));
-            let district = row.and(District::unique(&warehouse, input.district));
+            let warehouse = row.and(Warehouse.number(input.warehouse));
+            let district = row.and(District.warehouse(&warehouse).number(input.district));
             row.then((
                 WarehouseInfo::from_expr(warehouse),
                 DistrictInfo::from_expr(district),
