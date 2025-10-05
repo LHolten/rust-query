@@ -1,5 +1,15 @@
 # Unreleased
 
+## breaking changes
+- Unique constraints are now unnamed
+  Using a unique constraint can be done by using the column names in order e.g.
+  `Stock.warehouse(w).item(i)` instead of `Stock::unique(w, i)`.
+- Support for only filtering on some columns with unique constraint syntax e.g.
+  you can do `rows.join(Stock.warehouse(w))`, which will join all rows from the Stock
+  table that match the warehouse.
+- To create an empty row you now have to use `txn.insert_ok(v0::Empty {})` instead or
+  `txn.insert_ok(v0::Empty)`.
+
 # 0.5.2
 
 - Add option to configure `foreign_keys`.
