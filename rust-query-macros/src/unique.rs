@@ -9,8 +9,8 @@ use crate::SingleVersionTable;
 impl SingleVersionTable {
     pub fn make_unique_tree(&self) -> UniqueTree {
         let mut res = UniqueTree::default();
-        for unique in &self.indices {
-            res.add_unique(&unique.columns);
+        for index in &self.indices {
+            res.add_unique(&index.columns, index.unique);
         }
         res
     }
@@ -24,11 +24,14 @@ pub struct UniqueTree {
 }
 
 impl UniqueTree {
-    pub fn add_unique(&mut self, new: &[Ident]) {
+    pub fn add_unique(&mut self, new: &[Ident], is_unique: bool) {
         match new {
-            [] => self.is_unique = true,
+            [] => self.is_unique = is_unique,
             [x, xs @ ..] => {
-                self.choice.entry(x.clone()).or_default().add_unique(xs);
+                self.choice
+                    .entry(x.clone())
+                    .or_default()
+                    .add_unique(xs, is_unique);
             }
         }
     }

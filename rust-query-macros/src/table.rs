@@ -292,7 +292,8 @@ fn define_table(
 
 impl SingleVersionTable {
     pub fn conflict(&self) -> (TokenStream, TokenStream) {
-        match &*self.indices {
+        let unique_indices: Vec<_> = self.indices.iter().filter(|index| index.unique).collect();
+        match *unique_indices {
             [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
             [unique] => {
                 let table_ident = &self.name;
