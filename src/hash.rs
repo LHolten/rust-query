@@ -58,6 +58,12 @@ pub struct Table {
 }
 
 impl Table {
+    pub(crate) fn new<T: crate::Table>() -> Self {
+        let mut f = crate::hash::TypBuilder::default();
+        T::typs(&mut f);
+        f.ast
+    }
+
     fn normalize(&mut self) {
         self.indices.retain_mut(Index::normalize);
         self.indices.sort();
@@ -85,11 +91,14 @@ impl Table {
                 );
             }
         }
-        for unique in &*self.indices {
-            let mut index = sea_query::Index::create().unique().take();
+        for index_spec in &*self.indices {
+            let mut index = sea_query::Index::create();
+            if index_spec.unique {
+                index.unique();
+            }
             // Preserve the original order of columns in the unique constraint.
-            // This lets users optimize queries by using covered indexes.
-            for col in &unique.columns {
+            // This lets users optimize queries by using index prefixes.
+            for col in &index_spec.columns {
                 index.col(Alias::new(col));
             }
             create.index(&mut index);

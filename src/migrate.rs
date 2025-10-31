@@ -35,9 +35,8 @@ impl<S> Default for TableTypBuilder<S> {
 
 impl<S> TableTypBuilder<S> {
     pub fn table<T: Table<Schema = S>>(&mut self) {
-        let mut b = hash::TypBuilder::default();
-        T::typs(&mut b);
-        let old = self.ast.tables.insert(T::NAME.to_owned(), b.ast);
+        let table = hash::Table::new::<T>();
+        let old = self.ast.tables.insert(T::NAME.to_owned(), table);
         debug_assert!(old.is_none());
     }
 }
@@ -81,7 +80,11 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
-            TXN.with_borrow(|txn| new_table::<T>(txn.as_ref().unwrap().get(), new_table_name));
+            TXN.with_borrow(|txn| {
+                let conn = txn.as_ref().unwrap().get();
+                let table = crate::hash::Table::new::<T>();
+                new_table_inner(conn, &table, new_table_name);
+            });
             new_table_name
         })
     }
@@ -197,12 +200,6 @@ impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
         let step = sea_query::Table::drop().table(name).take();
         self.drop.push(step);
     }
-}
-
-fn new_table<T: Table>(conn: &Connection, alias: TmpTable) {
-    let mut f = crate::hash::TypBuilder::default();
-    T::typs(&mut f);
-    new_table_inner(conn, &f.ast, alias);
 }
 
 fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl IntoTableRef) {
