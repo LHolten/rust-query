@@ -66,6 +66,8 @@ pub struct TransactionMigrate<FromSchema> {
     inner: Transaction<FromSchema>,
     scope: Scope,
     rename_map: HashMap<&'static str, TmpTable>,
+    // creating indices is delayed so that they don't need to be renamed
+    extra_index: Vec<String>,
 }
 
 impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
@@ -83,7 +85,8 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
             TXN.with_borrow(|txn| {
                 let conn = txn.as_ref().unwrap().get();
                 let table = crate::hash::Table::new::<T>();
-                new_table_inner(conn, &table, new_table_name);
+                let extra_indices = new_table_inner(conn, &table, new_table_name, T::NAME);
+                self.extra_index.extend(extra_indices);
             });
             new_table_name
         })
@@ -202,14 +205,32 @@ impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
     }
 }
 
-fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl IntoTableRef) {
-    let mut create = table.create();
+fn new_table_inner(
+    conn: &Connection,
+    table: &crate::hash::Table,
+    alias: impl IntoTableRef,
+    index_table: &str,
+) -> Vec<String> {
+    let mut extra_indices = Vec::new();
+    let mut create = table.create(&mut extra_indices);
     create
         .table(alias)
         .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
     let mut sql = create.to_string(SqliteQueryBuilder);
     sql.push_str(" STRICT");
     conn.execute(&sql, []).unwrap();
+
+    let index_table_ref = Alias::new(index_table);
+    extra_indices
+        .into_iter()
+        .enumerate()
+        .map(|(index_num, mut index)| {
+            index
+                .table(index_table_ref.clone())
+                .name(format!("{index_table}_index_{index_num}"))
+                .to_string(SqliteQueryBuilder)
+        })
+        .collect()
 }
 
 pub trait SchemaMigration<'a> {
@@ -376,7 +397,11 @@ impl<S: Schema> Database<S> {
             let schema = crate::hash::Schema::new::<S>();
 
             for (table_name, table) in &schema.tables {
-                new_table_inner(txn.get(), table, Alias::new(table_name));
+                let table_name_ref = Alias::new(table_name);
+                let extra_indices = new_table_inner(txn.get(), table, table_name_ref, table_name);
+                for stmt in extra_indices {
+                    txn.get().execute(&stmt, []).unwrap();
+                }
             }
             (config.init)(txn.get());
             set_user_version(txn.get(), S::VERSION).unwrap();
@@ -460,6 +485,7 @@ impl<S: Schema> Migrator<S> {
                         inner: Transaction::new(),
                         scope: Default::default(),
                         rename_map: HashMap::new(),
+                        extra_index: Vec::new(),
                     };
                     let m = m(&mut txn);
 
@@ -488,6 +514,10 @@ impl<S: Schema> Migrator<S> {
                         unreachable_code,
                         reason = "rustc is stupid and thinks this is unreachable"
                     )]
+                    // adding indexes is fine to do after checking foreign keys
+                    for stmt in builder.inner.extra_index {
+                        transaction.get().execute(&stmt, []).unwrap();
+                    }
                     set_user_version(transaction.get(), M::To::VERSION).unwrap();
 
                     transaction

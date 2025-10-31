@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, marker::PhantomData};
 
-use sea_query::TableCreateStatement;
+use sea_query::{IndexCreateStatement, TableCreateStatement};
 
 use crate::value::{EqTyp, MyTyp};
 
@@ -71,7 +71,7 @@ impl Table {
 }
 
 impl Table {
-    pub fn create(&self) -> TableCreateStatement {
+    pub fn create(&self, extra_indices: &mut Vec<IndexCreateStatement>) -> TableCreateStatement {
         use sea_query::*;
         let mut create = Table::create();
         for (name, col) in &self.columns {
@@ -101,7 +101,13 @@ impl Table {
             for col in &index_spec.columns {
                 index.col(Alias::new(col));
             }
-            create.index(&mut index);
+
+            if index.is_unique_key() {
+                // only unique keys are supported in table schemas in sqlite
+                create.index(&mut index);
+            } else {
+                extra_indices.push(index);
+            }
         }
         create
     }
