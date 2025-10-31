@@ -37,7 +37,8 @@ impl<S> TableTypBuilder<S> {
     pub fn table<T: Table<Schema = S>>(&mut self) {
         let mut b = hash::TypBuilder::default();
         T::typs(&mut b);
-        self.ast.tables.insert((T::NAME.to_owned(), b.ast));
+        let old = self.ast.tables.insert(T::NAME.to_owned(), b.ast);
+        debug_assert!(old.is_none());
     }
 }
 
@@ -375,10 +376,9 @@ impl<S: Schema> Database<S> {
 
         // check if this database is newly created
         if schema_version(txn.get()) == 0 {
-            let mut b = TableTypBuilder::default();
-            S::typs(&mut b);
+            let schema = crate::hash::Schema::new::<S>();
 
-            for (table_name, table) in &*b.ast.tables {
+            for (table_name, table) in &schema.tables {
                 new_table_inner(txn.get(), table, Alias::new(table_name));
             }
             (config.init)(txn.get());
@@ -568,11 +568,10 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
 }
 
 pub(crate) fn check_schema<S: Schema>() {
-    let mut b = TableTypBuilder::default();
-    S::typs(&mut b);
+    // normalize both sides, because we only care about compatibility
     pretty_assertions::assert_eq!(
-        b.ast,
-        read_schema(&crate::Transaction::new()),
+        crate::hash::Schema::new::<S>().normalize(),
+        read_schema(&crate::Transaction::new()).normalize(),
         "schema is different (expected left, but got right)",
     );
 }

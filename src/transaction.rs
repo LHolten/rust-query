@@ -483,12 +483,12 @@ impl<S: Schema> TransactionWeak<S> {
         // We do this manually because we don't want to enabled foreign key constraints for the whole
         // transaction (and is not possible to enable for part of a transaction).
         let mut checks = vec![];
-        for (table_name, table) in &*schema.tables {
-            for col in table.columns.iter().filter_map(|col| {
+        for (table_name, table) in &schema.tables {
+            for col in table.columns.iter().filter_map(|(col_name, col)| {
                 col.fk
                     .as_ref()
                     .is_some_and(|(t, c)| t == T::NAME && c == T::ID)
-                    .then_some(&col.name)
+                    .then_some(col_name)
             }) {
                 let stmt = SelectStatement::new()
                     .expr(

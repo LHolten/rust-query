@@ -72,7 +72,7 @@ fn define_table(
         for col in &unique.columns {
             col_str.push(col.to_string());
         }
-        unique_typs.push(quote! {f.unique(&[#(#col_str),*])});
+        unique_typs.push(quote! {f.index(&[#(#col_str),*], true)});
     }
 
     let (conflict_type, conflict_dummy_insert) = table.conflict();

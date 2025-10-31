@@ -2,7 +2,7 @@
 //! The layout is hashable and the hashes are independent
 //! of the column ordering and some other stuff.
 
-use std::{marker::PhantomData, ops::Deref};
+use std::{collections::BTreeMap, marker::PhantomData};
 
 use sea_query::TableCreateStatement;
 
@@ -30,92 +30,37 @@ impl ColumnType {
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Column {
-    pub name: String,
     pub typ: ColumnType,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct Unique {
-    pub columns: MyVec<String>,
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Index {
+    // column order matters for performance
+    pub columns: Vec<String>,
+    pub unique: bool,
+}
+
+impl Index {
+    fn normalize(&mut self) -> bool {
+        // column order doesn't matter for correctness
+        self.columns.sort();
+        // non-unique indexes don't matter for correctness
+        self.unique
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Table {
-    pub columns: MyVec<Column>,
-    pub uniques: MyVec<Unique>,
+    pub columns: BTreeMap<String, Column>,
+    pub indices: Vec<Index>,
 }
 
-/// Special [Vec] wrapper with a hash that is independent of the item order
-pub struct MyVec<T> {
-    inner: Vec<T>,
-    original: Vec<usize>,
-}
-
-impl<T: std::fmt::Debug> std::fmt::Debug for MyVec<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.inner.fmt(f)
-    }
-}
-
-impl<T: std::hash::Hash> std::hash::Hash for MyVec<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state);
-    }
-}
-
-impl<T: PartialEq> PartialEq for MyVec<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl<T: Eq> Eq for MyVec<T> {}
-
-impl<T: PartialOrd> PartialOrd for MyVec<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.inner.partial_cmp(&other.inner)
-    }
-}
-
-impl<T: Ord> Ord for MyVec<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner.cmp(&other.inner)
-    }
-}
-
-impl<T> Default for MyVec<T> {
-    fn default() -> Self {
-        Self {
-            inner: Default::default(),
-            original: Default::default(),
-        }
-    }
-}
-
-impl<T: Ord> MyVec<T> {
-    pub fn insert(&mut self, item: T) {
-        let index = self.inner.partition_point(|x| x < &item);
-        self.original.insert(index, self.inner.len());
-        self.inner.insert(index, item);
-    }
-}
-
-impl<T> Deref for MyVec<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T> MyVec<T> {
-    pub fn original_order(&self) -> impl Iterator<Item = &T> {
-        // TODO: replace with ordered map or something
-        (0..self.original.len())
-            .map(|x| self.original.iter().position(|a| a == &x).unwrap())
-            .map(|i| &self.inner[i])
+impl Table {
+    fn normalize(&mut self) {
+        self.indices.retain_mut(Index::normalize);
+        self.indices.sort();
     }
 }
 
@@ -123,8 +68,8 @@ impl Table {
     pub fn create(&self) -> TableCreateStatement {
         use sea_query::*;
         let mut create = Table::create();
-        for col in &*self.columns {
-            let name = Alias::new(&col.name);
+        for (name, col) in &self.columns {
+            let name = Alias::new(name);
             let mut def = ColumnDef::new_with_type(name.clone(), col.typ.sea_type());
             if col.nullable {
                 def.null();
@@ -140,11 +85,11 @@ impl Table {
                 );
             }
         }
-        for unique in &*self.uniques {
+        for unique in &*self.indices {
             let mut index = sea_query::Index::create().unique().take();
             // Preserve the original order of columns in the unique constraint.
             // This lets users optimize queries by using covered indexes.
-            for col in unique.columns.original_order() {
+            for col in &unique.columns {
                 index.col(Alias::new(col));
             }
             create.index(&mut index);
@@ -155,7 +100,7 @@ impl Table {
 
 #[derive(Debug, Hash, Default, PartialEq, Eq)]
 pub struct Schema {
-    pub tables: MyVec<(String, Table)>,
+    pub tables: BTreeMap<String, Table>,
 }
 
 impl Schema {
@@ -163,6 +108,11 @@ impl Schema {
         let mut b = crate::migrate::TableTypBuilder::default();
         S::typs(&mut b);
         b.ast
+    }
+
+    pub(crate) fn normalize(mut self) -> Self {
+        self.tables.values_mut().for_each(Table::normalize);
+        self
     }
 }
 
@@ -208,7 +158,7 @@ pub mod dev {
     /// This is useful in a test to make sure that old schema versions are not accidentally modified.
     pub fn hash_schema<S: crate::migrate::Schema>() -> String {
         let mut hasher = KangarooHasher::default();
-        super::Schema::new::<S>().hash(&mut hasher);
+        super::Schema::new::<S>().normalize().hash(&mut hasher);
         format!("{:x}", hasher.finish())
     }
 }
@@ -230,7 +180,6 @@ impl<S> Default for TypBuilder<S> {
 impl<S> TypBuilder<S> {
     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
         let mut item = Column {
-            name: name.to_owned(),
             typ: T::TYP,
             nullable: T::NULLABLE,
             fk: None,
@@ -238,15 +187,19 @@ impl<S> TypBuilder<S> {
         if let Some((table, fk)) = T::FK {
             item.fk = Some((table.to_owned(), fk.to_owned()))
         }
-        self.ast.columns.insert(item)
+        let old = self.ast.columns.insert(name.to_owned(), item);
+        debug_assert!(old.is_none());
     }
 
-    pub fn unique(&mut self, cols: &[&'static str]) {
-        let mut unique = Unique::default();
+    pub fn index(&mut self, cols: &[&'static str], unique: bool) {
+        let mut index = Index {
+            columns: Vec::default(),
+            unique,
+        };
         for &col in cols {
-            unique.columns.insert(col.to_owned());
+            index.columns.push(col.to_owned());
         }
-        self.ast.uniques.insert(unique);
+        self.ast.indices.push(index);
     }
 
     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}

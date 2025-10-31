@@ -200,10 +200,10 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
             let def = hash::Column {
                 fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
                 typ: make_type(&col),
-                name: col.name,
                 nullable: col.notnull == 0,
             };
-            table_def.columns.insert(def)
+            let old = table_def.columns.insert(col.name, def);
+            debug_assert!(old.is_none());
         }
 
         let uniques = conn.query(|q| {
@@ -221,14 +221,16 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
                 q.into_vec(name)
             });
 
-            let mut unique_def = hash::Unique::default();
-            for column in columns {
-                unique_def.columns.insert(column);
-            }
-            table_def.uniques.insert(unique_def);
+            let unique_def = hash::Index {
+                columns,
+                unique: true,
+            };
+            table_def.indices.push(unique_def);
         }
 
-        output.tables.insert((table_name, table_def))
+        let old = output.tables.insert(table_name, table_def);
+        debug_assert!(old.is_none());
     }
+
     output
 }
