@@ -101,6 +101,6 @@ fn run() {
 fn schema_hash() {
     use expect_test::expect;
     use rust_query::migration::hash_schema;
-    expect!["dd7f5d2f553f5b7a"].assert_eq(&hash_schema::<v0::Schema>());
-    expect!["66e6a7d64535bcda"].assert_eq(&hash_schema::<v1::Schema>());
+    expect!["3c4d9f7d7bc109b"].assert_eq(&hash_schema::<v0::Schema>());
+    expect!["58dfa4b8c494c72d"].assert_eq(&hash_schema::<v1::Schema>());
 }
