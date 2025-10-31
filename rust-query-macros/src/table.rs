@@ -67,12 +67,13 @@ fn define_table(
         crate::unique::unique_tree(&table_helper, false, &unique_tree, &unique_info)?;
 
     let mut unique_typs = vec![];
-    for unique in &table.uniques {
+    for index in &table.indices {
         let mut col_str = vec![];
-        for col in &unique.columns {
+        for col in &index.columns {
             col_str.push(col.to_string());
         }
-        unique_typs.push(quote! {f.index(&[#(#col_str),*], true)});
+        let is_unique = index.unique;
+        unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique)});
     }
 
     let (conflict_type, conflict_dummy_insert) = table.conflict();
@@ -93,7 +94,7 @@ fn define_table(
         let ident = &col.name;
         let tmp = format_ident!("_{table_ident}{i}", span = col.typ.span());
 
-        let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
+        let mut unique_columns = table.indices.iter().flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
@@ -291,7 +292,7 @@ fn define_table(
 
 impl SingleVersionTable {
     pub fn conflict(&self) -> (TokenStream, TokenStream) {
-        match &*self.uniques {
+        match &*self.indices {
             [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
             [unique] => {
                 let table_ident = &self.name;

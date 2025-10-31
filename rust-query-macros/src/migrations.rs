@@ -98,7 +98,7 @@ fn define_table_migration(
         if prev_columns.contains_key(i) {
             col_new.push(quote! {&prev.#name});
         } else {
-            let mut unique_columns = table.uniques.iter().flat_map(|u| &u.columns);
+            let mut unique_columns = table.indices.iter().flat_map(|u| &u.columns);
             if unique_columns.any(|c| c == name) {
                 migration_conflict = quote! {::rust_query::TableRow<Self::From>};
                 conflict_from = quote! {val};

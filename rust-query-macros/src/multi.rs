@@ -5,8 +5,9 @@ use quote::format_ident;
 use syn::{Attribute, Ident};
 
 #[derive(Clone)]
-pub(crate) struct Unique {
+pub(crate) struct Index {
     pub columns: Vec<Ident>,
+    pub unique: bool,
 }
 
 pub(crate) struct VersionedSchema {
@@ -20,7 +21,7 @@ pub(crate) struct VersionedTable {
     pub versions: std::ops::Range<u32>,
     // `prev` always has a distinct span from `name`
     pub prev: Option<Ident>,
-    pub uniques: Vec<Unique>,
+    pub indices: Vec<Index>,
     pub doc_comments: Vec<Attribute>,
     pub columns: Vec<VersionedColumn>,
     pub referenceable: bool,
@@ -76,7 +77,7 @@ impl VersionedSchema {
         Ok(SingleVersionTable {
             prev,
             name: table.name.clone(),
-            uniques: table.uniques.clone(),
+            indices: table.indices.clone(),
             doc_comments: table.doc_comments.clone(),
             columns,
             referenceable: table.referenceable,
@@ -87,7 +88,7 @@ impl VersionedSchema {
 pub(crate) struct SingleVersionTable {
     pub prev: Option<Ident>,
     pub name: Ident,
-    pub uniques: Vec<Unique>,
+    pub indices: Vec<Index>,
     pub doc_comments: Vec<Attribute>,
     pub columns: BTreeMap<usize, SingleVersionColumn>,
     pub referenceable: bool,

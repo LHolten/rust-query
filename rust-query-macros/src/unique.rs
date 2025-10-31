@@ -9,7 +9,7 @@ use crate::SingleVersionTable;
 impl SingleVersionTable {
     pub fn make_unique_tree(&self) -> UniqueTree {
         let mut res = UniqueTree::default();
-        for unique in &self.uniques {
+        for unique in &self.indices {
             res.add_unique(&unique.columns);
         }
         res

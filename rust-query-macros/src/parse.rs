@@ -3,10 +3,10 @@ use std::ops::{Not, Range};
 use quote::ToTokens;
 use syn::{punctuated::Punctuated, Attribute, Field, Ident, Item, Token, Visibility};
 
-use crate::multi::{Unique, VersionedColumn, VersionedSchema, VersionedTable};
+use crate::multi::{Index, VersionedColumn, VersionedSchema, VersionedTable};
 
 impl VersionedColumn {
-    pub fn parse(field: Field, limit: Range<u32>, uniques: &mut Vec<Unique>) -> syn::Result<Self> {
+    pub fn parse(field: Field, limit: Range<u32>, indices: &mut Vec<Index>) -> syn::Result<Self> {
         let Some(name) = field.ident.clone() else {
             return Err(syn::Error::new_spanned(field, "field must be named"));
         };
@@ -26,12 +26,14 @@ impl VersionedColumn {
         let mut other_field_attr = vec![];
         let mut doc_comments = vec![];
         for attr in field.attrs {
-            if attr.path().is_ident("unique") {
+            let path = attr.path();
+            if path.is_ident("unique") || path.is_ident("index") {
                 attr.meta.require_path_only()?;
-                uniques.push(Unique {
+                indices.push(Index {
                     columns: vec![name.clone()],
+                    unique: path.is_ident("unique"),
                 })
-            } else if attr.path().is_ident("doc") {
+            } else if path.is_ident("doc") {
                 doc_comments.push(attr);
             } else {
                 other_field_attr.push(attr);
@@ -57,26 +59,28 @@ impl VersionedTable {
         };
 
         let mut other_attrs = vec![];
-        let mut uniques = vec![];
+        let mut indices = vec![];
         let mut prev = None;
         let mut referenceable = true;
         let mut doc_comments = vec![];
 
         for attr in table.attrs {
-            if attr.path().is_ident("unique") {
+            let path = attr.path();
+            if path.is_ident("unique") || path.is_ident("index") {
                 let idents =
                     attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?;
-                uniques.push(Unique {
+                indices.push(Index {
                     columns: idents.into_iter().collect(),
+                    unique: path.is_ident("unique"),
                 })
-            } else if attr.path().is_ident("no_reference") {
+            } else if path.is_ident("no_reference") {
                 referenceable = false;
-            } else if attr.path().is_ident("from") {
+            } else if path.is_ident("from") {
                 if prev.is_some() {
                     return Err(syn::Error::new_spanned(attr, "can not have multiple from"));
                 }
                 prev = Some(attr.parse_args()?)
-            } else if attr.path().is_ident("doc") {
+            } else if path.is_ident("doc") {
                 doc_comments.push(attr);
             } else {
                 other_attrs.push(attr);
@@ -97,7 +101,7 @@ impl VersionedTable {
         let columns = table
             .fields
             .into_iter()
-            .map(|x| VersionedColumn::parse(x, versions.clone(), &mut uniques))
+            .map(|x| VersionedColumn::parse(x, versions.clone(), &mut indices))
             .collect::<Result<_, _>>()?;
 
         Ok(VersionedTable {
@@ -105,7 +109,7 @@ impl VersionedTable {
             prev,
             name: table.ident,
             columns,
-            uniques,
+            indices,
             referenceable,
             doc_comments,
         })
