@@ -104,8 +104,7 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
     db.query(|rows| {
         let pl = rows.join(Playlist);
         let track_count = aggregate(|rows| {
-            let plt = rows.join(PlaylistTrack);
-            rows.filter(plt.playlist.eq(&pl));
+            let plt = rows.join(PlaylistTrack.playlist(&pl));
             rows.count_distinct(plt)
         });
 
@@ -120,13 +119,9 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
     db.query(|rows| {
         let artist = rows.join(Artist);
         let avg_track_count = aggregate(|rows| {
-            let album = rows.join(Album);
-            rows.filter(album.artist.eq(&artist));
-
+            let album = rows.join(Album.artist(&artist));
             let track_count = aggregate(|rows| {
-                let track = rows.join(Track);
-                rows.filter(track.album.eq(album));
-
+                let track = rows.join(Track.album(album));
                 rows.count_distinct(track)
             });
             rows.avg(track_count.as_float())
@@ -171,8 +166,8 @@ struct Stats {
 
 fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     db.query(|rows| {
-        let track = rows.join(Track);
-        rows.filter(track.genre.name.eq(genre));
+        let genre = rows.join(Genre.name(genre));
+        let track = rows.join(Track.genre(genre));
         rows.filter(track.milliseconds.lt(max_milis));
         rows.into_vec(FilteredTrackSelect {
             track_name: &track.name,
@@ -195,8 +190,7 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
     db.query(|rows| {
         let genre = rows.join(Genre);
         let (bytes, milis) = aggregate(|rows| {
-            let track = rows.join(Track);
-            rows.filter(track.genre.eq(&genre));
+            let track = rows.join(Track.genre(&genre));
             (
                 rows.avg(track.bytes.as_float()),
                 rows.avg(track.milliseconds.as_float()),
@@ -221,8 +215,7 @@ fn high_avg_invoice_total(db: &Transaction<Schema>) -> Vec<HighInvoiceInfo> {
     db.query(|q_rows| {
         let customer = q_rows.join(Customer);
         aggregate(|rows| {
-            let invoice = rows.join(Invoice);
-            rows.filter(invoice.customer.eq(&customer));
+            let invoice = rows.join(Invoice.customer(&customer));
             let avg = q_rows.filter_some(rows.avg(&invoice.total));
             rows.filter(invoice.total.gt(&avg));
             let high_avg = q_rows.filter_some(rows.avg(&invoice.total));
@@ -258,8 +251,7 @@ fn customer_spending<'t>(
 ) -> Expr<'t, Schema, f64> {
     let customer = customer.into_expr();
     aggregate(|rows| {
-        let invoice = rows.join(Invoice);
-        rows.filter(invoice.customer.eq(customer));
+        let invoice = rows.join(Invoice.customer(customer));
         rows.sum(&invoice.total)
     })
 }
@@ -300,13 +292,12 @@ fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistD
     db.query_one(ArtistDetailsSelect {
         name: &artist.into_expr().name,
         album_count: aggregate(|rows| {
-            let album = rows.join(Album);
-            rows.filter(album.artist.eq(artist));
+            let album = rows.join(Album.artist(artist));
             rows.count_distinct(album)
         }),
         track_stats: aggregate(|rows| {
-            let track = rows.join(Track);
-            rows.filter(track.album.artist.eq(artist));
+            let album = rows.join(Album.artist(artist));
+            let track = rows.join(Track.album(album));
             TrackStatsSelect {
                 avg_len_milis: rows.avg(track.milliseconds.as_float()),
                 max_len_milis: rows.max(&track.milliseconds),

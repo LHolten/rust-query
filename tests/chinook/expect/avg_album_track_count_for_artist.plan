@@ -1,13 +1,11 @@
 QUERY PLAN [
     MATERIALIZE _1 [
         MATERIALIZE _1 [
-            SCAN _0,
-            SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
-            USE TEMP B-TREE FOR GROUP BY,
+            SCAN _1,
+            SEARCH _0 USING COVERING INDEX track_index_0 (album=?),
         ],
         SCAN _2,
-        BLOOM FILTER ON _0 (artist=?),
-        SEARCH _0 USING AUTOMATIC COVERING INDEX (artist=?),
+        SEARCH _0 USING COVERING INDEX album_index_0 (artist=?),
         BLOOM FILTER ON _1 (_0=?),
         SEARCH _1 USING AUTOMATIC COVERING INDEX (_0=?) LEFT-JOIN,
     ],

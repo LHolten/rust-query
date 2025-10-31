@@ -12,6 +12,7 @@ pub use v2::*;
 pub mod vN {
     pub struct Album {
         pub title: String,
+        #[index]
         pub artist: Artist,
     }
     pub struct Artist {
@@ -60,6 +61,7 @@ pub mod vN {
         pub email: String,
     }
     pub struct Genre {
+        #[index]
         pub name: String,
     }
     #[version(1..)]
@@ -75,6 +77,7 @@ pub mod vN {
         pub name: String,
     }
     pub struct Invoice {
+        #[index]
         pub customer: Customer,
         pub invoice_date: String,
         pub billing_address: Option<String>,
@@ -107,11 +110,13 @@ pub mod vN {
     }
     pub struct Track {
         pub name: String,
+        #[index]
         pub album: Album,
         #[version(..2)]
         pub media_type: MediaType,
         #[version(2..)]
         pub media_type: String,
+        #[index]
         pub genre: Genre,
         pub composer: Option<String>,
         #[version(2..)]

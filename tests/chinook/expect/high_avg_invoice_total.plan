@@ -1,18 +1,15 @@
 QUERY PLAN [
     CO-ROUTINE _1 [
-        SCAN _0,
-        SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
-        USE TEMP B-TREE FOR GROUP BY,
+        SCAN _1,
+        SEARCH _0 USING INDEX invoice_index_0 (customer=?),
     ],
     MATERIALIZE _2 [
         CO-ROUTINE _2 [
-            SCAN _0,
-            SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
-            USE TEMP B-TREE FOR GROUP BY,
+            SCAN _1,
+            SEARCH _0 USING INDEX invoice_index_0 (customer=?),
         ],
         SCAN _1,
-        BLOOM FILTER ON _0 (customer=?),
-        SEARCH _0 USING AUTOMATIC COVERING INDEX (customer=?),
+        SEARCH _0 USING INDEX invoice_index_0 (customer=?),
         BLOOM FILTER ON _2 (_0=?),
         SEARCH _2 USING AUTOMATIC COVERING INDEX (_0=?),
     ],
