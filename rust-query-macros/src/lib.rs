@@ -103,7 +103,7 @@ mod unique;
 /// Changing columns is very similar to adding and removing structs.
 /// ```
 /// use rust_query::migration::{schema, Config};
-/// use rust_query::Database;
+/// use rust_query::{Database, Lazy};
 /// #[schema(Schema)]
 /// #[version(0..=1)]
 /// pub mod vN {
@@ -122,7 +122,7 @@ mod unique;
 ///     let m = Database::migrator(Config::open_in_memory()) // we use an in memory database for this test
 ///         .expect("database version is before supported versions");
 ///     let m = m.migrate(|txn| v0::migrate::Schema {
-///         user: txn.migrate_ok(|old: v0::User!(email)| v0::migrate::User {
+///         user: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::User {
 ///             score: old.email.len() as i64 // use the email length as the new score
 ///         }),
 ///     });
@@ -168,7 +168,7 @@ mod unique;
 ///
 /// ```rust
 /// # use rust_query::migration::{schema, Config};
-/// # use rust_query::Database;
+/// # use rust_query::{Database, Lazy};
 /// # fn main() {}
 /// # #[schema(Schema)]
 /// # #[version(0..=1)]
@@ -190,8 +190,8 @@ mod unique;
 /// #     let m = Database::migrator(Config::open_in_memory()) // we use an in memory database for this test
 /// #         .expect("database version is before supported versions");
 /// let m = m.migrate(|txn| v0::migrate::Schema {
-///     author: txn.migrate_ok(|old: v0::User!(name)| v0::migrate::Author {
-///         name: old.name,
+///     author: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::Author {
+///         name: old.name.clone(),
 ///     }),
 /// });
 /// #     m.finish().expect("database version is after supported versions")
