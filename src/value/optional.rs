@@ -111,6 +111,21 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         d: impl IntoSelect<'inner, S, Out = Out>,
     ) -> Select<'outer, S, Option<Out>> {
         Select::new(OptionalImpl {
+            inner: d.into_select().map(Some).inner,
+            is_some: ColumnImpl {
+                expr: DynTypedExpr::erase(self.is_some()),
+                _p: PhantomData,
+            },
+        })
+    }
+
+    /// This is much like combining [Self::and] with [Self::then], but it
+    /// allows returning an optional value without mutating self.
+    pub fn and_then<Out: 'static>(
+        &self,
+        d: impl IntoSelect<'inner, S, Out = Option<Out>>,
+    ) -> Select<'outer, S, Option<Out>> {
+        Select::new(OptionalImpl {
             inner: d.into_select().inner,
             is_some: ColumnImpl {
                 expr: DynTypedExpr::erase(self.is_some()),
@@ -125,8 +140,8 @@ pub struct OptionalImpl<X> {
     is_some: ColumnImpl<bool>,
 }
 
-impl<X: SelectImpl> SelectImpl for OptionalImpl<X> {
-    type Out = Option<X::Out>;
+impl<T, X: SelectImpl<Out = Option<T>>> SelectImpl for OptionalImpl<X> {
+    type Out = X::Out;
     type Prepared = OptionalPrepared<X::Prepared>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
@@ -142,12 +157,12 @@ pub struct OptionalPrepared<X> {
     is_some: Cached<bool>,
 }
 
-impl<X: Prepared> Prepared for OptionalPrepared<X> {
-    type Out = Option<X::Out>;
+impl<T, X: Prepared<Out = Option<T>>> Prepared for OptionalPrepared<X> {
+    type Out = X::Out;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
         if row.get(self.is_some) {
-            Some(self.inner.call(row))
+            self.inner.call(row)
         } else {
             None
         }

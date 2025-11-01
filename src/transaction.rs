@@ -11,7 +11,7 @@ use sea_query_rusqlite::RusqliteBinder;
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{
-    IntoExpr, IntoSelect, Table, TableRow,
+    FromExpr, IntoExpr, IntoSelect, Table, TableRow,
     migrate::{Schema, check_schema, schema_version, user_version},
     private::Reader,
     query::{Query, track_stmt},
@@ -280,6 +280,13 @@ impl<S> Transaction<S> {
     /// call [Self::query] and return all results at once.
     pub fn query_one<O: 'static>(&self, val: impl IntoSelect<'static, S, Out = O>) -> O {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
+    }
+
+    pub fn query_row<T: Table<Schema = S>>(
+        &self,
+        val: impl IntoExpr<'static, S, Typ = T>,
+    ) -> T::Row {
+        self.query_one(T::Row::from_expr(val))
     }
 }
 

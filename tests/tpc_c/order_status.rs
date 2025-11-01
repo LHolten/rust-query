@@ -26,8 +26,7 @@ pub fn order_status(txn: &Transaction<Schema>, input: OrderStatusInput) -> Order
                 let order = rows.join(Order.customer(customer));
                 rows.max(&order.number)
             }));
-            let order = row.and(Order.customer(customer).number(max_number));
-            row.then(order)
+            row.and_then(Order.customer(customer).number(max_number))
         }))
         .unwrap();
 

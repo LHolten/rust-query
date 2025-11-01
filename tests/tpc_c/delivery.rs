@@ -23,17 +23,18 @@ pub fn delivery(
     input: &DeliveryInput,
     district_num: i64,
 ) -> Option<DeliveryOutput> {
-    let warehouse = txn.query_one(Warehouse.number(input.warehouse)).unwrap();
     let district = txn
-        .query_one(District.warehouse(warehouse).number(district_num))
+        .query_one(optional(|row| {
+            let warehouse = row.and(Warehouse.number(input.warehouse));
+            row.and_then(District.warehouse(warehouse).number(district_num))
+        }))
         .unwrap();
 
     let new_order = txn.query_one(optional(|row| {
         aggregate(|rows| {
-            let new_order = rows.join(NewOrder);
-            let order = &new_order.order;
-            let customer = &order.customer;
-            rows.filter(customer.district.eq(district));
+            let customer = rows.join(Customer.district(district));
+            let order = rows.join(Order.customer(customer));
+            let new_order = rows.join(NewOrder.order(order));
 
             let order_num = row.and(rows.min(&order.number));
             rows.filter(order.number.eq(&order_num));
@@ -41,8 +42,7 @@ pub fn delivery(
             let customer_num = row.and(rows.min(&customer.number));
             let customer = row.and(Customer.district(district).number(customer_num));
             let order = row.and(Order.customer(customer).number(order_num));
-            let new_order = row.and(NewOrder.order(order));
-            row.then(new_order)
+            row.and_then(NewOrder.order(order))
         })
     }));
     let Some(new_order) = new_order else {

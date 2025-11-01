@@ -63,8 +63,9 @@ pub fn new_order(
         .query_one(optional(|row| {
             let warehouse = row.and(Warehouse.number(input.warehouse));
             let district = row.and(District.warehouse(warehouse).number(input.district));
-            let customer = row.and(Customer.district(district).number(input.customer));
-            row.then(CustomerInfo::from_expr(customer))
+            row.and_then(CustomerInfo::from_expr(
+                Customer.district(district).number(input.customer),
+            ))
         }))
         .unwrap();
     let district = &customer.district;

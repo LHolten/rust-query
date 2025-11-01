@@ -304,8 +304,9 @@ impl CustomerIdent {
                 .query_one(optional(|row| {
                     let warehouse = row.and(Warehouse.number(warehouse));
                     let district = row.and(District.warehouse(warehouse).number(district));
-                    let customer = row.and(Customer.district(district).number(customer));
-                    row.then(FromExpr::from_expr(customer))
+                    row.and_then(FromExpr::from_expr(
+                        Customer.district(district).number(customer),
+                    ))
                 }))
                 .unwrap(),
             CustomerIdent::Name(last_name) => {

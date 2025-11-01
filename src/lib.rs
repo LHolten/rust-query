@@ -167,6 +167,8 @@ pub trait Table: Sized + 'static {
     type Update;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
+    /// Type of a full table row.
+    type Row: FromExpr<Self::Schema, Self>;
 
     #[doc(hidden)]
     type Insert;
