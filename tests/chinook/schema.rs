@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs};
 
 use rust_query::{
-    Database,
+    Database, Lazy,
     migration::{Config, Migrated, schema},
 };
 
@@ -147,37 +147,37 @@ pub fn migrate() -> Database<v2::Schema> {
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = Database::migrator(config).unwrap();
     let m = m.migrate(|txn| v0::migrate::Schema {
-        genre_new: txn.migrate_ok(|old: v0::Genre!(name)| v0::migrate::GenreNew { name: old.name }),
+        genre_new: txn.migrate_ok(|old: Lazy<v0::Genre>| v0::migrate::GenreNew {
+            name: old.name.clone(),
+        }),
         short_genre: {
-            let Ok(()) = txn.migrate_optional(|old: v0::Genre!(name)| {
-                (old.name.len() <= 10).then_some(v0::migrate::GenreNew { name: old.name })
+            let Ok(()) = txn.migrate_optional(|old: Lazy<v0::Genre>| {
+                (old.name.len() <= 10).then_some(v0::migrate::GenreNew {
+                    name: old.name.clone(),
+                })
             });
             Migrated::map_fk_err(|| panic!())
         },
     });
 
     let m = m.migrate(|txn| v1::migrate::Schema {
-        customer: txn.migrate_ok(|old: v1::Customer!(phone)| {
+        customer: txn.migrate_ok(|old: Lazy<v1::Customer>| {
             v1::migrate::Customer {
                 // lets do some cursed phone number parsing :D
-                phone: old.phone.and_then(|x| x.parse().ok()),
+                phone: old.phone.as_ref().and_then(|x| x.parse().ok()),
             }
         }),
-        track: txn.migrate_ok(
-            |old: v1::Track!(media_type as v1::MediaType!(name), unit_price, bytes)| {
-                v1::migrate::Track {
-                    media_type: old.media_type.name,
-                    composer_table: None,
-                    byte_price: old.unit_price / old.bytes as f64,
-                }
-            },
-        ),
-        genre_new: txn.migrate_ok(|old: v1::GenreNew!(name)| v1::migrate::GenreNew {
+        track: txn.migrate_ok(|old: Lazy<v1::Track>| v1::migrate::Track {
+            media_type: old.media_type.name.clone(),
+            composer_table: None,
+            byte_price: old.unit_price / old.bytes as f64,
+        }),
+        genre_new: txn.migrate_ok(|old: Lazy<v1::GenreNew>| v1::migrate::GenreNew {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
         employee: txn.migrate_ok(|()| v1::migrate::Employee {}),
-        invoice_line: txn.migrate_ok(|old: v1::InvoiceLine!(invoice)| v1::migrate::InvoiceLine {
-            invoice_new: old.invoice,
+        invoice_line: txn.migrate_ok(|old: Lazy<v1::InvoiceLine>| v1::migrate::InvoiceLine {
+            invoice_new: old.invoice.clone(),
         }),
     });
 

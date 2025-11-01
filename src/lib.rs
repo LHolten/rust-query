@@ -25,6 +25,7 @@ mod writable;
 pub use db::TableRow;
 pub use dummy_impl::{IntoSelect, Select};
 use hash::TypBuilder;
+pub use lazy::Lazy;
 use private::Reader;
 pub use rust_query_macros::{FromExpr, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};

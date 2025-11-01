@@ -21,7 +21,7 @@ pub mod vN {
 
 mod using_v0 {
     use super::*;
-    use rust_query::FromExpr;
+    use rust_query::{FromExpr, Lazy};
     use v0::*;
 
     #[expect(unused)]
@@ -52,7 +52,7 @@ mod using_v0 {
     }
 
     #[expect(unused)]
-    fn read_scores3(txn: &Transaction<Schema>) -> Vec<Measurement!(score, timestamp)> {
+    fn read_scores3(txn: &Transaction<Schema>) -> Vec<Lazy<'_, Measurement>> {
         txn.query(|rows| {
             let m = rows.join(Measurement);
             rows.into_vec(FromExpr::from_expr(m))
@@ -72,14 +72,14 @@ fn run() {
 
 mod using_v1 {
     use super::*;
-    use rust_query::{Transaction, migration::Config};
+    use rust_query::{Lazy, Transaction, migration::Config};
     use v1::*;
 
     pub fn migrate() -> Database<Schema> {
         let m = Database::migrator(Config::open("db.sqlite"))
             .expect("database should not be older than supported versions");
         let m = m.migrate(|txn| v0::migrate::Schema {
-            measurement: txn.migrate_ok(|old: v0::Measurement!(score)| v0::migrate::Measurement {
+            measurement: txn.migrate_ok(|old: Lazy<v0::Measurement>| v0::migrate::Measurement {
                 value: old.score as f64,
             }),
         });

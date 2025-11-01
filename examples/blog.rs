@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, Transaction, aggregate,
+    Database, Lazy, Transaction, aggregate,
     migration::{Config, schema},
 };
 
@@ -75,7 +75,7 @@ pub fn migrate() -> Database<v1::Schema> {
     let m = Database::migrator(Config::open_in_memory())
         .expect("database is older than supported versions");
     let m = m.migrate(|txn| v0::migrate::Schema {
-        user: txn.migrate_ok(|old_user: v0::User!(name)| v0::migrate::User {
+        user: txn.migrate_ok(|old_user: Lazy<v0::User>| v0::migrate::User {
             email: format!("{}@example.com", old_user.name),
         }),
     });

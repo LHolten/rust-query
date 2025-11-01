@@ -41,8 +41,14 @@ fn queries(txn: &'static mut Transaction<Schema>) {
         name: String,
     }
 
-    type PlayerInfo = Player!(name, score, home as NameInfo);
-    type PlayerInfo2 = Player!(score, home);
+    #[expect(unused)]
+    #[derive(FromExpr)]
+    #[rust_query(From = Player)]
+    struct PlayerInfo {
+        name: String,
+        score: i64,
+        home: NameInfo,
+    }
 
     // old pattern, requires two queries
     let player = txn.query_one(Player.pub_id(pub_id));
@@ -55,7 +61,7 @@ fn queries(txn: &'static mut Transaction<Schema>) {
     }));
 
     // for simple queries, use the trivial mapping
-    let info = txn.query_one(Option::<PlayerInfo2>::from_expr(Player.pub_id(pub_id)));
+    let info = txn.query_one(Option::<PlayerInfo>::from_expr(Player.pub_id(pub_id)));
 
     assert!(info.is_none());
 
