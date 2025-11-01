@@ -29,8 +29,6 @@ mod unique;
 /// ## Unique constraints
 ///
 /// To define a unique constraint on a column, you need to add an attribute to the table or field.
-/// The attribute needs to start with `unique` and can have any suffix.
-/// Within a table, the different unique constraints must have different suffixes.
 ///
 /// For example:
 /// ```
@@ -38,9 +36,9 @@ mod unique;
 /// #[version(0..=0)]
 /// pub mod vN {
 ///     pub struct User {
-///         #[unique_email]
+///         #[unique]
 ///         pub email: String,
-///         #[unique_username]
+///         #[unique]
 ///         pub username: String,
 ///     }
 /// }
@@ -73,9 +71,9 @@ mod unique;
 /// #[version(0..=1)]
 /// pub mod vN {
 ///     pub struct User {
-///         #[unique_email]
+///         #[unique]
 ///         pub email: String,
-///         #[unique_username]
+///         #[unique]
 ///         pub username: String,
 ///     }
 ///     #[version(1..)] // <-- note that `Game`` has a version range
@@ -113,9 +111,9 @@ mod unique;
 /// #[version(0..=1)]
 /// pub mod vN {
 ///     pub struct User {
-///         #[unique_email]
+///         #[unique]
 ///         pub email: String,
-///         #[unique_username]
+///         #[unique]
 ///         pub username: String,
 ///         #[version(1..)] // <-- here
 ///         pub score: i64,

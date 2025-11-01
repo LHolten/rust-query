@@ -282,10 +282,10 @@ impl<S> Transaction<S> {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 
-    pub fn query_row<T: Table<Schema = S>>(
-        &self,
-        val: impl IntoExpr<'static, S, Typ = T>,
-    ) -> T::Row {
+    pub fn query_row<T: Table<Schema = S>>(&self, val: impl IntoExpr<'static, S, Typ = T>) -> T::Row
+    where
+        T::Row: FromExpr<S, T>,
+    {
         self.query_one(T::Row::from_expr(val))
     }
 }
