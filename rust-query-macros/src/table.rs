@@ -95,7 +95,7 @@ fn define_table(
             update_columns_safe.push(quote! {::rust_query::private::AsUpdate});
             try_from_update.push(quote! {val.#ident});
         }
-        parts.push(quote! {::rust_query::FromExpr::from_expr(&col.#ident)});
+        parts.push(quote! {&col.#ident});
         generic.push(make_generic(ident));
         col_str.push(ident.to_string());
         col_ident.push(ident);
@@ -152,21 +152,6 @@ fn define_table(
             type Typ = #table_ident;
             fn conds(self) -> ::std::vec::Vec<(&'static str, ::rust_query::private::DynTypedExpr)> {
                 ::std::vec::Vec::new()
-            }
-        }
-
-        impl<#(#generic),*> ::rust_query::FromExpr<#schema, #table_ident>
-            for #table_ident<#(#generic),*>
-        where #(#generic: ::rust_query::FromExpr<#schema, #col_typ>,)*
-        {
-            /// How to turn a column reference into a [Select].
-            fn from_expr<'columns>(
-                col: impl ::rust_query::IntoExpr<'columns, #schema, Typ = #table_ident>,
-            ) -> ::rust_query::Select<'columns, #schema, Self> {
-                let col = ::rust_query::IntoExpr::into_expr(col);
-                ::rust_query::IntoSelect::into_select(#wrap_parts).map(|#wrap_ident| #table_ident {
-                    #(#col_ident,)*
-                })
             }
         }
 
@@ -244,6 +229,14 @@ fn define_table(
                 type Referer = #referer;
                 fn get_referer_unchecked() -> Self::Referer {
                     #referer_expr
+                }
+
+                fn get_lazy<'t>(txn: &'t ::rust_query::Transaction<Self::Schema>, row: ::rust_query::TableRow<Self>) -> Self::Lazy<'t> {
+                    let col = ::rust_query::IntoExpr::<'_, #schema>::into_expr(row);
+                    let #wrap_ident = txn.query_one(#wrap_parts);
+                    #table_ident {
+                        #(#col_ident: <#col_typ as ::rust_query::private::MyTyp>::out_to_lazy(#col_ident),)*
+                    }
                 }
             }
         };

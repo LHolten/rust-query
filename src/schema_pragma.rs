@@ -75,6 +75,10 @@ macro_rules! table {
                 unreachable!()
             }
 
+            fn get_lazy<'t>(_txn: &'t Transaction<Self::Schema>, _row: crate::TableRow<Self>) -> Self::Lazy<'t> {
+                ()
+            }
+
             const ID: &'static str = "";
             const NAME: &'static str = "";
         }

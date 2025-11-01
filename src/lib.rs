@@ -188,9 +188,7 @@ pub trait Table: Sized + 'static {
     fn get_referer_unchecked() -> Self::Referer;
 
     #[doc(hidden)]
-    fn get_lazy<'t>(txn: &'t Transaction<Self::Schema>, row: TableRow<Self>) -> Self::Lazy<'t> {
-        todo!()
-    }
+    fn get_lazy<'t>(txn: &'t Transaction<Self::Schema>, row: TableRow<Self>) -> Self::Lazy<'t>;
 
     // used for the first join (useful for pragmas)
     #[doc(hidden)]

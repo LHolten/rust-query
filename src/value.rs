@@ -8,7 +8,7 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
-    Lazy, Table,
+    Lazy, Table, Transaction,
     alias::{Field, MyAlias, Scope},
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
@@ -326,6 +326,7 @@ pub trait MyTyp: 'static {
     type Lazy<'t>;
     type Ext<'t>;
     type Sql;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t>;
 }
 
 pub(crate) trait SecretFromSql: Sized {
@@ -341,6 +342,9 @@ impl<T: Table> MyTyp for T {
     type Lazy<'t> = Lazy<'t, T>;
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        Transaction::new_ref().lazy(val)
+    }
 }
 
 impl<T: Table> SecretFromSql for TableRow<T> {
@@ -362,6 +366,9 @@ impl MyTyp for i64 {
     type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = i64;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        val
+    }
 }
 
 impl SecretFromSql for i64 {
@@ -377,6 +384,9 @@ impl MyTyp for f64 {
     type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = f64;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        val
+    }
 }
 
 impl SecretFromSql for f64 {
@@ -392,6 +402,9 @@ impl MyTyp for bool {
     type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = bool;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        val
+    }
 }
 
 impl SecretFromSql for bool {
@@ -407,6 +420,9 @@ impl MyTyp for String {
     type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = String;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        val
+    }
 }
 assert_impl_all!(String: Nullable);
 
@@ -423,6 +439,9 @@ impl MyTyp for Vec<u8> {
     type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = Vec<u8>;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        val
+    }
 }
 assert_impl_all!(Vec<u8>: Nullable);
 
@@ -441,6 +460,9 @@ impl<T: MyTyp> MyTyp for Option<T> {
     type Lazy<'t> = Option<T::Lazy<'t>>;
     type Ext<'t> = ();
     type Sql = T::Sql;
+    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
+        val.map(T::out_to_lazy)
+    }
 }
 
 impl<T: SecretFromSql> SecretFromSql for Option<T> {
