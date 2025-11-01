@@ -35,8 +35,7 @@ building queries. [rust_query] has many different methods of selecting.
   If you want to have more expressions, then you probably want to use one of the other methods.
 - Derive [derive@Select], super useful when some of the values are aggregates.
 - Derive [derive@FromExpr], choose this method if you just want (a subset of) existing columns.
-- Use `YourTableName!(columns, that, you, want)` to do the same as the [derive@FromExpr] derive.
-  This last option is especially useful for migrations. Note that you have to import both the table name and the special `MacroRoot` type that is defined as part of the [migration::schema] macro.
+- TODO: document [Lazy].
 - Finally, you can implement [trait@IntoSelect] manually, for maximum flexibility.
 
 ## How to work with optional rows

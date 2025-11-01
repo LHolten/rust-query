@@ -12,7 +12,6 @@ use syn::{spanned::Spanned, Ident};
 
 pub fn define_all_tables(
     schema_name: &Ident,
-    mut new_struct_id: impl FnMut() -> usize,
     prev_mod: &Option<Ident>,
     next_mod: &Option<Ident>,
     version: u32,
@@ -21,13 +20,7 @@ pub fn define_all_tables(
     let mut mod_output = TokenStream::new();
     let mut schema_table_typs = vec![];
     for table in new_tables.values_mut() {
-        let table_def = define_table(
-            table,
-            schema_name,
-            prev_mod.as_ref(),
-            next_mod.as_ref(),
-            new_struct_id(),
-        )?;
+        let table_def = define_table(table, schema_name, prev_mod.as_ref(), next_mod.as_ref())?;
         mod_output.extend(table_def);
 
         let table_name = &table.name;
@@ -53,7 +46,6 @@ fn define_table(
     schema: &Ident,
     prev_mod: Option<&Ident>,
     next_mod: Option<&Ident>,
-    struct_id: usize,
 ) -> syn::Result<TokenStream> {
     let table_ident_with_span = table.name.clone();
     table.name.set_span(Span::call_site());
@@ -121,7 +113,6 @@ fn define_table(
         empty.push(quote! {});
     }
 
-    let macro_ident = format_ident!("{}Macro", table_ident);
     let alias_ident = format_ident!("{}Alias", table_ident);
 
     let (referer, referer_expr) = if table.referenceable {
@@ -164,10 +155,6 @@ fn define_table(
             }
         }
 
-        impl<#(#generic: ::rust_query::private::Apply),*> ::rust_query::private::Instantiate<#struct_id, (#(#generic),*)> for super::MacroRoot {
-            type Out = (#table_ident<#(#generic::Out<#col_typ, #schema>),*>);
-        }
-
         impl<#(#generic),*> ::rust_query::FromExpr<#schema, #table_ident>
             for #table_ident<#(#generic),*>
         where #(#generic: ::rust_query::FromExpr<#schema, #col_typ>,)*
@@ -186,18 +173,6 @@ fn define_table(
         #(
             pub(super) type #col_typ = #col_typ_original;
         )*
-
-        mod #macro_ident {
-            #[allow(unused_macros)]
-            macro_rules! #table_ident_with_span {
-                ($($spec:tt)*) => {
-                    ::rust_query::private::fields!{#struct_id {$($spec)*} {#(#col_ident),*}}
-                };
-            }
-            pub(crate) use #table_ident;
-        }
-        #[allow(unused_imports)]
-        pub(crate) use #macro_ident::#table_ident;
 
         impl<#(#generic: ::rust_query::private::UpdateOrUnit< #schema, #col_typ>),*> Default for #table_ident<#(#generic),*> {
             fn default() -> Self {

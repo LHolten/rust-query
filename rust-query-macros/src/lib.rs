@@ -7,7 +7,6 @@ use syn::{Ident, ItemMod, ItemStruct};
 use table::define_all_tables;
 
 mod dummy;
-mod fields;
 mod migrations;
 mod multi;
 mod parse;
@@ -61,7 +60,6 @@ mod unique;
 ///     pub struct User{..};
 ///     // a bunch of other stuff
 /// }
-/// pub struct MacroRoot;
 /// ```
 ///
 /// # Adding tables
@@ -99,7 +97,6 @@ mod unique;
 ///     pub struct Game{..};
 ///     // a bunch of other stuff
 /// }
-/// pub struct MacroRoot;
 /// ```
 ///
 /// # Changing columns
@@ -322,17 +319,6 @@ pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream
     .into()
 }
 
-#[doc(hidden)]
-#[proc_macro]
-pub fn fields(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let item = syn::parse_macro_input!(item as fields::Spec);
-    match fields::generate(item) {
-        Ok(x) => x,
-        Err(e) => e.into_compile_error(),
-    }
-    .into()
-}
-
 fn make_generic(name: &Ident) -> Ident {
     let normalized = name.to_string().to_upper_camel_case();
     format_ident!("_{normalized}")
@@ -345,16 +331,8 @@ fn to_lower(name: &Ident) -> Ident {
 
 fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> {
     let schema = VersionedSchema::parse(item)?;
-    let mut struct_id = 0;
-    let mut new_struct_id = || {
-        let val = struct_id;
-        struct_id += 1;
-        val
-    };
 
-    let mut output = quote! {
-        pub struct MacroRoot;
-    };
+    let mut output = quote! {};
     let mut prev_mod = None;
 
     let mut iter = schema
@@ -369,14 +347,8 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
         let next_mod = iter
             .peek()
             .map(|(peek_version, _)| format_ident!("v{peek_version}"));
-        let mut mod_output = define_all_tables(
-            &schema_name,
-            &mut new_struct_id,
-            &prev_mod,
-            &next_mod,
-            version,
-            &mut new_tables,
-        )?;
+        let mut mod_output =
+            define_all_tables(&schema_name, &prev_mod, &next_mod, version, &mut new_tables)?;
 
         let new_mod = format_ident!("v{version}");
 

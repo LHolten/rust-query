@@ -74,8 +74,6 @@ pub mod private {
     };
     pub use crate::writable::{Reader, TableInsert};
 
-    pub use rust_query_macros::fields;
-
     pub struct Native;
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
@@ -104,10 +102,6 @@ pub mod private {
 
     impl<'t> Apply for AsExpr<'t> {
         type Out<T: MyTyp, S> = crate::Expr<'t, S, T>;
-    }
-
-    pub trait Instantiate<const STRUCT_ID: usize, Params> {
-        type Out;
     }
 
     pub trait UpdateOrUnit<S, T>: Default {}
