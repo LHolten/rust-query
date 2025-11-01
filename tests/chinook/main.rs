@@ -44,7 +44,7 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     assert_dbg("ten_space_tracks", || ten_space_tracks(txn));
     assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(txn));
     let artist = txn.query_one(Artist.name("U2")).unwrap();
-    assert_dbg("artist_details", || vec![artist_details(txn, artist.id)]);
+    assert_dbg("artist_details", || vec![artist_details(txn, artist)]);
     assert_eq!(
         customer_spending_by_email(txn, "vstevens@yahoo.com"),
         Some(42.62)

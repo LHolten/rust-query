@@ -1,5 +1,9 @@
 use std::{
-    cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::atomic::AtomicI64,
+    cell::{OnceCell, RefCell},
+    convert::Infallible,
+    iter::zip,
+    marker::PhantomData,
+    sync::atomic::AtomicI64,
 };
 
 use rusqlite::ErrorCode;
@@ -11,7 +15,8 @@ use sea_query_rusqlite::RusqliteBinder;
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{
-    IntoExpr, IntoSelect, Table, TableRow,
+    IntoExpr, IntoSelect, Lazy, Table, TableRow,
+    lazy::LazyInner,
     migrate::{Schema, check_schema, schema_version, user_version},
     private::Reader,
     query::{Query, track_stmt},
@@ -284,6 +289,14 @@ impl<S> Transaction<S> {
     /// call [Self::query] and return all results at once.
     pub fn query_one<O: 'static>(&self, val: impl IntoSelect<'static, S, Out = O>) -> O {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
+    }
+
+    pub fn lazy<'t, T: Table<Schema = S>>(&'t self, val: TableRow<T>) -> Lazy<'t, T> {
+        Lazy(LazyInner {
+            id: val,
+            lazy: OnceCell::new(),
+            txn: self,
+        })
     }
 }
 

@@ -74,7 +74,7 @@ pub mod private {
     };
     pub use crate::writable::{Reader, TableInsert};
 
-    pub struct Native;
+    pub struct Lazy<'t>(PhantomData<&'t ()>);
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
     pub struct AsUpdate;
@@ -84,8 +84,8 @@ pub mod private {
         type Out<T: MyTyp, S>;
     }
 
-    impl Apply for Native {
-        type Out<T: MyTyp, S> = T::Out;
+    impl<'t> Apply for Lazy<'t> {
+        type Out<T: MyTyp, S> = T::Lazy<'t>;
     }
 
     impl Apply for Ignore {
@@ -163,8 +163,8 @@ pub trait Table: Sized + 'static {
     type Update;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
-    /// Type of a full table row.
-    type Row;
+    /// Type of a lazily loaded table row.
+    type Lazy<'t>;
 
     #[doc(hidden)]
     type Insert;
@@ -186,6 +186,11 @@ pub trait Table: Sized + 'static {
 
     #[doc(hidden)]
     fn get_referer_unchecked() -> Self::Referer;
+
+    #[doc(hidden)]
+    fn get_lazy<'t>(txn: &'t Transaction<Self::Schema>, row: TableRow<Self>) -> Self::Lazy<'t> {
+        todo!()
+    }
 
     // used for the first join (useful for pragmas)
     #[doc(hidden)]

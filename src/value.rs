@@ -8,12 +8,11 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
-    Table,
+    Lazy, Table,
     alias::{Field, MyAlias, Scope},
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
     hash,
-    lazy::Lazy,
     mymap::MyMap,
     private::Joinable,
 };
@@ -324,6 +323,7 @@ pub trait MyTyp: 'static {
     const TYP: hash::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
     type Out: SecretFromSql;
+    type Lazy<'t>;
     type Ext<'t>;
     type Sql;
 }
@@ -337,8 +337,8 @@ impl<T: Table> MyTyp for T {
     type Prev = T::MigrateFrom;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    // TODO: fix this lifetime
-    type Out = Lazy<'static, Self>;
+    type Out = TableRow<T>;
+    type Lazy<'t> = Lazy<'t, T>;
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
 }
@@ -359,6 +359,7 @@ impl MyTyp for i64 {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out = Self;
+    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = i64;
 }
@@ -373,6 +374,7 @@ impl MyTyp for f64 {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Float;
     type Out = Self;
+    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = f64;
 }
@@ -387,6 +389,7 @@ impl MyTyp for bool {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     type Out = Self;
+    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = bool;
 }
@@ -401,6 +404,7 @@ impl MyTyp for String {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::String;
     type Out = Self;
+    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = String;
 }
@@ -416,6 +420,7 @@ impl MyTyp for Vec<u8> {
     type Prev = Self;
     const TYP: hash::ColumnType = hash::ColumnType::Blob;
     type Out = Self;
+    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = Vec<u8>;
 }
@@ -433,6 +438,7 @@ impl<T: MyTyp> MyTyp for Option<T> {
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out = Option<T::Out>;
+    type Lazy<'t> = Option<T::Lazy<'t>>;
     type Ext<'t> = ();
     type Sql = T::Sql;
 }

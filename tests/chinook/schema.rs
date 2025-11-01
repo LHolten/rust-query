@@ -175,9 +175,9 @@ pub fn migrate() -> Database<v2::Schema> {
         genre_new: txn.migrate_ok(|old: Lazy<v1::GenreNew>| v1::migrate::GenreNew {
             extra: genre_extra.get(&*old.name).copied().unwrap_or(0),
         }),
-        employee: txn.migrate_ok(|()| v1::migrate::Employee {}),
+        employee: txn.migrate_ok(|_| v1::migrate::Employee {}),
         invoice_line: txn.migrate_ok(|old: Lazy<v1::InvoiceLine>| v1::migrate::InvoiceLine {
-            invoice_new: old.invoice.clone(),
+            invoice_new: old.invoice.id,
         }),
     });
 

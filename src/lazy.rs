@@ -1,9 +1,9 @@
 use std::{cell::OnceCell, ops::Deref};
 
-use crate::{FromExpr, IntoExpr, IntoSelect, Table, TableRow, Transaction, value::SecretFromSql};
+use crate::{IntoExpr, Table, TableRow, Transaction, value::SecretFromSql};
 
 // this wrapper exists to make `id` immutable
-pub struct Lazy<'transaction, T: Table>(LazyInner<'transaction, T>);
+pub struct Lazy<'transaction, T: Table>(pub(crate) LazyInner<'transaction, T>);
 
 impl<'transaction, T: Table> Clone for Lazy<'transaction, T> {
     fn clone(&self) -> Self {
@@ -24,14 +24,6 @@ impl<'transaction, T: Table, S> IntoExpr<'static, S> for Lazy<'transaction, T> {
     }
 }
 
-impl<'transaction, T: Table> FromExpr<T::Schema, T> for Lazy<'static, T> {
-    fn from_expr<'columns>(
-        col: impl crate::IntoExpr<'columns, T::Schema, Typ = T>,
-    ) -> crate::Select<'columns, T::Schema, Self> {
-        col.into_expr().into_select()
-    }
-}
-
 impl<'transaction, T: Table> Deref for Lazy<'transaction, T> {
     type Target = LazyInner<'transaction, T>;
 
@@ -42,20 +34,16 @@ impl<'transaction, T: Table> Deref for Lazy<'transaction, T> {
 
 pub struct LazyInner<'transaction, T: Table> {
     pub id: TableRow<T>,
-    lazy: OnceCell<Box<T::Row>>,
-    txn: &'transaction Transaction<T::Schema>,
+    pub(crate) lazy: OnceCell<Box<T::Lazy<'transaction>>>,
+    pub(crate) txn: &'transaction Transaction<T::Schema>,
 }
 
-impl<'transaction, T: Table> Deref for LazyInner<'transaction, T>
-where
-    T::Row: FromExpr<T::Schema, T>,
-{
-    type Target = T::Row;
+impl<'transaction, T: Table> Deref for LazyInner<'transaction, T> {
+    type Target = T::Lazy<'transaction>;
 
     fn deref(&self) -> &Self::Target {
-        use crate::FromExpr;
         self.lazy
-            .get_or_init(|| Box::new(self.txn.query_one(T::Row::from_expr(self.id))))
+            .get_or_init(|| Box::new(T::get_lazy(self.txn, self.id)))
     }
 }
 

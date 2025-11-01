@@ -213,7 +213,7 @@ fn define_table(
                 type UpdateOk = (#alias_ident<#(#update_columns_safe),*>);
                 type Update = (#alias_ident<#(#empty ::rust_query::private::AsUpdate),*>);
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
-                type Row = (#alias_ident<#(#empty ::rust_query::private::Native),*>);
+                type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
 
                 fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
@@ -278,7 +278,7 @@ impl SingleVersionTable {
                 (
                     quote! {::rust_query::TableRow<#table_ident>},
                     quote! {
-                        txn.query_one(#table_ident #(.#col(&val.#col))*).unwrap().id
+                        txn.query_one(#table_ident #(.#col(&val.#col))*).unwrap()
                     },
                 )
             }

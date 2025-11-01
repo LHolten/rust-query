@@ -47,18 +47,6 @@ pub struct TableRow<T: Table> {
     pub(crate) inner: TableRowInner<T>,
 }
 
-impl<T: Table> TableRow<T> {
-    pub(crate) fn new(idx: i64) -> Self {
-        Self {
-            _local: PhantomData,
-            inner: TableRowInner {
-                _p: PhantomData,
-                idx,
-            },
-        }
-    }
-}
-
 impl<T: Table> Eq for TableRow<T> {}
 
 impl<T: Table> PartialOrd for TableRow<T> {
