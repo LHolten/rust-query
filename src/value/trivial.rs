@@ -37,7 +37,7 @@ impl<T: Table> FromExpr<T::Schema, T> for TableRow<T> {
     fn from_expr<'columns>(
         col: impl IntoExpr<'columns, T::Schema, Typ = T>,
     ) -> Select<'columns, T::Schema, Self> {
-        col.into_expr().into_select()
+        col.into_expr().into_select().map(|x| x.id)
     }
 }
 

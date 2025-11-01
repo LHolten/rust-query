@@ -78,7 +78,7 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
     }
 }
 
-impl<FromSchema> TransactionMigrate<FromSchema> {
+impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
@@ -108,13 +108,13 @@ impl<FromSchema> TransactionMigrate<FromSchema> {
             let new = rows.join_tmp::<M::From>(new_name);
             rows.into_vec(new)
         });
-        let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
+        let migrated: HashSet<_> = migrated.into_iter().map(|x| x.id.inner.idx).collect();
 
         data.into_iter().filter_map(move |(row, data)| {
             migrated
-                .contains(&row.inner.idx)
+                .contains(&row.id.inner.idx)
                 .not()
-                .then_some((row.inner.idx, data))
+                .then_some((row.id.inner.idx, data))
         })
     }
 

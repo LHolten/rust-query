@@ -13,6 +13,7 @@ use crate::{
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
     hash,
+    lazy::Lazy,
     mymap::MyMap,
     private::Joinable,
 };
@@ -336,7 +337,8 @@ impl<T: Table> MyTyp for T {
     type Prev = T::MigrateFrom;
     const TYP: hash::ColumnType = hash::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out = TableRow<Self>;
+    // TODO: fix this lifetime
+    type Out = Lazy<'static, Self>;
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
 }

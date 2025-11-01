@@ -121,6 +121,7 @@ impl<T: Table> Typed for TableRowInner<T> {
     }
 }
 
+// works for any schema?
 impl<'column, S, T: Table> IntoExpr<'column, S> for TableRow<T> {
     type Typ = T;
     fn into_expr(self) -> Expr<'static, S, Self::Typ> {

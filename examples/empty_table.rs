@@ -24,7 +24,7 @@ pub fn main() {
         let r = txn.insert_ok(v0::Ref { empty: id2 });
         let id = txn.query_one(id.into_expr());
         let txn = txn.downgrade();
-        assert!(txn.delete(id).unwrap());
+        assert!(txn.delete(id.id).unwrap());
         txn.delete(id2).unwrap_err();
         txn.delete_ok(r);
         assert!(txn.delete(id2).unwrap());

@@ -12,6 +12,7 @@ mod db;
 mod dummy_impl;
 mod hash;
 mod joinable;
+mod lazy;
 mod migrate;
 mod mymap;
 mod query;

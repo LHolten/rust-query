@@ -303,7 +303,7 @@ impl SingleVersionTable {
                 (
                     quote! {::rust_query::TableRow<#table_ident>},
                     quote! {
-                        txn.query_one(#table_ident #(.#col(&val.#col))*).unwrap()
+                        txn.query_one(#table_ident #(.#col(&val.#col))*).unwrap().id
                     },
                 )
             }

@@ -25,17 +25,89 @@ note: required because it appears within the type `TableRow<v0::MyTable>`
    |
    | pub struct TableRow<T: Table> {
    |            ^^^^^^^^
-note: required because it appears within the type `PhantomData<TableRow<v0::MyTable>>`
+note: required because it appears within the type `rust_query::lazy::LazyInner<'_, v0::MyTable>`
+  --> src/lazy.rs
+   |
+   | pub struct LazyInner<'transaction, T: Table> {
+   |            ^^^^^^^^^
+note: required because it appears within the type `rust_query::lazy::Lazy<'_, v0::MyTable>`
+  --> src/lazy.rs
+   |
+   | pub struct Lazy<'transaction, T: Table>(LazyInner<'transaction, T>);
+   |            ^^^^
+note: required because it appears within the type `PhantomData<rust_query::lazy::Lazy<'_, v0::MyTable>>`
   --> $RUST/core/src/marker.rs
    |
    | pub struct PhantomData<T: PointeeSized>;
    |            ^^^^^^^^^^^
-note: required because it appears within the type `alloc::raw_vec::RawVec<TableRow<v0::MyTable>>`
+note: required because it appears within the type `alloc::raw_vec::RawVec<rust_query::lazy::Lazy<'_, v0::MyTable>>`
   --> $RUST/alloc/src/raw_vec/mod.rs
    |
    | pub(crate) struct RawVec<T, A: Allocator = Global> {
    |                   ^^^^^^
-note: required because it appears within the type `Vec<TableRow<v0::MyTable>>`
+note: required because it appears within the type `Vec<rust_query::lazy::Lazy<'_, v0::MyTable>>`
+  --> $RUST/alloc/src/vec/mod.rs
+   |
+   | pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+   |            ^^^
+note: required because it's used within this closure
+  --> tests/compile/use_after_free.rs:18:24
+   |
+18 |         db.transaction(|txn| {
+   |                        ^^^^^
+note: required by a bound in `Database::<S>::transaction`
+  --> src/transaction.rs
+   |
+   |     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
+   |                                                ^^^^ required by this bound in `Database::<S>::transaction`
+
+error[E0277]: `*const ()` cannot be shared between threads safely
+  --> tests/compile/use_after_free.rs:18:24
+   |
+18 |           db.transaction(|txn| {
+   |  ____________-----------_^
+   | |            |
+   | |            required by a bound introduced by this call
+19 | |             for item in items {
+20 | |                 let name = txn.query_one(&item.into_expr().name);
+21 | |                 println!("{name}")
+22 | |             }
+23 | |         })
+   | |_________^ `*const ()` cannot be shared between threads safely
+   |
+   = help: within `Transaction<v0::Schema>`, the trait `Sync` is not implemented for `*const ()`
+note: required because it appears within the type `PhantomData<*const ()>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `Transaction<v0::Schema>`
+  --> src/transaction.rs
+   |
+   | pub struct Transaction<S> {
+   |            ^^^^^^^^^^^
+   = note: required for `&Transaction<v0::Schema>` to implement `Send`
+note: required because it appears within the type `rust_query::lazy::LazyInner<'_, v0::MyTable>`
+  --> src/lazy.rs
+   |
+   | pub struct LazyInner<'transaction, T: Table> {
+   |            ^^^^^^^^^
+note: required because it appears within the type `rust_query::lazy::Lazy<'_, v0::MyTable>`
+  --> src/lazy.rs
+   |
+   | pub struct Lazy<'transaction, T: Table>(LazyInner<'transaction, T>);
+   |            ^^^^
+note: required because it appears within the type `PhantomData<rust_query::lazy::Lazy<'_, v0::MyTable>>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `alloc::raw_vec::RawVec<rust_query::lazy::Lazy<'_, v0::MyTable>>`
+  --> $RUST/alloc/src/raw_vec/mod.rs
+   |
+   | pub(crate) struct RawVec<T, A: Allocator = Global> {
+   |                   ^^^^^^
+note: required because it appears within the type `Vec<rust_query::lazy::Lazy<'_, v0::MyTable>>`
   --> $RUST/alloc/src/vec/mod.rs
    |
    | pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
