@@ -1,6 +1,6 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{FromExpr, Transaction, Update, optional};
+use rust_query::{Transaction, Update, optional};
 use std::time::SystemTime;
 
 pub fn generate_input(warehouse: i64, other: &[i64]) -> NewOrderInput {
@@ -51,10 +51,6 @@ struct ItemInput {
     quantity: i64,
 }
 
-type CustomerInfo = WithId<Customer, Customer!(district as DistrictInfo, discount, last, credit)>;
-type DistrictInfo = WithId<District, District!(warehouse as WarehouseInfo, tax, next_order)>;
-type WarehouseInfo = Warehouse!(tax);
-
 pub fn new_order(
     txn: &mut Transaction<Schema>,
     input: NewOrderInput,
@@ -63,16 +59,15 @@ pub fn new_order(
         .query_one(optional(|row| {
             let warehouse = row.and(Warehouse.number(input.warehouse));
             let district = row.and(District.warehouse(warehouse).number(input.district));
-            row.and_then(CustomerInfo::from_expr(
-                Customer.district(district).number(input.customer),
-            ))
+            row.and_then(Customer.district(district).number(input.customer))
         }))
-        .unwrap();
-    let district = &customer.district;
-    let warehouse = &district.warehouse;
+        .unwrap()
+        .load(txn);
+    let district = customer.district.load(txn);
+    let warehouse = district.warehouse.load(txn);
 
     txn.update_ok(
-        district.row,
+        district.id,
         District {
             next_order: Update::add(1),
             ..Default::default()
@@ -87,7 +82,7 @@ pub fn new_order(
     let order = txn
         .insert(Order {
             number: district.next_order,
-            customer: customer.row,
+            customer: customer.id,
             entry_d: input.entry_date,
             carrier_id: None::<i64>,
             all_local: local as i64,
@@ -109,9 +104,7 @@ pub fn new_order(
         },
     ) in input.items.into_iter().enumerate()
     {
-        type ItemInfo = WithId<Item, Item!(price, name, data)>;
-        let Some(item) = txn.query_one(Option::<ItemInfo>::from_expr(Item.number(item_number)))
-        else {
+        let Some(item) = txn.query_one(Item.number(item_number)) else {
             input_valid = false;
             continue;
         };
@@ -127,7 +120,7 @@ pub fn new_order(
         let stock = txn
             .query_one(optional(|row| {
                 let supplying_warehouse = row.and(Warehouse.number(supplying_warehouse));
-                let stock = row.and(Stock.warehouse(supplying_warehouse).item(item.row));
+                let stock = row.and(Stock.warehouse(supplying_warehouse).item(item));
                 row.then(StockInfoSelect {
                     row: &stock,
                     quantity: &stock.quantity,
@@ -167,6 +160,7 @@ pub fn new_order(
             },
         );
 
+        let item = item.load(txn);
         let amount = quantity * item.price;
         let brand_generic = if item.data.contains("ORIGINAL") && stock.data.contains("ORIGINAL") {
             "B"

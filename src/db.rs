@@ -3,8 +3,9 @@ use std::{fmt::Debug, marker::PhantomData};
 use sea_query::Alias;
 
 use crate::{
-    Expr, IntoExpr, Table,
+    Expr, IntoExpr, Table, Transaction,
     alias::MyAlias,
+    lazy::Loaded,
     value::{MyTableRef, Typed, ValueBuilder},
 };
 
@@ -45,6 +46,12 @@ impl<T: Table> Typed for Join<T> {
 pub struct TableRow<T: Table> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: TableRowInner<T>,
+}
+
+impl<T: Table> TableRow<T> {
+    pub fn load(self, txn: &Transaction<T::Schema>) -> Loaded<T> {
+        todo!()
+    }
 }
 
 impl<T: Table> Eq for TableRow<T> {}

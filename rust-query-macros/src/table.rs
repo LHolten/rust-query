@@ -199,6 +199,7 @@ fn define_table(
                 type Update = (#alias_ident<#(#empty ::rust_query::private::AsUpdate),*>);
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
                 type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
+                type Loaded = (#alias_ident<#(#empty ::rust_query::private::Loaded),*>);
 
                 fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*

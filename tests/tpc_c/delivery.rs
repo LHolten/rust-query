@@ -33,8 +33,8 @@ pub fn delivery(
     let new_order = txn.query_one(optional(|row| {
         aggregate(|rows| {
             let customer = rows.join(Customer.district(district));
-            let order = rows.join(Order.customer(customer));
-            let new_order = rows.join(NewOrder.order(order));
+            let order = rows.join(Order.customer(&customer));
+            rows.filter_some(NewOrder.order(&order));
 
             let order_num = row.and(rows.min(&order.number));
             rows.filter(order.number.eq(&order_num));
