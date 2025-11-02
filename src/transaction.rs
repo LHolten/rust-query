@@ -1,9 +1,5 @@
 use std::{
-    cell::{OnceCell, RefCell},
-    convert::Infallible,
-    iter::zip,
-    marker::PhantomData,
-    sync::atomic::AtomicI64,
+    cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::atomic::AtomicI64,
 };
 
 use rusqlite::ErrorCode;
@@ -15,13 +11,13 @@ use sea_query_rusqlite::RusqliteBinder;
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{
-    IntoExpr, IntoSelect, Lazy, Table, TableRow,
-    lazy::LazyInner,
+    IntoExpr, IntoSelect, Table, TableRow,
+    joinable::DynJoinable,
     migrate::{Schema, check_schema, schema_version, user_version},
-    private::Reader,
+    private::{Joinable, Reader},
     query::{Query, track_stmt},
     rows::Rows,
-    value::{DynTypedExpr, SecretFromSql, ValueBuilder},
+    value::{DynTypedExpr, MyTyp, SecretFromSql, ValueBuilder},
     writable::TableInsert,
 };
 
@@ -291,11 +287,18 @@ impl<S> Transaction<S> {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 
-    pub fn lazy<'t, T: Table<Schema = S>>(&'t self, val: TableRow<T>) -> Lazy<'t, T> {
-        Lazy(LazyInner {
-            id: val,
-            lazy: OnceCell::new(),
-            txn: self,
+    pub fn lazy<'t, T: MyTyp>(&'t self, val: impl IntoExpr<'static, S, Typ = T>) -> T::Lazy<'t> {
+        T::out_to_lazy(self.query_one(val.into_expr()))
+    }
+
+    pub fn lazy_vec<'t, T: Table<Schema = S>>(
+        &'t self,
+        val: impl Joinable<'static, Typ = T>,
+    ) -> Vec<<T as MyTyp>::Lazy<'t>> {
+        let val = DynJoinable::new(val);
+        self.query(|rows| {
+            let table = rows.join(val);
+            rows.into_iter(table).map(|x| x.lazy(self)).collect()
         })
     }
 }
