@@ -5,7 +5,6 @@ use sea_query::Alias;
 use crate::{
     Expr, IntoExpr, Table, Transaction,
     alias::MyAlias,
-    lazy::Loaded,
     value::{MyTableRef, Typed, ValueBuilder},
 };
 
@@ -49,8 +48,8 @@ pub struct TableRow<T: Table> {
 }
 
 impl<T: Table> TableRow<T> {
-    pub fn load(self, txn: &Transaction<T::Schema>) -> Loaded<T> {
-        todo!()
+    pub fn lazy<'t>(self, txn: &'t Transaction<T::Schema>) -> crate::lazy::Lazy<'t, T> {
+        txn.lazy(self)
     }
 }
 

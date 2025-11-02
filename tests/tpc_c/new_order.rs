@@ -62,9 +62,10 @@ pub fn new_order(
             row.and_then(Customer.district(district).number(input.customer))
         }))
         .unwrap()
-        .load(txn);
-    let district = customer.district.load(txn);
-    let warehouse = district.warehouse.load(txn);
+        .lazy(txn);
+    let warehouse = customer.district.warehouse.load();
+    let district = customer.district.load();
+    let customer = customer.load();
 
     txn.update_ok(
         district.id,
@@ -160,7 +161,7 @@ pub fn new_order(
             },
         );
 
-        let item = item.load(txn);
+        let item = item.lazy(txn).load();
         let amount = quantity * item.price;
         let brand_generic = if item.data.contains("ORIGINAL") && stock.data.contains("ORIGINAL") {
             "B"

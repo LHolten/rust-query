@@ -15,6 +15,12 @@ impl<'transaction, T: Table> Clone for Lazy<'transaction, T> {
     }
 }
 
+impl<'transaction, T: Table> Lazy<'transaction, T> {
+    pub fn load(&self) -> Loaded<T> {
+        todo!()
+    }
+}
+
 // TODO: works for any schema for some reason (just like TableRow)
 impl<'transaction, T: Table, S> IntoExpr<'static, S> for Lazy<'transaction, T> {
     type Typ = T;
