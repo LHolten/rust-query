@@ -248,9 +248,9 @@ impl<S> Transaction<S> {
     /// assert_eq!(user_names, vec!["Alice".to_owned()]);
     /// # });
     /// ```
-    pub fn query<F, R>(&self, f: F) -> R
+    pub fn query<'t, F, R>(&'t self, f: F) -> R
     where
-        F: for<'inner> FnOnce(&mut Query<'inner, S>) -> R,
+        F: for<'inner> FnOnce(&mut Query<'t, 'inner, S>) -> R,
     {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed

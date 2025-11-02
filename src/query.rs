@@ -18,13 +18,13 @@ use crate::{
 };
 
 /// This is the type used by the [crate::Transaction::query] method.
-pub struct Query<'inner, S> {
-    pub(crate) phantom: PhantomData<&'inner ()>,
+pub struct Query<'t, 'inner, S> {
+    pub(crate) phantom: PhantomData<&'inner &'t ()>,
     pub(crate) q: Rows<'inner, S>,
-    pub(crate) conn: &'inner rusqlite::Connection,
+    pub(crate) conn: &'t rusqlite::Connection,
 }
 
-impl<'inner, S> Deref for Query<'inner, S> {
+impl<'inner, S> Deref for Query<'_, 'inner, S> {
     type Target = Rows<'inner, S>;
 
     fn deref(&self) -> &Self::Target {
@@ -32,7 +32,7 @@ impl<'inner, S> Deref for Query<'inner, S> {
     }
 }
 
-impl<S> DerefMut for Query<'_, S> {
+impl<S> DerefMut for Query<'_, '_, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.q
     }
@@ -71,7 +71,7 @@ impl<O> Iterator for Iter<'_, O> {
     }
 }
 
-impl<'inner, S> Query<'inner, S> {
+impl<'t, 'inner, S> Query<'t, 'inner, S> {
     /// Turn a database query into a [Vec] of results.
     ///
     /// The order of rows that is returned is unstable. This means that the order may change between any two
@@ -86,7 +86,7 @@ impl<'inner, S> Query<'inner, S> {
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
     /// then you have to use something like [slice::sort].
-    pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'inner, O> {
+    pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'t, O> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
 

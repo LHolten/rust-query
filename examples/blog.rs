@@ -18,7 +18,7 @@ pub mod vN {
         pub title: String,
         pub content: String,
     }
-    #[unique(user, story)]
+    #[unique(story, user)]
     pub struct Rating {
         pub user: User,
         pub story: Story,
@@ -59,8 +59,7 @@ fn query_data(txn: &Transaction<Schema>) {
     let results = txn.query(|rows| {
         let story = rows.join(Story);
         let avg_rating = aggregate(|rows| {
-            let rating = rows.join(Rating);
-            rows.filter(rating.story.eq(&story));
+            let rating = rows.join(Rating.story(&story));
             rows.avg(rating.stars.as_float())
         });
         rows.into_vec((&story.title, avg_rating))

@@ -148,10 +148,7 @@ fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
 }
 
 fn list_all_genres(db: &Transaction<Schema>) -> Vec<String> {
-    db.query(|rows| {
-        let genre = rows.join(Genre);
-        rows.into_vec(&genre.name)
-    })
+    db.lazy_iter(Genre).iter().map(|x| x.name.clone()).collect()
 }
 
 #[derive(Debug, Select, PartialEq, PartialOrd)]
@@ -266,13 +263,10 @@ fn customer_spending_by_email(db: &Transaction<Schema>, email: &str) -> Option<f
 }
 
 fn free_reference(db: &Transaction<Schema>) {
-    let tracks = db.query(|rows| {
-        let track = rows.join(Track);
-        rows.into_vec(track)
-    });
+    let tracks = db.lazy_iter(Track);
 
     for track in tracks {
-        let _name = db.query_one(&track.into_expr().album.artist.name);
+        let _name = &track.album.artist.name;
     }
 }
 
