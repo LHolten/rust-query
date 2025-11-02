@@ -16,7 +16,7 @@ use crate::{
     alias::{Scope, TmpTable},
     hash,
     schema_pragma::read_schema,
-    transaction::{Database, OwnedTransaction, TXN, try_insert_private},
+    transaction::{Database, OwnedTransaction, TXN, TransactionWithRows, try_insert_private},
 };
 
 pub struct TableTypBuilder<S> {
@@ -464,7 +464,7 @@ impl<S: Schema> Migrator<S> {
         if user_version(self.transaction.get()).unwrap() == S::VERSION {
             let res = std::thread::scope(|s| {
                 s.spawn(|| {
-                    TXN.set(Some(self.transaction));
+                    TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
 
                     check_schema::<S>();
 
@@ -507,7 +507,7 @@ impl<S: Schema> Migrator<S> {
                     }
                     set_user_version(transaction.get(), M::To::VERSION).unwrap();
 
-                    transaction
+                    transaction.into_owner()
                 })
                 .join()
             });
@@ -537,9 +537,9 @@ impl<S: Schema> Migrator<S> {
 
         let res = std::thread::scope(|s| {
             s.spawn(|| {
-                TXN.set(Some(self.transaction));
+                TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
                 check_schema::<S>();
-                TXN.take().unwrap()
+                TXN.take().unwrap().into_owner()
             })
             .join()
         });

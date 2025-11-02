@@ -15,7 +15,7 @@ use crate::{
     joinable::DynJoinable,
     migrate::{Schema, check_schema, schema_version, user_version},
     private::{Joinable, Reader},
-    query::{Query, track_stmt},
+    query::{OwnedRows, Query, track_stmt},
     rows::Rows,
     value::{DynTypedExpr, MyTyp, SecretFromSql, ValueBuilder},
     writable::TableInsert,
@@ -58,20 +58,39 @@ self_cell!(
 /// borrow of `owner` and `OwnedTransaction: !Sync` so `dependent` can not be borrowed
 /// from multiple threads.
 unsafe impl Send for OwnedTransaction {}
-
 assert_not_impl_any! {OwnedTransaction: Sync}
 
 thread_local! {
-    pub(crate) static TXN: RefCell<Option<OwnedTransaction>> = const { RefCell::new(None) };
+    pub(crate) static TXN: RefCell<Option<TransactionWithRows>> = const { RefCell::new(None) };
 }
 
 impl OwnedTransaction {
-    pub fn get(&self) -> &rusqlite::Transaction<'_> {
+    pub(crate) fn get(&self) -> &rusqlite::Transaction<'_> {
         self.borrow_dependent().as_ref().unwrap()
     }
 
-    pub fn with(mut self, f: impl FnOnce(rusqlite::Transaction<'_>)) {
+    pub(crate) fn with(mut self, f: impl FnOnce(rusqlite::Transaction<'_>)) {
         self.with_dependent_mut(|_, b| f(b.take().unwrap()))
+    }
+}
+
+type OwnedRowsVec<'x> = Vec<OwnedRows<'x>>;
+self_cell!(
+    pub struct TransactionWithRows {
+        owner: OwnedTransaction,
+
+        #[not_covariant]
+        dependent: OwnedRowsVec,
+    }
+);
+
+impl TransactionWithRows {
+    pub(crate) fn new_empty(txn: OwnedTransaction) -> Self {
+        Self::new(txn, |_| Vec::new())
+    }
+
+    pub(crate) fn get(&self) -> &rusqlite::Transaction<'_> {
+        self.borrow_owner().get()
     }
 }
 
@@ -136,7 +155,7 @@ impl<S: Send + Sync + Schema> Database<S> {
             scope
                 .spawn(|| {
                     let res = f(Transaction::new_checked(owned, &self.schema_version));
-                    let owned = TXN.take().unwrap();
+                    let owned = TXN.take().unwrap().into_owner();
                     (res, owned)
                 })
                 .join()
@@ -221,11 +240,11 @@ impl<S: Schema> Transaction<S> {
                 panic!("The database user_version changed unexpectedly")
             }
 
-            TXN.set(Some(txn));
+            TXN.set(Some(TransactionWithRows::new_empty(txn)));
             check_schema::<S>();
             expected.store(schema_version, std::sync::atomic::Ordering::Relaxed);
         } else {
-            TXN.set(Some(txn));
+            TXN.set(Some(TransactionWithRows::new_empty(txn)));
         }
 
         const {
@@ -256,18 +275,14 @@ impl<S> Transaction<S> {
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
 
-        TXN.with_borrow(|txn| {
-            let conn = txn.as_ref().unwrap().get();
-            let q = Rows {
-                phantom: PhantomData,
-                ast: Default::default(),
-                _p: PhantomData,
-            };
-            f(&mut Query {
-                q,
-                phantom: PhantomData,
-                conn,
-            })
+        let q = Rows {
+            phantom: PhantomData,
+            ast: Default::default(),
+            _p: PhantomData,
+        };
+        f(&mut Query {
+            q,
+            phantom: PhantomData,
         })
     }
 
@@ -291,15 +306,31 @@ impl<S> Transaction<S> {
         T::out_to_lazy(self.query_one(val.into_expr()))
     }
 
-    pub fn lazy_vec<'t, T: Table<Schema = S>>(
+    pub fn lazy_iter<'t, T: Table<Schema = S>>(
         &'t self,
         val: impl Joinable<'static, Typ = T>,
-    ) -> Vec<<T as MyTyp>::Lazy<'t>> {
+    ) -> LazyIter<'t, T> {
         let val = DynJoinable::new(val);
         self.query(|rows| {
             let table = rows.join(val);
-            rows.into_iter(table).map(|x| x.lazy(self)).collect()
+            LazyIter {
+                txn: self,
+                iter: rows.into_iter(table),
+            }
         })
+    }
+}
+
+pub struct LazyIter<'t, T: Table> {
+    txn: &'t Transaction<T::Schema>,
+    iter: crate::query::Iter<'t, TableRow<T>>,
+}
+
+impl<'t, T: Table> Iterator for LazyIter<'t, T> {
+    type Item = <T as MyTyp>::Lazy<'t>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|x| self.txn.lazy(x))
     }
 }
 

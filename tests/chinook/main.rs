@@ -148,7 +148,7 @@ fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
 }
 
 fn list_all_genres(db: &Transaction<Schema>) -> Vec<String> {
-    db.lazy_iter(Genre).iter().map(|x| x.name.clone()).collect()
+    db.lazy_iter(Genre).map(|x| x.name.clone()).collect()
 }
 
 #[derive(Debug, Select, PartialEq, PartialOrd)]

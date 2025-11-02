@@ -15,13 +15,13 @@ use crate::{
     alias::MyAlias,
     dummy_impl::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     rows::Rows,
+    transaction::TXN,
 };
 
 /// This is the type used by the [crate::Transaction::query] method.
 pub struct Query<'t, 'inner, S> {
     pub(crate) phantom: PhantomData<&'inner &'t ()>,
     pub(crate) q: Rows<'inner, S>,
-    pub(crate) conn: &'t rusqlite::Connection,
 }
 
 impl<'inner, S> Deref for Query<'_, 'inner, S> {
@@ -42,7 +42,7 @@ type Stmt<'x> = rusqlite::CachedStatement<'x>;
 type RRows<'a> = rusqlite::Rows<'a>;
 
 self_cell!(
-    struct OwnedRows<'x> {
+    pub struct OwnedRows<'x> {
         owner: MutBorrow<Stmt<'x>>,
 
         #[covariant]
@@ -55,7 +55,10 @@ self_cell!(
 /// This is currently invariant in `'inner` due to [MutBorrow].
 /// Would be nice to relax this variance in the future.
 pub struct Iter<'inner, O> {
-    inner: OwnedRows<'inner>,
+    // The actual OwnedRows is stored in a thread local
+    inner_phantom: PhantomData<(OwnedRows<'inner>, *const ())>,
+    inner: usize,
+
     prepared: DynPrepared<O>,
     cached: Vec<MyAlias>,
 }
@@ -64,9 +67,14 @@ impl<O> Iterator for Iter<'_, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.with_dependent_mut(|_, rows| {
-            let row = rows.next().unwrap()?;
-            Some(self.prepared.call(Row::new(row, &self.cached)))
+        TXN.with_borrow_mut(|combi| {
+            let combi = combi.as_mut().unwrap();
+            combi.with_dependent_mut(|_txn, row_store| {
+                row_store[self.inner].with_dependent_mut(|_, rows| {
+                    let row = rows.next().unwrap()?;
+                    Some(self.prepared.call(Row::new(row, &self.cached)))
+                })
+            })
         })
     }
 }
@@ -90,19 +98,28 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
 
-        let (select, cached) = self.ast.clone().full().simple(cacher.columns);
-        let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
-        track_stmt(self.conn, &sql, &values);
+        TXN.with_borrow_mut(|txn| {
+            let combi = txn.as_mut().unwrap();
 
-        let statement = MutBorrow::new(self.conn.prepare_cached(&sql).unwrap());
+            combi.with_dependent_mut(|conn, rows_store| {
+                let (select, cached) = self.ast.clone().full().simple(cacher.columns);
+                let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
+                track_stmt(conn.get(), &sql, &values);
+                let statement = MutBorrow::new(conn.get().prepare_cached(&sql).unwrap());
 
-        Iter {
-            inner: OwnedRows::new(statement, |stmt| {
-                stmt.borrow_mut().query(&*values.as_params()).unwrap()
-            }),
-            prepared,
-            cached,
-        }
+                let idx = rows_store.len();
+                rows_store.push(OwnedRows::new(statement, |stmt| {
+                    stmt.borrow_mut().query(&*values.as_params()).unwrap()
+                }));
+
+                Iter {
+                    inner: idx,
+                    inner_phantom: PhantomData,
+                    prepared,
+                    cached,
+                }
+            })
+        })
     }
 }
 
