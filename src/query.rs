@@ -20,7 +20,7 @@ use crate::{
 
 /// This is the type used by the [crate::Transaction::query] method.
 pub struct Query<'t, 'inner, S> {
-    pub(crate) phantom: PhantomData<&'inner &'t ()>,
+    pub(crate) phantom: PhantomData<&'t ()>,
     pub(crate) q: Rows<'inner, S>,
 }
 
