@@ -74,7 +74,7 @@ impl OwnedTransaction {
     }
 }
 
-type OwnedRowsVec<'x> = Vec<OwnedRows<'x>>;
+type OwnedRowsVec<'x> = slab::Slab<OwnedRows<'x>>;
 self_cell!(
     pub struct TransactionWithRows {
         owner: OwnedTransaction,
@@ -86,7 +86,7 @@ self_cell!(
 
 impl TransactionWithRows {
     pub(crate) fn new_empty(txn: OwnedTransaction) -> Self {
-        Self::new(txn, |_| Vec::new())
+        Self::new(txn, |_| slab::Slab::new())
     }
 
     pub(crate) fn get(&self) -> &rusqlite::Transaction<'_> {

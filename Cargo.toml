@@ -28,6 +28,7 @@ r2d2 = "0.8"
 static_assertions = "1.1.0"
 self_cell = "1.2.0"
 parking_lot = "0.12.4"
+slab = "0.4.11"
 
 [dev-dependencies]
 trybuild = "1.0.97"

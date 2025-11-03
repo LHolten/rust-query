@@ -70,10 +70,26 @@ impl<O> Iterator for Iter<'_, O> {
         TXN.with_borrow_mut(|combi| {
             let combi = combi.as_mut().unwrap();
             combi.with_dependent_mut(|_txn, row_store| {
-                row_store[self.inner].with_dependent_mut(|_, rows| {
+                // If rows is already dropped then we just return None.
+                // This can happen if this is called in a thread_local destructor or something.
+                let rows = row_store.get_mut(self.inner)?;
+                rows.with_dependent_mut(|_, rows| {
                     let row = rows.next().unwrap()?;
                     Some(self.prepared.call(Row::new(row, &self.cached)))
                 })
+            })
+        })
+    }
+}
+
+impl<O> Drop for Iter<'_, O> {
+    fn drop(&mut self) {
+        TXN.with_borrow_mut(|combi| {
+            let combi = combi.as_mut().unwrap();
+            combi.with_dependent_mut(|_txn, row_store| {
+                // If the rows is already dropped that is fine.
+                // This can happen if this is called in a thread_local destructor or something.
+                row_store.try_remove(self.inner);
             })
         })
     }
@@ -107,8 +123,7 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
                 track_stmt(conn.get(), &sql, &values);
                 let statement = MutBorrow::new(conn.get().prepare_cached(&sql).unwrap());
 
-                let idx = rows_store.len();
-                rows_store.push(OwnedRows::new(statement, |stmt| {
+                let idx = rows_store.insert(OwnedRows::new(statement, |stmt| {
                     stmt.borrow_mut().query(&*values.as_params()).unwrap()
                 }));
 
