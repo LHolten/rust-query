@@ -164,8 +164,8 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
         q.filter(table.schema.eq("main"));
         q.filter(table.r#type.eq("table"));
         q.filter(table.name.eq("sqlite_schema").not());
-        q.filter(table.name.eq("sqlite_stat1").not());
-        q.filter(table.name.eq("sqlite_stat4").not());
+        // filter out tables such as `sqlite_stat1` and `sqlite_stat4`
+        q.filter(table.name.starts_with("sqlite_stat").not());
         q.into_vec(&table.name)
     });
 
