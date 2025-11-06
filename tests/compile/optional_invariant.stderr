@@ -2,7 +2,7 @@ error: lifetime may not live long enough
   --> tests/compile/optional_invariant.rs:16:42
    |
 13 |         let score = txn.query(|rows| {
-   |                                ---- has type `&mut Query<'1, v0::Schema>`
+   |                                ---- has type `&mut Query<'_, '1, v0::Schema>`
 ...
 16 |             txn.query_one(optional(|row| row.then(&item.score)))
    |                                          ^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'static`
