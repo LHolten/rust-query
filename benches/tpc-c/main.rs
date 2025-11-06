@@ -211,7 +211,8 @@ fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
         }
     }
 
-    thread::sleep(Duration::from_secs(120));
+    let duration = Duration::from_secs(120);
+    thread::sleep(duration);
 
     println!("benchmark complete");
     stop_emulation();
@@ -219,7 +220,7 @@ fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
         thread.join().unwrap();
     }
 
-    print_stats()
+    print_stats(duration)
 }
 
 enum Nu {

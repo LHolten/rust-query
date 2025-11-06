@@ -185,8 +185,8 @@ struct TxnStats {
 
 impl std::fmt::Display for TxnStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let cnt = self.cnt.load(std::sync::atomic::Ordering::Acquire);
-        let late = self.late.load(std::sync::atomic::Ordering::Acquire);
+        let cnt = self.cnt();
+        let late = self.late.load(std::sync::atomic::Ordering::Relaxed);
         write!(
             f,
             "cnt: {cnt}, late: {:.2}%, avg: {}us",
@@ -205,6 +205,10 @@ impl TxnStats {
             time_cnt: AtomicU64::new(0),
             max_time,
         }
+    }
+
+    pub fn cnt(&self) -> u64 {
+        self.cnt.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// This is the time that includes beginning the transaction and committing.
@@ -261,26 +265,40 @@ struct Stats {
     stock_level: TxnStats,
 }
 
-pub fn print_stats() -> bool {
+pub fn print_stats(dur: Duration) -> bool {
     println!("new_order:    {}", STATS.new_order);
     println!("delivery:     {}", STATS.delivery);
     println!("order_status: {}", STATS.order_status);
     println!("payment:      {}", STATS.payment);
     println!("stock_level:  {}", STATS.stock_level);
 
+    let new_order_cnt = STATS.new_order.cnt();
+
     // order_status and stock_level are not included because they are read only.
     // the mutable transactions are each run 10 times. (delivery is split in 10)
     let total_time_for_cycle = STATS.new_order.average_time()
         + STATS.payment.average_time()
         + STATS.delivery.average_time();
-    println!(
-        "expected max tpmC: {}",
-        (Duration::from_secs(60).as_nanos() as f64 / total_time_for_cycle.as_nanos() as f64) as u64
-    );
 
-    STATS.new_order.reset_ok()
+    let success = STATS.new_order.reset_ok()
         & STATS.delivery.reset_ok()
         & STATS.order_status.reset_ok()
         & STATS.payment.reset_ok()
-        & STATS.stock_level.reset_ok()
+        & STATS.stock_level.reset_ok();
+
+    if success {
+        println!(
+            "achieved {} tpmC",
+            new_order_cnt as u128 * Duration::from_secs(60).as_nanos() / dur.as_nanos()
+        );
+        println!(
+            "expected max tpmC: {}",
+            (Duration::from_secs(60).as_nanos() as f64 / total_time_for_cycle.as_nanos() as f64)
+                as u64
+        );
+    } else {
+        println!("percentage of late transaction is too high, stopping benchmark")
+    }
+
+    success
 }
