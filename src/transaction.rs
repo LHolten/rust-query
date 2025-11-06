@@ -467,22 +467,24 @@ impl<S: 'static> Transaction<S> {
 
         let (query, args) = update.with(with_clause).build_rusqlite(SqliteQueryBuilder);
 
-        TXN.with_borrow(|txn| {
+        let res = TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
 
             let mut stmt = txn.prepare_cached(&query).unwrap();
-            match stmt.execute(&*args.as_params()) {
-                Ok(1) => Ok(()),
-                Ok(n) => panic!("unexpected number of updates: {n}"),
-                Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-                    if kind.code == ErrorCode::ConstraintViolation =>
-                {
-                    // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                    Err(T::get_conflict_unchecked(self, &val))
-                }
-                Err(err) => panic!("{err:?}"),
+            stmt.execute(&*args.as_params())
+        });
+
+        match res {
+            Ok(1) => Ok(()),
+            Ok(n) => panic!("unexpected number of updates: {n}"),
+            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+                if kind.code == ErrorCode::ConstraintViolation =>
+            {
+                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+                Err(T::get_conflict_unchecked(self, &val))
             }
-        })
+            Err(err) => panic!("{err:?}"),
+        }
     }
 
     /// This is a convenience function to use [Transaction::update] for updates
@@ -641,7 +643,7 @@ pub fn try_insert_private<T: Table>(
 
     let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
 
-    TXN.with_borrow(|txn| {
+    let res = TXN.with_borrow(|txn| {
         let txn = txn.as_ref().unwrap().get();
         track_stmt(txn, &sql, &values);
 
@@ -652,15 +654,17 @@ pub fn try_insert_private<T: Table>(
             })
             .unwrap();
 
-        match res.next().unwrap() {
-            Ok(id) => Ok(id),
-            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
-                if kind.code == ErrorCode::ConstraintViolation =>
-            {
-                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                Err(T::get_conflict_unchecked(&Transaction::new(), &val))
-            }
-            Err(err) => panic!("{err:?}"),
+        res.next().unwrap()
+    });
+
+    match res {
+        Ok(id) => Ok(id),
+        Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+            if kind.code == ErrorCode::ConstraintViolation =>
+        {
+            // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+            Err(T::get_conflict_unchecked(&Transaction::new(), &val))
         }
-    })
+        Err(err) => panic!("{err:?}"),
+    }
 }
