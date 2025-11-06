@@ -158,7 +158,8 @@ const DB_FILE: &'static str = "tpc.sqlite";
 fn main() {
     // every warehouse is ~70MB
     let warehouse_cnt = args()
-        .skip(1)
+        .skip(1) // skip binary name
+        .filter(|x| x != "--bench")
         .next()
         .map(|x| x.parse().unwrap())
         .unwrap_or(50);
