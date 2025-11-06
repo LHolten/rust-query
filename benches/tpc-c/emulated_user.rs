@@ -12,7 +12,7 @@ use rust_query::Database;
 
 use crate::{delivery, new_order, order_status, payment, stock_level, v0::Schema};
 
-pub(crate) struct EmutateWithQueue {
+pub(crate) struct EmulateWithQueue {
     pub info: Arc<Emulate>,
     pub queue: Vec<JoinHandle<()>>,
 }
@@ -24,7 +24,7 @@ pub(crate) struct Emulate {
     pub other_warehouses: Vec<i64>,
 }
 
-impl EmutateWithQueue {
+impl EmulateWithQueue {
     pub fn loop_emulate(mut self) {
         let mut txn_deck = Vec::new();
         while let ControlFlow::Continue(()) = self.emulate(&mut txn_deck) {}
@@ -288,7 +288,7 @@ pub fn print_stats(dur: Duration) -> bool {
 
     if success {
         println!(
-            "achieved {} tpmC",
+            "achieved tpmC: {}",
             new_order_cnt as u128 * Duration::from_secs(60).as_nanos() / dur.as_nanos()
         );
         println!(

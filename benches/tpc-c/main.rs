@@ -151,7 +151,7 @@ pub mod vN {
 }
 use v0::*;
 
-use crate::emulated_user::{Emulate, EmutateWithQueue, print_stats, stop_emulation};
+use crate::emulated_user::{Emulate, EmulateWithQueue, print_stats, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
 
@@ -197,7 +197,7 @@ fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
         for district in 1..=10 {
             let db = db.clone();
             threads.push(thread::spawn(move || {
-                EmutateWithQueue {
+                EmulateWithQueue {
                     info: Arc::new(Emulate {
                         db,
                         warehouse,
