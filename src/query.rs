@@ -113,13 +113,13 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
     pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'t, O> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
+        let (select, cached) = self.ast.clone().full().simple(cacher.columns);
+        let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
 
         TXN.with_borrow_mut(|txn| {
             let combi = txn.as_mut().unwrap();
 
             combi.with_dependent_mut(|conn, rows_store| {
-                let (select, cached) = self.ast.clone().full().simple(cacher.columns);
-                let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
                 track_stmt(conn.get(), &sql, &values);
                 let statement = MutBorrow::new(conn.get().prepare_cached(&sql).unwrap());
 
