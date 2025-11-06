@@ -7,6 +7,7 @@ use std::{
     sync::atomic::AtomicI64,
 };
 
+use r2d2::Pool;
 use rusqlite::{Connection, config::DbConfig};
 use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder, TableDropStatement};
 use self_cell::MutBorrow;
@@ -368,8 +369,9 @@ impl<S: Schema> Database<S> {
             Ok(())
         });
 
-        use r2d2::ManageConnection;
-        let conn = manager.connect().unwrap();
+        let manager = Pool::new(manager).unwrap();
+
+        let conn = manager.get().unwrap();
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
         let txn = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             Some(
@@ -418,7 +420,7 @@ impl<S: Schema> Database<S> {
 /// When all migrations are done, it can be turned into a [Database] instance with
 /// [Migrator::finish].
 pub struct Migrator<S> {
-    manager: r2d2_sqlite::SqliteConnectionManager,
+    manager: Pool<r2d2_sqlite::SqliteConnectionManager>,
     transaction: OwnedTransaction,
     _p: PhantomData<S>,
 }

@@ -2,6 +2,8 @@ use std::{
     cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::atomic::AtomicI64,
 };
 
+use r2d2::PooledConnection;
+use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::ErrorCode;
 use sea_query::{
     Alias, CommonTableExpression, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoTableRef,
@@ -34,18 +36,17 @@ use crate::{
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
 pub struct Database<S> {
-    pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
+    pub(crate) manager: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
     pub(crate) schema_version: AtomicI64,
     pub(crate) schema: PhantomData<S>,
     pub(crate) mut_lock: parking_lot::FairMutex<()>,
 }
 
-use rusqlite::Connection;
 type RTransaction<'x> = Option<rusqlite::Transaction<'x>>;
 
 self_cell!(
     pub struct OwnedTransaction {
-        owner: MutBorrow<Connection>,
+        owner: MutBorrow<PooledConnection<SqliteConnectionManager>>,
 
         #[covariant]
         dependent: RTransaction,
@@ -104,9 +105,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         let res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
-                    use r2d2::ManageConnection;
-
-                    let conn = self.manager.connect().unwrap();
+                    let conn = self.manager.get().unwrap();
                     let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
                         Some(conn.borrow_mut().transaction().unwrap())
                     });
@@ -138,8 +137,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
-        use r2d2::ManageConnection;
-        let conn = self.manager.connect().unwrap();
+        let conn = self.manager.get().unwrap();
 
         // Acquire the lock just before creating the transaction
         let guard = self.mut_lock.lock();
@@ -197,9 +195,8 @@ impl<S: Send + Sync + Schema> Database<S> {
     /// [rust_query] transaction.
     ///
     /// The `foreign_keys` pragma is always enabled here, even if [crate::migrate::ForeignKeys::SQLite] is not used.
-    pub fn rusqlite_connection(&self) -> rusqlite::Connection {
-        use r2d2::ManageConnection;
-        let conn = self.manager.connect().unwrap();
+    pub fn rusqlite_connection(&self) -> PooledConnection<SqliteConnectionManager> {
+        let conn = self.manager.get().unwrap();
         conn.pragma_update(None, "foreign_keys", "ON").unwrap();
         conn
     }
