@@ -15,12 +15,6 @@ impl<'transaction, T: Table> Clone for Lazy<'transaction, T> {
     }
 }
 
-impl<'transaction, T: Table> Lazy<'transaction, T> {
-    pub fn load(&self) -> Loaded<T> {
-        todo!()
-    }
-}
-
 // TODO: works for any schema for some reason (just like TableRow)
 impl<'transaction, T: Table, S> IntoExpr<'static, S> for Lazy<'transaction, T> {
     type Typ = T;
@@ -60,38 +54,5 @@ impl<'transaction, T: Table> SecretFromSql for Lazy<'transaction, T> {
             lazy: OnceCell::new(),
             txn: Transaction::new_ref(),
         }))
-    }
-}
-
-// this wrapper exists to make `id` immutable
-pub struct Loaded<T: Table>(LoadedInner<T>);
-
-// TODO: works for any schema for some reason (just like TableRow)
-impl<T: Table, S> IntoExpr<'static, S> for Loaded<T> {
-    type Typ = T;
-
-    fn into_expr(self) -> crate::Expr<'static, S, Self::Typ> {
-        self.id.into_expr()
-    }
-}
-
-impl<T: Table> Deref for Loaded<T> {
-    type Target = LoadedInner<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-pub struct LoadedInner<T: Table> {
-    pub id: TableRow<T>,
-    pub(crate) inner: T::Loaded,
-}
-
-impl<T: Table> Deref for LoadedInner<T> {
-    type Target = T::Loaded;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
     }
 }

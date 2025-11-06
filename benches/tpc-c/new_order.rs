@@ -56,16 +56,25 @@ pub fn new_order(
     input: NewOrderInput,
 ) -> Result<OutputData, OutputData> {
     let customer = txn
-        .query_one(optional(|row| {
+        .lazy(optional(|row| {
             let warehouse = row.and(Warehouse.number(input.warehouse));
             let district = row.and(District.warehouse(warehouse).number(input.district));
-            row.and_then(Customer.district(district).number(input.customer))
+            let customer = row.and(Customer.district(district).number(input.customer));
+            row.then_expr(customer)
         }))
-        .unwrap()
-        .lazy(txn);
-    let warehouse = customer.district.warehouse.load();
-    let district = customer.district.load();
-    let customer = customer.load();
+        .unwrap();
+
+    let district = &customer.district;
+    let warehouse = &district.warehouse;
+
+    let customer_id = customer.id;
+
+    let customer_last_name = customer.last.clone();
+    let customer_credit = customer.credit.clone();
+    let customer_discount = customer.discount;
+    let district_tax = district.tax;
+    let warehouse_tax = warehouse.tax;
+    let next_order = district.next_order;
 
     txn.update_ok(
         district.id,
@@ -82,8 +91,8 @@ pub fn new_order(
 
     let order = txn
         .insert(Order {
-            number: district.next_order,
-            customer: customer.id,
+            number: next_order,
+            customer: customer_id,
             entry_d: input.entry_date,
             carrier_id: None::<i64>,
             all_local: local as i64,
@@ -161,8 +170,10 @@ pub fn new_order(
             },
         );
 
-        let item = item.lazy(txn).load();
-        let amount = quantity * item.price;
+        let item = txn.lazy(item);
+        let item_price = item.price;
+        let item_name = item.name.clone();
+
         let brand_generic = if item.data.contains("ORIGINAL") && stock.data.contains("ORIGINAL") {
             "B"
         } else {
@@ -175,7 +186,7 @@ pub fn new_order(
             stock: stock.row,
             delivery_d: None::<i64>,
             quantity,
-            amount,
+            amount: quantity * item_price,
             dist_info: stock.dist_xx,
         })
         .unwrap();
@@ -183,29 +194,29 @@ pub fn new_order(
         output_order_lines.push(OutputLine {
             supplying_warehouse,
             item: item_number,
-            item_name: item.name.clone(),
+            item_name,
             quantity,
             stock_quantity: stock.quantity,
             brand_generic,
-            item_price: item.price,
-            amount,
+            item_price,
+            amount: quantity * item_price,
         });
     }
 
     let total_amount = output_order_lines.iter().map(|x| x.amount).sum::<i64>() as f64
-        * (1. - customer.discount)
-        * (1. + warehouse.tax + district.tax);
+        * (1. - customer_discount)
+        * (1. + warehouse_tax + district_tax);
 
     let out = OutputData {
         warehouse: input.warehouse,
         district: input.district,
         customer: input.customer,
-        order: district.next_order,
-        customer_last_name: customer.last.clone(),
-        customer_credit: customer.credit.clone(),
-        customer_discount: customer.discount,
-        warehouse_tax: warehouse.tax,
-        district_tax: district.tax,
+        order: next_order,
+        customer_last_name,
+        customer_credit,
+        customer_discount,
+        warehouse_tax,
+        district_tax,
         order_entry_date: input.entry_date,
         total_amount: total_amount as i64,
         order_lines: output_order_lines,
