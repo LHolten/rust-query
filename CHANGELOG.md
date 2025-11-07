@@ -19,7 +19,7 @@
 - The generated macros for querying specific columns from tables were removed.
   This also means the removal of `MacroRoot`, which was only used by these macros.
 
-## breaking changes
+## Breaking changes
 - `Database` now uses a connection pool under the hood to prevent hitting
   the maximum number of open file descriptors under high load. This does mean
   that `Database::transaction` might have to wait for a connection to become available.
@@ -31,6 +31,8 @@
   table that match the warehouse.
 - To create an empty row you now have to use `txn.insert_ok(v0::Empty {})` instead or
   `txn.insert_ok(v0::Empty)`.
+- `Optional::then` is renamed to `Optional::then_select`.
+- `Optional::then_expr` is renamed to `Optional::then`.
 
 # 0.5.2
 

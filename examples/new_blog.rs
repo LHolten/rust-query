@@ -118,7 +118,7 @@ mod using_v1 {
 
             optional(|row| {
                 let average_value = row.and(rows.avg(&m.value));
-                row.then(InfoSelect {
+                row.then_select(InfoSelect {
                     average_value,
                     total_duration: rows.sum(&m.duration),
                 })

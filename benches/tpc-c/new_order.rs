@@ -59,8 +59,7 @@ pub fn new_order(
         .lazy(optional(|row| {
             let warehouse = row.and(Warehouse.number(input.warehouse));
             let district = row.and(District.warehouse(warehouse).number(input.district));
-            let customer = row.and(Customer.district(district).number(input.customer));
-            row.then_expr(customer)
+            row.and_then(Customer.district(district).number(input.customer))
         }))
         .unwrap();
 
@@ -131,7 +130,7 @@ pub fn new_order(
             .query_one(optional(|row| {
                 let supplying_warehouse = row.and(Warehouse.number(supplying_warehouse));
                 let stock = row.and(Stock.warehouse(supplying_warehouse).item(item));
-                row.then(StockInfoSelect {
+                row.then_select(StockInfoSelect {
                     row: &stock,
                     quantity: &stock.quantity,
                     dist_xx: &[

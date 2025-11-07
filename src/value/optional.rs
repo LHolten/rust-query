@@ -89,10 +89,11 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         self.is_none().not()
     }
 
-    /// Return [Some] column if the current row exists and [None] column otherwise.
-    pub fn then_expr<T: MyTyp<Sql: Nullable> + 'outer>(
+    /// This is much like combining [Self::and] with [Self::then], but it
+    /// allows returning an optional value without mutating self.
+    pub fn and_then<T: MyTyp<Sql: Nullable>>(
         &self,
-        col: impl IntoExpr<'inner, S, Typ = T>,
+        col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'outer, S, Option<T>> {
         const NULL: sea_query::Expr = sea_query::Expr::Keyword(sea_query::Keyword::Null);
 
@@ -105,25 +106,18 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         })
     }
 
-    /// Returns a [Select] with optional result.
-    pub fn then<Out: 'static>(
+    /// Return [Some] column if the current row exists and [None] column otherwise.
+    pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
         &self,
-        d: impl IntoSelect<'inner, S, Out = Out>,
-    ) -> Select<'outer, S, Option<Out>> {
-        Select::new(OptionalImpl {
-            inner: d.into_select().map(Some).inner,
-            is_some: ColumnImpl {
-                expr: DynTypedExpr::erase(self.is_some()),
-                _p: PhantomData,
-            },
-        })
+        col: impl IntoExpr<'inner, S, Typ = T>,
+    ) -> Expr<'outer, S, Option<T>> {
+        self.and_then(Some(col))
     }
 
-    /// This is much like combining [Self::and] with [Self::then], but it
-    /// allows returning an optional value without mutating self.
-    pub fn and_then<Out: 'static>(
+    /// Returns a [Select] with optional result.
+    pub fn then_select<Out: 'static>(
         &self,
-        d: impl IntoSelect<'inner, S, Out = Option<Out>>,
+        d: impl IntoSelect<'inner, S, Out = Out>,
     ) -> Select<'outer, S, Option<Out>> {
         Select::new(OptionalImpl {
             inner: d.into_select().inner,
@@ -140,8 +134,8 @@ pub struct OptionalImpl<X> {
     is_some: ColumnImpl<bool>,
 }
 
-impl<T, X: SelectImpl<Out = Option<T>>> SelectImpl for OptionalImpl<X> {
-    type Out = X::Out;
+impl<X: SelectImpl> SelectImpl for OptionalImpl<X> {
+    type Out = Option<X::Out>;
     type Prepared = OptionalPrepared<X::Prepared>;
 
     fn prepare(self, cacher: &mut Cacher) -> Self::Prepared {
@@ -157,12 +151,12 @@ pub struct OptionalPrepared<X> {
     is_some: Cached<bool>,
 }
 
-impl<T, X: Prepared<Out = Option<T>>> Prepared for OptionalPrepared<X> {
-    type Out = X::Out;
+impl<X: Prepared> Prepared for OptionalPrepared<X> {
+    type Out = Option<X::Out>;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
         if row.get(self.is_some) {
-            self.inner.call(row)
+            Some(self.inner.call(row))
         } else {
             None
         }

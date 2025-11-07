@@ -42,7 +42,7 @@ pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOut
         .query_one(optional(|row| {
             let warehouse = row.and(Warehouse.number(input.warehouse));
             let district = row.and(District.warehouse(&warehouse).number(input.district));
-            row.then((
+            row.then_select((
                 WarehouseInfo::from_expr(warehouse),
                 DistrictInfo::from_expr(district),
             ))
