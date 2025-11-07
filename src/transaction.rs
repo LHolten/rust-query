@@ -33,12 +33,6 @@ use crate::{
 /// modifications to the schema and gives us the ability to panic when this is detected.
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
-///
-/// [Database] uses a connection pool to limit the number of immutable transactions.
-/// Limiting the number of concurrent transaction is useful to make sure that we don't run
-/// out of file descriptors (soft limit is 1024 on my machine).
-/// Currently [Database] limits the number of concurrent immutable transactions to 10, but in the
-/// future this may be configurable.
 pub struct Database<S> {
     pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(crate) schema_version: AtomicI64,
@@ -101,20 +95,26 @@ impl TransactionWithRows {
 }
 
 impl<S: Send + Sync + Schema> Database<S> {
-    /// Create a [Transaction]. While multiple transaction can execute at the same time, this
-    /// method may wait for a connection to become available in the connection pool.
-    /// This means that warnings related to taking locks do apply to creating transactions too.
+    /// Create a [Transaction]. Creating the transaction will not block by default.
+    ///
+    /// Note that many systems have a limit on the number of file descriptors that can
+    /// exist in a single process. On my machine the soft limit is (1024) by default.
+    /// If this limit is reached it will cause a panic in this method.
+    ///
+    /// To prevent this kind of panic it is possible to limit the number of concurrent read
+    /// transactions with [crate::migration::Config]. If a limit is configured then this method
+    /// can block indefinitly while waiting for other read transactions.
     ///
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
     /// additional migrations.
     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
+        use r2d2::ManageConnection;
+        let conn = self.manager.connect().unwrap();
+
         let res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
-                    use r2d2::ManageConnection;
-
-                    let conn = self.manager.connect().unwrap();
                     let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
                         Some(conn.borrow_mut().transaction().unwrap())
                     });
@@ -131,9 +131,7 @@ impl<S: Send + Sync + Schema> Database<S> {
 
     /// Create a mutable [Transaction].
     /// This operation needs to wait for all other mutable [Transaction]s for this database to be finished.
-    ///
-    /// Note: you can create a deadlock if you are holding on to another lock while trying to
-    /// get a mutable transaction!
+    /// There is currently no timeout on this operation, so it will wait indefinitly if required.
     ///
     /// Whether the transaction is commited depends on the result of the closure.
     /// The transaction is only commited if the closure return [Ok]. In the case that it returns [Err]
@@ -149,41 +147,44 @@ impl<S: Send + Sync + Schema> Database<S> {
         use r2d2::ManageConnection;
         let conn = self.manager.connect().unwrap();
 
-        // Acquire the lock just before creating the transaction
-        let guard = self.mut_lock.lock();
-
-        let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
-            let txn = conn
-                .borrow_mut()
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .unwrap();
-            Some(txn)
-        });
         let join_res = std::thread::scope(|scope| {
             scope
                 .spawn(|| {
+                    // Acquire the lock just before creating the transaction
+                    let guard = self.mut_lock.lock();
+
+                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+                        let txn = conn
+                            .borrow_mut()
+                            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                            .unwrap();
+                        Some(txn)
+                    });
+
+                    // if this panics then the transaction is rolled back and the guard is dropped.
                     let res = f(Transaction::new_checked(owned, &self.schema_version));
+
+                    // Drop the guard before commiting to let sqlite go to the next transaction
+                    // more quickly while guaranteeing that the database will unlock soon.
+                    drop(guard);
+
                     let owned = TXN.take().unwrap().into_owner();
-                    (res, owned)
+
+                    if res.is_ok() {
+                        owned.with(|x| x.commit().unwrap());
+                    } else {
+                        owned.with(|x| x.rollback().unwrap());
+                    }
+
+                    res
                 })
                 .join()
         });
 
-        // Drop the guard before commiting to let sqlite go to the next transaction
-        // more quickly while guaranteeing that the database will unlock soon.
-        drop(guard);
-
-        let (res, owned) = match join_res {
+        match join_res {
             Ok(val) => val,
             Err(payload) => std::panic::resume_unwind(payload),
-        };
-
-        if res.is_ok() {
-            owned.with(|x| x.commit().unwrap());
-        } else {
-            owned.with(|x| x.rollback().unwrap());
         }
-        res
     }
 
     /// Same as [Self::transaction_mut], but always commits the transaction.
