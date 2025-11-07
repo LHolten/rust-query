@@ -19,7 +19,7 @@ use super::{Expr, IntoExpr, MyTyp};
 /// let res = txn.query_one(optional(|row| {
 ///     let x = row.and(Some("test"));
 ///     let y = row.and(Some(42));
-///     row.then((x, y))
+///     row.then_select((x, y))
 /// }));
 /// assert_eq!(res, Some(("test".to_owned(), 42)));
 /// # });
@@ -32,7 +32,7 @@ use super::{Expr, IntoExpr, MyTyp};
 /// let res = txn.query_one(optional(|row| {
 ///     let x = row.and(Some("test"));
 ///     let y = row.and(None::<i64>);
-///     row.then((x, y))
+///     row.then_select((x, y))
 /// }));
 /// assert_eq!(res, None);
 /// # });

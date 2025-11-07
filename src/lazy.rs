@@ -2,7 +2,34 @@ use std::{cell::OnceCell, ops::Deref};
 
 use crate::{IntoExpr, Table, TableRow, Transaction, value::SecretFromSql};
 
-// this wrapper exists to make `id` immutable
+/// [Lazy] can be used to read any column of a table row and its parents.
+/// Columns are loaded on demand, one row at at time.
+/// As an example, if you have two tables `Post` and `User`.
+/// ```
+/// # #[rust_query::migration::schema(Schema)]
+/// # pub mod vN {
+/// #     pub struct Post {
+/// #         pub author: User,
+/// #     }
+/// #     pub struct User {
+/// #         pub name: String,
+/// #     }
+/// # }
+/// # use rust_query::Lazy;
+/// # use v0::*;
+/// fn foo(post: Lazy<Post>) {
+///     let user = &post.author; // If the `post` row was not retrieved yet, then it is retrieved now to read the `user` column.
+///     let user_id = user.id; // This doesn't access the database because the `user` id was already read from the `post` row.
+///     let user_name = &user.name; // If the `user` row was not retrieved yet, then it is retrieved now to read the `name` column.
+/// }
+/// ```
+///
+/// Note that [Lazy] borrows the transaction immutably.
+/// This means that it is not possible to keep a [Lazy] value when doing inserts or updates.
+/// Here are some alternatives to solve this problem:
+/// - [Copy]/[Clone] the columns that you need from the [Lazy] value before doing inserts and or updates.
+/// - Another option is to call [Lazy::into_expr]. [crate::Expr] can be kept around when doing database modifications.
+/// - If you need many columns in a struct, then consider [derive@crate::FromExpr].
 pub struct Lazy<'transaction, T: Table>(pub(crate) LazyInner<'transaction, T>);
 
 impl<'transaction, T: Table> Clone for Lazy<'transaction, T> {

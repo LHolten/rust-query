@@ -35,6 +35,12 @@ use crate::{
 /// modifications to the schema and gives us the ability to panic when this is detected.
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
+///
+/// [Database] uses a connection pool to limit the number of immutable transactions.
+/// Limiting the number of concurrent transaction is useful to make sure that we don't run
+/// out of file descriptors (soft limit is 1024 on my machine).
+/// Currently [Database] limits the number of concurrent immutable transactions to 10, but in the
+/// future this may be configurable.
 pub struct Database<S> {
     pub(crate) manager: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
     pub(crate) schema_version: AtomicI64,
@@ -96,7 +102,9 @@ impl TransactionWithRows {
 }
 
 impl<S: Send + Sync + Schema> Database<S> {
-    /// Create a [Transaction]. This operation always completes immediately as it does not need to wait on other transactions.
+    /// Create a [Transaction]. While multiple transaction can execute at the same time, this
+    /// method may wait for a connection to become available in the connection pool.
+    /// This means that warnings related to taking locks do apply to creating transactions too.
     ///
     /// This function will panic if the schema was modified compared to when the [Database] value
     /// was created. This can happen for example by running another instance of your program with
