@@ -4,7 +4,8 @@ use crate::{IntoExpr, Table, TableRow, Transaction, value::SecretFromSql};
 
 /// [Lazy] can be used to read any column of a table row and its parents.
 /// Columns are loaded on demand, one row at at time.
-/// As an example, if you have two tables `Post` and `User`.
+///
+/// As an example, if you have two tables `Post` and `User`:
 /// ```
 /// # #[rust_query::migration::schema(Schema)]
 /// # pub mod vN {

@@ -52,7 +52,6 @@ macro_rules! table {
             type Update = ();
             type Insert = ();
             type Lazy<'t> = ();
-            type Loaded = ();
 
             fn read(_val: &Self::Insert, _f: &mut Reader<Self::Schema>) {
                 unreachable!()

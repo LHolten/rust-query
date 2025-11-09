@@ -51,7 +51,7 @@ pub fn optional<'outer, S, R>(
 /// This is the argument type used by the [optional] combinator.
 ///
 /// Joining more optional columns can be done with the [Optional::and] method.
-/// Finally it is possible to return selections or expressions using [Optional::then] and [Optional::then_expr].
+/// Finally it is possible to return expressions or selections using [Optional::then] and [Optional::then_select].
 pub struct Optional<'outer, 'inner, S> {
     nulls: Vec<DynTypedExpr>,
     _p: PhantomData<fn(&'inner ()) -> &'inner &'outer ()>,
@@ -73,6 +73,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Expr::adhoc(move |b| column.inner.build_expr(b))
     }
 
+    /// Return a [bool] column indicating whether the current row does not exists.
     pub fn is_none(&self) -> Expr<'outer, S, bool> {
         let nulls = self.nulls.clone();
         Expr::adhoc(move |b| {

@@ -35,26 +35,26 @@ building queries. [rust_query] has many different methods of selecting.
   If you want to have more expressions, then you probably want to use one of the other methods.
 - Derive [derive@Select], super useful when some of the values are aggregates.
 - Derive [derive@FromExpr], choose this method if you just want (a subset of) existing columns.
-- TODO: document [Lazy].
 - Finally, you can implement [trait@IntoSelect] manually, for maximum flexibility.
 
 ## How to work with optional rows
 
 A single optional row is quite common as the result of using unique constraint.
-For example you might create a `Expr<Option<User>>` with something like `User::unique_name(name)`.
-[trait@FromExpr] is automatically implemented for `Option<T>` if it is implemented for `T`, so
-you can do something like `Option::<User!(name, score)>::from_expr(User::unique_name(name))`.
-For more complicated queries you have to use the [optional] combinator.
+For example you might create a `Expr<Option<User>>` with something like `User.name(name)`.
+- [trait@FromExpr] is automatically implemented for `Option<T>` if it is implemented for `T`, so
+  you can do something like `Option::<UserInfo>::from_expr(User.name(name))`.
+- [Transaction::lazy] also works with optional rows, so you can write `txn.lazy(User.name(name))`.
+- For more complicated queries you have to use [args::Optional::then_select].
 
 ## FAQ
 - Q: How do I get a full row from the database?
 
-  A: There is no special syntax to get all columns of a row, but you can use
-  the facilities for getting [multiple columns](#how-to-provide-intoselect).
+  A: The [Lazy] type is most convenient if you want to use the row columns immediately.
+  For other use cases, please take a look at the [other options](#how-to-provide-intoselect).
 - Q: How do I retrieve some columns + the [TableRow] of a row?
 
-  A: With something like this: `q.into_vec((&user, User!(name, score)::from_expr(&user)))`.
-- Q: Why is [TableRow] `!Send`?
+  A: The [Lazy] type has an `id` field to get the [TableRow].
+- Q: Why is [TableRow] (and many other types) `!Send`?
 
   A: This prevents moving the [TableRow] between transactions. Moving a [TableRow] between transactions
   would make it possible for the refered row to already be deleted in the new transaction.

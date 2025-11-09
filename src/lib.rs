@@ -75,7 +75,6 @@ pub mod private {
     pub use crate::writable::{Reader, TableInsert};
 
     pub struct Lazy<'t>(PhantomData<&'t ()>);
-    pub struct Loaded;
     pub struct Ignore;
     pub struct Custom<T>(PhantomData<T>);
     pub struct AsUpdate;
@@ -87,10 +86,6 @@ pub mod private {
 
     impl<'t> Apply for Lazy<'t> {
         type Out<T: MyTyp, S> = T::Lazy<'t>;
-    }
-
-    impl Apply for Loaded {
-        type Out<T: MyTyp, S> = T::Out;
     }
 
     impl Apply for Ignore {
@@ -168,11 +163,9 @@ pub trait Table: Sized + 'static {
     type Update;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
-    /// Type of a lazily loaded table row.
-    type Lazy<'t>;
-    /// Type of a table row.
-    type Loaded;
 
+    #[doc(hidden)]
+    type Lazy<'t>;
     #[doc(hidden)]
     type Insert;
 
