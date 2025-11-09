@@ -1,6 +1,6 @@
 [package]
 name = "rust-query-macros"
-version = "0.5.2"
+version = "0.6.0"
 edition = "2021"
 description = "Proc-macro crate for rust-query."
 repository = "https://github.com/LHolten/rust-query/"
@@ -10,9 +10,9 @@ license = "MIT OR Apache-2.0"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.82"
-quote = "1.0.36"
-syn = { version = "2.0.63", features = ["full"] }
+proc-macro2 = "1.0.103"
+quote = "1.0.42"
+syn = { version = "2.0.109", features = ["full"] }
 heck = "0.5.0"
 
 [dev-dependencies]

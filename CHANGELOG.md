@@ -1,29 +1,9 @@
 # Unreleased
 
-## Added
-- `Transaction::lazy` and `Transaction::lazy_iter` are added, these methods
-  return rows of type `Lazy<'t, Table>`, which lazily query values when they
-  are accessed.
-- `Transaction::lazy_iter` accepts the same kind of argument as `Rows::join`.
-  So any table, optionally filtered by an index. For example:
-  `txn.lazy_iter(Post.author(my_user))` would iterate over all posts by `my_user`.
-- `Query::into_iter` now returns an iterator that can be moved outside the
-  `Transaction::query`. This makes it possible to return the iterator as a function result.
-- `Optional::and_then` was added as a convenient way to combine `Optional::and`
-  with `Optional::then_expr`.
-- Support for extra indices with the `#[index]` attribute. This works exactly
-  like the `#[unique]` attribute, but it doesn't have a unique constraint.
-  Defining an index will also add extra methods to filter on the indexed columns.
-
-## Removed
-- The generated macros for querying specific columns from tables were removed.
-  This also means the removal of `MacroRoot`, which was only used by these macros.
+# 0.6.0
 
 ## Breaking changes
-- `Database` now uses a connection pool under the hood to prevent hitting
-  the maximum number of open file descriptors under high load. This does mean
-  that `Database::transaction` might have to wait for a connection to become available.
-- Unique constraints are now unnamed
+- Unique constraints are now unnamed.
   Using a unique constraint can be done by using the column names in order e.g.
   `Stock.warehouse(w).item(i)` instead of `Stock::unique(w, i)`.
 - Support for only filtering on some columns with unique constraint syntax e.g.
@@ -33,6 +13,27 @@
   `txn.insert_ok(v0::Empty)`.
 - `Optional::then` is renamed to `Optional::then_select`.
 - `Optional::then_expr` is renamed to `Optional::then`.
+- Migrations now use the `Lazy` type instead of a generic type `T: FromExpr`.
+
+## Added
+- `Transaction::lazy` and `Transaction::lazy_iter` are added, these methods
+  return rows of type `Lazy<'t, Table>`, which lazily queries values when they
+  are accessed.
+- `Transaction::lazy_iter` accepts the same kind of argument as `Rows::join`.
+  So any table, optionally filtered by an index can be queried. For example:
+  `txn.lazy_iter(Post.author(my_user))` would iterate over all posts by `my_user`.
+- `Query::into_iter` now returns an iterator that can be moved outside the
+  `Transaction::query`. This makes it possible to return the iterator as a function result.
+- `Optional::and_then` was added as a convenient way to combine `Optional::and`
+  with `Optional::then`.
+- Support for extra indices with the `#[index]` attribute. This works exactly
+  like the `#[unique]` attribute, but it doesn't have a unique constraint.
+  Defining an index will also add extra methods to filter on the indexed columns.
+
+## Removed
+- The generated macros for querying specific columns from tables were removed.
+  This also means the removal of `MacroRoot`, which was only used by these macros.
+  `Lazy` should be used instead.
 
 # 0.5.2
 
