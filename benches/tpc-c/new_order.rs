@@ -66,8 +66,6 @@ pub fn new_order(
     let district = &customer.district;
     let warehouse = &district.warehouse;
 
-    let customer_id = customer.id;
-
     let customer_last_name = customer.last.clone();
     let customer_credit = customer.credit.clone();
     let customer_discount = customer.discount;
@@ -75,8 +73,10 @@ pub fn new_order(
     let warehouse_tax = warehouse.tax;
     let next_order = district.next_order;
 
+    let customer = customer.table_row();
+
     txn.update_ok(
-        district.id,
+        district.table_row(),
         District {
             next_order: Update::add(1),
             ..Default::default()
@@ -91,7 +91,7 @@ pub fn new_order(
     let order = txn
         .insert(Order {
             number: next_order,
-            customer: customer_id,
+            customer,
             entry_d: input.entry_date,
             carrier_id: None::<i64>,
             all_local: local as i64,

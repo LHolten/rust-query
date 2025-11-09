@@ -177,7 +177,7 @@ pub fn migrate() -> Database<v2::Schema> {
         }),
         employee: txn.migrate_ok(|_| v1::migrate::Employee {}),
         invoice_line: txn.migrate_ok(|old: Lazy<v1::InvoiceLine>| v1::migrate::InvoiceLine {
-            invoice_new: old.invoice.id,
+            invoice_new: old.invoice.table_row(),
         }),
     });
 

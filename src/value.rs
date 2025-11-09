@@ -13,7 +13,6 @@ use crate::{
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
     hash,
-    lazy::LazyInner,
     mymap::MyMap,
     private::Joinable,
 };
@@ -344,11 +343,11 @@ impl<T: Table> MyTyp for T {
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        Lazy(LazyInner {
+        Lazy {
             id: val,
             lazy: OnceCell::new(),
             txn: Transaction::new_ref(),
-        })
+        }
     }
 }
 
