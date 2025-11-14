@@ -130,7 +130,27 @@ impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     pub fn eq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).eq(rhs.build_expr(b)))
+        Expr::adhoc(move |b| lhs.build_expr(b).is(rhs.build_expr(b)))
+    }
+
+    /// Check whether two expressions are not equal.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().neq(2)), false);
+    /// assert_eq!(txn.query_one(3.0.into_expr().neq(3.1)), true);
+    /// assert_eq!(txn.query_one("test".into_expr().neq("test")), false);
+    /// assert_eq!(txn.query_one(b"test".into_expr().neq(b"test" as &[u8])), false);
+    /// assert_eq!(txn.query_one(false.into_expr().neq(false)), false);
+    ///
+    /// assert_eq!(txn.query_one(1.into_expr().neq(2)), true);
+    /// # });
+    /// ```
+    pub fn neq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).is_not(rhs.build_expr(b)))
     }
 }
 

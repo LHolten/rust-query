@@ -15,7 +15,7 @@ use crate::{
     IntoExpr, Lazy, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     hash,
-    schema_pragma::read_schema,
+    schema_pragma::{read_index_names_for_table, read_schema},
     transaction::{Database, OwnedTransaction, TXN, TransactionWithRows, try_insert_private},
 };
 
@@ -85,8 +85,8 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
             TXN.with_borrow(|txn| {
                 let conn = txn.as_ref().unwrap().get();
                 let table = crate::hash::Table::new::<T>();
-                let extra_indices = new_table_inner(conn, &table, new_table_name, T::NAME);
-                self.extra_index.extend(extra_indices);
+                new_table_inner(conn, &table, new_table_name);
+                self.extra_index.extend(table.create_indices(T::NAME));
             });
             new_table_name
         })
@@ -192,32 +192,14 @@ impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
     }
 }
 
-fn new_table_inner(
-    conn: &Connection,
-    table: &crate::hash::Table,
-    alias: impl IntoTableRef,
-    index_table: &str,
-) -> Vec<String> {
-    let mut extra_indices = Vec::new();
-    let mut create = table.create(&mut extra_indices);
+fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl IntoTableRef) {
+    let mut create = table.create();
     create
         .table(alias)
         .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
     let mut sql = create.to_string(SqliteQueryBuilder);
     sql.push_str(" STRICT");
     conn.execute(&sql, []).unwrap();
-
-    let index_table_ref = Alias::new(index_table);
-    extra_indices
-        .into_iter()
-        .enumerate()
-        .map(|(index_num, mut index)| {
-            index
-                .table(index_table_ref.clone())
-                .name(format!("{index_table}_index_{index_num}"))
-                .to_string(SqliteQueryBuilder)
-        })
-        .collect()
 }
 
 pub trait SchemaMigration<'a> {
@@ -385,8 +367,8 @@ impl<S: Schema> Database<S> {
 
             for (table_name, table) in &schema.tables {
                 let table_name_ref = Alias::new(table_name);
-                let extra_indices = new_table_inner(txn.get(), table, table_name_ref, table_name);
-                for stmt in extra_indices {
+                new_table_inner(txn.get(), table, table_name_ref);
+                for stmt in table.create_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();
                 }
             }
@@ -530,8 +512,7 @@ impl<S: Schema> Migrator<S> {
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn finish(mut self) -> Option<Database<S>> {
-        let conn = &self.transaction;
-        if user_version(conn.get()).unwrap() != S::VERSION {
+        if user_version(self.transaction.get()).unwrap() != S::VERSION {
             return None;
         }
 
@@ -539,6 +520,37 @@ impl<S: Schema> Migrator<S> {
             s.spawn(|| {
                 TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
                 check_schema::<S>();
+                let schema = read_schema(&crate::Transaction::new());
+
+                let mut expected_schema = crate::hash::Schema::new::<S>();
+
+                for (name, mut table) in schema.tables {
+                    let mut expected_table = expected_schema.tables.remove(&name).unwrap();
+
+                    // indices are not normalized, but they are sorted
+                    expected_table.indices.sort();
+                    table.indices.sort();
+
+                    if expected_table.indices != table.indices {
+                        // Delete all indices associated with the table
+                        for index_name in
+                            read_index_names_for_table(&crate::Transaction::new(), &name)
+                        {
+                            let sql = sea_query::Index::drop()
+                                .name(index_name)
+                                .build(SqliteQueryBuilder);
+                            TXN.with_borrow(|txn| txn.as_ref().unwrap().get().execute(&sql, []))
+                                .unwrap();
+                        }
+
+                        // Add the new indices
+                        for sql in expected_table.create_indices(&name) {
+                            TXN.with_borrow(|txn| txn.as_ref().unwrap().get().execute(&sql, []))
+                                .unwrap();
+                        }
+                    }
+                }
+
                 TXN.take().unwrap().into_owner()
             })
             .join()

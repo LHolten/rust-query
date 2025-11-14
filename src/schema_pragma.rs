@@ -134,7 +134,6 @@ table! {
     IndexListSelect {
         name: String,
         unique: bool,
-        origin: String,
         partial: bool,
     }
 }
@@ -144,6 +143,7 @@ struct IndexInfo(String);
 table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").arg(&val.0).arg("main")),
     IndexInfo(String::new()),
     IndexInfoSelect {
+        seqno: i64,
         name: Option<String>,
     }
 }
@@ -211,26 +211,53 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
             debug_assert!(old.is_none());
         }
 
-        let uniques = conn.query(|q| {
+        #[derive(Clone, FromExpr)]
+        #[rust_query(From = IndexList)]
+        struct Index {
+            name: String,
+            unique: bool,
+            partial: bool,
+        }
+
+        let indices = conn.query(|q| {
             let index = q.join_custom(IndexList(table_name.clone()));
-            q.filter(&index.unique);
-            q.filter(index.origin.eq("u"));
-            q.filter(index.partial.not());
-            q.into_vec(&index.name)
+            q.into_vec(Index::from_expr(index))
         });
 
-        for unique_name in uniques {
-            let columns = conn.query(|q| {
-                let col = q.join_custom(IndexInfo(unique_name));
-                let name = q.filter_some(&col.name);
-                q.into_vec(name)
-            });
+        #[derive(Clone, FromExpr)]
+        #[rust_query(From = IndexInfo)]
+        struct IndexColumn {
+            seqno: i64,
+            name: Option<String>,
+        }
 
-            let unique_def = hash::Index {
-                columns,
-                unique: true,
+        for index in indices {
+            let false = index.partial else {
+                if index.unique {
+                    panic!("unique partial index is not supported")
+                }
+                continue;
             };
-            table_def.indices.push(unique_def);
+
+            let mut columns = conn.query(|q| {
+                let col = q.join_custom(IndexInfo(index.name));
+                q.into_vec(IndexColumn::from_expr(col))
+            });
+            columns.sort_by_key(|x| x.seqno);
+
+            let columns = columns.into_iter().map(|x| x.name).collect();
+
+            let Some(columns) = columns else {
+                if index.unique {
+                    panic!("unique constraint on row_id or expression is not supported");
+                }
+                continue;
+            };
+
+            table_def.indices.push(hash::Index {
+                columns,
+                unique: index.unique,
+            });
         }
 
         let old = output.tables.insert(table_name, table_def);
@@ -238,4 +265,11 @@ pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
     }
 
     output
+}
+
+pub fn read_index_names_for_table(conn: &Transaction<Pragma>, table_name: &str) -> Vec<String> {
+    conn.query(|q| {
+        let index = q.join_custom(IndexList(table_name.to_owned()));
+        q.into_vec(&index.name)
+    })
 }

@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, marker::PhantomData};
 
-use sea_query::{IndexCreateStatement, TableCreateStatement};
+use sea_query::{Alias, IndexCreateStatement, SqliteQueryBuilder, TableCreateStatement};
 
 use crate::value::{EqTyp, MyTyp};
 
@@ -67,11 +67,12 @@ impl Table {
     fn normalize(&mut self) {
         self.indices.retain_mut(Index::normalize);
         self.indices.sort();
+        self.indices.dedup();
     }
 }
 
 impl Table {
-    pub fn create(&self, extra_indices: &mut Vec<IndexCreateStatement>) -> TableCreateStatement {
+    pub fn create(&self) -> TableCreateStatement {
         use sea_query::*;
         let mut create = Table::create();
         for (name, col) in &self.columns {
@@ -91,25 +92,36 @@ impl Table {
                 );
             }
         }
-        for index_spec in &*self.indices {
-            let mut index = sea_query::Index::create();
-            if index_spec.unique {
-                index.unique();
-            }
-            // Preserve the original order of columns in the unique constraint.
-            // This lets users optimize queries by using index prefixes.
-            for col in &index_spec.columns {
-                index.col(Alias::new(col));
-            }
-
-            if index.is_unique_key() {
-                // only unique keys are supported in table schemas in sqlite
-                create.index(&mut index);
-            } else {
-                extra_indices.push(index);
-            }
-        }
         create
+    }
+
+    pub fn create_indices(&self, table_name: &str) -> impl Iterator<Item = String> {
+        let index_table_ref = Alias::new(table_name);
+        self.indices
+            .iter()
+            .enumerate()
+            .map(move |(index_num, index)| {
+                index
+                    .create()
+                    .table(index_table_ref.clone())
+                    .name(format!("{table_name}_index_{index_num}"))
+                    .to_string(SqliteQueryBuilder)
+            })
+    }
+}
+
+impl Index {
+    pub fn create(&self) -> IndexCreateStatement {
+        let mut index = sea_query::Index::create();
+        if self.unique {
+            index.unique();
+        }
+        // Preserve the original order of columns in the unique constraint.
+        // This lets users optimize queries by using index prefixes.
+        for col in &self.columns {
+            index.col(Alias::new(col));
+        }
+        index
     }
 }
 
