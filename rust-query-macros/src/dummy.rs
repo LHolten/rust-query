@@ -58,17 +58,13 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
     } = CommonInfo::from_item(item)?;
     let dummy_name = format_ident!("{name}Select");
 
-    let mut defs = vec![];
     let mut generics = vec![];
-    let mut constraints = vec![];
     let mut dummies = vec![];
     let mut typs = vec![];
     let mut names = vec![];
     for (name, typ) in &fields {
         let generic = make_generic(name);
 
-        defs.push(quote! {#name: #generic});
-        constraints.push(quote! {#generic: ::rust_query::IntoSelect<'_t, S, Out = #typ>});
         generics.push(quote! {#generic});
         dummies.push(quote! {self.#name});
         names.push(quote! {#name});
@@ -80,10 +76,11 @@ pub fn dummy_impl(item: ItemStruct) -> syn::Result<TokenStream> {
 
     Ok(quote! {
         struct #dummy_name<#(#generics),*> {
-            #(#defs),*
+            #(#names: #generics),*
         }
 
-        impl<'_t #(,#original_generics)*, S #(,#constraints)*> ::rust_query::IntoSelect<'_t, S> for #dummy_name<#(#generics),*>
+        impl<'_t #(,#original_generics)*, S
+            #(,#generics: ::rust_query::IntoSelect<'_t, S, Out = #typs>)*> ::rust_query::IntoSelect<'_t, S> for #dummy_name<#(#generics),*>
         where #name<#(#original_generics),*>: 'static {
             type Out = (#name<#(#original_generics),*>);
 

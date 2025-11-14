@@ -53,7 +53,7 @@ For example you might create a `Expr<Option<User>>` with something like `User.na
   For other use cases, please take a look at the [other options](#how-to-provide-intoselect).
 - Q: How do I retrieve some columns + the [TableRow] of a row?
 
-  A: The [Lazy] type has an `id` field to get the [TableRow].
+  A: The [Lazy] type has a [Lazy::table_row] method to get the [TableRow].
 - Q: Why is [TableRow] (and many other types) `!Send`?
 
   A: This prevents moving the [TableRow] between transactions. Moving a [TableRow] between transactions
