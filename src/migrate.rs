@@ -567,13 +567,8 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
 
     let mut expected_schema = crate::hash::Schema::new::<S>();
 
-    for (name, mut table) in schema.tables {
-        let mut expected_table = expected_schema.tables.remove(&name).unwrap();
-
-        // sort indices, but don't normalize
-        // TODO: make indices a BTreeSet
-        expected_table.indices.sort();
-        table.indices.sort();
+    for (name, table) in schema.tables {
+        let expected_table = expected_schema.tables.remove(&name).unwrap();
 
         if expected_table.indices != table.indices {
             // Delete all indices associated with the table

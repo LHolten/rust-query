@@ -2,7 +2,11 @@
 //! The layout is hashable and the hashes are independent
 //! of the column ordering and some other stuff.
 
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    marker::PhantomData,
+    mem,
+};
 
 use sea_query::{Alias, IndexCreateStatement, SqliteQueryBuilder, TableCreateStatement};
 
@@ -54,7 +58,7 @@ impl Index {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Table {
     pub columns: BTreeMap<String, Column>,
-    pub indices: Vec<Index>,
+    pub indices: BTreeSet<Index>,
 }
 
 impl Table {
@@ -65,9 +69,10 @@ impl Table {
     }
 
     fn normalize(&mut self) {
-        self.indices.retain_mut(Index::normalize);
-        self.indices.sort();
-        self.indices.dedup();
+        self.indices = mem::take(&mut self.indices)
+            .into_iter()
+            .filter_map(|mut idx| idx.normalize().then_some(idx))
+            .collect();
     }
 }
 
@@ -226,7 +231,7 @@ impl<S> TypBuilder<S> {
         for &col in cols {
             index.columns.push(col.to_owned());
         }
-        self.ast.indices.push(index);
+        self.ast.indices.insert(index);
     }
 
     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}

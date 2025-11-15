@@ -256,7 +256,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
                 continue;
             };
 
-            table_def.indices.push(hash::Index {
+            table_def.indices.insert(hash::Index {
                 columns,
                 unique: index.unique,
             });
