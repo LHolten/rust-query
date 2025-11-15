@@ -148,7 +148,9 @@ table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").
     }
 }
 
-pub fn read_schema(conn: &Transaction<Pragma>) -> hash::Schema {
+pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
+    let conn = Transaction::new();
+
     #[derive(Clone, FromExpr)]
     #[rust_query(From = TableInfo)]
     struct Column {

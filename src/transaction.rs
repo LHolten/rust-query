@@ -255,7 +255,7 @@ impl<S: Schema> Transaction<S> {
             }
 
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
-            check_schema::<S>();
+            check_schema::<S>(Self::new_ref());
             expected.store(schema_version, std::sync::atomic::Ordering::Relaxed);
         } else {
             TXN.set(Some(TransactionWithRows::new_empty(txn)));

@@ -388,6 +388,7 @@ impl<S: Schema> Database<S> {
         );
 
         Some(Migrator {
+            indices_fixed: false,
             manager,
             transaction: txn,
             _p: PhantomData,
@@ -402,6 +403,7 @@ impl<S: Schema> Database<S> {
 pub struct Migrator<S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
     transaction: OwnedTransaction,
+    indices_fixed: bool,
     _p: PhantomData<S>,
 }
 
@@ -447,8 +449,13 @@ impl<S: Schema> Migrator<S> {
             let res = std::thread::scope(|s| {
                 s.spawn(|| {
                     TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
+                    let txn = Transaction::new_ref();
 
-                    check_schema::<S>();
+                    check_schema::<S>(txn);
+                    if !self.indices_fixed {
+                        fix_indices::<S>(txn);
+                        self.indices_fixed = true;
+                    }
 
                     let mut txn = TransactionMigrate {
                         inner: Transaction::new(),
@@ -500,6 +507,7 @@ impl<S: Schema> Migrator<S> {
         }
 
         Migrator {
+            indices_fixed: self.indices_fixed,
             manager: self.manager,
             transaction: self.transaction,
             _p: PhantomData,
@@ -519,36 +527,12 @@ impl<S: Schema> Migrator<S> {
         let res = std::thread::scope(|s| {
             s.spawn(|| {
                 TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
-                check_schema::<S>();
-                let schema = read_schema(&crate::Transaction::new());
+                let txn = Transaction::new_ref();
 
-                let mut expected_schema = crate::hash::Schema::new::<S>();
-
-                for (name, mut table) in schema.tables {
-                    let mut expected_table = expected_schema.tables.remove(&name).unwrap();
-
-                    // indices are not normalized, but they are sorted
-                    expected_table.indices.sort();
-                    table.indices.sort();
-
-                    if expected_table.indices != table.indices {
-                        // Delete all indices associated with the table
-                        for index_name in
-                            read_index_names_for_table(&crate::Transaction::new(), &name)
-                        {
-                            let sql = sea_query::Index::drop()
-                                .name(index_name)
-                                .build(SqliteQueryBuilder);
-                            TXN.with_borrow(|txn| txn.as_ref().unwrap().get().execute(&sql, []))
-                                .unwrap();
-                        }
-
-                        // Add the new indices
-                        for sql in expected_table.create_indices(&name) {
-                            TXN.with_borrow(|txn| txn.as_ref().unwrap().get().execute(&sql, []))
-                                .unwrap();
-                        }
-                    }
+                check_schema::<S>(txn);
+                if !self.indices_fixed {
+                    fix_indices::<S>(txn);
+                    self.indices_fixed = true;
                 }
 
                 TXN.take().unwrap().into_owner()
@@ -578,6 +562,43 @@ impl<S: Schema> Migrator<S> {
     }
 }
 
+fn fix_indices<S: Schema>(txn: &Transaction<S>) {
+    let schema = read_schema(txn);
+
+    let mut expected_schema = crate::hash::Schema::new::<S>();
+
+    for (name, mut table) in schema.tables {
+        let mut expected_table = expected_schema.tables.remove(&name).unwrap();
+
+        // sort indices, but don't normalize
+        // TODO: make indices a BTreeSet
+        expected_table.indices.sort();
+        table.indices.sort();
+
+        if expected_table.indices != table.indices {
+            // Delete all indices associated with the table
+            for index_name in read_index_names_for_table(&crate::Transaction::new(), &name) {
+                let sql = sea_query::Index::drop()
+                    .name(index_name)
+                    .build(SqliteQueryBuilder);
+                txn.execute(&sql);
+            }
+
+            // Add the new indices
+            for sql in expected_table.create_indices(&name) {
+                txn.execute(&sql);
+            }
+        }
+    }
+}
+
+impl<S> Transaction<S> {
+    pub(crate) fn execute(&self, sql: &str) {
+        TXN.with_borrow(|txn| txn.as_ref().unwrap().get().execute(sql, []))
+            .unwrap();
+    }
+}
+
 pub fn schema_version(conn: &rusqlite::Transaction) -> i64 {
     conn.pragma_query_value(None, "schema_version", |r| r.get(0))
         .unwrap()
@@ -593,11 +614,11 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-pub(crate) fn check_schema<S: Schema>() {
+pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
     // normalize both sides, because we only care about compatibility
     pretty_assertions::assert_eq!(
         crate::hash::Schema::new::<S>().normalize(),
-        read_schema(&crate::Transaction::new()).normalize(),
+        read_schema(txn).normalize(),
         "schema is different (expected left, but got right)",
     );
 }
