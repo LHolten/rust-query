@@ -90,6 +90,7 @@ impl Schema {
     pub(crate) fn new<S: crate::migrate::Schema>() -> Self {
         let mut b = crate::migrate::TableTypBuilder::default();
         S::typs(&mut b);
+        b.ast.span = S::SPAN;
         b.ast
     }
 }

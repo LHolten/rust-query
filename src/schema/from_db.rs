@@ -104,6 +104,7 @@ mod to_macro {
                     .into_iter()
                     .map(|(k, v)| (k, v.to_macro()))
                     .collect(),
+                span: (0, 0),
             }
         }
     }

@@ -45,6 +45,7 @@ pub trait Schema: Sized + 'static {
     const VERSION: i64;
     const SOURCE: &str;
     const PATH: &str;
+    const SPAN: (usize, usize);
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 

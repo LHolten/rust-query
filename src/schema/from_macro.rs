@@ -32,6 +32,7 @@ pub struct Table {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Schema {
     pub tables: BTreeMap<String, Table>,
+    pub span: (usize, usize),
 }
 
 pub struct TypBuilder<S> {

@@ -45,25 +45,18 @@ impl from_db::Schema {
         path: &'a str,
     ) -> Vec<Group<'a>> {
         let mut db_only = Vec::new();
+        let mut annotations = Vec::new();
         let mut report = Vec::new();
 
         for (table, diff) in diff_map(from_macro.tables, self.tables) {
             match diff {
-                EntryDiff::DbOnly(_) => {
-                    db_only.push(Level::ERROR.message(format!("table {table} was not defined")))
-                }
+                EntryDiff::DbOnly(_) => db_only.push(table),
                 EntryDiff::MacroOnly(val) => {
                     let span = val.span.0..val.span.1;
-                    report.push(
-                        Level::ERROR
-                            .primary_title("database does not have table")
-                            .element(
-                                Snippet::source(source).path(path).annotation(
-                                    AnnotationKind::Primary
-                                        .span(span)
-                                        .label("this table does not exist in the database"),
-                                ),
-                            ),
+                    annotations.push(
+                        AnnotationKind::Primary
+                            .span(span)
+                            .label("database does not have this table"),
                     );
                 }
                 EntryDiff::Diff {
@@ -73,7 +66,6 @@ impl from_db::Schema {
                     let mut db_only = Vec::new();
                     let mut annotations = Vec::new();
 
-                    let span = || from_macro.span.0..from_macro.span.1;
                     for (col, diff) in diff_map(from_macro.columns, from_db.columns) {
                         match diff {
                             EntryDiff::DbOnly(_) => db_only.push(col),
@@ -107,35 +99,45 @@ impl from_db::Schema {
                     }
 
                     if !annotations.is_empty() || !db_only.is_empty() {
+                        let span = || from_macro.span.0..from_macro.span.1;
                         report.push(
-                            Level::ERROR
-                                .primary_title("column mismatch for table")
-                                .element(
-                                    Snippet::source(source)
-                                        .path(path)
-                                        .annotations(db_only.is_empty().then(|| {
-                                            AnnotationKind::Context
-                                                .span(span())
-                                                .label("in this table")
-                                        }))
-                                        .annotations(db_only.iter().map(|col| {
-                                            AnnotationKind::Primary
-                                                .span(span())
-                                                .label(format!("database has `{col}` column"))
-                                        }))
-                                        .annotations(annotations),
-                                ),
+                            Level::ERROR.primary_title("column mismatch").element(
+                                Snippet::source(source)
+                                    .path(path)
+                                    .annotations(db_only.is_empty().then(|| {
+                                        AnnotationKind::Context.span(span()).label("in this table")
+                                    }))
+                                    .annotations(db_only.iter().map(|col| {
+                                        AnnotationKind::Primary
+                                            .span(span())
+                                            .label(format!("database has `{col}` column"))
+                                    }))
+                                    .annotations(annotations),
+                            ),
                         );
                     }
                 }
             };
         }
-        if !db_only.is_empty() {
+
+        if !annotations.is_empty() || !db_only.is_empty() {
+            let span = || from_macro.span.0..from_macro.span.1;
             report.push(
-                Level::ERROR
-                    .no_name()
-                    .primary_title("there are undefined tables in the database")
-                    .elements(db_only),
+                Level::ERROR.primary_title("table mismatch").element(
+                    Snippet::source(source)
+                        .path(path)
+                        .annotations(
+                            db_only.is_empty().then(|| {
+                                AnnotationKind::Context.span(span()).label("in this schema")
+                            }),
+                        )
+                        .annotations(db_only.iter().map(|table| {
+                            AnnotationKind::Primary
+                                .span(span())
+                                .label(format!("database has `{table}` table"))
+                        }))
+                        .annotations(annotations),
+                ),
             );
         }
 

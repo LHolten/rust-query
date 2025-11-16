@@ -30,6 +30,7 @@ pub fn define_all_tables(
     // unwrap_or_default is used here because rust-analyzer sometimes doesn't give us the path
     let file = schema_name.span().local_file().unwrap_or_default();
     let file = file.file_name().unwrap_or_default().to_str().unwrap();
+    let span = byte_range(schema_name.span());
 
     let version_i64 = version as i64;
     mod_output.extend(quote! {
@@ -38,6 +39,7 @@ pub fn define_all_tables(
             const VERSION: i64 = #version_i64;
             const SOURCE: &str = include_str!(#file);
             const PATH: &str = file!();
+            const SPAN: (usize, usize) = #span;
 
             fn typs(b: &mut ::rust_query::private::TableTypBuilder<Self>) {
                 #(#schema_table_typs;)*
