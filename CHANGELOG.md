@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.6.1
+
+- Added automatic addition and removal of column indices without a new schema version.
+
 # 0.6.0
 
 ## Breaking changes
