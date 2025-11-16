@@ -45,7 +45,7 @@ macro_rules! table {
                 $name
             }
 
-            fn typs(_f: &mut schema::TypBuilder<Self::Schema>) {}
+            fn typs(_f: &mut schema::from_macro::TypBuilder<Self::Schema>) {}
 
             type Conflict = Infallible;
             type UpdateOk = ();
@@ -204,7 +204,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
 
         let mut table_def = schema::Table::default();
         for col in columns {
-            let def = schema::Column {
+            let def = schema::from_macro::Column {
                 fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
                 typ: make_type(&col),
                 nullable: col.notnull == 0,

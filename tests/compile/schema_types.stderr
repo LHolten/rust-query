@@ -2,17 +2,17 @@ error[E0277]: Can not use `bool` as a column type in schema `v0::Schema`
  --> tests/compile/schema_types.rs:7:22
   |
 7 |         pub my_bool: bool,
-  |                      ^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `bool`
+  |                      ^^^^ the trait `rust_query::schema::from_macro::SchemaType<v0::Schema>` is not implemented for `bool`
   |
   = note: Table names can be used as schema column types as long as they are not #[no_reference]
-  = help: the following other types implement trait `rust_query::hash::SchemaType<S>`:
+  = help: the following other types implement trait `rust_query::schema::from_macro::SchemaType<S>`:
             Option<T>
             String
             Vec<u8>
             f64
             i64
 note: required by a bound in `TypBuilder::<S>::col`
- --> src/hash.rs
+ --> src/schema/from_macro.rs
   |
   |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
@@ -24,12 +24,12 @@ error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `v0::
   | ----------------- required by a bound introduced by this call
 ...
 8 |         pub nested: Option<Option<i64>>,
-  |                     ^^^^^^ the trait `rust_query::hash::SchemaType<v0::Schema>` is not implemented for `Option<Option<i64>>`
+  |                     ^^^^^^ the trait `rust_query::schema::from_macro::SchemaType<v0::Schema>` is not implemented for `Option<Option<i64>>`
   |
   = note: Table names can be used as schema column types as long as they are not #[no_reference]
-  = help: the trait `rust_query::hash::SchemaType<S>` is implemented for `Option<T>`
+  = help: the trait `rust_query::schema::from_macro::SchemaType<S>` is implemented for `Option<T>`
 note: required by a bound in `TypBuilder::<S>::col`
- --> src/hash.rs
+ --> src/schema/from_macro.rs
   |
   |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
@@ -48,7 +48,7 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             f64
             i64
 note: required by a bound in `TypBuilder::<S>::check_unique_compatible`
- --> src/hash.rs
+ --> src/schema/from_macro.rs
   |
   |     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
   |                                       ^^^^^ required by this bound in `TypBuilder::<S>::check_unique_compatible`

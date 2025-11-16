@@ -25,7 +25,7 @@ pub use db::TableRow;
 pub use lazy::Lazy;
 use private::Reader;
 pub use rust_query_macros::{FromExpr, Select};
-use schema::TypBuilder;
+use schema::from_macro::TypBuilder;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 use value::MyTyp;
@@ -72,7 +72,7 @@ pub mod private {
         migration::{Migration, SchemaBuilder},
     };
     pub use crate::query::get_plan;
-    pub use crate::schema::TypBuilder;
+    pub use crate::schema::from_macro::TypBuilder;
     pub use crate::value::{
         DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };

@@ -24,7 +24,7 @@ note: `v0::Schema` is defined in module `crate::v0` of the current crate
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^
 note: required by a bound in `TypBuilder::<S>::col`
- --> src/hash.rs
+ --> src/schema/from_macro.rs
   |
   |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
