@@ -3,6 +3,7 @@
 //! of the column ordering and some other stuff.
 
 pub mod canonical;
+mod diff;
 pub mod from_db;
 pub mod from_macro;
 pub mod read;
@@ -80,6 +81,7 @@ impl Table {
     pub(crate) fn new<T: crate::Table>() -> Self {
         let mut f = crate::schema::from_macro::TypBuilder::default();
         T::typs(&mut f);
+        f.ast.span = T::SPAN;
         f.ast
     }
 }

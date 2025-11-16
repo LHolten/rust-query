@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
 
 use crate::{dummy::wrap, SingleVersionTable};
 
@@ -27,11 +27,17 @@ pub fn define_all_tables(
         schema_table_typs.push(quote! {b.table::<#table_name>()});
     }
 
+    let file = PathBuf::from_str(&schema_name.span().file()).unwrap();
+    // unwrap_or_default is used here because rust-analyzer sometimes doesn't give us the path
+    let file = file.file_name().unwrap_or_default().to_str().unwrap();
+
     let version_i64 = version as i64;
     mod_output.extend(quote! {
         pub struct #schema_name;
         impl ::rust_query::private::Schema for #schema_name {
             const VERSION: i64 = #version_i64;
+            const SOURCE: &str = include_str!(#file);
+            const PATH: &str = file!();
 
             fn typs(b: &mut ::rust_query::private::TableTypBuilder<Self>) {
                 #(#schema_table_typs;)*
@@ -52,6 +58,9 @@ fn define_table(
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
+    let table_span = table_ident_with_span.span().byte_range();
+    let (span_start, span_end) = (table_span.start, table_span.end);
+    let table_span = quote! {(#span_start, #span_end)};
 
     let unique_tree = table.make_unique_tree();
     let unique_info = table.make_info(schema.clone());
@@ -199,6 +208,7 @@ fn define_table(
 
                 const ID: &'static str = "id";
                 const NAME: &'static str = #table_name;
+                const SPAN: (usize, usize) = #table_span;
 
                 type Conflict = #conflict_type;
                 type UpdateOk = (#alias_ident<#(#update_columns_safe),*>);

@@ -81,6 +81,7 @@ macro_rules! table {
 
             const ID: &'static str = "";
             const NAME: &'static str = "";
+            const SPAN: (usize, usize) = (0, 0);
         }
     };
 }

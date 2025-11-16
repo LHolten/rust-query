@@ -28,6 +28,7 @@ static_assertions = "1.1.0"
 self_cell = "1.2.1"
 parking_lot = "0.12.5"
 slab = "0.4.11"
+annotate-snippets = "0.12.9"
 
 [dev-dependencies]
 trybuild = "1.0.114"

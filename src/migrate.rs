@@ -3,6 +3,7 @@ pub mod migration;
 
 use std::{collections::HashMap, marker::PhantomData, sync::atomic::AtomicI64};
 
+use annotate_snippets::{Renderer, renderer::DecorStyle};
 use rusqlite::{Connection, config::DbConfig};
 use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder};
 use self_cell::MutBorrow;
@@ -42,6 +43,8 @@ impl<S> TableTypBuilder<S> {
 
 pub trait Schema: Sized + 'static {
     const VERSION: i64;
+    const SOURCE: &str;
+    const PATH: &str;
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
@@ -317,6 +320,14 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
 }
 
 pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
+    let from_macro = crate::schema::from_macro::Schema::new::<S>();
+    let from_db = read_schema(txn);
+    let report = from_db.diff(from_macro, S::SOURCE, S::PATH);
+    if !report.is_empty() {
+        let renderer = Renderer::styled().decor_style(DecorStyle::Unicode);
+        panic!("{}", renderer.render(&report));
+    }
+
     // normalize both sides, because we only care about compatibility
     pretty_assertions::assert_eq!(
         crate::schema::from_macro::Schema::new::<S>().normalize(),

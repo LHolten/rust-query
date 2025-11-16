@@ -1,4 +1,4 @@
-//! You can run this benchmark as `cargo test --release --test tpc_c`.
+//! You can run this benchmark as `cargo bench -- {num_warehouses}`.
 //! It will run with increasingly more warehouses and users.
 //! The benchmark stops when any of the transaction types has more than 10% late.
 //! At that point you can read the previous number of `new_order` transactions executed

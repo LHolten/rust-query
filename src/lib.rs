@@ -203,6 +203,9 @@ pub trait Table: Sized + 'static {
     fn typs(f: &mut TypBuilder<Self::Schema>);
 
     #[doc(hidden)]
+    const SPAN: (usize, usize);
+
+    #[doc(hidden)]
     const ID: &'static str;
     #[doc(hidden)]
     const NAME: &'static str;
