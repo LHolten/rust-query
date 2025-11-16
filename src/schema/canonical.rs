@@ -1,0 +1,40 @@
+use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ColumnType {
+    Integer = 0,
+    Float = 1,
+    String = 2,
+    Blob = 3,
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Column {
+    pub typ: ColumnType,
+    pub nullable: bool,
+    pub fk: Option<(String, String)>,
+}
+
+// TODO: remove redundant unique constraints
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Unique {
+    pub columns: BTreeSet<String>,
+}
+
+impl std::hash::Hash for Unique {
+    fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
+        self.columns.hash(hasher);
+        true.hash(hasher); // for backwards compatibility
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Table {
+    pub columns: BTreeMap<String, Column>,
+    pub indices: BTreeSet<Unique>,
+}
+
+#[derive(Debug, Hash, Default, PartialEq, Eq)]
+pub struct Schema {
+    pub tables: BTreeMap<String, Table>,
+}

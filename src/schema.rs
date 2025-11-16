@@ -2,13 +2,17 @@
 //! The layout is hashable and the hashes are independent
 //! of the column ordering and some other stuff.
 
+pub mod canonical;
 pub mod from_db;
 pub mod from_macro;
 pub mod read;
 
 use sea_query::{Alias, IndexCreateStatement, SqliteQueryBuilder, TableCreateStatement};
 
-use crate::schema::from_macro::{ColumnType, Index, Schema, Table};
+use crate::schema::{
+    canonical::ColumnType,
+    from_macro::{Index, Schema, Table},
+};
 
 impl ColumnType {
     pub fn sea_type(&self) -> sea_query::ColumnType {
@@ -23,41 +27,51 @@ impl ColumnType {
 }
 
 mod normalize {
-    use std::mem;
-
-    use crate::schema::from_macro::{Column, Index, Schema, Table};
+    use crate::schema::{
+        canonical,
+        from_macro::{Column, Index, Schema, Table},
+    };
 
     impl Column {
-        fn normalize(&mut self) {
-            self.span = (0, 0);
+        fn normalize(self) -> canonical::Column {
+            self.def
         }
     }
 
     impl Index {
-        fn normalize(&mut self) -> bool {
-            self.span = (0, 0);
-            // column order doesn't matter for correctness
-            self.columns.sort();
-            // non-unique indexes don't matter for correctness
-            self.unique
+        fn normalize(self) -> Option<canonical::Unique> {
+            self.unique.then_some(canonical::Unique {
+                columns: self.columns.into_iter().collect(),
+            })
         }
     }
 
     impl Table {
-        fn normalize(&mut self) {
-            self.span = (0, 0);
-            self.columns.values_mut().for_each(Column::normalize);
-            self.indices = mem::take(&mut self.indices)
-                .into_iter()
-                .filter_map(|mut idx| idx.normalize().then_some(idx))
-                .collect();
+        fn normalize(self) -> canonical::Table {
+            canonical::Table {
+                columns: self
+                    .columns
+                    .into_iter()
+                    .map(|(k, v)| (k, v.normalize()))
+                    .collect(),
+                indices: self
+                    .indices
+                    .into_iter()
+                    .filter_map(Index::normalize)
+                    .collect(),
+            }
         }
     }
 
     impl Schema {
-        pub(crate) fn normalize(mut self) -> Self {
-            self.tables.values_mut().for_each(Table::normalize);
-            self
+        pub(crate) fn normalize(self) -> canonical::Schema {
+            canonical::Schema {
+                tables: self
+                    .tables
+                    .into_iter()
+                    .map(|(k, v)| (k, v.normalize()))
+                    .collect(),
+            }
         }
     }
 }
@@ -83,6 +97,7 @@ impl Table {
         use sea_query::*;
         let mut create = Table::create();
         for (name, col) in &self.columns {
+            let col = &col.def;
             let name = Alias::new(name);
             let mut def = ColumnDef::new_with_type(name.clone(), col.typ.sea_type());
             if col.nullable {

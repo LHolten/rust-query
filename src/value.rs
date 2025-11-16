@@ -14,7 +14,7 @@ use crate::{
     db::{Join, TableRow, TableRowInner},
     mymap::MyMap,
     private::Joinable,
-    schema::from_macro,
+    schema::canonical,
 };
 
 #[derive(Default)]
@@ -320,7 +320,7 @@ impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
 pub trait MyTyp: 'static {
     type Prev: MyTyp;
     const NULLABLE: bool = false;
-    const TYP: from_macro::ColumnType;
+    const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
     type Out: SecretFromSql;
     type Lazy<'t>;
@@ -336,7 +336,7 @@ pub(crate) trait SecretFromSql: Sized {
 #[diagnostic::do_not_recommend]
 impl<T: Table> MyTyp for T {
     type Prev = T::MigrateFrom;
-    const TYP: from_macro::ColumnType = from_macro::ColumnType::Integer;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out = TableRow<T>;
     type Lazy<'t> = Lazy<'t, T>;
@@ -365,7 +365,7 @@ impl<T: Table> SecretFromSql for TableRow<T> {
 
 impl MyTyp for i64 {
     type Prev = Self;
-    const TYP: from_macro::ColumnType = from_macro::ColumnType::Integer;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();
@@ -383,7 +383,7 @@ impl SecretFromSql for i64 {
 
 impl MyTyp for f64 {
     type Prev = Self;
-    const TYP: from_macro::ColumnType = from_macro::ColumnType::Float;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Float;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();
@@ -401,7 +401,7 @@ impl SecretFromSql for f64 {
 
 impl MyTyp for bool {
     type Prev = Self;
-    const TYP: from_macro::ColumnType = from_macro::ColumnType::Integer;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();
@@ -419,7 +419,7 @@ impl SecretFromSql for bool {
 
 impl MyTyp for String {
     type Prev = Self;
-    const TYP: from_macro::ColumnType = from_macro::ColumnType::String;
+    const TYP: canonical::ColumnType = canonical::ColumnType::String;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();
@@ -438,7 +438,7 @@ impl SecretFromSql for String {
 
 impl MyTyp for Vec<u8> {
     type Prev = Self;
-    const TYP: from_macro::ColumnType = from_macro::ColumnType::Blob;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Blob;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();
@@ -457,7 +457,7 @@ impl SecretFromSql for Vec<u8> {
 
 impl<T: MyTyp> MyTyp for Option<T> {
     type Prev = Option<T::Prev>;
-    const TYP: from_macro::ColumnType = T::TYP;
+    const TYP: canonical::ColumnType = T::TYP;
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out = Option<T::Out>;

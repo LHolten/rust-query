@@ -28,20 +28,22 @@ pub struct Schema {
 // Temporary impls until diff.rs is done
 mod to_macro {
     use super::*;
-    use crate::schema::from_macro;
+    use crate::schema::{canonical, from_macro};
 
     impl Column {
         fn to_macro(self) -> from_macro::Column {
             let typ = match self.typ.as_str() {
-                "INTEGER" => from_macro::ColumnType::Integer,
-                "TEXT" => from_macro::ColumnType::String,
-                "REAL" => from_macro::ColumnType::Float,
+                "INTEGER" => canonical::ColumnType::Integer,
+                "TEXT" => canonical::ColumnType::String,
+                "REAL" => canonical::ColumnType::Float,
                 t => panic!("unknown type {t}"),
             };
             from_macro::Column {
-                typ,
-                nullable: self.nullable,
-                fk: self.fk,
+                def: canonical::Column {
+                    typ,
+                    nullable: self.nullable,
+                    fk: self.fk,
+                },
                 span: (0, 0),
             }
         }

@@ -552,6 +552,7 @@ impl<S: Schema> TransactionWeak<S> {
         let mut checks = vec![];
         for (table_name, table) in &schema.tables {
             for col in table.columns.iter().filter_map(|(col_name, col)| {
+                let col = &col.def;
                 col.fk
                     .as_ref()
                     .is_some_and(|(t, c)| t == T::NAME && c == T::ID)
