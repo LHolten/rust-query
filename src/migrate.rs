@@ -265,11 +265,10 @@ impl<S: Schema> Migrator<S> {
 
 fn fix_indices<S: Schema>(txn: &Transaction<S>) {
     let schema = read_schema(txn);
-
-    let mut expected_schema = crate::hash::Schema::new::<S>();
+    let expected_schema = crate::hash::Schema::new::<S>();
 
     for (name, table) in schema.tables {
-        let expected_table = expected_schema.tables.remove(&name).unwrap();
+        let expected_table = &expected_schema.tables[&name];
 
         if expected_table.indices != table.indices {
             // Delete all indices associated with the table
@@ -286,6 +285,8 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
             }
         }
     }
+
+    assert_eq!(expected_schema, read_schema(txn));
 }
 
 impl<S> Transaction<S> {
@@ -329,11 +330,84 @@ fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {
     error.transpose().unwrap()
 }
 
-#[test]
-fn open_multiple() {
-    #[crate::migration::schema(Empty)]
-    pub mod vN {}
+impl<S> Transaction<S> {
+    #[cfg(test)]
+    pub(crate) fn schema(&self) -> Vec<String> {
+        TXN.with_borrow(|x| {
+            x.as_ref()
+                .unwrap()
+                .get()
+                .prepare("SELECT sql FROM 'main'.'sqlite_schema'")
+                .unwrap()
+                .query_map([], |row| row.get("sql"))
+                .unwrap()
+                .map(|x| x.unwrap())
+                .collect()
+        })
+    }
+}
 
-    let _a = Database::<v0::Empty>::migrator(Config::open_in_memory());
-    let _b = Database::<v0::Empty>::migrator(Config::open_in_memory());
+impl<S: Send + Sync + Schema> Database<S> {
+    #[cfg(test)]
+    fn check_schema(&self, expect: expect_test::Expect) {
+        let mut schema = self.transaction(|txn| txn.schema());
+        schema.sort();
+        expect.assert_eq(&schema.join("\n"));
+    }
+}
+
+#[test]
+fn fix_indices_test() {
+    mod without_index {
+        #[crate::migration::schema(Schema)]
+        pub mod vN {
+            pub struct Foo {
+                pub bar: String,
+            }
+        }
+    }
+
+    mod with_index {
+        #[crate::migration::schema(Schema)]
+        pub mod vN {
+            pub struct Foo {
+                #[index]
+                pub bar: String,
+            }
+        }
+    }
+
+    let db = Database::<without_index::v0::Schema>::migrator(Config::open("index_test.sqlite"))
+        .unwrap()
+        .finish()
+        .unwrap();
+    // The first database is opened with a schema without index
+    db.check_schema(expect_test::expect![[
+        r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
+    ]]);
+
+    let db_with_index =
+        Database::<with_index::v0::Schema>::migrator(Config::open("index_test.sqlite"))
+            .unwrap()
+            .finish()
+            .unwrap();
+    // The database is updated without a new schema version.
+    // Adding an index is allowed because it does not change database validity.
+    db_with_index.check_schema(expect_test::expect![[r#"
+        CREATE INDEX "foo_index_0" ON "foo" ("bar")
+        CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+
+    // Using the old database connection will still work, because the new schema is compatible.
+    db.check_schema(expect_test::expect![[r#"
+        CREATE INDEX "foo_index_0" ON "foo" ("bar")
+        CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+
+    let db = Database::<without_index::v0::Schema>::migrator(Config::open("index_test.sqlite"))
+        .unwrap()
+        .finish()
+        .unwrap();
+    // Opening the database with the old schema again removes the index.
+    db.check_schema(expect_test::expect![[
+        r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
+    ]]);
 }

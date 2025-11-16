@@ -369,7 +369,7 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
         }
 
         output.extend(quote! {
-            mod #new_mod {
+            pub mod #new_mod {
                 #mod_output
             }
         });

@@ -70,7 +70,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         });
 
         let migrated = Transaction::new().query(|rows| {
-            let new = rows.join_tmp::<M::From>(new_name);
+            let new = rows.join_tmp::<M::To>(new_name);
             rows.into_vec(new)
         });
         let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
