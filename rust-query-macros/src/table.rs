@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf, str::FromStr};
+use std::{cell::OnceCell, collections::BTreeMap, path::Path};
 
 use crate::{dummy::wrap, SingleVersionTable};
 
@@ -27,8 +27,8 @@ pub fn define_all_tables(
         schema_table_typs.push(quote! {b.table::<#table_name>()});
     }
 
-    let file = PathBuf::from_str(&schema_name.span().file()).unwrap();
     // unwrap_or_default is used here because rust-analyzer sometimes doesn't give us the path
+    let file = schema_name.span().local_file().unwrap_or_default();
     let file = file.file_name().unwrap_or_default().to_str().unwrap();
 
     let version_i64 = version as i64;
@@ -47,6 +47,25 @@ pub fn define_all_tables(
     Ok(mod_output)
 }
 
+fn byte_from(file: &Path, line: usize, col: usize) -> usize {
+    thread_local! {
+        static FILE: OnceCell<String> = OnceCell::new()
+    }
+    FILE.with(|f| {
+        let file = f.get_or_init(|| std::fs::read_to_string(file).unwrap());
+        file.lines().skip(line - 1).next().unwrap().as_ptr().addr() - file.as_ptr().addr() + col
+    })
+}
+
+fn byte_range(span: Span) -> TokenStream {
+    let Some(path) = span.local_file() else {
+        return quote! {(0, 0)};
+    };
+    let start = byte_from(&path, span.start().line, span.start().column);
+    let end = byte_from(&path, span.end().line, span.end().column);
+    quote! {(#start, #end)}
+}
+
 fn define_table(
     table: &mut SingleVersionTable,
     schema: &Ident,
@@ -58,9 +77,7 @@ fn define_table(
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
-    let table_span = table_ident_with_span.span().byte_range();
-    let (span_start, span_end) = (table_span.start, table_span.end);
-    let table_span = quote! {(#span_start, #span_end)};
+    let table_span = byte_range(table_ident_with_span.span());
 
     let unique_tree = table.make_unique_tree();
     let unique_info = table.make_info(schema.clone());
@@ -74,9 +91,8 @@ fn define_table(
             col_str.push(col.to_string());
         }
         let is_unique = index.unique;
-        let span = index.span.byte_range();
-        let (span_start, span_end) = (span.start, span.end);
-        unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique, (#span_start, #span_end))});
+        let index_span = byte_range(index.span);
+        unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique, #index_span)});
     }
 
     let (conflict_type, conflict_dummy_insert) = table.conflict();
@@ -122,9 +138,7 @@ fn define_table(
         }
 
         col_typ.push(tmp);
-        let span = col.name.span().byte_range();
-        let (span_start, span_end) = (span.start, span.end);
-        col_span.push(quote! {(#span_start, #span_end)});
+        col_span.push(byte_range(col.name.span()));
         empty.push(quote! {});
     }
 
