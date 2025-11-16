@@ -377,7 +377,9 @@ fn fix_indices_test() {
         }
     }
 
-    let db = Database::<without_index::v0::Schema>::migrator(Config::open("index_test.sqlite"))
+    static FILE_NAME: &'static str = "index_test.sqlite";
+
+    let db = Database::<without_index::v0::Schema>::migrator(Config::open(FILE_NAME))
         .unwrap()
         .finish()
         .unwrap();
@@ -386,11 +388,10 @@ fn fix_indices_test() {
         r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
     ]]);
 
-    let db_with_index =
-        Database::<with_index::v0::Schema>::migrator(Config::open("index_test.sqlite"))
-            .unwrap()
-            .finish()
-            .unwrap();
+    let db_with_index = Database::<with_index::v0::Schema>::migrator(Config::open(FILE_NAME))
+        .unwrap()
+        .finish()
+        .unwrap();
     // The database is updated without a new schema version.
     // Adding an index is allowed because it does not change database validity.
     db_with_index.check_schema(expect_test::expect![[r#"
@@ -402,7 +403,7 @@ fn fix_indices_test() {
         CREATE INDEX "foo_index_0" ON "foo" ("bar")
         CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
 
-    let db = Database::<without_index::v0::Schema>::migrator(Config::open("index_test.sqlite"))
+    let db = Database::<without_index::v0::Schema>::migrator(Config::open(FILE_NAME))
         .unwrap()
         .finish()
         .unwrap();
@@ -410,4 +411,6 @@ fn fix_indices_test() {
     db.check_schema(expect_test::expect![[
         r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
     ]]);
+
+    std::fs::remove_file(FILE_NAME).unwrap();
 }
