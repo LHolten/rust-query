@@ -9,24 +9,23 @@ extern crate static_assertions;
 mod alias;
 mod ast;
 mod db;
-mod hash;
 mod joinable;
 mod lazy;
 mod migrate;
 mod mymap;
 mod query;
 mod rows;
-mod schema_pragma;
+mod schema;
 mod select;
 mod transaction;
 mod value;
 mod writable;
 
 pub use db::TableRow;
-use hash::TypBuilder;
 pub use lazy::Lazy;
 use private::Reader;
 pub use rust_query_macros::{FromExpr, Select};
+use schema::TypBuilder;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 use value::MyTyp;
@@ -51,13 +50,13 @@ pub mod args {
 ///
 /// A good starting point is too look at [crate::migration::schema].
 pub mod migration {
-    #[cfg(feature = "dev")]
-    pub use crate::hash::dev::hash_schema;
     pub use crate::migrate::{
         Migrator,
         config::{Config, ForeignKeys, Synchronous},
         migration::{Migrated, TransactionMigrate},
     };
+    #[cfg(feature = "dev")]
+    pub use crate::schema::dev::hash_schema;
     pub use rust_query_macros::schema;
 }
 
@@ -67,13 +66,13 @@ pub mod migration {
 pub mod private {
     use std::marker::PhantomData;
 
-    pub use crate::hash::TypBuilder;
     pub use crate::joinable::Joinable;
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
         migration::{Migration, SchemaBuilder},
     };
     pub use crate::query::get_plan;
+    pub use crate::schema::TypBuilder;
     pub use crate::value::{
         DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };

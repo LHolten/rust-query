@@ -5,8 +5,8 @@ use sea_query::Func;
 use crate::{
     Expr, FromExpr, Table, Transaction,
     alias::JoinableTable,
-    hash,
     private::{Reader, new_column},
+    schema,
 };
 
 pub fn strip_raw(inp: &'static str) -> &'static str {
@@ -45,7 +45,7 @@ macro_rules! table {
                 $name
             }
 
-            fn typs(_f: &mut hash::TypBuilder<Self::Schema>) {}
+            fn typs(_f: &mut schema::TypBuilder<Self::Schema>) {}
 
             type Conflict = Infallible;
             type UpdateOk = ();
@@ -148,7 +148,7 @@ table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").
     }
 }
 
-pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
+pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
     let conn = Transaction::new();
 
     #[derive(Clone, FromExpr)]
@@ -170,7 +170,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
         q.into_vec(&table.name)
     });
 
-    let mut output = hash::Schema::default();
+    let mut output = schema::Schema::default();
 
     for table_name in tables {
         let mut columns: Vec<Column> = conn.query(|q| {
@@ -187,9 +187,9 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
             .collect();
 
         let make_type = |col: &Column| match col.r#type.as_str() {
-            "INTEGER" => hash::ColumnType::Integer,
-            "TEXT" => hash::ColumnType::String,
-            "REAL" => hash::ColumnType::Float,
+            "INTEGER" => schema::ColumnType::Integer,
+            "TEXT" => schema::ColumnType::String,
+            "REAL" => schema::ColumnType::Float,
             t => panic!("unknown type {t}"),
         };
 
@@ -202,9 +202,9 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
             true
         });
 
-        let mut table_def = hash::Table::default();
+        let mut table_def = schema::Table::default();
         for col in columns {
-            let def = hash::Column {
+            let def = schema::Column {
                 fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
                 typ: make_type(&col),
                 nullable: col.notnull == 0,
@@ -256,7 +256,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> hash::Schema {
                 continue;
             };
 
-            table_def.indices.insert(hash::Index {
+            table_def.indices.insert(schema::Index {
                 columns,
                 unique: index.unique,
             });

@@ -52,7 +52,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
             let new_table_name = self.scope.tmp_table();
             TXN.with_borrow(|txn| {
                 let conn = txn.as_ref().unwrap().get();
-                let table = crate::hash::Table::new::<T>();
+                let table = crate::schema::Table::new::<T>();
                 new_table_inner(conn, &table, new_table_name);
                 self.extra_index.extend(table.create_indices(T::NAME));
             });

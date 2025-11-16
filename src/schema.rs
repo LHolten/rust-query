@@ -2,6 +2,8 @@
 //! The layout is hashable and the hashes are independent
 //! of the column ordering and some other stuff.
 
+pub mod read;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -63,7 +65,7 @@ pub struct Table {
 
 impl Table {
     pub(crate) fn new<T: crate::Table>() -> Self {
-        let mut f = crate::hash::TypBuilder::default();
+        let mut f = crate::schema::TypBuilder::default();
         T::typs(&mut f);
         f.ast
     }

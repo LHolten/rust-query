@@ -544,7 +544,7 @@ impl<S: Schema> TransactionWeak<S> {
     /// - `true` if the row was just deleted.
     /// - `false` if the row was deleted previously in this transaction.
     pub fn delete<T: Table<Schema = S>>(&mut self, val: TableRow<T>) -> Result<bool, T::Referer> {
-        let schema = crate::hash::Schema::new::<S>();
+        let schema = crate::schema::Schema::new::<S>();
 
         // This is a manual check that foreign key constraints are not violated.
         // We do this manually because we don't want to enabled foreign key constraints for the whole

@@ -8,17 +8,18 @@ use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder};
 use self_cell::MutBorrow;
 
 use crate::{
-    Table, Transaction, hash,
+    Table, Transaction,
     migrate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
     },
-    schema_pragma::{read_index_names_for_table, read_schema},
+    schema,
+    schema::read::{read_index_names_for_table, read_schema},
     transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
 };
 
 pub struct TableTypBuilder<S> {
-    pub(crate) ast: hash::Schema,
+    pub(crate) ast: schema::Schema,
     _p: PhantomData<S>,
 }
 
@@ -33,7 +34,7 @@ impl<S> Default for TableTypBuilder<S> {
 
 impl<S> TableTypBuilder<S> {
     pub fn table<T: Table<Schema = S>>(&mut self) {
-        let table = hash::Table::new::<T>();
+        let table = schema::Table::new::<T>();
         let old = self.ast.tables.insert(T::NAME.to_owned(), table);
         debug_assert!(old.is_none());
     }
@@ -44,7 +45,7 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl IntoTableRef) {
+fn new_table_inner(conn: &Connection, table: &crate::schema::Table, alias: impl IntoTableRef) {
     let mut create = table.create();
     create
         .table(alias)
@@ -91,7 +92,7 @@ impl<S: Schema> Database<S> {
 
         // check if this database is newly created
         if schema_version(txn.get()) == 0 {
-            let schema = crate::hash::Schema::new::<S>();
+            let schema = crate::schema::Schema::new::<S>();
 
             for (table_name, table) in &schema.tables {
                 let table_name_ref = Alias::new(table_name);
@@ -265,7 +266,7 @@ impl<S: Schema> Migrator<S> {
 
 fn fix_indices<S: Schema>(txn: &Transaction<S>) {
     let schema = read_schema(txn);
-    let expected_schema = crate::hash::Schema::new::<S>();
+    let expected_schema = crate::schema::Schema::new::<S>();
 
     for (name, table) in schema.tables {
         let expected_table = &expected_schema.tables[&name];
@@ -314,7 +315,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
 pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
     // normalize both sides, because we only care about compatibility
     pretty_assertions::assert_eq!(
-        crate::hash::Schema::new::<S>().normalize(),
+        crate::schema::Schema::new::<S>().normalize(),
         read_schema(txn).normalize(),
         "schema is different (expected left, but got right)",
     );
