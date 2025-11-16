@@ -9,7 +9,7 @@ pub struct Column {
     pub fk: Option<(String, String)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Index {
     // column order matters for performance
     pub columns: Vec<String>,
@@ -75,8 +75,7 @@ mod to_macro {
     impl Index {
         fn to_macro(self) -> from_macro::Index {
             from_macro::Index {
-                columns: self.columns,
-                unique: self.unique,
+                def: self,
                 span: (0, 0),
             }
         }

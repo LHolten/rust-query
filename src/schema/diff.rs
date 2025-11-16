@@ -101,7 +101,7 @@ impl from_db::Schema {
                     if !annotations.is_empty() || !db_only.is_empty() {
                         let span = || from_macro.span.0..from_macro.span.1;
                         report.push(
-                            Level::ERROR.primary_title("column mismatch").element(
+                            Level::ERROR.primary_title("Column mismatch").element(
                                 Snippet::source(source)
                                     .path(path)
                                     .annotations(db_only.is_empty().then(|| {
@@ -123,7 +123,7 @@ impl from_db::Schema {
         if !annotations.is_empty() || !db_only.is_empty() {
             let span = || from_macro.span.0..from_macro.span.1;
             report.push(
-                Level::ERROR.primary_title("table mismatch").element(
+                Level::ERROR.primary_title("Table mismatch").element(
                     Snippet::source(source)
                         .path(path)
                         .annotations(

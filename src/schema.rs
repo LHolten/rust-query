@@ -41,8 +41,8 @@ mod normalize {
 
     impl Index {
         fn normalize(self) -> Option<canonical::Unique> {
-            self.unique.then_some(canonical::Unique {
-                columns: self.columns.into_iter().collect(),
+            self.def.unique.then_some(canonical::Unique {
+                columns: self.def.columns.into_iter().collect(),
             })
         }
     }
@@ -138,12 +138,12 @@ impl Table {
 impl Index {
     pub fn create(&self) -> IndexCreateStatement {
         let mut index = sea_query::Index::create();
-        if self.unique {
+        if self.def.unique {
             index.unique();
         }
         // Preserve the original order of columns in the unique constraint.
         // This lets users optimize queries by using index prefixes.
-        for col in &self.columns {
+        for col in &self.def.columns {
             index.col(Alias::new(col));
         }
         index

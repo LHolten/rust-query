@@ -1,7 +1,11 @@
 pub mod config;
 pub mod migration;
 
-use std::{collections::HashMap, marker::PhantomData, sync::atomic::AtomicI64};
+use std::{
+    collections::{BTreeSet, HashMap},
+    marker::PhantomData,
+    sync::atomic::AtomicI64,
+};
 
 use annotate_snippets::{Renderer, renderer::DecorStyle};
 use rusqlite::{Connection, config::DbConfig};
@@ -14,13 +18,15 @@ use crate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
     },
-    schema,
-    schema::read::{read_index_names_for_table, read_schema},
+    schema::{
+        from_db, from_macro,
+        read::{read_index_names_for_table, read_schema},
+    },
     transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
 };
 
 pub struct TableTypBuilder<S> {
-    pub(crate) ast: schema::from_macro::Schema,
+    pub(crate) ast: from_macro::Schema,
     _p: PhantomData<S>,
 }
 
@@ -35,7 +41,7 @@ impl<S> Default for TableTypBuilder<S> {
 
 impl<S> TableTypBuilder<S> {
     pub fn table<T: Table<Schema = S>>(&mut self) {
-        let table = schema::from_macro::Table::new::<T>();
+        let table = from_macro::Table::new::<T>();
         let old = self.ast.tables.insert(T::NAME.to_owned(), table);
         debug_assert!(old.is_none());
     }
@@ -273,13 +279,19 @@ impl<S: Schema> Migrator<S> {
 }
 
 fn fix_indices<S: Schema>(txn: &Transaction<S>) {
-    let schema = read_schema(txn).to_macro();
+    let schema = read_schema(txn);
     let expected_schema = crate::schema::from_macro::Schema::new::<S>();
+
+    fn check_eq(expected: &from_macro::Table, actual: &from_db::Table) -> bool {
+        let expected: BTreeSet<_> = expected.indices.iter().map(|idx| &idx.def).collect();
+        let actual: BTreeSet<_> = actual.indices.values().collect();
+        expected == actual
+    }
 
     for (name, table) in schema.tables {
         let expected_table = &expected_schema.tables[&name];
 
-        if expected_table.indices != table.indices {
+        if !check_eq(expected_table, &table) {
             // Delete all indices associated with the table
             for index_name in read_index_names_for_table(&crate::Transaction::new(), &name) {
                 let sql = sea_query::Index::drop()
@@ -295,7 +307,12 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
         }
     }
 
-    assert_eq!(expected_schema, read_schema(txn).to_macro());
+    // check that we solved the mismatch
+    let schema = read_schema(txn);
+    for (name, table) in schema.tables {
+        let expected_table = &expected_schema.tables[&name];
+        assert!(check_eq(expected_table, &table));
+    }
 }
 
 impl<S> Transaction<S> {

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    schema::canonical,
+    schema::{canonical, from_db},
     value::{EqTyp, MyTyp},
 };
 
@@ -16,9 +16,7 @@ pub struct Column {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Index {
-    // column order matters for performance
-    pub columns: Vec<String>,
-    pub unique: bool,
+    pub def: from_db::Index,
     pub span: (usize, usize),
 }
 
@@ -64,15 +62,11 @@ impl<S> TypBuilder<S> {
     }
 
     pub fn index(&mut self, cols: &[&'static str], unique: bool, span: (usize, usize)) {
-        let mut index = Index {
-            columns: Vec::default(),
+        let def = from_db::Index {
+            columns: cols.iter().copied().map(str::to_owned).collect(),
             unique,
-            span,
         };
-        for &col in cols {
-            index.columns.push(col.to_owned());
-        }
-        self.ast.indices.insert(index);
+        self.ast.indices.insert(Index { def, span });
     }
 
     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
