@@ -7,25 +7,31 @@ use crate::schema::{from_db, from_macro};
 pub enum EntryDiff<A, E> {
     DbOnly(E),
     MacroOnly(A),
-    Diff { actual: A, expected: E },
+    Diff { from_macro: A, from_db: E },
 }
 
 pub fn diff_map<A, E>(
-    mut actual: BTreeMap<String, A>,
-    expected: BTreeMap<String, E>,
+    mut from_macro: BTreeMap<String, A>,
+    from_db: BTreeMap<String, E>,
 ) -> BTreeMap<String, EntryDiff<A, E>> {
     let mut out = BTreeMap::new();
-    for (key, expected) in expected {
-        match actual.remove(&key) {
-            Some(actual) => {
-                out.insert(key, EntryDiff::Diff { actual, expected });
+    for (key, from_db) in from_db {
+        match from_macro.remove(&key) {
+            Some(from_macro) => {
+                out.insert(
+                    key,
+                    EntryDiff::Diff {
+                        from_macro,
+                        from_db,
+                    },
+                );
             }
             None => {
-                out.insert(key, EntryDiff::DbOnly(expected));
+                out.insert(key, EntryDiff::DbOnly(from_db));
             }
         }
     }
-    for (key, actual) in actual {
+    for (key, actual) in from_macro {
         out.insert(key, EntryDiff::MacroOnly(actual));
     }
     out
@@ -55,31 +61,47 @@ impl from_db::Schema {
                                 Snippet::source(source).path(path).annotation(
                                     AnnotationKind::Primary
                                         .span(span)
-                                        .label("table is defined here"),
+                                        .label("this table does not exist in the database"),
                                 ),
                             ),
                     );
                 }
-                EntryDiff::Diff { actual, expected } => {
+                EntryDiff::Diff {
+                    from_macro,
+                    from_db,
+                } => {
                     let mut db_only = Vec::new();
                     let mut annotations = Vec::new();
 
-                    let span = actual.span.0..actual.span.1;
-                    for (col, diff) in diff_map(actual.columns, expected.columns) {
+                    let span = || from_macro.span.0..from_macro.span.1;
+                    for (col, diff) in diff_map(from_macro.columns, from_db.columns) {
                         match diff {
-                            EntryDiff::DbOnly(_) => db_only.push(
-                                Level::ERROR.message(format!("column {col} was not defined")),
-                            ),
+                            EntryDiff::DbOnly(_) => db_only.push(col),
                             EntryDiff::MacroOnly(column) => {
                                 let span = column.span.0..column.span.1;
                                 annotations.push(
-                                    AnnotationKind::Context
+                                    AnnotationKind::Primary
                                         .span(span)
-                                        .label("this column does not exist in the database"),
+                                        .label("database does not have this column"),
                                 );
                             }
-                            EntryDiff::Diff { actual, expected } => {
-                                // TODO: match column
+                            EntryDiff::Diff {
+                                from_macro,
+                                from_db,
+                            } => {
+                                let span = from_macro.span.0..from_macro.span.1;
+                                if from_db.parse_typ() == Ok(from_macro.def.typ)
+                                    && from_db.nullable == from_macro.def.nullable
+                                    && from_db.fk == from_macro.def.fk
+                                {
+                                    continue;
+                                }
+                                annotations.push(
+                                    AnnotationKind::Primary.span(span).label(format!(
+                                        "database has type {}",
+                                        from_db.render_rust()
+                                    )),
+                                );
                             }
                         }
                     }
@@ -91,14 +113,18 @@ impl from_db::Schema {
                                 .element(
                                     Snippet::source(source)
                                         .path(path)
-                                        .annotation(
+                                        .annotations(db_only.is_empty().then(|| {
+                                            AnnotationKind::Context
+                                                .span(span())
+                                                .label("in this table")
+                                        }))
+                                        .annotations(db_only.iter().map(|col| {
                                             AnnotationKind::Primary
-                                                .span(span)
-                                                .label("in this table"),
-                                        )
+                                                .span(span())
+                                                .label(format!("database has `{col}` column"))
+                                        }))
                                         .annotations(annotations),
-                                )
-                                .elements(db_only),
+                                ),
                         );
                     }
                 }
