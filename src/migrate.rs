@@ -1,22 +1,20 @@
-use std::{
-    collections::{HashMap, HashSet},
-    convert::Infallible,
-    marker::PhantomData,
-    ops::Deref,
-    path::Path,
-    sync::atomic::AtomicI64,
-};
+pub mod config;
+pub mod migration;
+
+use std::{collections::HashMap, marker::PhantomData, sync::atomic::AtomicI64};
 
 use rusqlite::{Connection, config::DbConfig};
-use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder, TableDropStatement};
+use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder};
 use self_cell::MutBorrow;
 
 use crate::{
-    IntoExpr, Lazy, Table, TableRow, Transaction,
-    alias::{Scope, TmpTable},
-    hash,
+    Table, Transaction, hash,
+    migrate::{
+        config::Config,
+        migration::{SchemaBuilder, TransactionMigrate},
+    },
     schema_pragma::{read_index_names_for_table, read_schema},
-    transaction::{Database, OwnedTransaction, TXN, TransactionWithRows, try_insert_private},
+    transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
 };
 
 pub struct TableTypBuilder<S> {
@@ -46,152 +44,6 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-pub trait Migration {
-    type FromSchema: 'static;
-    type From: Table<Schema = Self::FromSchema>;
-    type To: Table<MigrateFrom = Self::From>;
-    type Conflict;
-
-    #[doc(hidden)]
-    fn prepare(
-        val: Self,
-        prev: crate::Expr<'static, Self::FromSchema, Self::From>,
-    ) -> <Self::To as Table>::Insert;
-    #[doc(hidden)]
-    fn map_conflict(val: TableRow<Self::From>) -> Self::Conflict;
-}
-
-/// Transaction type for use in migrations.
-pub struct TransactionMigrate<FromSchema> {
-    inner: Transaction<FromSchema>,
-    scope: Scope,
-    rename_map: HashMap<&'static str, TmpTable>,
-    // creating indices is delayed so that they don't need to be renamed
-    extra_index: Vec<String>,
-}
-
-impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
-    type Target = Transaction<FromSchema>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
-    fn new_table_name<T: Table>(&mut self) -> TmpTable {
-        *self.rename_map.entry(T::NAME).or_insert_with(|| {
-            let new_table_name = self.scope.tmp_table();
-            TXN.with_borrow(|txn| {
-                let conn = txn.as_ref().unwrap().get();
-                let table = crate::hash::Table::new::<T>();
-                new_table_inner(conn, &table, new_table_name);
-                self.extra_index.extend(table.create_indices(T::NAME));
-            });
-            new_table_name
-        })
-    }
-
-    fn unmigrated<M: Migration<FromSchema = FromSchema>>(
-        &self,
-        new_name: TmpTable,
-    ) -> impl Iterator<Item = TableRow<M::From>> {
-        let data = self.inner.query(|rows| {
-            let old = rows.join_private::<M::From>();
-            rows.into_vec(old)
-        });
-
-        let migrated = Transaction::new().query(|rows| {
-            let new = rows.join_tmp::<M::From>(new_name);
-            rows.into_vec(new)
-        });
-        let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
-
-        data.into_iter()
-            .filter(move |row| !migrated.contains(&row.inner.idx))
-    }
-
-    /// Migrate some rows to the new schema.
-    ///
-    /// This will return an error when there is a conflict.
-    /// The error type depends on the number of unique constraints that the
-    /// migration can violate:
-    /// - 0 => [Infallible]
-    /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
-    pub fn migrate_optional<'t, M: Migration<FromSchema = FromSchema>>(
-        &'t mut self,
-        mut f: impl FnMut(Lazy<'t, M::From>) -> Option<M>,
-    ) -> Result<(), M::Conflict> {
-        let new_name = self.new_table_name::<M::To>();
-
-        for row in self.unmigrated::<M>(new_name) {
-            if let Some(new) = f(self.lazy(row)) {
-                try_insert_private::<M::To>(
-                    new_name.into_table_ref(),
-                    Some(row.inner.idx),
-                    M::prepare(new, row.into_expr()),
-                )
-                .map_err(|_| M::map_conflict(row))?;
-            };
-        }
-        Ok(())
-    }
-
-    /// Migrate all rows to the new schema.
-    ///
-    /// Conflict errors work the same as in [Self::migrate_optional].
-    ///
-    /// However, this method will return [Migrated] when all rows are migrated.
-    /// This can then be used as proof that there will be no foreign key violations.
-    pub fn migrate<'t, M: Migration<FromSchema = FromSchema>>(
-        &'t mut self,
-        mut f: impl FnMut(Lazy<'t, M::From>) -> M,
-    ) -> Result<Migrated<'static, FromSchema, M::To>, M::Conflict> {
-        self.migrate_optional::<M>(|x| Some(f(x)))?;
-
-        Ok(Migrated {
-            _p: PhantomData,
-            f: Box::new(|_| {}),
-            _local: PhantomData,
-        })
-    }
-
-    /// Helper method for [Self::migrate].
-    ///
-    /// It can only be used when the migration is known to never cause unique constraint conflicts.
-    pub fn migrate_ok<'t, M: Migration<FromSchema = FromSchema, Conflict = Infallible>>(
-        &'t mut self,
-        f: impl FnMut(Lazy<'t, M::From>) -> M,
-    ) -> Migrated<'static, FromSchema, M::To> {
-        let Ok(res) = self.migrate(f);
-        res
-    }
-}
-
-pub struct SchemaBuilder<'t, FromSchema> {
-    inner: TransactionMigrate<FromSchema>,
-    drop: Vec<TableDropStatement>,
-    foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
-}
-
-impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
-    pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
-        self.inner.new_table_name::<To>();
-
-        self.foreign_key.insert(To::NAME, Box::new(err));
-    }
-
-    pub fn create_empty<To: Table>(&mut self) {
-        self.inner.new_table_name::<To>();
-    }
-
-    pub fn drop_table<T: Table>(&mut self) {
-        let name = Alias::new(T::NAME);
-        let step = sea_query::Table::drop().table(name).take();
-        self.drop.push(step);
-    }
-}
-
 fn new_table_inner(conn: &Connection, table: &crate::hash::Table, alias: impl IntoTableRef) {
     let mut create = table.create();
     create
@@ -207,130 +59,6 @@ pub trait SchemaMigration<'a> {
     type To: Schema;
 
     fn tables(self, b: &mut SchemaBuilder<'a, Self::From>);
-}
-
-/// [Config] is used to open a database from a file or in memory.
-///
-/// This is the first step in the [Config] -> [Migrator] -> [Database] chain to
-/// get a [Database] instance.
-///
-/// # Sqlite config
-///
-/// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html).
-/// The effect of this mode is that there can be any number of readers with one concurrent writer.
-/// What is nice about this is that a `&`[crate::Transaction] can always be made immediately.
-/// Making a `&mut`[crate::Transaction] has to wait until all other `&mut`[crate::Transaction]s are finished.
-pub struct Config {
-    manager: r2d2_sqlite::SqliteConnectionManager,
-    init: Box<dyn FnOnce(&rusqlite::Transaction)>,
-    /// Configure how often SQLite will synchronize the database to disk.
-    ///
-    /// The default is [Synchronous::Full].
-    pub synchronous: Synchronous,
-    /// Configure how foreign keys should be checked.
-    pub foreign_keys: ForeignKeys,
-}
-
-/// <https://www.sqlite.org/pragma.html#pragma_synchronous>
-///
-/// Note that the database uses WAL mode, so make sure to read the WAL specific section.
-#[non_exhaustive]
-pub enum Synchronous {
-    /// SQLite will fsync after every transaction.
-    ///
-    /// Transactions are durable, even following a power failure or hard reboot.
-    Full,
-
-    /// SQLite will only do essential fsync to prevent corruption.
-    ///
-    /// The database will not rollback transactions due to application crashes, but it might rollback due to a hardware reset or power loss.
-    /// Use this when performance is more important than durability.
-    Normal,
-}
-
-impl Synchronous {
-    fn as_str(self) -> &'static str {
-        match self {
-            Synchronous::Full => "FULL",
-            Synchronous::Normal => "NORMAL",
-        }
-    }
-}
-
-/// Which method should be used to check foreign-key constraints.
-///
-/// The default is [ForeignKeys::SQLite], but this is likely to change to [ForeignKeys::Rust].
-#[non_exhaustive]
-pub enum ForeignKeys {
-    /// Foreign-key constraints are checked by rust-query only.
-    ///
-    /// Most foreign-key checks are done at compile time and are thus completely free.
-    /// However, some runtime checks are required for deletes.
-    Rust,
-
-    /// Foreign-key constraints are checked by SQLite in addition to the checks done by rust-query.
-    ///
-    /// This is useful when using rust-query with [crate::TransactionWeak::rusqlite_transaction]
-    /// or when other software can write to the database.
-    /// Both can result in "dangling" foreign keys (which point at a non-existent row) if written incorrectly.
-    /// Dangling foreign keys can result in wrong results, but these dangling foreign keys can also turn
-    /// into "false" foreign keys if a new record is inserted that makes the foreign key valid.
-    /// This is a lot worse than a dangling foreign key, because it is generally not possible to detect.
-    ///
-    /// With the [ForeignKeys::SQLite] option, rust-query will prevent creating such false foreign keys
-    /// and panic instead.
-    /// The downside is that indexes are required on all foreign keys to make the checks efficient.
-    SQLite,
-}
-
-impl ForeignKeys {
-    fn as_str(self) -> &'static str {
-        match self {
-            ForeignKeys::Rust => "OFF",
-            ForeignKeys::SQLite => "ON",
-        }
-    }
-}
-
-impl Config {
-    /// Open a database that is stored in a file.
-    /// Creates the database if it does not exist.
-    ///
-    /// Opening the same database multiple times at the same time is fine,
-    /// as long as they migrate to or use the same schema.
-    /// All locking is done by sqlite, so connections can even be made using different client implementations.
-    pub fn open(p: impl AsRef<Path>) -> Self {
-        let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
-        Self::open_internal(manager)
-    }
-
-    /// Creates a new empty database in memory.
-    pub fn open_in_memory() -> Self {
-        let manager = r2d2_sqlite::SqliteConnectionManager::memory();
-        Self::open_internal(manager)
-    }
-
-    fn open_internal(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
-        Self {
-            manager,
-            init: Box::new(|_| {}),
-            synchronous: Synchronous::Full,
-            foreign_keys: ForeignKeys::SQLite,
-        }
-    }
-
-    /// Append a raw sql statement to be executed if the database was just created.
-    ///
-    /// The statement is executed after creating the empty database and executing all previous statements.
-    pub fn init_stmt(mut self, sql: &'static str) -> Self {
-        self.init = Box::new(move |txn| {
-            (self.init)(txn);
-
-            txn.execute_batch(sql)
-                .expect("raw sql statement to populate db failed");
-        });
-        self
-    }
 }
 
 impl<S: Schema> Database<S> {
@@ -405,33 +133,6 @@ pub struct Migrator<S> {
     transaction: OwnedTransaction,
     indices_fixed: bool,
     _p: PhantomData<S>,
-}
-
-/// [Migrated] provides a proof of migration.
-///
-/// This only needs to be provided for tables that are migrated from a previous table.
-pub struct Migrated<'t, FromSchema, T> {
-    _p: PhantomData<T>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, FromSchema>)>,
-    _local: PhantomData<*const ()>,
-}
-
-impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
-    /// Don't migrate the remaining rows.
-    ///
-    /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
-    pub fn map_fk_err(err: impl 't + FnOnce() -> Infallible) -> Self {
-        Self {
-            _p: PhantomData,
-            f: Box::new(|x| x.foreign_key::<T>(err)),
-            _local: PhantomData,
-        }
-    }
-
-    #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t, FromSchema>) {
-        (self.f)(b)
-    }
 }
 
 impl<S: Schema> Migrator<S> {

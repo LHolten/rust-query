@@ -1,4 +1,4 @@
-use crate::{IntoExpr, IntoSelect, Table, TableRow, dummy_impl::Select, optional};
+use crate::{IntoExpr, IntoSelect, Table, TableRow, optional, select::Select};
 
 use super::MyTyp;
 

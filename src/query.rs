@@ -13,8 +13,8 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     alias::MyAlias,
-    dummy_impl::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     rows::Rows,
+    select::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     transaction::TXN,
 };
 

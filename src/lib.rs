@@ -9,7 +9,6 @@ extern crate static_assertions;
 mod alias;
 mod ast;
 mod db;
-mod dummy_impl;
 mod hash;
 mod joinable;
 mod lazy;
@@ -18,16 +17,17 @@ mod mymap;
 mod query;
 mod rows;
 mod schema_pragma;
+mod select;
 mod transaction;
 mod value;
 mod writable;
 
 pub use db::TableRow;
-pub use dummy_impl::{IntoSelect, Select};
 use hash::TypBuilder;
 pub use lazy::Lazy;
 use private::Reader;
 pub use rust_query_macros::{FromExpr, Select};
+pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 use value::MyTyp;
 pub use value::aggregate::aggregate;
@@ -54,7 +54,9 @@ pub mod migration {
     #[cfg(feature = "dev")]
     pub use crate::hash::dev::hash_schema;
     pub use crate::migrate::{
-        Config, ForeignKeys, Migrated, Migrator, Synchronous, TransactionMigrate,
+        Migrator,
+        config::{Config, ForeignKeys, Synchronous},
+        migration::{Migrated, TransactionMigrate},
     };
     pub use rust_query_macros::schema;
 }
@@ -67,7 +69,10 @@ pub mod private {
 
     pub use crate::hash::TypBuilder;
     pub use crate::joinable::Joinable;
-    pub use crate::migrate::{Migration, Schema, SchemaBuilder, SchemaMigration, TableTypBuilder};
+    pub use crate::migrate::{
+        Schema, SchemaMigration, TableTypBuilder,
+        migration::{Migration, SchemaBuilder},
+    };
     pub use crate::query::get_plan;
     pub use crate::value::{
         DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
@@ -109,7 +114,7 @@ pub mod private {
     impl<S, T> UpdateOrUnit<S, T> for () {}
 
     pub mod doctest {
-        use crate::{Database, Transaction, migrate::Config, migration};
+        use crate::{Database, Transaction, migrate::config::Config, migration};
 
         #[migration::schema(Empty)]
         pub mod vN {

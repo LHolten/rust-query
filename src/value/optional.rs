@@ -4,7 +4,7 @@ use sea_query::{ExprTrait, Nullable};
 
 use crate::{
     IntoSelect,
-    dummy_impl::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
+    select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
     value::DynTypedExpr,
 };
 
