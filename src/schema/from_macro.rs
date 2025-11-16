@@ -13,29 +13,61 @@ pub enum ColumnType {
     Blob = 3,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Column {
     pub typ: ColumnType,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
+    pub span: (usize, usize),
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Index {
     // column order matters for performance
     pub columns: Vec<String>,
     pub unique: bool,
+    pub span: (usize, usize),
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Table {
     pub columns: BTreeMap<String, Column>,
     pub indices: BTreeSet<Index>,
+    pub span: (usize, usize),
 }
 
 #[derive(Debug, Hash, Default, PartialEq, Eq)]
 pub struct Schema {
     pub tables: BTreeMap<String, Table>,
+}
+
+// TODO: These manual hash impls can be removed with the next non-patch release.
+// Another option is to map to another type
+mod manual_hash {
+    use super::*;
+    use std::hash::{Hash, Hasher};
+
+    impl Hash for Column {
+        fn hash<H: Hasher>(&self, hasher: &mut H) {
+            self.typ.hash(hasher);
+            self.nullable.hash(hasher);
+            self.fk.hash(hasher);
+        }
+    }
+
+    impl Hash for Index {
+        fn hash<H: Hasher>(&self, hasher: &mut H) {
+            self.columns.hash(hasher);
+            self.unique.hash(hasher);
+        }
+    }
+
+    impl Hash for Table {
+        fn hash<H: Hasher>(&self, hasher: &mut H) {
+            self.columns.hash(hasher);
+            self.indices.hash(hasher);
+        }
+    }
 }
 
 pub struct TypBuilder<S> {
@@ -53,11 +85,12 @@ impl<S> Default for TypBuilder<S> {
 }
 
 impl<S> TypBuilder<S> {
-    pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
+    pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
         let mut item = Column {
             typ: T::TYP,
             nullable: T::NULLABLE,
             fk: None,
+            span,
         };
         if let Some((table, fk)) = T::FK {
             item.fk = Some((table.to_owned(), fk.to_owned()))
@@ -66,10 +99,11 @@ impl<S> TypBuilder<S> {
         debug_assert!(old.is_none());
     }
 
-    pub fn index(&mut self, cols: &[&'static str], unique: bool) {
+    pub fn index(&mut self, cols: &[&'static str], unique: bool, span: (usize, usize)) {
         let mut index = Index {
             columns: Vec::default(),
             unique,
+            span,
         };
         for &col in cols {
             index.columns.push(col.to_owned());

@@ -14,7 +14,7 @@ error[E0277]: Can not use `bool` as a column type in schema `v0::Schema`
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
   |
-  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
+  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
 
 error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `v0::Schema`
@@ -31,7 +31,7 @@ error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `v0::
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
   |
-  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str) {
+  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
 
 error[E0277]: Columns with type `Option<i64>` can not be checked for equality

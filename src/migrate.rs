@@ -269,7 +269,7 @@ impl<S: Schema> Migrator<S> {
 }
 
 fn fix_indices<S: Schema>(txn: &Transaction<S>) {
-    let schema = read_schema(txn);
+    let schema = read_schema(txn).to_macro();
     let expected_schema = crate::schema::from_macro::Schema::new::<S>();
 
     for (name, table) in schema.tables {
@@ -291,7 +291,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
         }
     }
 
-    assert_eq!(expected_schema, read_schema(txn));
+    assert_eq!(expected_schema, read_schema(txn).to_macro());
 }
 
 impl<S> Transaction<S> {
@@ -320,7 +320,7 @@ pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
     // normalize both sides, because we only care about compatibility
     pretty_assertions::assert_eq!(
         crate::schema::from_macro::Schema::new::<S>().normalize(),
-        read_schema(txn).normalize(),
+        read_schema(txn).to_macro().normalize(),
         "schema is different (expected left, but got right)",
     );
 }

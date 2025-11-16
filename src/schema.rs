@@ -2,6 +2,7 @@
 //! The layout is hashable and the hashes are independent
 //! of the column ordering and some other stuff.
 
+pub mod from_db;
 pub mod from_macro;
 pub mod read;
 
@@ -24,10 +25,17 @@ impl ColumnType {
 mod normalize {
     use std::mem;
 
-    use crate::schema::from_macro::{Index, Schema, Table};
+    use crate::schema::from_macro::{Column, Index, Schema, Table};
+
+    impl Column {
+        fn normalize(&mut self) {
+            self.span = (0, 0);
+        }
+    }
 
     impl Index {
         fn normalize(&mut self) -> bool {
+            self.span = (0, 0);
             // column order doesn't matter for correctness
             self.columns.sort();
             // non-unique indexes don't matter for correctness
@@ -37,6 +45,8 @@ mod normalize {
 
     impl Table {
         fn normalize(&mut self) {
+            self.span = (0, 0);
+            self.columns.values_mut().for_each(Column::normalize);
             self.indices = mem::take(&mut self.indices)
                 .into_iter()
                 .filter_map(|mut idx| idx.normalize().then_some(idx))

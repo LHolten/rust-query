@@ -6,7 +6,7 @@ use crate::{
     Expr, FromExpr, Table, Transaction,
     alias::JoinableTable,
     private::{Reader, new_column},
-    schema,
+    schema::{self, from_db},
 };
 
 pub fn strip_raw(inp: &'static str) -> &'static str {
@@ -148,7 +148,7 @@ table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").
     }
 }
 
-pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
+pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
     let conn = Transaction::new();
 
     #[derive(Clone, FromExpr)]
@@ -170,7 +170,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
         q.into_vec(&table.name)
     });
 
-    let mut output = schema::Schema::default();
+    let mut output = from_db::Schema::default();
 
     for table_name in tables {
         let mut columns: Vec<Column> = conn.query(|q| {
@@ -186,13 +186,6 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
             .into_iter()
             .collect();
 
-        let make_type = |col: &Column| match col.r#type.as_str() {
-            "INTEGER" => schema::ColumnType::Integer,
-            "TEXT" => schema::ColumnType::String,
-            "REAL" => schema::ColumnType::Float,
-            t => panic!("unknown type {t}"),
-        };
-
         // we only care about columns that are not a unique id and for which we know the type
         columns.retain(|col| {
             if col.pk != 0 {
@@ -202,11 +195,11 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
             true
         });
 
-        let mut table_def = schema::Table::default();
+        let mut table_def = from_db::Table::default();
         for col in columns {
-            let def = schema::from_macro::Column {
+            let def = from_db::Column {
                 fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
-                typ: make_type(&col),
+                typ: col.r#type,
                 nullable: col.notnull == 0,
             };
             let old = table_def.columns.insert(col.name, def);
@@ -242,7 +235,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
             };
 
             let mut columns = conn.query(|q| {
-                let col = q.join_custom(IndexInfo(index.name));
+                let col = q.join_custom(IndexInfo(index.name.clone()));
                 q.into_vec(IndexColumn::from_expr(col))
             });
             columns.sort_by_key(|x| x.seqno);
@@ -256,10 +249,13 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> schema::Schema {
                 continue;
             };
 
-            table_def.indices.insert(schema::Index {
-                columns,
-                unique: index.unique,
-            });
+            table_def.indices.insert(
+                index.name,
+                from_db::Index {
+                    columns,
+                    unique: index.unique,
+                },
+            );
         }
 
         let old = output.tables.insert(table_name, table_def);

@@ -1,7 +1,9 @@
 use std::ops::{Not, Range};
 
 use quote::ToTokens;
-use syn::{punctuated::Punctuated, Attribute, Field, Ident, Item, Token, Visibility};
+use syn::{
+    punctuated::Punctuated, spanned::Spanned, Attribute, Field, Ident, Item, Token, Visibility,
+};
 
 use crate::multi::{Index, VersionedColumn, VersionedSchema, VersionedTable};
 
@@ -32,6 +34,7 @@ impl VersionedColumn {
                 indices.push(Index {
                     columns: vec![name.clone()],
                     unique: path.is_ident("unique"),
+                    span: path.span(),
                 })
             } else if path.is_ident("doc") {
                 doc_comments.push(attr);
@@ -72,6 +75,7 @@ impl VersionedTable {
                 indices.push(Index {
                     columns: idents.into_iter().collect(),
                     unique: path.is_ident("unique"),
+                    span: path.span(),
                 })
             } else if path.is_ident("no_reference") {
                 referenceable = false;

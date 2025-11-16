@@ -65,7 +65,9 @@ fn define_table(
             col_str.push(col.to_string());
         }
         let is_unique = index.unique;
-        unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique)});
+        let span = index.span.byte_range();
+        let (span_start, span_end) = (span.start, span.end);
+        unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique, (#span_start, #span_end))});
     }
 
     let (conflict_type, conflict_dummy_insert) = table.conflict();
@@ -78,6 +80,7 @@ fn define_table(
     let mut col_ident = vec![];
     let mut col_doc = vec![];
     let mut col_typ = vec![];
+    let mut col_span = vec![];
     let mut col_typ_original = vec![];
     let mut empty = vec![];
     let mut parts = vec![];
@@ -110,6 +113,9 @@ fn define_table(
         }
 
         col_typ.push(tmp);
+        let span = col.name.span().byte_range();
+        let (span_start, span_end) = (span.start, span.end);
+        col_span.push(quote! {(#span_start, #span_end)});
         empty.push(quote! {});
     }
 
@@ -186,7 +192,7 @@ fn define_table(
                 type Schema = #schema;
 
                 fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
-                    #(f.col::<#col_typ>(#col_str);)*
+                    #(f.col::<#col_typ>(#col_str, #col_span);)*
                     #(#def_typs;)*
                     #(#unique_typs;)*
                 }

@@ -8,6 +8,7 @@ use syn::{Attribute, Ident};
 pub(crate) struct Index {
     pub columns: Vec<Ident>,
     pub unique: bool,
+    pub span: Span,
 }
 
 pub(crate) struct VersionedSchema {
