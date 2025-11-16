@@ -63,59 +63,7 @@ impl from_db::Schema {
                     from_macro,
                     from_db,
                 } => {
-                    let mut db_only = Vec::new();
-                    let mut annotations = Vec::new();
-
-                    for (col, diff) in diff_map(from_macro.columns, from_db.columns) {
-                        match diff {
-                            EntryDiff::DbOnly(_) => db_only.push(col),
-                            EntryDiff::MacroOnly(column) => {
-                                let span = column.span.0..column.span.1;
-                                annotations.push(
-                                    AnnotationKind::Primary
-                                        .span(span)
-                                        .label("database does not have this column"),
-                                );
-                            }
-                            EntryDiff::Diff {
-                                from_macro,
-                                from_db,
-                            } => {
-                                let span = from_macro.span.0..from_macro.span.1;
-                                if from_db.parse_typ() == Ok(from_macro.def.typ)
-                                    && from_db.nullable == from_macro.def.nullable
-                                    && from_db.fk == from_macro.def.fk
-                                {
-                                    continue;
-                                }
-                                annotations.push(
-                                    AnnotationKind::Primary.span(span).label(format!(
-                                        "database has type {}",
-                                        from_db.render_rust()
-                                    )),
-                                );
-                            }
-                        }
-                    }
-
-                    if !annotations.is_empty() || !db_only.is_empty() {
-                        let span = || from_macro.span.0..from_macro.span.1;
-                        report.push(
-                            Level::ERROR.primary_title("Column mismatch").element(
-                                Snippet::source(source)
-                                    .path(path)
-                                    .annotations(db_only.is_empty().then(|| {
-                                        AnnotationKind::Context.span(span()).label("in this table")
-                                    }))
-                                    .annotations(db_only.iter().map(|col| {
-                                        AnnotationKind::Primary
-                                            .span(span())
-                                            .label(format!("database has `{col}` column"))
-                                    }))
-                                    .annotations(annotations),
-                            ),
-                        );
-                    }
+                    report.extend(from_db.diff(from_macro, source, path));
                 }
             };
         }
@@ -142,5 +90,71 @@ impl from_db::Schema {
         }
 
         report
+    }
+}
+
+impl from_db::Table {
+    fn diff<'a>(
+        self,
+        from_macro: from_macro::Table,
+        source: &'a str,
+        path: &'a str,
+    ) -> Option<Group<'a>> {
+        let mut db_only = Vec::new();
+        let mut annotations = Vec::new();
+
+        for (col, diff) in diff_map(from_macro.columns, self.columns) {
+            match diff {
+                EntryDiff::DbOnly(_) => db_only.push(col),
+                EntryDiff::MacroOnly(column) => {
+                    let span = column.span.0..column.span.1;
+                    annotations.push(
+                        AnnotationKind::Primary
+                            .span(span)
+                            .label("database does not have this column"),
+                    );
+                }
+                EntryDiff::Diff {
+                    from_macro,
+                    from_db,
+                } => {
+                    let span = from_macro.span.0..from_macro.span.1;
+                    if from_db.parse_typ() == Ok(from_macro.def.typ)
+                        && from_db.nullable == from_macro.def.nullable
+                        && from_db.fk == from_macro.def.fk
+                    {
+                        continue;
+                    }
+                    annotations.push(
+                        AnnotationKind::Primary
+                            .span(span)
+                            .label(format!("database has type {}", from_db.render_rust())),
+                    );
+                }
+            }
+        }
+
+        if annotations.is_empty() && db_only.is_empty() {
+            return None;
+        }
+
+        let span = || from_macro.span.0..from_macro.span.1;
+        Some(
+            Level::ERROR.primary_title("Column mismatch").element(
+                Snippet::source(source)
+                    .path(path)
+                    .annotations(
+                        db_only
+                            .is_empty()
+                            .then(|| AnnotationKind::Context.span(span()).label("in this table")),
+                    )
+                    .annotations(db_only.iter().map(|col| {
+                        AnnotationKind::Primary
+                            .span(span())
+                            .label(format!("database has `{col}` column"))
+                    }))
+                    .annotations(annotations),
+            ),
+        )
     }
 }
