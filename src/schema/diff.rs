@@ -136,7 +136,7 @@ impl from_db::Table {
                         continue;
                     }
                     annotations.push(AnnotationKind::Primary.span(span).label(format!(
-                        "database column has type {}",
+                        "database column has type `{}`",
                         from_db.render_rust()
                     )));
                 }

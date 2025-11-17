@@ -182,7 +182,7 @@ fn diagnostics() {
         LL │                 pub field2: String,
            │                     ━━━━━━ database does not have this column
         LL │                 pub baz: i64,
-           │                     ━━━ database column has type String
+           │                     ━━━ database column has type `String`
            ╰╴
         error: Unique constraint mismatch for `#[version(0)]`
            ╭▸ src/schema/test.rs:146:15
