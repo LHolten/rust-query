@@ -1,5 +1,21 @@
 # Unreleased
 
+# 0.6.2
+
+- Added diagnostics for differences between rust code and database schema.
+  The new diagnostics use the `annotate-snippets` crate to annotate the rust code.
+  An example error looks like this:
+  ```
+  error: Unique constraint mismatch for `#[version(0)]`
+     ╭▸ src/schema/test.rs:146:15
+     │
+  LL │             #[unique(baz, field2)]
+     │               ━━━━━━ database does not have this unique constraint
+  LL │             pub struct Foo {
+     ╰╴                       ━━━ database has `#[unique(baz, field1)]`
+  ```
+- Improved schema reading code to be more flexible.
+
 # 0.6.1
 
 - Added automatic addition and removal of column indices without a new schema version.

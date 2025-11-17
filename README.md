@@ -126,29 +126,5 @@ println!("{mike_pictures:?}"); // This should print `["dog"]`.
 
 ## Roadmap
 
-This project is under development and there are some things missing.
-Below is a checklist of planned features and implemented features.
-(Implemented features have a checkmark, planned features do not).
-
-Schema:
-- [x] Basic types (integer, real, text, blob, null)
-- [x] Basic foreign keys
-- [x] (Multi column) unique constraints
-- [ ] Check constraints
-- [ ] Overlapping foreign keys
-
-Statements:
-- [x] Multi row query + single row query (and optional query)
-- [x] Single row insert, update and delete
-
-Expressions:
-- [x] Some basic math, boolean and string operations
-- [x] Aggregate combinator
-- [x] Optional combinator
-- [ ] Everything else
-
-Advanced operations:
-- [ ] Window
-- [ ] Limit
-
-[Some future work is funded by NLnet!](https://nlnet.nl/project/rust-query/)
+This project is under development and there are some (important) things missing.
+Work is ongoing to fix this, [funded by NLnet!](https://nlnet.nl/project/rust-query/)
