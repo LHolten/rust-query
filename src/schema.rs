@@ -25,6 +25,7 @@ impl ColumnType {
             ColumnType::Real => T::custom("REAL"),
             ColumnType::Text => T::Text,
             ColumnType::Blob => T::Blob,
+            ColumnType::Any => T::custom("ANY"),
         }
     }
 }

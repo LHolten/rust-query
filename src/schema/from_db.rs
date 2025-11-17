@@ -29,11 +29,13 @@ pub struct Schema {
 
 impl Column {
     pub fn parse_typ(&self) -> Result<ColumnType, String> {
+        // These are all the possible types in a STRICT table.
         Ok(match self.typ.as_str() {
             "INTEGER" | "INT" => ColumnType::Integer,
             "TEXT" => ColumnType::Text,
             "REAL" => ColumnType::Real,
             "BLOB" => ColumnType::Blob,
+            "ANY" => ColumnType::Any,
             t => return Err(format!("unknown type {t}")),
         })
     }

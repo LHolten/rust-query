@@ -6,6 +6,7 @@ pub enum ColumnType {
     Real = 1,
     Text = 2,
     Blob = 3,
+    Any = 4,
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
