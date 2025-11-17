@@ -41,18 +41,25 @@ impl Column {
     }
 
     pub fn render_rust(&self) -> String {
-        let inner = match (&self.fk, self.parse_typ()) {
-            (Some((table, col)), Ok(ColumnType::Integer)) if col == "id" => table.clone(),
-            (None, Ok(ColumnType::Integer)) => "i64".to_owned(),
-            (None, Ok(ColumnType::Text)) => "String".to_owned(),
-            (None, Ok(ColumnType::Real)) => "f64".to_owned(),
-            (None, Ok(ColumnType::Blob)) => "Vec<u8>".to_owned(),
-            _ => "{unknown}".to_owned(),
+        let base = if let Some((table, col)) = &self.fk {
+            if col == "id" {
+                table.clone()
+            } else {
+                format!("{table}::{col}")
+            }
+        } else {
+            match self.parse_typ() {
+                Ok(ColumnType::Integer) => "i64".to_owned(),
+                Ok(ColumnType::Text) => "String".to_owned(),
+                Ok(ColumnType::Real) => "f64".to_owned(),
+                Ok(ColumnType::Blob) => "Vec<u8>".to_owned(),
+                _ => format!("{{{}}}", self.typ),
+            }
         };
         if self.nullable {
-            format!("Option<{inner}>")
+            format!("Option<{base}>")
         } else {
-            inner
+            base
         }
     }
 }
