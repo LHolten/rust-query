@@ -165,7 +165,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         let table = q.join_custom(TableList);
         q.filter(table.schema.eq("main"));
         q.filter(table.r#type.eq("table"));
-        q.filter(table.name.eq("sqlite_schema").not());
+        q.filter(table.name.neq("sqlite_schema"));
         // filter out tables such as `sqlite_stat1` and `sqlite_stat4`
         q.filter(table.name.starts_with("sqlite_stat").not());
         q.into_vec(&table.name)
@@ -174,38 +174,51 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
     let mut output = from_db::Schema::default();
 
     for table_name in tables {
-        let mut columns: Vec<Column> = conn.query(|q| {
+        let columns: Vec<Column> = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
             q.into_vec(Column::from_expr(table))
         });
 
-        let fks: HashMap<_, _> = conn
+        #[derive(Clone, FromExpr)]
+        #[rust_query(From = ForeignKeyList)]
+        struct ForeignKey {
+            table: String,
+            to: String,
+        }
+
+        let mut fks: HashMap<_, _> = conn
             .query(|q| {
                 let fk = q.join_custom(ForeignKeyList(table_name.to_owned()));
-                q.into_vec((&fk.from, &fk.table))
+                q.into_iter((&fk.from, ForeignKey::from_expr(&fk)))
             })
-            .into_iter()
             .collect();
 
-        // we only care about columns that are not a unique id and for which we know the type
-        columns.retain(|col| {
-            if col.pk != 0 {
-                assert_eq!(col.name, "id");
-                return false;
-            }
-            true
-        });
-
         let mut table_def = from_db::Table::default();
+        let mut primary_key_exists = false;
         for col in columns {
             let def = from_db::Column {
-                fk: fks.get(&col.name).map(|x| (x.clone(), "id".to_owned())),
+                fk: fks.remove(&col.name).map(|x| (x.table, x.to)),
                 typ: col.r#type,
                 nullable: col.notnull == 0,
             };
+            if col.pk != 0 {
+                assert_eq!(
+                    col.name, "id",
+                    "only a primary key named \"id\" is supported"
+                );
+                assert_eq!(
+                    def.fk, None,
+                    "primary key is not allowed to have a foreign key constraint"
+                );
+                assert_eq!(def.typ, "INTEGER", "primary key must be `INTEGER` type");
+                primary_key_exists = true;
+                continue;
+            }
             let old = table_def.columns.insert(col.name, def);
             debug_assert!(old.is_none());
         }
+        assert!(primary_key_exists, "table must have a primary key");
+        debug_assert!(fks.is_empty());
 
         #[derive(Clone, FromExpr)]
         #[rust_query(From = IndexList)]
