@@ -7,6 +7,8 @@ mod diff;
 pub mod from_db;
 pub mod from_macro;
 pub mod read;
+#[cfg(test)]
+mod test;
 
 use sea_query::{Alias, IndexCreateStatement, SqliteQueryBuilder, TableCreateStatement};
 

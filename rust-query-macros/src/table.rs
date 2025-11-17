@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, collections::BTreeMap, path::Path};
+use std::collections::BTreeMap;
 
 use crate::{dummy::wrap, SingleVersionTable};
 
@@ -17,10 +17,21 @@ pub fn define_all_tables(
     version: u32,
     new_tables: &mut BTreeMap<usize, SingleVersionTable>,
 ) -> syn::Result<TokenStream> {
+    let local_file = schema_name.span().local_file();
+    let source = &local_file
+        .map(|path| std::fs::read_to_string(path).unwrap())
+        .unwrap_or_default();
+
     let mut mod_output = TokenStream::new();
     let mut schema_table_typs = vec![];
     for table in new_tables.values_mut() {
-        let table_def = define_table(table, schema_name, prev_mod.as_ref(), next_mod.as_ref())?;
+        let table_def = define_table(
+            source,
+            table,
+            schema_name,
+            prev_mod.as_ref(),
+            next_mod.as_ref(),
+        )?;
         mod_output.extend(table_def);
 
         let table_name = &table.name;
@@ -30,7 +41,7 @@ pub fn define_all_tables(
     // unwrap_or_default is used here because rust-analyzer sometimes doesn't give us the path
     let file = schema_name.span().local_file().unwrap_or_default();
     let file = file.file_name().unwrap_or_default().to_str().unwrap();
-    let span = byte_range(schema_name.span());
+    let span = byte_range(source, schema_name.span());
 
     let version_i64 = version as i64;
     mod_output.extend(quote! {
@@ -49,26 +60,29 @@ pub fn define_all_tables(
     Ok(mod_output)
 }
 
-fn byte_from(file: &Path, line: usize, col: usize) -> usize {
-    thread_local! {
-        static FILE: OnceCell<String> = OnceCell::new()
-    }
-    FILE.with(|f| {
-        let file = f.get_or_init(|| std::fs::read_to_string(file).unwrap());
-        file.lines().skip(line - 1).next().unwrap().as_ptr().addr() - file.as_ptr().addr() + col
-    })
+fn byte_from(source: &str, line: usize, col: usize) -> usize {
+    source
+        .lines()
+        .skip(line - 1)
+        .next()
+        .unwrap()
+        .as_ptr()
+        .addr()
+        - source.as_ptr().addr()
+        + col
 }
 
-fn byte_range(span: Span) -> TokenStream {
-    let Some(path) = span.local_file() else {
+fn byte_range(source: &str, span: Span) -> TokenStream {
+    if source.is_empty() {
         return quote! {(0, 0)};
     };
-    let start = byte_from(&path, span.start().line, span.start().column);
-    let end = byte_from(&path, span.end().line, span.end().column);
+    let start = byte_from(source, span.start().line, span.start().column);
+    let end = byte_from(source, span.end().line, span.end().column);
     quote! {(#start, #end)}
 }
 
 fn define_table(
+    source: &str,
     table: &mut SingleVersionTable,
     schema: &Ident,
     prev_mod: Option<&Ident>,
@@ -79,7 +93,7 @@ fn define_table(
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
-    let table_span = byte_range(table_ident_with_span.span());
+    let table_span = byte_range(source, table_ident_with_span.span());
 
     let unique_tree = table.make_unique_tree();
     let unique_info = table.make_info(schema.clone());
@@ -93,7 +107,7 @@ fn define_table(
             col_str.push(col.to_string());
         }
         let is_unique = index.unique;
-        let index_span = byte_range(index.span);
+        let index_span = byte_range(source, index.span);
         unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique, #index_span)});
     }
 
@@ -140,7 +154,7 @@ fn define_table(
         }
 
         col_typ.push(tmp);
-        col_span.push(byte_range(col.name.span()));
+        col_span.push(byte_range(source, col.name.span()));
         empty.push(quote! {});
     }
 
