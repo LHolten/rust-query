@@ -105,12 +105,22 @@ impl from_db::Table {
         path: &'a str,
         schema_version: i64,
     ) -> Option<Group<'a>> {
-        let mut db_only = Vec::new();
         let mut annotations = Vec::new();
+
+        let table_annotated = Cell::new(false);
+        let span = || {
+            table_annotated.set(true);
+            from_macro.span.0..from_macro.span.1
+        };
 
         for (col, diff) in diff_map(from_macro.columns, self.columns) {
             match diff {
-                EntryDiff::DbOnly(_) => db_only.push(col),
+                EntryDiff::DbOnly(column) => {
+                    annotations.push(AnnotationKind::Primary.span(span()).label(format!(
+                        "database has `{col}: {}` column",
+                        column.render_rust()
+                    )))
+                }
                 EntryDiff::MacroOnly(column) => {
                     let span = column.span.0..column.span.1;
                     annotations.push(
@@ -150,10 +160,16 @@ impl from_db::Table {
             .filter_map(|i| Some((i.normalize()?, ())))
             .collect();
 
-        let mut unique_db_only = Vec::new();
         for (unique, diff) in diff_map(macro_indices, db_indices) {
             match diff {
-                EntryDiff::DbOnly(()) => unique_db_only.push(unique),
+                EntryDiff::DbOnly(()) => {
+                    let columns: Vec<_> = unique.columns.iter().map(|s| s.as_str()).collect();
+                    annotations.push(
+                        AnnotationKind::Primary
+                            .span(span())
+                            .label(format!("database has `#[unique({})]`", columns.join(", "))),
+                    )
+                }
                 EntryDiff::MacroOnly(span) => {
                     let span = span.0..span.1;
                     annotations.push(
@@ -166,30 +182,11 @@ impl from_db::Table {
             }
         }
 
-        if annotations.is_empty() && db_only.is_empty() && unique_db_only.is_empty() {
+        if annotations.is_empty() {
             return None;
         }
 
-        let table_annotated = Cell::new(false);
-        let span = || {
-            table_annotated.set(true);
-            from_macro.span.0..from_macro.span.1
-        };
-
-        let mut snippet = Snippet::source(source)
-            .path(path)
-            .annotations(db_only.iter().map(|col| {
-                AnnotationKind::Primary
-                    .span(span())
-                    .label(format!("database has `{col}` column"))
-            }))
-            .annotations(unique_db_only.iter().map(|col| {
-                let columns: Vec<_> = col.columns.iter().map(|s| s.as_str()).collect();
-                AnnotationKind::Primary
-                    .span(span())
-                    .label(format!("database has `#[unique({})]`", columns.join(", ")))
-            }))
-            .annotations(annotations);
+        let mut snippet = Snippet::source(source).path(path).annotations(annotations);
 
         if !table_annotated.get() {
             snippet =
