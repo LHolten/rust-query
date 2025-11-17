@@ -383,7 +383,7 @@ impl SecretFromSql for i64 {
 
 impl MyTyp for f64 {
     type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Float;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Real;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();
@@ -419,7 +419,7 @@ impl SecretFromSql for bool {
 
 impl MyTyp for String {
     type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::String;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     type Out = Self;
     type Lazy<'t> = Self;
     type Ext<'t> = ();

@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
     Integer = 0,
-    Float = 1,
-    String = 2,
+    Real = 1,
+    Text = 2,
     Blob = 3,
 }
 

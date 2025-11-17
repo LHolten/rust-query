@@ -22,8 +22,8 @@ impl ColumnType {
         use sea_query::ColumnType as T;
         match self {
             ColumnType::Integer => T::Integer,
-            ColumnType::Float => T::custom("REAL"),
-            ColumnType::String => T::Text,
+            ColumnType::Real => T::custom("REAL"),
+            ColumnType::Text => T::Text,
             ColumnType::Blob => T::Blob,
         }
     }

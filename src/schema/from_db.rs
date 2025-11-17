@@ -30,9 +30,10 @@ pub struct Schema {
 impl Column {
     pub fn parse_typ(&self) -> Result<ColumnType, String> {
         Ok(match self.typ.as_str() {
-            "INTEGER" => ColumnType::Integer,
-            "TEXT" => ColumnType::String,
-            "REAL" => ColumnType::Float,
+            "INTEGER" | "INT" => ColumnType::Integer,
+            "TEXT" => ColumnType::Text,
+            "REAL" => ColumnType::Real,
+            "BLOB" => ColumnType::Blob,
             t => return Err(format!("unknown type {t}")),
         })
     }
@@ -41,8 +42,8 @@ impl Column {
         let inner = match (&self.fk, self.parse_typ()) {
             (Some((table, col)), Ok(ColumnType::Integer)) if col == "id" => table.clone(),
             (None, Ok(ColumnType::Integer)) => "i64".to_owned(),
-            (None, Ok(ColumnType::String)) => "String".to_owned(),
-            (None, Ok(ColumnType::Float)) => "f64".to_owned(),
+            (None, Ok(ColumnType::Text)) => "String".to_owned(),
+            (None, Ok(ColumnType::Real)) => "f64".to_owned(),
             (None, Ok(ColumnType::Blob)) => "Vec<u8>".to_owned(),
             _ => "{unknown}".to_owned(),
         };
