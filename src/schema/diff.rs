@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{cell::Cell, collections::BTreeMap};
 
 use annotate_snippets::{AnnotationKind, Group, Level, Snippet};
 
@@ -10,10 +10,10 @@ pub enum EntryDiff<A, E> {
     Diff { from_macro: A, from_db: E },
 }
 
-pub fn diff_map<A, E>(
-    mut from_macro: BTreeMap<String, A>,
-    from_db: BTreeMap<String, E>,
-) -> BTreeMap<String, EntryDiff<A, E>> {
+pub fn diff_map<K: Ord, M, D>(
+    mut from_macro: BTreeMap<K, M>,
+    from_db: BTreeMap<K, D>,
+) -> BTreeMap<K, EntryDiff<M, D>> {
     let mut out = BTreeMap::new();
     for (key, from_db) in from_db {
         match from_macro.remove(&key) {
@@ -71,22 +71,25 @@ impl from_db::Schema {
 
         if !annotations.is_empty() || !db_only.is_empty() {
             let span = || from_macro.span.0..from_macro.span.1;
+            let snippet = Snippet::source(source)
+                .path(path)
+                .annotations(db_only.is_empty().then(|| {
+                    AnnotationKind::Context
+                        .span(span())
+                        .label("for this schema")
+                }))
+                .annotations(db_only.iter().map(|table| {
+                    AnnotationKind::Primary
+                        .span(span())
+                        .label(format!("database has `{table}` table"))
+                }))
+                .annotations(annotations);
             report.push(
                 Level::ERROR
-                    .primary_title(format!("Table mismatch for `#[version({schema_version})]`"))
-                    .element(
-                        Snippet::source(source)
-                            .path(path)
-                            .annotations(db_only.is_empty().then(|| {
-                                AnnotationKind::Context.span(span()).label("in this schema")
-                            }))
-                            .annotations(db_only.iter().map(|table| {
-                                AnnotationKind::Primary
-                                    .span(span())
-                                    .label(format!("database has `{table}` table"))
-                            }))
-                            .annotations(annotations),
-                    ),
+                    .primary_title(format!(
+                        "Schema definition mismatch for `#[version({schema_version})]`"
+                    ))
+                    .element(snippet),
             );
         }
 
@@ -136,31 +139,69 @@ impl from_db::Table {
             }
         }
 
-        if annotations.is_empty() && db_only.is_empty() {
+        let macro_indices = from_macro
+            .indices
+            .into_iter()
+            .filter_map(|i| Some((i.def.normalize()?, i.span)))
+            .collect();
+        let db_indices = self
+            .indices
+            .into_values()
+            .filter_map(|i| Some((i.normalize()?, ())))
+            .collect();
+
+        let mut unique_db_only = Vec::new();
+        for (unique, diff) in diff_map(macro_indices, db_indices) {
+            match diff {
+                EntryDiff::DbOnly(()) => unique_db_only.push(unique),
+                EntryDiff::MacroOnly(span) => {
+                    let span = span.0..span.1;
+                    annotations.push(
+                        AnnotationKind::Primary
+                            .span(span)
+                            .label("database does not have this unique constraint"),
+                    );
+                }
+                EntryDiff::Diff { .. } => {}
+            }
+        }
+
+        if annotations.is_empty() && db_only.is_empty() && unique_db_only.is_empty() {
             return None;
         }
 
-        let span = || from_macro.span.0..from_macro.span.1;
+        let table_annotated = Cell::new(false);
+        let span = || {
+            table_annotated.set(true);
+            from_macro.span.0..from_macro.span.1
+        };
+
+        let mut snippet = Snippet::source(source)
+            .path(path)
+            .annotations(db_only.iter().map(|col| {
+                AnnotationKind::Primary
+                    .span(span())
+                    .label(format!("database has `{col}` column"))
+            }))
+            .annotations(unique_db_only.iter().map(|col| {
+                let columns: Vec<_> = col.columns.iter().map(|s| s.as_str()).collect();
+                AnnotationKind::Primary
+                    .span(span())
+                    .label(format!("database has `#[unique({})]`", columns.join(", ")))
+            }))
+            .annotations(annotations);
+
+        if !table_annotated.get() {
+            snippet =
+                snippet.annotation(AnnotationKind::Context.span(span()).label("for this table"))
+        }
+
         Some(
             Level::ERROR
                 .primary_title(format!(
-                    "Column mismatch for `#[version({schema_version})]`"
+                    "Table definition mismatch for `#[version({schema_version})]`"
                 ))
-                .element(
-                    Snippet::source(source)
-                        .path(path)
-                        .annotations(
-                            db_only.is_empty().then(|| {
-                                AnnotationKind::Context.span(span()).label("in this table")
-                            }),
-                        )
-                        .annotations(db_only.iter().map(|col| {
-                            AnnotationKind::Primary
-                                .span(span())
-                                .label(format!("database has `{col}` column"))
-                        }))
-                        .annotations(annotations),
-                ),
+                .element(snippet),
         )
     }
 }

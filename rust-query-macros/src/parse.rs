@@ -34,7 +34,7 @@ impl VersionedColumn {
                 indices.push(Index {
                     columns: vec![name.clone()],
                     unique: path.is_ident("unique"),
-                    span: path.span(),
+                    span: attr.meta.span(),
                 })
             } else if path.is_ident("doc") {
                 doc_comments.push(attr);
@@ -75,7 +75,7 @@ impl VersionedTable {
                 indices.push(Index {
                     columns: idents.into_iter().collect(),
                     unique: path.is_ident("unique"),
-                    span: path.span(),
+                    span: attr.meta.span(),
                 })
             } else if path.is_ident("no_reference") {
                 referenceable = false;
