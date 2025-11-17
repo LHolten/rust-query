@@ -81,7 +81,7 @@ impl from_db::Schema {
                 .annotations(db_only.iter().map(|table| {
                     AnnotationKind::Primary
                         .span(span())
-                        .label(format!("database has `{table}` table"))
+                        .label(format!("database has table `{table}`"))
                 }))
                 .annotations(annotations);
             report.push(
@@ -117,7 +117,7 @@ impl from_db::Table {
             match diff {
                 EntryDiff::DbOnly(column) => {
                     annotations.push(AnnotationKind::Primary.span(span()).label(format!(
-                        "database has `{col}: {}` column",
+                        "database has column `{col}: {}`",
                         column.render_rust()
                     )))
                 }

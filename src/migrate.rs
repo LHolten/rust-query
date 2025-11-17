@@ -342,7 +342,12 @@ pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
     let from_db = read_schema(txn);
     let report = from_db.diff(from_macro, S::SOURCE, S::PATH, S::VERSION);
     if !report.is_empty() {
-        let renderer = Renderer::styled().decor_style(DecorStyle::Unicode);
+        let renderer = if cfg!(test) {
+            Renderer::plain().anonymized_line_numbers(true)
+        } else {
+            Renderer::styled()
+        }
+        .decor_style(DecorStyle::Unicode);
         panic!("{}", renderer.render(&report));
     }
 
