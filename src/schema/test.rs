@@ -159,7 +159,7 @@ fn diagnostics() {
     })
     .unwrap_err();
     expect_test::expect![[r#"
-        error: Schema definition mismatch for `#[version(0)]`
+        error: Table mismatch for `#[version(0)]`
            ╭▸ src/schema/test.rs:135:36
            │
         LL │         #[crate::migration::schema(Schema)]
@@ -174,18 +174,21 @@ fn diagnostics() {
     })
     .unwrap_err();
     expect_test::expect![[r#"
-        error: Table definition mismatch for `#[version(0)]`
+        error: Column mismatch for `#[version(0)]`
+           ╭▸ src/schema/test.rs:147:24
+           │
+        LL │             pub struct Foo {
+           │                        ━━━ database has column `field1: String`
+        LL │                 pub field2: String,
+           │                     ━━━━━━ database does not have this column
+           ╰╴
+        error: Unique constraint mismatch for `#[version(0)]`
            ╭▸ src/schema/test.rs:146:15
            │
         LL │             #[unique(baz, field2)]
            │               ━━━━━━ database does not have this unique constraint
         LL │             pub struct Foo {
-           │                        ┯━━
-           │                        │
-           │                        database has column `field1: String`
-           │                        database has `#[unique(baz, field1)]`
-        LL │                 pub field2: String,
-           ╰╴                    ━━━━━━ database does not have this column"#]]
+           ╰╴                       ━━━ database has `#[unique(baz, field1)]`"#]]
     .assert_eq(err.downcast_ref::<String>().unwrap());
 
     std::fs::remove_file(FILE_NAME).unwrap();
