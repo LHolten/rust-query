@@ -340,7 +340,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
 pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
     let from_macro = crate::schema::from_macro::Schema::new::<S>();
     let from_db = read_schema(txn);
-    let report = from_db.diff(from_macro, S::SOURCE, S::PATH);
+    let report = from_db.diff(from_macro, S::SOURCE, S::PATH, S::VERSION);
     if !report.is_empty() {
         let renderer = Renderer::styled().decor_style(DecorStyle::Unicode);
         panic!("{}", renderer.render(&report));

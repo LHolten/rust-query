@@ -43,6 +43,7 @@ impl from_db::Schema {
         from_macro: from_macro::Schema,
         source: &'a str,
         path: &'a str,
+        schema_version: i64,
     ) -> Vec<Group<'a>> {
         let mut db_only = Vec::new();
         let mut annotations = Vec::new();
@@ -63,7 +64,7 @@ impl from_db::Schema {
                     from_macro,
                     from_db,
                 } => {
-                    report.extend(from_db.diff(from_macro, source, path));
+                    report.extend(from_db.diff(from_macro, source, path, schema_version));
                 }
             };
         }
@@ -71,21 +72,21 @@ impl from_db::Schema {
         if !annotations.is_empty() || !db_only.is_empty() {
             let span = || from_macro.span.0..from_macro.span.1;
             report.push(
-                Level::ERROR.primary_title("Table mismatch").element(
-                    Snippet::source(source)
-                        .path(path)
-                        .annotations(
-                            db_only.is_empty().then(|| {
+                Level::ERROR
+                    .primary_title(format!("Table mismatch for `#[version({schema_version})]`"))
+                    .element(
+                        Snippet::source(source)
+                            .path(path)
+                            .annotations(db_only.is_empty().then(|| {
                                 AnnotationKind::Context.span(span()).label("in this schema")
-                            }),
-                        )
-                        .annotations(db_only.iter().map(|table| {
-                            AnnotationKind::Primary
-                                .span(span())
-                                .label(format!("database has `{table}` table"))
-                        }))
-                        .annotations(annotations),
-                ),
+                            }))
+                            .annotations(db_only.iter().map(|table| {
+                                AnnotationKind::Primary
+                                    .span(span())
+                                    .label(format!("database has `{table}` table"))
+                            }))
+                            .annotations(annotations),
+                    ),
             );
         }
 
@@ -99,6 +100,7 @@ impl from_db::Table {
         from_macro: from_macro::Table,
         source: &'a str,
         path: &'a str,
+        schema_version: i64,
     ) -> Option<Group<'a>> {
         let mut db_only = Vec::new();
         let mut annotations = Vec::new();
@@ -140,21 +142,25 @@ impl from_db::Table {
 
         let span = || from_macro.span.0..from_macro.span.1;
         Some(
-            Level::ERROR.primary_title("Column mismatch").element(
-                Snippet::source(source)
-                    .path(path)
-                    .annotations(
-                        db_only
-                            .is_empty()
-                            .then(|| AnnotationKind::Context.span(span()).label("in this table")),
-                    )
-                    .annotations(db_only.iter().map(|col| {
-                        AnnotationKind::Primary
-                            .span(span())
-                            .label(format!("database has `{col}` column"))
-                    }))
-                    .annotations(annotations),
-            ),
+            Level::ERROR
+                .primary_title(format!(
+                    "Column mismatch for `#[version({schema_version})]`"
+                ))
+                .element(
+                    Snippet::source(source)
+                        .path(path)
+                        .annotations(
+                            db_only.is_empty().then(|| {
+                                AnnotationKind::Context.span(span()).label("in this table")
+                            }),
+                        )
+                        .annotations(db_only.iter().map(|col| {
+                            AnnotationKind::Primary
+                                .span(span())
+                                .label(format!("database has `{col}` column"))
+                        }))
+                        .annotations(annotations),
+                ),
         )
     }
 }
