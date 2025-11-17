@@ -390,61 +390,117 @@ impl<S: Send + Sync + Schema> Database<S> {
     }
 }
 
-#[test]
-fn fix_indices_test() {
-    mod without_index {
-        #[crate::migration::schema(Schema)]
-        pub mod vN {
-            pub struct Foo {
-                pub bar: String,
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn open_db<S: Schema>(file: &str) -> Database<S> {
+        Database::<S>::migrator(Config::open(file))
+            .unwrap()
+            .finish()
+            .unwrap()
     }
 
-    mod with_index {
-        #[crate::migration::schema(Schema)]
-        pub mod vN {
-            pub struct Foo {
-                #[index]
-                pub bar: String,
+    #[test]
+    fn fix_indices_test1() {
+        mod without_index {
+            #[crate::migration::schema(Schema)]
+            pub mod vN {
+                pub struct Foo {
+                    pub bar: String,
+                }
             }
         }
+
+        mod with_index {
+            #[crate::migration::schema(Schema)]
+            pub mod vN {
+                pub struct Foo {
+                    #[index]
+                    pub bar: String,
+                }
+            }
+        }
+
+        static FILE_NAME: &'static str = "index_test1.sqlite";
+
+        let db = open_db::<without_index::v0::Schema>(FILE_NAME);
+        // The first database is opened with a schema without index
+        db.check_schema(expect_test::expect![[
+            r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
+        ]]);
+
+        let db_with_index = open_db::<with_index::v0::Schema>(FILE_NAME);
+        // The database is updated without a new schema version.
+        // Adding an index is allowed because it does not change database validity.
+        db_with_index.check_schema(expect_test::expect![[r#"
+            CREATE INDEX "foo_index_0" ON "foo" ("bar")
+            CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+
+        // Using the old database connection will still work, because the new schema is compatible.
+        db.check_schema(expect_test::expect![[r#"
+            CREATE INDEX "foo_index_0" ON "foo" ("bar")
+            CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+
+        let db = open_db::<without_index::v0::Schema>(FILE_NAME);
+        // Opening the database with the old schema again removes the index.
+        db.check_schema(expect_test::expect![[
+            r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
+        ]]);
+
+        std::fs::remove_file(FILE_NAME).unwrap();
     }
 
-    static FILE_NAME: &'static str = "index_test.sqlite";
+    #[test]
+    fn fix_indices_test2() {
+        mod normal {
+            #[crate::migration::schema(Schema)]
+            pub mod vN {
+                #[unique(field1, baz)]
+                pub struct Foo {
+                    pub field1: String,
+                    pub baz: String,
+                }
+            }
+        }
 
-    let db = Database::<without_index::v0::Schema>::migrator(Config::open(FILE_NAME))
-        .unwrap()
-        .finish()
-        .unwrap();
-    // The first database is opened with a schema without index
-    db.check_schema(expect_test::expect![[
-        r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
-    ]]);
+        mod reversed {
+            #[crate::migration::schema(Schema)]
+            pub mod vN {
+                #[unique(baz, field1)]
+                pub struct Foo {
+                    pub field1: String,
+                    pub baz: String,
+                }
+            }
+        }
 
-    let db_with_index = Database::<with_index::v0::Schema>::migrator(Config::open(FILE_NAME))
-        .unwrap()
-        .finish()
-        .unwrap();
-    // The database is updated without a new schema version.
-    // Adding an index is allowed because it does not change database validity.
-    db_with_index.check_schema(expect_test::expect![[r#"
-        CREATE INDEX "foo_index_0" ON "foo" ("bar")
-        CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+        static FILE_NAME: &'static str = "index_test2.sqlite";
 
-    // Using the old database connection will still work, because the new schema is compatible.
-    db.check_schema(expect_test::expect![[r#"
-        CREATE INDEX "foo_index_0" ON "foo" ("bar")
-        CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+        let db = open_db::<normal::v0::Schema>(FILE_NAME);
+        // The first database is opened with a schema with original index
+        db.check_schema(expect_test::expect![[r#"
+            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
+            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("field1", "baz")"#]]);
 
-    let db = Database::<without_index::v0::Schema>::migrator(Config::open(FILE_NAME))
-        .unwrap()
-        .finish()
-        .unwrap();
-    // Opening the database with the old schema again removes the index.
-    db.check_schema(expect_test::expect![[
-        r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
-    ]]);
+        let db_with_reversed = open_db::<reversed::v0::Schema>(FILE_NAME);
+        // The database is updated without a new schema version.
+        // Changing the index column order is allowed because it does not change database validity.
+        db_with_reversed.check_schema(expect_test::expect![[r#"
+            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
+            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("baz", "field1")"#]]);
 
-    std::fs::remove_file(FILE_NAME).unwrap();
+        // Using the old database connection will still work, because the new schema is compatible.
+        db.check_schema(expect_test::expect![[r#"
+            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
+            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("baz", "field1")"#]]);
+
+        let db = open_db::<normal::v0::Schema>(FILE_NAME);
+        // Opening the database with the old schema again changes the index back.
+        db.check_schema(expect_test::expect![[r#"
+            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
+            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("field1", "baz")"#]]);
+
+        std::fs::remove_file(FILE_NAME).unwrap();
+    }
 }
