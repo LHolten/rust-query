@@ -129,7 +129,7 @@ impl from_db::Table {
                     from_db,
                 } => {
                     let span = from_macro.span.0..from_macro.span.1;
-                    if from_db.parse_typ() == Ok(from_macro.def.typ)
+                    if from_db.parse_typ() == Some(from_macro.def.typ)
                         && from_db.nullable == from_macro.def.nullable
                         && from_db.fk == from_macro.def.fk
                     {

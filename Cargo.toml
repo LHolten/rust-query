@@ -21,7 +21,6 @@ sea-query-rusqlite = "=0.8.0-rc.8"
 rusqlite = { version = "0.37", features = ["modern_sqlite"] }
 k12 = { version = "0.3", optional = true }
 rust-query-macros = { path = "rust-query-macros", version = "=0.6.1" }
-pretty_assertions = "1.4.1"
 r2d2_sqlite = "0.31.0"
 r2d2 = "0.8"
 static_assertions = "1.1.0"

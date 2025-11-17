@@ -350,13 +350,6 @@ pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
         .decor_style(DecorStyle::Unicode);
         panic!("{}", renderer.render(&report));
     }
-
-    // normalize both sides, because we only care about compatibility
-    pretty_assertions::assert_eq!(
-        crate::schema::from_macro::Schema::new::<S>().normalize(),
-        read_schema(txn).to_macro().normalize(),
-        "schema is different (expected left, but got right)",
-    );
 }
 
 fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {
