@@ -8,6 +8,7 @@ extern crate static_assertions;
 
 mod alias;
 mod ast;
+mod async_db;
 mod db;
 mod joinable;
 mod lazy;
