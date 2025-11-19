@@ -1,45 +1,29 @@
 use std::{
     future,
-    sync::mpsc::{self, TryRecvError},
+    sync::{
+        Arc,
+        mpsc::{self, TryRecvError},
+    },
     task::Poll,
 };
 
-use self_cell::MutBorrow;
+use crate::{Database, Transaction, migrate::Schema};
 
-use crate::{Database, Transaction, migrate::Schema, transaction::OwnedTransaction};
+pub struct DatabaseAsync<S> {
+    inner: Arc<Database<S>>,
+}
 
-struct Task<S: 'static>(Box<dyn Send + FnOnce(&'static Transaction<S>)>);
-
-pub struct DatabaseAsync<S: 'static> {
-    queue: mpsc::Sender<Task<S>>,
+impl<S> Clone for DatabaseAsync<S> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
-    pub fn new(db: Database<S>) -> Self {
-        let (queue, queue_recv) = mpsc::channel();
-
-        std::thread::spawn(move || {
-            std::thread::scope(|s| {
-                loop {
-                    let task: Task<S> = queue_recv.recv().unwrap();
-
-                    s.spawn(|| {
-                        use r2d2::ManageConnection;
-                        let conn = db.manager.connect().unwrap();
-
-                        let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
-                            Some(conn.borrow_mut().transaction().unwrap())
-                        });
-
-                        let txn = Transaction::new_checked(owned, &db.schema_version);
-
-                        (task.0)(txn);
-                    });
-                }
-            })
-        });
-
-        DatabaseAsync { queue }
+    pub fn new(db: Arc<Database<S>>) -> Self {
+        DatabaseAsync { inner: db }
     }
 
     /// This is a lot like [Database::transaction], only difference is that the async function
@@ -51,16 +35,16 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         f: impl 'static + Send + FnOnce(&'static Transaction<S>) -> R,
     ) -> R {
         let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-
         let (ret_send, ret) = mpsc::channel();
 
-        self.queue
-            .send(Task(Box::new(move |txn| {
+        let db = self.inner.clone();
+        std::thread::spawn(move || {
+            db.transaction_local(|txn| {
                 let res = f(txn);
                 ret_send.send(res).unwrap();
                 waker.wake();
-            })))
-            .unwrap();
+            })
+        });
 
         future::poll_fn(|_cx| match ret.try_recv() {
             Ok(val) => Poll::Ready(val),

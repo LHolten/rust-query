@@ -105,24 +105,23 @@ impl<S: Send + Sync + Schema> Database<S> {
     /// exist in a single process. On my machine the soft limit is (1024) by default.
     /// If this limit is reached, it may cause a panic in this method.
     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
-        let res = std::thread::scope(|scope| {
-            scope
-                .spawn(|| {
-                    use r2d2::ManageConnection;
-                    let conn = self.manager.connect().unwrap();
-
-                    let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
-                        Some(conn.borrow_mut().transaction().unwrap())
-                    });
-
-                    f(Transaction::new_checked(owned, &self.schema_version))
-                })
-                .join()
-        });
+        let res = std::thread::scope(|scope| scope.spawn(|| self.transaction_local(f)).join());
         match res {
             Ok(val) => val,
             Err(payload) => std::panic::resume_unwind(payload),
         }
+    }
+
+    /// Same as [Self::transaction], but can only be used on a new thread.
+    pub(crate) fn transaction_local<R>(&self, f: impl FnOnce(&'static Transaction<S>) -> R) -> R {
+        use r2d2::ManageConnection;
+        let conn = self.manager.connect().unwrap();
+
+        let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
+            Some(conn.borrow_mut().transaction().unwrap())
+        });
+
+        f(Transaction::new_checked(owned, &self.schema_version))
     }
 
     /// Create a mutable [Transaction].
