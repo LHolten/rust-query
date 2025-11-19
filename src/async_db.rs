@@ -1,10 +1,11 @@
 use std::{
     future,
+    mem::replace,
     sync::{
-        self, Arc,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
-    task::Poll,
+    task::{Poll, Waker},
 };
 
 use crate::{Database, Transaction, migrate::Schema};
@@ -18,6 +19,18 @@ impl<S> Clone for DatabaseAsync<S> {
         Self {
             inner: self.inner.clone(),
         }
+    }
+}
+
+pub struct DoneOnDrop {
+    done: Arc<AtomicBool>,
+    waker: Waker,
+}
+
+impl Drop for DoneOnDrop {
+    fn drop(&mut self) {
+        self.done.store(true, Ordering::Relaxed);
+        replace(&mut self.waker, Waker::noop().clone()).wake();
     }
 }
 
@@ -37,13 +50,15 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
         let done = Arc::new(AtomicBool::new(false));
 
-        let done_clone = done.clone();
+        let done_on_drop = DoneOnDrop {
+            done: done.clone(),
+            waker,
+        };
         let db = self.inner.clone();
         let handle = std::thread::spawn(move || {
-            let res = db.transaction_local(f);
-            done_clone.store(true, sync::atomic::Ordering::SeqCst);
-            waker.wake();
-            res
+            // this value will be dropped regardles if the thread finishes normally or with panic
+            let _done_on_drop = done_on_drop;
+            db.transaction_local(f)
         });
 
         future::poll_fn(|_cx| {
