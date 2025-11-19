@@ -1,8 +1,8 @@
 use std::{
     future,
     sync::{
-        Arc,
-        mpsc::{self, TryRecvError},
+        self, Arc,
+        atomic::{AtomicBool, Ordering},
     },
     task::Poll,
 };
@@ -35,22 +35,29 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         f: impl 'static + Send + FnOnce(&'static Transaction<S>) -> R,
     ) -> R {
         let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-        let (ret_send, ret) = mpsc::channel();
+        let done = Arc::new(AtomicBool::new(false));
 
+        let done_clone = done.clone();
         let db = self.inner.clone();
-        std::thread::spawn(move || {
-            db.transaction_local(|txn| {
-                let res = f(txn);
-                ret_send.send(res).unwrap();
-                waker.wake();
-            })
+        let handle = std::thread::spawn(move || {
+            let res = db.transaction_local(f);
+            done_clone.store(true, sync::atomic::Ordering::SeqCst);
+            waker.wake();
+            res
         });
 
-        future::poll_fn(|_cx| match ret.try_recv() {
-            Ok(val) => Poll::Ready(val),
-            Err(TryRecvError::Empty) => Poll::Pending,
-            Err(TryRecvError::Disconnected) => panic!(),
+        future::poll_fn(|_cx| {
+            if done.load(Ordering::SeqCst) {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
         })
-        .await
+        .await;
+
+        match handle.join() {
+            Ok(val) => val,
+            Err(err) => std::panic::resume_unwind(err),
+        }
     }
 }
