@@ -1,10 +1,6 @@
 use std::{
     future,
-    mem::replace,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::Arc,
     task::{Poll, Waker},
 };
 
@@ -22,15 +18,19 @@ impl<S> Clone for DatabaseAsync<S> {
     }
 }
 
-pub struct DoneOnDrop {
-    done: Arc<AtomicBool>,
-    waker: Waker,
+pub struct WakeOnDrop {
+    waker: Option<Waker>,
 }
 
-impl Drop for DoneOnDrop {
+impl WakeOnDrop {
+    pub fn new(waker: Waker) -> Self {
+        Self { waker: Some(waker) }
+    }
+}
+
+impl Drop for WakeOnDrop {
     fn drop(&mut self) {
-        self.done.store(true, Ordering::Relaxed);
-        replace(&mut self.waker, Waker::noop().clone()).wake();
+        self.waker.take().unwrap().wake();
     }
 }
 
@@ -48,21 +48,23 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         f: impl 'static + Send + FnOnce(&'static Transaction<S>) -> R,
     ) -> R {
         let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-        let done = Arc::new(AtomicBool::new(false));
+        let done = Arc::new(());
+        let done_clone = done.clone();
+        let wake_on_drop = WakeOnDrop::new(waker);
 
-        let done_on_drop = DoneOnDrop {
-            done: done.clone(),
-            waker,
-        };
         let db = self.inner.clone();
         let handle = std::thread::spawn(move || {
-            // this value will be dropped regardles if the thread finishes normally or with panic
-            let _done_on_drop = done_on_drop;
+            // waker will be called when thread finishes, even with panic.
+            let _wake_on_drop = wake_on_drop;
+            // done arc is dropped before waking
+            let _done_clone = done_clone;
             db.transaction_local(f)
         });
 
+        // asynchonously wait for the thread to finish
         future::poll_fn(|_cx| {
-            if done.load(Ordering::SeqCst) {
+            // check if the done arc is dropped
+            if Arc::strong_count(&done) == 1 {
                 Poll::Ready(())
             } else {
                 Poll::Pending
@@ -70,6 +72,7 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         })
         .await;
 
+        // we know that the thread is finished, so we block on it
         match handle.join() {
             Ok(val) => val,
             Err(err) => std::panic::resume_unwind(err),
