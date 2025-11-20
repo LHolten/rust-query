@@ -18,19 +18,46 @@ impl<S> Clone for DatabaseAsync<S> {
     }
 }
 
-pub struct WakeOnDrop {
-    waker: Option<Waker>,
-}
-
-impl WakeOnDrop {
-    pub fn new(waker: Waker) -> Self {
-        Self { waker: Some(waker) }
+async fn async_run<R: 'static + Send>(f: impl 'static + Send + FnOnce() -> R) -> R {
+    pub struct WakeOnDrop {
+        waker: Option<Waker>,
     }
-}
 
-impl Drop for WakeOnDrop {
-    fn drop(&mut self) {
-        self.waker.take().unwrap().wake();
+    impl Drop for WakeOnDrop {
+        fn drop(&mut self) {
+            self.waker.take().unwrap().wake();
+        }
+    }
+
+    let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
+    let done = Arc::new(());
+
+    let handle = std::thread::spawn({
+        let done = done.clone();
+        move || {
+            // waker will be called when thread finishes, even with panic.
+            let _wake_on_drop = WakeOnDrop { waker: Some(waker) };
+            // done arc is dropped before waking
+            let _done_on_drop = done;
+            f()
+        }
+    });
+
+    // asynchonously wait for the thread to finish
+    future::poll_fn(|_cx| {
+        // check if the done Arc is dropped
+        if Arc::strong_count(&done) == 1 {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    })
+    .await;
+
+    // we know that the thread is finished, so we block on it
+    match handle.join() {
+        Ok(val) => val,
+        Err(err) => std::panic::resume_unwind(err),
     }
 }
 
@@ -47,35 +74,15 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         &self,
         f: impl 'static + Send + FnOnce(&'static Transaction<S>) -> R,
     ) -> R {
-        let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-        let done = Arc::new(());
-        let done_clone = done.clone();
-        let wake_on_drop = WakeOnDrop::new(waker);
-
         let db = self.inner.clone();
-        let handle = std::thread::spawn(move || {
-            // waker will be called when thread finishes, even with panic.
-            let _wake_on_drop = wake_on_drop;
-            // done arc is dropped before waking
-            let _done_clone = done_clone;
-            db.transaction_local(f)
-        });
+        async_run(move || db.transaction_local(f)).await
+    }
 
-        // asynchonously wait for the thread to finish
-        future::poll_fn(|_cx| {
-            // check if the done arc is dropped
-            if Arc::strong_count(&done) == 1 {
-                Poll::Ready(())
-            } else {
-                Poll::Pending
-            }
-        })
-        .await;
-
-        // we know that the thread is finished, so we block on it
-        match handle.join() {
-            Ok(val) => val,
-            Err(err) => std::panic::resume_unwind(err),
-        }
+    pub async fn transaction_mut<O: 'static + Send, E: 'static + Send>(
+        &self,
+        f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
+    ) -> Result<O, E> {
+        let db = self.inner.clone();
+        async_run(move || db.transaction_mut_local(f)).await
     }
 }

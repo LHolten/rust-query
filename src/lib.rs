@@ -22,6 +22,7 @@ mod transaction;
 mod value;
 mod writable;
 
+pub use async_db::DatabaseAsync;
 pub use db::TableRow;
 pub use lazy::Lazy;
 use private::Reader;
