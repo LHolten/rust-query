@@ -14,6 +14,7 @@ use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
     joinable::DynJoinable,
     migrate::{Schema, check_schema, schema_version, user_version},
+    migration::Config,
     pool::Pool,
     private::{Joinable, Reader},
     query::{OwnedRows, Query, track_stmt},
@@ -39,6 +40,22 @@ pub struct Database<S> {
     pub(crate) schema_version: AtomicI64,
     pub(crate) schema: PhantomData<S>,
     pub(crate) mut_lock: parking_lot::FairMutex<()>,
+}
+
+impl<S: Schema> Database<S> {
+    /// This is a quick way to open a database if you don't care about migration.
+    ///
+    /// Note that this will panic if the schema version doesn't match or when the schema
+    /// itself doesn't match the expected schema.
+    pub fn new(config: Config) -> Self {
+        let Some(m) = Self::migrator(config) else {
+            panic!("schema version {}, but got an older version", S::VERSION)
+        };
+        let Some(m) = m.finish() else {
+            panic!("schema version {}, but got a new version", S::VERSION)
+        };
+        m
+    }
 }
 
 use rusqlite::Connection;
