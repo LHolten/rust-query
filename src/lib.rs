@@ -128,10 +128,7 @@ pub mod private {
         pub use v0::*;
 
         pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
-            let db = Database::migrator(Config::open_in_memory())
-                .unwrap()
-                .finish()
-                .unwrap();
+            let db = Database::new(Config::open_in_memory());
             db.transaction_mut_ok(|txn| {
                 txn.insert(User { name: "Alice" }).unwrap();
                 f(txn)

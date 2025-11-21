@@ -111,11 +111,7 @@ pub mod vN {
 ```
 Initialize a database:
 ```rust,ignore
-let database = Database::migrator(Config::open("my_database.sqlite"))
-    .expect("database version is before supported versions")
-    // migrations go here
-    .finish()
-    .expect("database version is after supported versions");
+let database = Database::new(Config::open("my_database.sqlite"));
 ```
 Perform a transaction!
 ```rust,ignore

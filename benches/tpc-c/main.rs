@@ -166,10 +166,7 @@ fn main() {
 
     let mut config = Config::open(DB_FILE);
     config.foreign_keys = rust_query::migration::ForeignKeys::Rust;
-    let db: Database<Schema> = Database::migrator(config)
-        .expect("database should not be too old")
-        .finish()
-        .expect("database should not be too new");
+    let db = Database::new(config);
     let db = Arc::new(db);
 
     for warehouse_cnt in (warehouse_cnt..).step_by(10) {

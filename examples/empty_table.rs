@@ -13,10 +13,7 @@ pub mod vN {
 }
 
 pub fn main() {
-    let db: Database<v0::Schema> = Database::migrator(Config::open_in_memory())
-        .expect("database is older than supported versions")
-        .finish()
-        .expect("database is newer than supported versions");
+    let db = Database::new(Config::open_in_memory());
 
     db.transaction_mut_ok(|txn| {
         let id = txn.insert_ok(v0::Empty {});

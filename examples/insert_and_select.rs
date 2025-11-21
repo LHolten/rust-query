@@ -19,11 +19,7 @@ use v0::*;
 
 // Use your schema to initalize a database.
 fn main() {
-    let database = Database::migrator(Config::open_in_memory())
-        .expect("database version is before supported versions")
-        // migrations go here
-        .finish()
-        .expect("database version is after supported versions");
+    let database = Database::new(Config::open_in_memory());
 
     database.transaction_mut_ok(|txn| {
         do_stuff_with_database(txn);
