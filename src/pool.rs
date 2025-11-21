@@ -11,7 +11,7 @@ impl Pool {
         Self {
             manager,
             reserve: Mutex::new(Vec::new()),
-            max_reserve: 10,
+            max_reserve: 5,
         }
     }
 
