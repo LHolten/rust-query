@@ -14,6 +14,7 @@ mod joinable;
 mod lazy;
 mod migrate;
 mod mymap;
+mod pool;
 mod query;
 mod rows;
 mod schema;

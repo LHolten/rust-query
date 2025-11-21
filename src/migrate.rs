@@ -18,6 +18,7 @@ use crate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
     },
+    pool::Pool,
     schema::{
         from_db, from_macro,
         read::{read_index_names_for_table, read_schema},
@@ -270,7 +271,7 @@ impl<S: Schema> Migrator<S> {
         self.transaction.with(|x| x.commit().unwrap());
 
         Some(Database {
-            manager: self.manager,
+            manager: Pool::new(self.manager),
             schema_version: AtomicI64::new(schema_version),
             schema: PhantomData,
             mut_lock: parking_lot::FairMutex::new(()),

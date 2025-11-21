@@ -14,6 +14,7 @@ use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
     joinable::DynJoinable,
     migrate::{Schema, check_schema, schema_version, user_version},
+    pool::Pool,
     private::{Joinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
@@ -34,7 +35,7 @@ use crate::{
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
 pub struct Database<S> {
-    pub(crate) manager: r2d2_sqlite::SqliteConnectionManager,
+    pub(crate) manager: Pool,
     pub(crate) schema_version: AtomicI64,
     pub(crate) schema: PhantomData<S>,
     pub(crate) mut_lock: parking_lot::FairMutex<()>,
@@ -69,8 +70,12 @@ impl OwnedTransaction {
         self.borrow_dependent().as_ref().unwrap()
     }
 
-    pub(crate) fn with(mut self, f: impl FnOnce(rusqlite::Transaction<'_>)) {
-        self.with_dependent_mut(|_, b| f(b.take().unwrap()))
+    pub(crate) fn with(
+        mut self,
+        f: impl FnOnce(rusqlite::Transaction<'_>),
+    ) -> rusqlite::Connection {
+        self.with_dependent_mut(|_, b| f(b.take().unwrap()));
+        self.into_owner().into_inner()
     }
 }
 
@@ -114,14 +119,18 @@ impl<S: Send + Sync + Schema> Database<S> {
 
     /// Same as [Self::transaction], but can only be used on a new thread.
     pub(crate) fn transaction_local<R>(&self, f: impl FnOnce(&'static Transaction<S>) -> R) -> R {
-        use r2d2::ManageConnection;
-        let conn = self.manager.connect().unwrap();
+        let conn = self.manager.pop();
 
         let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             Some(conn.borrow_mut().transaction().unwrap())
         });
 
-        f(Transaction::new_checked(owned, &self.schema_version))
+        let res = f(Transaction::new_checked(owned, &self.schema_version));
+
+        let owned = TXN.take().unwrap().into_owner();
+        self.manager.push(owned.into_owner().into_inner());
+
+        res
     }
 
     /// Create a mutable [Transaction].
@@ -161,8 +170,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         // file descriptors on transactions that need to wait anyway.
         let guard = self.mut_lock.lock();
 
-        use r2d2::ManageConnection;
-        let conn = self.manager.connect().unwrap();
+        let conn = self.manager.pop();
 
         let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             let txn = conn
@@ -180,11 +188,12 @@ impl<S: Send + Sync + Schema> Database<S> {
 
         let owned = TXN.take().unwrap().into_owner();
 
-        if res.is_ok() {
-            owned.with(|x| x.commit().unwrap());
+        let conn = if res.is_ok() {
+            owned.with(|x| x.commit().unwrap())
         } else {
-            owned.with(|x| x.rollback().unwrap());
-        }
+            owned.with(|x| x.rollback().unwrap())
+        };
+        self.manager.push(conn);
 
         res
     }
@@ -213,8 +222,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     /// exist in a single process. On my machine the soft limit is (1024) by default.
     /// If this limit is reached, it may cause a panic in this method.
     pub fn rusqlite_connection(&self) -> rusqlite::Connection {
-        use r2d2::ManageConnection;
-        let conn = self.manager.connect().unwrap();
+        let conn = self.manager.pop();
         conn.pragma_update(None, "foreign_keys", "ON").unwrap();
         conn
     }
