@@ -1,5 +1,8 @@
 # Unreleased
 
+- Added `DatabaseAsync` to run transaction asynchronously on any runtime.
+- Added some reuse of connections between transactions.
+
 # 0.6.2
 
 - Added diagnostics for differences between rust code and database schema.
