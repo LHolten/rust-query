@@ -1,6 +1,34 @@
 [![Latest Version](https://img.shields.io/crates/v/rust-query.svg)](https://crates.io/crates/rust-query)
 [![Documentation](https://docs.rs/rust-query/badge.svg)](https://docs.rs/rust-query)
 
+Use this library if you want to fearlessly query and migrate your SQLite 
+database with a Rusty API build on an encoding of your schema in types.
+
+Do not use `rust-query` if you want a zero-cost abstraction.
+The focus of this project is on bringing errors to compile-time and
+generally making transactions easier to write.
+
+Here are some errors that `rust-query` can prevent at compile-time:
+- Column type errors.
+- Foreign key violations on insert/update.
+- Mismatches in number of returned rows (zero, one or multiple).
+- Use of undefined columns.
+- SQL syntax errors.
+
+Some other errors cannot be prevented at compile-time, but they can
+be turned into `Result` types so that the user is aware of them:
+- Unique constraint errors.
+- Foreign key violations on delete.
+
+Next to those features, `rust-query` also helps writing complex queries:
+- Reuse part of your query in another query by extracting it into a Rust function.
+Query types are kept simple so that the required function signature is easy to write.
+- Aggregates that always return a single row make it easier to reason about queries.
+- Automatic decorrelation of correlated sub-queries makes it possible to run those on SQLite.
+
+Note that this project is still in relatively early stages.
+There might be bugs to catch, so if you are worried about that, then don't use this yet.
+
 - [Overview of types](#overview-of-types)
 - [How to provide `IntoSelect`](#how-to-provide-intoselect)
 - [How to work with optional rows](#how-to-work-with-optional-rows)
@@ -126,5 +154,5 @@ println!("{mike_pictures:?}"); // This should print `["dog"]`.
 
 ## Roadmap
 
-This project is under development and there are some (important) things missing.
-Work is ongoing to fix this, [funded by NLnet!](https://nlnet.nl/project/rust-query/)
+The current focus is on making the library more accessible and more generally useful.
+[Funded by NLnet!](https://nlnet.nl/project/rust-query/)
