@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, sync::Mutex};
+use std::sync::Mutex;
 
 pub(crate) struct Pool {
     manager: r2d2_sqlite::SqliteConnectionManager,
-    reserve: Mutex<VecDeque<rusqlite::Connection>>,
+    reserve: Mutex<Vec<rusqlite::Connection>>,
     max_reserve: usize,
 }
 
@@ -10,7 +10,7 @@ impl Pool {
     pub fn new(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
         Self {
             manager,
-            reserve: Mutex::new(VecDeque::new()),
+            reserve: Mutex::new(Vec::new()),
             max_reserve: 10,
         }
     }
@@ -25,8 +25,7 @@ impl Pool {
 
     // code optimized to hold lock for shortest time possible
     fn pop_fast(&self) -> Option<rusqlite::Connection> {
-        // retrieve the newest connection
-        self.reserve.lock().unwrap().pop_front()
+        self.reserve.lock().unwrap().pop()
     }
 
     /// Only return connections that are in original condition.
@@ -37,14 +36,11 @@ impl Pool {
     // code optimized to hold lock for shortest time possible
     fn push_fast(&self, val: rusqlite::Connection) -> Option<rusqlite::Connection> {
         let mut guard = self.reserve.lock().unwrap();
-        let old = if guard.len() >= self.max_reserve {
-            // remove the oldest connection
-            guard.pop_back()
-        } else {
+        if guard.len() < self.max_reserve {
+            guard.push(val);
             None
-        };
-        // push as the newest connection
-        guard.push_front(val);
-        old
+        } else {
+            Some(val)
+        }
     }
 }
