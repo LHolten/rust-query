@@ -265,6 +265,14 @@ struct Stats {
     stock_level: TxnStats,
 }
 
+pub fn reset_ok() -> bool {
+    STATS.new_order.reset_ok()
+        & STATS.delivery.reset_ok()
+        & STATS.order_status.reset_ok()
+        & STATS.payment.reset_ok()
+        & STATS.stock_level.reset_ok()
+}
+
 pub fn print_stats(dur: Duration) -> bool {
     println!("new_order:    {}", STATS.new_order);
     println!("delivery:     {}", STATS.delivery);
@@ -280,11 +288,7 @@ pub fn print_stats(dur: Duration) -> bool {
         + STATS.payment.average_time()
         + STATS.delivery.average_time();
 
-    let success = STATS.new_order.reset_ok()
-        & STATS.delivery.reset_ok()
-        & STATS.order_status.reset_ok()
-        & STATS.payment.reset_ok()
-        & STATS.stock_level.reset_ok();
+    let success = reset_ok();
 
     if success {
         println!(
@@ -297,7 +301,7 @@ pub fn print_stats(dur: Duration) -> bool {
                 as u64
         );
     } else {
-        println!("percentage of late transaction is too high, stopping benchmark")
+        println!("percentage of late transactions is too high, stopping benchmark")
     }
 
     success

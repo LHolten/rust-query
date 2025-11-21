@@ -151,7 +151,7 @@ pub mod vN {
 }
 use v0::*;
 
-use crate::emulated_user::{Emulate, EmulateWithQueue, print_stats, stop_emulation};
+use crate::emulated_user::{Emulate, EmulateWithQueue, print_stats, reset_ok, stop_emulation};
 
 const DB_FILE: &'static str = "tpc.sqlite";
 
@@ -211,7 +211,14 @@ fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
         }
     }
 
-    let duration = Duration::from_secs(120);
+    // warmup
+    let duration = Duration::from_secs(30);
+    thread::sleep(duration);
+    println!("warmup complete");
+
+    reset_ok();
+
+    let duration = Duration::from_secs(90);
     thread::sleep(duration);
 
     println!("benchmark complete");
