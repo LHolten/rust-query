@@ -58,6 +58,19 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         let db = self.inner.clone();
         async_run(move || db.transaction_mut_local(f)).await
     }
+
+    /// This is a lot like [Database::transaction_mut_ok], the only difference is that the async function
+    /// does not block the runtime and requires the closure to be `'static`.
+    /// The static requirement is because the future may be canceled, but the transaction can not
+    /// be canceled.
+    pub async fn transaction_mut_ok<R: 'static + Send>(
+        &self,
+        f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> R,
+    ) -> R {
+        self.transaction_mut(|txn| Ok::<R, std::convert::Infallible>(f(txn)))
+            .await
+            .unwrap()
+    }
 }
 
 async fn async_run<R: 'static + Send>(f: impl 'static + Send + FnOnce() -> R) -> R {
