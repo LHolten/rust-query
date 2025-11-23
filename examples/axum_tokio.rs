@@ -20,7 +20,7 @@ pub mod vN {
 }
 use v0::*;
 
-#[cfg_attr(test, derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord))]
+#[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 #[derive(serde::Deserialize, serde::Serialize, rust_query::FromExpr)]
 #[rust_query(From = User)]
 struct UserInfo {
@@ -73,40 +73,21 @@ mod tests {
     async fn use_api_methods() {
         let db = Database::new(Config::open_in_memory());
         let db = DatabaseAsync::new(Arc::new(db));
-        create_user(
-            State(db.clone()),
-            Json(UserInfo {
-                name: "Tim".to_owned(),
-                hair_color: None,
-            }),
-        )
-        .await;
+        let tim = UserInfo {
+            name: "Tim".to_owned(),
+            hair_color: None,
+        };
+        create_user(State(db.clone()), Json(tim.clone())).await;
 
-        create_user(
-            State(db.clone()),
-            Json(UserInfo {
-                name: "Frank".to_owned(),
-                hair_color: Some("cyan".to_owned()),
-            }),
-        )
-        .await;
+        let frank = UserInfo {
+            name: "Frank".to_owned(),
+            hair_color: Some("cyan".to_owned()),
+        };
+        create_user(State(db.clone()), Json(frank.clone())).await;
 
         let Json(mut list) = list_users(State(db)).await;
-        list.sort();
+        list.sort_by(|a, b| a.name.cmp(&b.name));
 
-        expect_test::expect![[r#"
-            [
-                UserInfo {
-                    name: "Frank",
-                    hair_color: Some(
-                        "cyan",
-                    ),
-                },
-                UserInfo {
-                    name: "Tim",
-                    hair_color: None,
-                },
-            ]
-        "#]].assert_debug_eq(&list);
+        assert_eq!(list, [frank, tim]);
     }
 }
