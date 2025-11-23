@@ -20,6 +20,7 @@ pub mod vN {
 }
 use v0::*;
 
+#[cfg_attr(test, derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord))]
 #[derive(serde::Deserialize, serde::Serialize, rust_query::FromExpr)]
 #[rust_query(From = User)]
 struct UserInfo {
@@ -62,4 +63,50 @@ async fn list_users(State(db): State<DatabaseAsync<Schema>>) -> Json<Vec<UserInf
         })
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn use_api_methods() {
+        let db = Database::new(Config::open_in_memory());
+        let db = DatabaseAsync::new(Arc::new(db));
+        create_user(
+            State(db.clone()),
+            Json(UserInfo {
+                name: "Tim".to_owned(),
+                hair_color: None,
+            }),
+        )
+        .await;
+
+        create_user(
+            State(db.clone()),
+            Json(UserInfo {
+                name: "Frank".to_owned(),
+                hair_color: Some("cyan".to_owned()),
+            }),
+        )
+        .await;
+
+        let Json(mut list) = list_users(State(db)).await;
+        list.sort();
+
+        expect_test::expect![[r#"
+            [
+                UserInfo {
+                    name: "Frank",
+                    hair_color: Some(
+                        "cyan",
+                    ),
+                },
+                UserInfo {
+                    name: "Tim",
+                    hair_color: None,
+                },
+            ]
+        "#]].assert_debug_eq(&list);
+    }
 }
