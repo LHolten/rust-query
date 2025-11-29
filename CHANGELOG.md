@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.6.3
+
 - Added `DatabaseAsync` to run transaction asynchronously on any runtime.
 - Added some reuse of connections between transactions.
 - Added `Database::new`, to create database without migrations.

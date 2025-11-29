@@ -3,7 +3,7 @@ members = ["rust-query-macros"]
 
 [package]
 name = "rust-query"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2024"
 description = "A query builder using rust concepts."
 categories = ["database"]
