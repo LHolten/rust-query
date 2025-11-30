@@ -54,6 +54,11 @@ macro_rules! table {
             type Lazy<'t> = ();
             type Mutable = ();
 
+            fn select_mutable(_val: Expr<'_, Self::Schema, Self>)
+            -> crate::Select<'_, Self::Schema, (Self::Mutable, crate::TableRow<Self>)> {
+                unreachable!()
+            }
+
             fn mutable_into_update(_val: Self::Mutable) -> Self::UpdateOk {
                 unreachable!()
             }

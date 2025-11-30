@@ -186,6 +186,11 @@ pub trait Table: Sized + 'static {
     ) -> Self::Conflict;
 
     #[doc(hidden)]
+    fn select_mutable(
+        val: Expr<'_, Self::Schema, Self>,
+    ) -> Select<'_, Self::Schema, (Self::Mutable, TableRow<Self>)>;
+
+    #[doc(hidden)]
     fn mutable_into_update(val: Self::Mutable) -> Self::UpdateOk;
 
     #[doc(hidden)]

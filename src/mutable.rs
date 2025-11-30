@@ -3,10 +3,10 @@ use std::ops::{Deref, DerefMut};
 use crate::{Table, TableRow, Transaction};
 
 pub struct Mutable<'transaction, T: Table> {
-    inner: Option<T::Mutable>,
-    row_id: TableRow<T>,
-    any_update: bool,
-    txn: &'transaction mut Transaction<T::Schema>,
+    pub(crate) inner: Option<T::Mutable>,
+    pub(crate) row_id: TableRow<T>,
+    pub(crate) any_update: bool,
+    pub(crate) txn: &'transaction mut Transaction<T::Schema>,
 }
 
 impl<'transaction, T: Table> Deref for Mutable<'transaction, T> {

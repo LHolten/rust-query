@@ -174,6 +174,7 @@ fn define_table(
     let immut_ident = format_ident!("{}Immut", table_ident);
 
     let private = Ident::new("private", Span::call_site());
+    let row_id = Ident::new("row_id", Span::call_site());
 
     let (referer, referer_expr) = if table.referenceable {
         (quote! {()}, quote! {})
@@ -279,6 +280,17 @@ fn define_table(
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
                 type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
                 type Mutable = #mut_ident;
+
+                fn select_mutable(col: ::rust_query::Expr<'_, Self::Schema, Self>)
+                -> ::rust_query::Select<'_, Self::Schema, (Self::Mutable, ::rust_query::TableRow<Self>)> {
+                    ::rust_query::IntoSelect::into_select((#wrap_parts, &col)).map(
+                        |(#wrap_ident, #row_id)| (#mut_ident {
+                            #(#col_ident_mut,)*
+                            #private: #immut_ident {
+                                #(#col_ident_immut,)*
+                            },
+                        }, #row_id))
+                }
 
                 fn mutable_into_update(val: Self::Mutable) -> Self::UpdateOk {
                     #table_ident {

@@ -15,6 +15,7 @@ use crate::{
     joinable::DynJoinable,
     migrate::{Schema, check_schema, schema_version, user_version},
     migration::Config,
+    mutable::Mutable,
     pool::Pool,
     private::{Joinable, Reader},
     query::{OwnedRows, Query, track_stmt},
@@ -358,6 +359,19 @@ impl<S> Transaction<S> {
                 iter: rows.into_iter(table),
             }
         })
+    }
+
+    pub fn mutable<'t, T: Table<Schema = S>>(
+        &'t mut self,
+        val: impl IntoExpr<'static, S, Typ = T>,
+    ) -> Mutable<'t, T> {
+        let (inner, row_id) = self.query_one(T::select_mutable(val.into_expr()));
+        Mutable {
+            inner: Some(inner),
+            row_id,
+            any_update: false,
+            txn: self,
+        }
     }
 }
 
