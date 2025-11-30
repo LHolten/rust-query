@@ -52,6 +52,11 @@ macro_rules! table {
             type Update = ();
             type Insert = ();
             type Lazy<'t> = ();
+            type Mutable = ();
+
+            fn mutable_into_update(_val: Self::Mutable) -> Self::UpdateOk {
+                unreachable!()
+            }
 
             fn read(_val: &Self::Insert, _f: &mut Reader<Self::Schema>) {
                 unreachable!()

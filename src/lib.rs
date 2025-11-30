@@ -13,6 +13,7 @@ mod db;
 mod joinable;
 mod lazy;
 mod migrate;
+mod mutable;
 mod mymap;
 mod pool;
 mod query;
@@ -169,6 +170,8 @@ pub trait Table: Sized + 'static {
     type Referer;
 
     #[doc(hidden)]
+    type Mutable;
+    #[doc(hidden)]
     type Lazy<'t>;
     #[doc(hidden)]
     type Insert;
@@ -181,6 +184,9 @@ pub trait Table: Sized + 'static {
         txn: &Transaction<Self::Schema>,
         val: &Self::Insert,
     ) -> Self::Conflict;
+
+    #[doc(hidden)]
+    fn mutable_into_update(val: Self::Mutable) -> Self::UpdateOk;
 
     #[doc(hidden)]
     fn update_into_try_update(val: Self::UpdateOk) -> Self::Update;

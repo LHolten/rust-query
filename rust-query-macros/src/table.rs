@@ -126,6 +126,11 @@ fn define_table(
     let mut empty = vec![];
     let mut parts = vec![];
 
+    let mut col_ident_mut = vec![];
+    let mut col_typ_mut = vec![];
+    let mut col_ident_immut = vec![];
+    let mut col_typ_immut = vec![];
+
     for (i, col) in &table.columns {
         let ident = &col.name;
         let tmp = format_ident!("_{table_ident}{i}", span = col.typ.span());
@@ -135,9 +140,15 @@ fn define_table(
             def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
             try_from_update.push(quote! {Default::default()});
+
+            col_ident_immut.push(ident);
+            col_typ_immut.push(tmp.clone());
         } else {
             update_columns_safe.push(quote! {::rust_query::private::AsUpdate});
             try_from_update.push(quote! {val.#ident});
+
+            col_ident_mut.push(ident);
+            col_typ_mut.push(tmp.clone());
         }
         parts.push(quote! {&col.#ident});
         generic.push(make_generic(ident));
@@ -159,6 +170,10 @@ fn define_table(
     }
 
     let alias_ident = format_ident!("{}Alias", table_ident);
+    let mut_ident = format_ident!("{}Mut", table_ident);
+    let immut_ident = format_ident!("{}Immut", table_ident);
+
+    let private = Ident::new("private", Span::call_site());
 
     let (referer, referer_expr) = if table.referenceable {
         (quote! {()}, quote! {})
@@ -186,7 +201,6 @@ fn define_table(
             #(#col_doc)*
             pub #col_ident: #generic,
         )*}
-        type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
 
         #[doc(hidden)]
         pub struct #table_helper(());
@@ -213,6 +227,25 @@ fn define_table(
         }
 
         const _: () = {
+            type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
+
+            pub struct #mut_ident {
+                #private: #immut_ident,
+                #(pub #col_ident_mut: <#col_typ_mut as ::rust_query::private::MyTyp>::Out,)*
+            }
+
+            pub struct #immut_ident {
+                #(pub #col_ident_immut: <#col_typ_immut as ::rust_query::private::MyTyp>::Out,)*
+            }
+
+            impl ::std::ops::Deref for #mut_ident {
+                type Target = #immut_ident;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.#private
+                }
+            }
+
             impl ::rust_query::Table for #table_ident {
                 type MigrateFrom = #migrate_from;
 
@@ -245,6 +278,14 @@ fn define_table(
                 type Update = (#alias_ident<#(#empty ::rust_query::private::AsUpdate),*>);
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
                 type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
+                type Mutable = #mut_ident;
+
+                fn mutable_into_update(val: Self::Mutable) -> Self::UpdateOk {
+                    #table_ident {
+                        #(#col_ident_mut: ::rust_query::Update::set(val.#col_ident_mut),)*
+                        #(#col_ident_immut: (),)*
+                    }
+                }
 
                 fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
