@@ -373,6 +373,28 @@ impl<S> Transaction<S> {
             txn: self,
         }
     }
+
+    pub fn mutables_vec<'t, T: Table<Schema = S>>(
+        &'t mut self,
+        val: impl Joinable<'static, Typ = T>,
+    ) -> Vec<Mutable<'t, T>>
+    where
+        S: 'static,
+    {
+        let val = DynJoinable::new(val);
+        self.query(|rows| {
+            let val = rows.join(val);
+            let select = T::select_mutable(val).map(|(inner, row_id)| Mutable {
+                inner: Some(inner),
+                row_id,
+                any_update: false,
+                // creating new transaction mut here is fine because all rows are
+                // disjoint and the txn is only used to update that row.
+                txn: Transaction::new_ref(),
+            });
+            rows.into_vec(select)
+        })
+    }
 }
 
 pub struct LazyIter<'t, T: Table> {
