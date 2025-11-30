@@ -26,7 +26,9 @@ impl<'transaction, T: Table> DerefMut for Mutable<'transaction, T> {
 
 impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
     fn drop(&mut self) {
-        let update = T::mutable_into_update(self.inner.take().unwrap());
-        self.txn.update_ok(self.row_id, update);
+        if self.any_update {
+            let update = T::mutable_into_update(self.inner.take().unwrap());
+            self.txn.update_ok(self.row_id, update);
+        }
     }
 }
