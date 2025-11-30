@@ -1,7 +1,7 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{Transaction, Update, optional};
-use std::time::SystemTime;
+use rust_query::{Transaction, optional};
+use std::{mem::replace, time::SystemTime};
 
 pub fn generate_input(warehouse: i64, other: &[i64]) -> NewOrderInput {
     let district = rand::random_range(1..=10);
@@ -75,13 +75,7 @@ pub fn new_order(
 
     let customer = customer.table_row();
 
-    txn.update_ok(
-        district.table_row(),
-        District {
-            next_order: Update::add(1),
-            ..Default::default()
-        },
-    );
+    txn.mutable(district.table_row()).next_order += 1;
 
     let local = input
         .items
@@ -113,80 +107,66 @@ pub fn new_order(
         },
     ) in input.items.into_iter().enumerate()
     {
-        let Some(item) = txn.query_one(Item.number(item_number)) else {
+        let Some(item) = txn.lazy(Item.number(item_number)) else {
             input_valid = false;
             continue;
         };
 
-        #[derive(Select)]
-        struct StockInfo {
-            row: TableRow<Stock>,
-            quantity: i64,
-            dist_xx: String,
-            data: String,
-        }
+        let item_price = item.price;
+        let item_name = item.name.clone();
+        let item_original = item.data.contains("ORIGINAL");
+        let item = item.table_row();
 
-        let stock = txn
-            .query_one(optional(|row| {
+        let is_remote = supplying_warehouse != input.warehouse;
+
+        let mut stock = txn
+            .mutable(optional(|row| {
                 let supplying_warehouse = row.and(Warehouse.number(supplying_warehouse));
-                let stock = row.and(Stock.warehouse(supplying_warehouse).item(item));
-                row.then_select(StockInfoSelect {
-                    row: &stock,
-                    quantity: &stock.quantity,
-                    dist_xx: &[
-                        &stock.dist_00,
-                        &stock.dist_01,
-                        &stock.dist_02,
-                        &stock.dist_03,
-                        &stock.dist_04,
-                        &stock.dist_05,
-                        &stock.dist_06,
-                        &stock.dist_07,
-                        &stock.dist_08,
-                        &stock.dist_09,
-                        &stock.dist_10,
-                    ][input.district as usize],
-                    data: &stock.data,
-                })
+                row.and_then(Stock.warehouse(supplying_warehouse).item(item))
             }))
             .unwrap();
 
-        let new_quantity = if stock.quantity >= quantity + 10 {
-            stock.quantity - quantity
-        } else {
-            stock.quantity - quantity + 91
-        };
+        stock.ytd += quantity;
+        stock.order_cnt += 1;
+        stock.remote_cnt += is_remote as i64;
 
-        let is_remote = supplying_warehouse != input.warehouse;
-        txn.update_ok(
-            stock.row,
-            Stock {
-                ytd: Update::add(quantity),
-                quantity: Update::set(new_quantity),
-                order_cnt: Update::add(1),
-                remote_cnt: Update::add(is_remote as i64),
-                ..Default::default()
-            },
-        );
+        let mut new_quantity = stock.quantity - quantity;
+        if new_quantity <= 10 {
+            new_quantity += 91;
+        }
+        let old_quantity = replace(&mut stock.quantity, new_quantity);
 
-        let item = txn.lazy(item);
-        let item_price = item.price;
-        let item_name = item.name.clone();
+        let dist_info = &[
+            &stock.dist_00,
+            &stock.dist_01,
+            &stock.dist_02,
+            &stock.dist_03,
+            &stock.dist_04,
+            &stock.dist_05,
+            &stock.dist_06,
+            &stock.dist_07,
+            &stock.dist_08,
+            &stock.dist_09,
+            &stock.dist_10,
+        ][input.district as usize]
+            .clone();
 
-        let brand_generic = if item.data.contains("ORIGINAL") && stock.data.contains("ORIGINAL") {
+        let brand_generic = if item_original && stock.data.contains("ORIGINAL") {
             "B"
         } else {
             "G"
         };
 
+        let stock = stock.table_row();
+
         txn.insert(OrderLine {
             order,
             number: number as i64,
-            stock: stock.row,
+            stock,
             delivery_d: None::<i64>,
             quantity,
             amount: quantity * item_price,
-            dist_info: stock.dist_xx,
+            dist_info,
         })
         .unwrap();
 
@@ -195,7 +175,7 @@ pub fn new_order(
             item: item_number,
             item_name,
             quantity,
-            stock_quantity: stock.quantity,
+            stock_quantity: old_quantity,
             brand_generic,
             item_price,
             amount: quantity * item_price,

@@ -1,6 +1,6 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{FromExpr, Transaction, Update, optional};
+use rust_query::{FromExpr, Transaction};
 
 pub fn generate_input(warehouse: i64, other: &[i64]) -> PaymentInput {
     let district = rand::random_range(1..=10);
@@ -34,50 +34,27 @@ pub struct PaymentInput {
     date: SystemTime,
 }
 
-type WarehouseInfo = WithId<Warehouse, LocationYtd>;
-type DistrictInfo = WithId<District, LocationYtd>;
-
 pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
-    let (warehouse, district) = txn
-        .query_one(optional(|row| {
-            let warehouse = row.and(Warehouse.number(input.warehouse));
-            let district = row.and(District.warehouse(&warehouse).number(input.district));
-            row.then_select((
-                WarehouseInfo::from_expr(warehouse),
-                DistrictInfo::from_expr(district),
-            ))
-        }))
+    let mut warehouse = txn.mutable(Warehouse.number(input.warehouse)).unwrap();
+    warehouse.ytd += input.amount;
+    let warehouse_name = warehouse.name.clone();
+    let warehouse = warehouse.table_row();
+
+    let mut district = txn
+        .mutable(District.warehouse(warehouse).number(input.district))
         .unwrap();
+    district.ytd += input.amount;
+    let district_name = district.name.clone();
+    let district = district.table_row();
 
-    txn.update_ok(
-        warehouse.row,
-        Warehouse {
-            ytd: Update::add(input.amount),
-            ..Default::default()
-        },
-    );
-
-    txn.update_ok(
-        district.row,
-        District {
-            ytd: Update::add(input.amount),
-            ..Default::default()
-        },
-    );
-
-    let customer: WithId<Customer, CustomerInfo> =
+    let customer: TableRow<Customer> =
         input
             .customer
             .lookup_customer(txn, input.customer_warehouse, input.customer_district);
 
-    txn.update_ok(
-        customer.row,
-        Customer {
-            ytd_payment: Update::add(input.amount),
-            payment_cnt: Update::add(1),
-            ..Default::default()
-        },
-    );
+    let mut customer = txn.mutable(customer);
+    customer.ytd_payment += input.amount;
+    customer.payment_cnt += 1;
 
     let mut credit_data = None;
     if customer.credit == "BC" {
@@ -92,34 +69,31 @@ pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOut
             customer.data
         );
         data.truncate(500);
-        txn.update_ok(
-            customer.row,
-            Customer {
-                data: Update::set(&data),
-                ..Default::default()
-            },
-        );
+        customer.data = data.clone();
         data.truncate(200);
         credit_data = Some(data);
     }
 
+    let customer_number = customer.number;
+    let customer = customer.table_row();
+
     txn.insert_ok(History {
-        customer: customer.row,
-        district: district.row,
+        customer,
+        district,
         date: input.date,
         amount: input.amount,
-        data: format!("{}    {}", warehouse.name, district.name),
+        data: format!("{}    {}", warehouse_name, district_name),
     });
 
     PaymentOutput {
         warehouse: input.warehouse,
         district: input.district,
-        customer: customer.number,
+        customer: customer_number,
         customer_district: input.customer_district,
         customer_warehouse: input.customer_warehouse,
-        warehouse_info: warehouse.info,
-        district_info: district.info,
-        customer_info: customer.info,
+        warehouse_info: txn.query_one(LocationYtd::from_expr(warehouse)),
+        district_info: txn.query_one(LocationYtd::from_expr(district)),
+        customer_info: txn.query_one(CustomerInfo::from_expr(customer)),
         data: credit_data,
         amount: input.amount,
         date: input.date,

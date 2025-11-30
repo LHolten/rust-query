@@ -14,7 +14,7 @@ use std::{
 };
 
 use rust_query::{
-    Database, FromExpr, IntoExpr, IntoSelect, Select, Table, TableRow, Transaction, aggregate,
+    Database, FromExpr, IntoExpr, TableRow, Transaction, aggregate,
     migration::{Config, schema},
     optional,
 };
@@ -310,9 +310,8 @@ impl CustomerIdent {
                 .query_one(optional(|row| {
                     let warehouse = row.and(Warehouse.number(warehouse));
                     let district = row.and(District.warehouse(warehouse).number(district));
-                    Option::<O>::from_expr(
-                        row.and_then(Customer.district(district).number(customer)),
-                    )
+                    let customer = row.and(Customer.district(district).number(customer));
+                    row.then_select(O::from_expr(customer))
                 }))
                 .unwrap(),
             CustomerIdent::Name(last_name) => {
@@ -351,28 +350,5 @@ impl<'column> IntoExpr<'column, Schema> for SystemTime {
             .unwrap()
             .as_millis();
         (millis as i64).into_expr()
-    }
-}
-
-struct WithId<T: Table, F: FromExpr<Schema, T>> {
-    info: F,
-    row: TableRow<T>,
-}
-
-impl<T: Table, F: FromExpr<Schema, T>> std::ops::Deref for WithId<T, F> {
-    type Target = F;
-
-    fn deref(&self) -> &Self::Target {
-        &self.info
-    }
-}
-impl<T: Table<Schema = Schema>, F: FromExpr<Schema, T>> FromExpr<Schema, T> for WithId<T, F> {
-    fn from_expr<'columns>(
-        col: impl IntoExpr<'columns, Schema, Typ = T>,
-    ) -> Select<'columns, Schema, Self> {
-        let col = col.into_expr();
-        (&col, F::from_expr(&col))
-            .into_select()
-            .map(|(row, info)| Self { info, row })
     }
 }

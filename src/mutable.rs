@@ -21,6 +21,10 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
             _txn: PhantomData,
         }
     }
+
+    pub fn table_row(self) -> TableRow<T> {
+        self.row_id
+    }
 }
 
 impl<'transaction, T: Table> Deref for Mutable<'transaction, T> {

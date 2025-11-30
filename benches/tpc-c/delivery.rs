@@ -1,6 +1,6 @@
 use std::time::UNIX_EPOCH;
 
-use rust_query::{Update, aggregate, optional};
+use rust_query::{aggregate, optional};
 
 use super::*;
 
@@ -44,46 +44,23 @@ pub fn delivery(
             let order = row.and(Order.customer(customer).number(order_num));
             row.and_then(NewOrder.order(order))
         })
-    }));
-    let Some(new_order) = new_order else {
-        return None;
-    };
+    }))?;
 
-    let order = &new_order.into_expr().order;
-    let order_num = txn.query_one(&order.number);
-
-    txn.update_ok(
-        order,
-        Order {
-            carrier_id: Update::set(Some(input.carrier_id)),
-            ..Default::default()
-        },
-    );
+    let mut order = txn.mutable(&new_order.into_expr().order);
+    order.carrier_id = Some(input.carrier_id);
+    let order_num = order.number;
+    let order = order.table_row();
 
     let mut total_amount = 0;
-    for (line, amount) in txn.query(|rows| {
-        let ol = rows.join(OrderLine);
-        rows.filter(ol.order.eq(order));
-        rows.into_vec((&ol, &ol.amount))
-    }) {
-        total_amount += amount;
-        txn.update_ok(
-            line,
-            OrderLine {
-                delivery_d: Update::set(Some(input.delivery_d)),
-                ..Default::default()
-            },
-        );
+    for mut line in txn.mutable_vec(OrderLine.order(order)) {
+        total_amount += line.amount;
+        line.delivery_d = Some(input.delivery_d);
     }
 
-    txn.update_ok(
-        &order.customer,
-        Customer {
-            balance: Update::add(total_amount),
-            delivery_cnt: Update::add(1),
-            ..Default::default()
-        },
-    );
+    let mut customer = txn.mutable(&order.into_expr().customer);
+    customer.balance += total_amount;
+    customer.delivery_cnt += 1;
+    drop(customer);
 
     let txn = txn.downgrade();
     assert!(txn.delete_ok(new_order));
