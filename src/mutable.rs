@@ -1,12 +1,26 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use crate::{Table, TableRow, Transaction};
 
 pub struct Mutable<'transaction, T: Table> {
-    pub(crate) inner: Option<T::Mutable>,
-    pub(crate) row_id: TableRow<T>,
-    pub(crate) any_update: bool,
-    pub(crate) txn: &'transaction mut Transaction<T::Schema>,
+    inner: Option<T::Mutable>,
+    row_id: TableRow<T>,
+    any_update: bool,
+    _txn: PhantomData<&'transaction mut Transaction<T::Schema>>,
+}
+
+impl<'transaction, T: Table> Mutable<'transaction, T> {
+    pub(crate) fn new(inner: T::Mutable, row_id: TableRow<T>) -> Self {
+        Self {
+            inner: Some(inner),
+            row_id,
+            any_update: false,
+            _txn: PhantomData,
+        }
+    }
 }
 
 impl<'transaction, T: Table> Deref for Mutable<'transaction, T> {
@@ -28,7 +42,7 @@ impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
     fn drop(&mut self) {
         if self.any_update {
             let update = T::mutable_into_update(self.inner.take().unwrap());
-            self.txn.update_ok(self.row_id, update);
+            Transaction::new_ref().update_ok(self.row_id, update);
         }
     }
 }

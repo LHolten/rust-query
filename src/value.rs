@@ -8,10 +8,11 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
-    Lazy, Table, Transaction,
+    Lazy, Select, Table, Transaction,
     alias::{Field, MyAlias, Scope},
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
+    mutable::Mutable,
     mymap::MyMap,
     private::Joinable,
     schema::canonical,
@@ -317,7 +318,51 @@ impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
     }
 }
 
-pub trait MyTyp: 'static {
+pub trait OptTable: MyTyp {
+    type Schema;
+    type Select;
+    type Mutable<'t>;
+    fn select_opt_mutable(
+        val: Expr<'_, Self::Schema, Self>,
+    ) -> Select<'_, Self::Schema, Self::Select>;
+
+    fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t>;
+}
+
+impl<T: Table> OptTable for T {
+    type Schema = T::Schema;
+    type Select = (T::Mutable, TableRow<T>);
+    type Mutable<'t> = Mutable<'t, T>;
+    fn select_opt_mutable(
+        val: Expr<'_, Self::Schema, Self>,
+    ) -> Select<'_, Self::Schema, Self::Select> {
+        T::select_mutable(val)
+    }
+
+    fn into_mutable<'t>((inner, row_id): Self::Select) -> Self::Mutable<'t> {
+        Mutable::new(inner, row_id)
+    }
+}
+
+impl<T: Table> OptTable for Option<T> {
+    type Schema = T::Schema;
+    type Select = Option<(T::Mutable, TableRow<T>)>;
+    type Mutable<'t> = Option<Mutable<'t, T>>;
+    fn select_opt_mutable(
+        val: Expr<'_, Self::Schema, Self>,
+    ) -> Select<'_, Self::Schema, Self::Select> {
+        crate::optional(|row| {
+            let val = row.and(val);
+            row.then_select(T::select_mutable(val))
+        })
+    }
+
+    fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t> {
+        val.map(T::into_mutable)
+    }
+}
+
+pub trait MyTyp: Sized + 'static {
     type Prev: MyTyp;
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;

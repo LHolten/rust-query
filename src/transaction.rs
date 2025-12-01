@@ -20,7 +20,7 @@ use crate::{
     private::{Joinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    value::{DynTypedExpr, MyTyp, SecretFromSql, ValueBuilder},
+    value::{DynTypedExpr, MyTyp, OptTable, SecretFromSql, ValueBuilder},
     writable::TableInsert,
 };
 
@@ -361,20 +361,15 @@ impl<S> Transaction<S> {
         })
     }
 
-    pub fn mutable<'t, T: Table<Schema = S>>(
+    pub fn mutable<'t, T: OptTable<Schema = S>>(
         &'t mut self,
         val: impl IntoExpr<'static, S, Typ = T>,
-    ) -> Mutable<'t, T> {
-        let (inner, row_id) = self.query_one(T::select_mutable(val.into_expr()));
-        Mutable {
-            inner: Some(inner),
-            row_id,
-            any_update: false,
-            txn: self,
-        }
+    ) -> T::Mutable<'t> {
+        let x = self.query_one(T::select_opt_mutable(val.into_expr()));
+        T::into_mutable(x)
     }
 
-    pub fn mutables_vec<'t, T: Table<Schema = S>>(
+    pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl Joinable<'static, Typ = T>,
     ) -> Vec<Mutable<'t, T>>
@@ -384,15 +379,10 @@ impl<S> Transaction<S> {
         let val = DynJoinable::new(val);
         self.query(|rows| {
             let val = rows.join(val);
-            let select = T::select_mutable(val).map(|(inner, row_id)| Mutable {
-                inner: Some(inner),
-                row_id,
-                any_update: false,
-                // creating new transaction mut here is fine because all rows are
-                // disjoint and the txn is only used to update that row.
-                txn: Transaction::new_ref(),
-            });
-            rows.into_vec(select)
+            rows.into_vec(T::select_mutable(val))
+                .into_iter()
+                .map(T::into_mutable)
+                .collect()
         })
     }
 }
