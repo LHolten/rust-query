@@ -46,6 +46,7 @@ impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
     fn drop(&mut self) {
         if self.any_update {
             let update = T::mutable_into_update(self.inner.take().unwrap());
+            #[expect(deprecated)]
             Transaction::new_ref().update_ok(self.row_id, update);
         }
     }

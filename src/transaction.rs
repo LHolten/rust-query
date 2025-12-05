@@ -558,6 +558,7 @@ impl<S: 'static> Transaction<S> {
     ///
     /// This method can be used for all tables, it just does not allow modifying
     /// columns that are part of unique constraints.
+    #[deprecated = "use Transaction::mutable instead"]
     pub fn update_ok<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'static, S, Typ = T>,
