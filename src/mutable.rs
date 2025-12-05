@@ -22,7 +22,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
         }
     }
 
-    pub fn table_row(self) -> TableRow<T> {
+    pub fn into_table_row(self) -> TableRow<T> {
         self.row_id
     }
 }

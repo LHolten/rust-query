@@ -49,7 +49,7 @@ pub fn delivery(
     let mut order = txn.mutable(&new_order.into_expr().order);
     order.carrier_id = Some(input.carrier_id);
     let order_num = order.number;
-    let order = order.table_row();
+    let order = order.into_table_row();
 
     let mut total_amount = 0;
     for mut line in txn.mutable_vec(OrderLine.order(order)) {

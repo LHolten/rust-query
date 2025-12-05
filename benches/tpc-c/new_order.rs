@@ -157,7 +157,7 @@ pub fn new_order(
             "G"
         };
 
-        let stock = stock.table_row();
+        let stock = stock.into_table_row();
 
         txn.insert(OrderLine {
             order,
