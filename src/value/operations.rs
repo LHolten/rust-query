@@ -191,6 +191,33 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
             sea_query::Expr::expr(sea_query::Func::cust("sign").arg(lhs.build_expr(b)))
         })
     }
+
+    /// Check if a value is between two other values.
+    ///
+    /// The range is inclusive on both sides.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().between(2, 3)), true);
+    /// assert_eq!(txn.query_one(3.into_expr().between(2, 3)), true);
+    /// assert_eq!(txn.query_one(5.into_expr().between(2, 3)), false);
+    /// assert_eq!(txn.query_one(1.into_expr().between(2, 3)), false);
+    /// # });
+    /// ```
+    pub fn between(
+        &self,
+        low: impl IntoExpr<'column, S, Typ = T>,
+        high: impl IntoExpr<'column, S, Typ = T>,
+    ) -> Expr<'column, S, bool> {
+        let lhs = self.inner.clone();
+        let low = low.into_expr().inner;
+        let high = high.into_expr().inner;
+        Expr::adhoc(move |b| {
+            lhs.build_expr(b)
+                .between(low.build_expr(b), high.build_expr(b))
+        })
+    }
 }
 
 impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
