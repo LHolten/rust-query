@@ -302,8 +302,10 @@ where
 
 /// Use this a value in a query to get the current datetime as a number of seconds.
 #[derive(Clone, Copy)]
+#[deprecated = "Use `Expr::unix_epoch` instead"]
 pub struct UnixEpoch;
 
+#[expect(deprecated)]
 impl Typed for UnixEpoch {
     type Typ = i64;
     fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
@@ -311,6 +313,7 @@ impl Typed for UnixEpoch {
     }
 }
 
+#[expect(deprecated)]
 impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {

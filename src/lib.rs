@@ -33,9 +33,11 @@ use schema::from_macro::TypBuilder;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 use value::MyTyp;
+#[expect(deprecated)]
+pub use value::UnixEpoch;
 pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
-pub use value::{Expr, IntoExpr, UnixEpoch, optional::optional};
+pub use value::{Expr, IntoExpr, optional::optional};
 pub use writable::Update;
 
 use crate::alias::JoinableTable;

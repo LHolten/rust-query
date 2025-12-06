@@ -5,7 +5,7 @@ use std::{
 
 use indicatif::{ProgressIterator, ProgressStyle};
 use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
-use rust_query::{TableRow, Transaction, UnixEpoch};
+use rust_query::{Expr, TableRow, Transaction};
 
 use crate::{
     Nu, random_to_last_name,
@@ -158,7 +158,7 @@ fn populate_district(
                 state: a_string(2, 2),
                 zip: zip_code(),
                 phone: n_string(16, 16),
-                since: UnixEpoch,
+                since: Expr::unix_epoch(),
                 credit: if rand::random_ratio(10, 100) {
                     "BC"
                 } else {
@@ -177,7 +177,7 @@ fn populate_district(
         txn.insert_ok(History {
             customer,
             district,
-            date: UnixEpoch,
+            date: Expr::unix_epoch(),
             amount: 10 * 100,
             data: a_string(12, 24),
         });
@@ -194,7 +194,7 @@ fn populate_district(
             .insert(Order {
                 customer,
                 number: order_number as i64,
-                entry_d: UnixEpoch,
+                entry_d: Expr::unix_epoch(),
                 carrier_id: delivered.then_some(rand::random_range(1..=10)),
                 order_line_cnt,
                 all_local: 1,
@@ -208,7 +208,7 @@ fn populate_district(
                 stock: stock
                     .choose(&mut rand::rng())
                     .expect("stock array is not empty"),
-                delivery_d: delivered.then_some(UnixEpoch),
+                delivery_d: delivered.then_some(Expr::unix_epoch()),
                 quantity: 5,
                 amount: if delivered {
                     0
