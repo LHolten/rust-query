@@ -326,7 +326,7 @@ impl<'column, S> Expr<'column, S, i64> {
     /// ```
     pub fn as_float(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("real")))
+        Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("REAL")))
     }
 
     /// Calculate the remainder for integer division.
@@ -346,6 +346,24 @@ impl<'column, S> Expr<'column, S, i64> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).modulo(rhs.build_expr(b)))
+    }
+}
+
+impl<'column, S> Expr<'column, S, f64> {
+    /// Convert the [f64] expression to [i64] type.
+    ///
+    /// Always rounds towards zero.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(10.9.into_expr().truncate()), 10);
+    /// assert_eq!(txn.query_one((-10.9).into_expr().truncate()), -10);
+    /// # });
+    /// ```
+    pub fn truncate(&self) -> Expr<'column, S, i64> {
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("INTEGER")))
     }
 }
 
