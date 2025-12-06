@@ -1,6 +1,6 @@
 use sea_query::{Alias, ExprTrait, extension::sqlite::SqliteExpr};
 
-use crate::value::MyTyp;
+use crate::value::{BuffTyp, MyTyp};
 
 use super::{EqTyp, Expr, IntoExpr, NumTyp};
 
@@ -583,6 +583,43 @@ impl<'column, S> Expr<'column, S, String> {
         let lhs = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(sea_query::Func::cust("upper").arg(lhs.build_expr(b)))
+        })
+    }
+
+    /// The number of unicode code points in the string.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("€".into_expr().char_len()), 1);
+    /// assert_eq!(txn.query_one("what".into_expr().char_len()), 4);
+    /// # });
+    /// ```
+    pub fn char_len(&self) -> Expr<'column, S, i64> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("length").arg(lhs.build_expr(b)))
+        })
+    }
+}
+
+impl<'column, S, T: BuffTyp> Expr<'column, S, T> {
+    /// The length of the value in bytes.
+    ///
+    /// The byte length of strings can depend on the encoding (UTF-8 or UTF-16).
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("€".into_expr().byte_len()), 3);
+    /// assert_eq!(txn.query_one("what".into_expr().byte_len()), 4);
+    /// assert_eq!(txn.query_one(vec![1, 2].into_expr().byte_len()), 2);
+    /// # });
+    /// ```
+    pub fn byte_len(&self) -> Expr<'column, S, i64> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("octet_length").arg(lhs.build_expr(b)))
         })
     }
 }

@@ -127,6 +127,10 @@ impl NumTyp for f64 {
     }
 }
 
+pub trait BuffTyp: MyTyp {}
+impl BuffTyp for String {}
+impl BuffTyp for Vec<u8> {}
+
 #[diagnostic::on_unimplemented(
     message = "Columns with type `{Self}` can not be checked for equality",
     note = "`EqTyp` is also implemented for all table types"
