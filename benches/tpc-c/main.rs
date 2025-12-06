@@ -9,10 +9,11 @@ use std::{
     env::args,
     ops::RangeInclusive,
     sync::{Arc, OnceLock},
-    thread,
-    time::{Duration, SystemTime},
+    thread::{self, sleep},
+    time::{Duration, Instant, SystemTime},
 };
 
+use indicatif::{ProgressIterator, ProgressStyle};
 use rust_query::{
     Database, FromExpr, IntoExpr, TableRow, Transaction, aggregate,
     migration::{Config, schema},
@@ -208,23 +209,30 @@ fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
         }
     }
 
-    // warmup
-    let duration = Duration::from_secs(30);
-    thread::sleep(duration);
-    println!("warmup complete");
+    progressbar_sleep(30, "warmup");
 
+    let start = Instant::now();
     reset_ok();
 
-    let duration = Duration::from_secs(90);
-    thread::sleep(duration);
+    progressbar_sleep(30, "benchmark");
 
-    println!("benchmark complete");
-    stop_emulation();
-    for thread in threads {
-        thread.join().unwrap();
+    let is_ok = print_stats(start);
+
+    stop_emulation(|| {
+        for thread in threads {
+            thread.join().unwrap();
+        }
+    });
+
+    is_ok
+}
+
+pub fn progressbar_sleep(seconds: usize, msg: &'static str) {
+    let style = ProgressStyle::with_template("{prefix} {wide_bar} {pos}/{len}s").unwrap();
+    for _ in (0..seconds).progress().with_prefix(msg).with_style(style) {
+        sleep(Duration::from_secs(1));
     }
-
-    print_stats(duration)
+    println!("{msg} finished");
 }
 
 enum Nu {

@@ -170,9 +170,11 @@ static STOP: Stop = Stop {
     condvar: Condvar::new(),
 };
 
-pub fn stop_emulation() {
+pub fn stop_emulation(f: impl FnOnce()) {
     *STOP.should_stop.lock().unwrap() = true;
     STOP.condvar.notify_all();
+    f();
+    *STOP.should_stop.lock().unwrap() = false;
 }
 
 struct TxnStats {
@@ -242,7 +244,6 @@ impl TxnStats {
         self.late.store(0, std::sync::atomic::Ordering::Relaxed);
         self.time_us.store(0, std::sync::atomic::Ordering::Relaxed);
         self.time_cnt.store(0, std::sync::atomic::Ordering::Relaxed);
-        *STOP.should_stop.lock().unwrap() = false;
 
         // check that at most 10% is late
         late * 10 <= cnt
@@ -273,14 +274,15 @@ pub fn reset_ok() -> bool {
         & STATS.stock_level.reset_ok()
 }
 
-pub fn print_stats(dur: Duration) -> bool {
+pub fn print_stats(start: Instant) -> bool {
+    let new_order_cnt = STATS.new_order.cnt();
+    let dur = start.elapsed();
+
     println!("new_order:    {}", STATS.new_order);
     println!("delivery:     {}", STATS.delivery);
     println!("order_status: {}", STATS.order_status);
     println!("payment:      {}", STATS.payment);
     println!("stock_level:  {}", STATS.stock_level);
-
-    let new_order_cnt = STATS.new_order.cnt();
 
     // order_status and stock_level are not included because they are read only.
     // the mutable transactions are each run 10 times. (delivery is split in 10)
