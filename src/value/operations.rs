@@ -129,6 +129,48 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).gte(rhs.build_expr(b)))
     }
+
+    /// Get the maximum of two values.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().max(3)), 3);
+    /// assert_eq!(txn.query_one(5.0.into_expr().max(3.0)), 5.0);
+    /// # });
+    /// ```
+    pub fn max(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(
+                sea_query::Func::cust("max")
+                    .arg(lhs.build_expr(b))
+                    .arg(rhs.build_expr(b)),
+            )
+        })
+    }
+
+    /// Get the minimum of two values.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().min(3)), 2);
+    /// assert_eq!(txn.query_one(5.0.into_expr().min(3.0)), 3.0);
+    /// # });
+    /// ```
+    pub fn min(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(
+                sea_query::Func::cust("min")
+                    .arg(lhs.build_expr(b))
+                    .arg(rhs.build_expr(b)),
+            )
+        })
+    }
 }
 
 impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
