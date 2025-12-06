@@ -171,6 +171,26 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
             )
         })
     }
+
+    /// Get the sign of the expression.
+    ///
+    /// The result is -1, 0 or 1 depending on if the expression is
+    /// negative, zero or positive.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().sign()), 1);
+    /// assert_eq!(txn.query_one((-5.0).into_expr().sign()), -1);
+    /// assert_eq!(txn.query_one((-0.0).into_expr().sign()), 0);
+    /// # });
+    /// ```
+    pub fn sign(&self) -> Expr<'column, S, i64> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("sign").arg(lhs.build_expr(b)))
+        })
+    }
 }
 
 impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
