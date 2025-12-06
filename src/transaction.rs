@@ -343,7 +343,7 @@ impl<S> Transaction<S> {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 
-    pub fn lazy<'t, T: MyTyp>(&'t self, val: impl IntoExpr<'static, S, Typ = T>) -> T::Lazy<'t> {
+    pub fn lazy<'t, T: OptTable>(&'t self, val: impl IntoExpr<'static, S, Typ = T>) -> T::Lazy<'t> {
         T::out_to_lazy(self.query_one(val.into_expr()))
     }
 
@@ -558,7 +558,7 @@ impl<S: 'static> Transaction<S> {
     ///
     /// This method can be used for all tables, it just does not allow modifying
     /// columns that are part of unique constraints.
-    #[deprecated = "use Transaction::mutable instead"]
+    #[deprecated = "Use Transaction::mutable instead"]
     pub fn update_ok<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'static, S, Typ = T>,
