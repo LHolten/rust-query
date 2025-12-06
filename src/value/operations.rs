@@ -50,6 +50,25 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
         Expr::adhoc(move |b| lhs.build_expr(b).mul(rhs.build_expr(b)))
     }
 
+    /// Divide one expression by another.
+    ///
+    /// For integers, the result is truncated towards zero.
+    /// See also [Expr::modulo].
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(5.into_expr().div(3)), 1);
+    /// assert_eq!(txn.query_one((-5).into_expr().div(3)), -1);
+    /// assert_eq!(txn.query_one(1.0.into_expr().div(2.0)), 0.5);
+    /// # });
+    /// ```
+    pub fn div(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).div(rhs.build_expr(b)))
+    }
+
     /// Compute the less than operator (<) of two expressions.
     ///
     /// ```
@@ -266,6 +285,25 @@ impl<'column, S> Expr<'column, S, i64> {
     pub fn as_float(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
         Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("real")))
+    }
+
+    /// Calculate the remainder for integer division.
+    ///
+    /// The remainder is the missing part after division.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(5.into_expr().div(3)), 1);
+    /// assert_eq!(txn.query_one(5.into_expr().modulo(3)), 2);
+    /// assert_eq!(txn.query_one((-5).into_expr().div(3)), -1);
+    /// assert_eq!(txn.query_one((-5).into_expr().modulo(3)), -2);
+    /// # });
+    /// ```
+    pub fn modulo(&self, rhs: impl IntoExpr<'column, S, Typ = i64>) -> Expr<'column, S, i64> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| lhs.build_expr(b).modulo(rhs.build_expr(b)))
     }
 }
 
