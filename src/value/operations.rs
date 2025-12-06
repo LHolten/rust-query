@@ -192,6 +192,22 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
         })
     }
 
+    /// Get the absolute value of the expression.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().abs()), 2);
+    /// assert_eq!(txn.query_one((-5.0).into_expr().abs()), 5.0);
+    /// # });
+    /// ```
+    pub fn abs(&self) -> Expr<'column, S, T> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("abs").arg(lhs.build_expr(b)))
+        })
+    }
+
     /// Check if a value is between two other values.
     ///
     /// The range is inclusive on both sides.
