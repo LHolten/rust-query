@@ -14,7 +14,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(1.0.into_expr().add(2.0)), 3.0);
     /// # });
     /// ```
-    pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).add(rhs.build_expr(b)))
@@ -29,7 +29,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(1.0.into_expr().sub(2.0)), -1.0);
     /// # });
     /// ```
-    pub fn sub(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn sub(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).sub(rhs.build_expr(b)))
@@ -44,7 +44,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(2.0.into_expr().mul(3.0)), 6.0);
     /// # });
     /// ```
-    pub fn mul(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn mul(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).mul(rhs.build_expr(b)))
@@ -63,7 +63,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(1.0.into_expr().div(2.0)), 0.5);
     /// # });
     /// ```
-    pub fn div(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn div(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).div(rhs.build_expr(b)))
@@ -139,7 +139,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(5.0.into_expr().max(3.0)), 5.0);
     /// # });
     /// ```
-    pub fn max(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn max(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| {
@@ -160,7 +160,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one(5.0.into_expr().min(3.0)), 3.0);
     /// # });
     /// ```
-    pub fn min(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, T> {
+    pub fn min(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| {
@@ -201,7 +201,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// assert_eq!(txn.query_one((-5.0).into_expr().abs()), 5.0);
     /// # });
     /// ```
-    pub fn abs(&self) -> Expr<'column, S, T> {
+    pub fn abs(&self) -> Self {
         let lhs = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(sea_query::Func::cust("abs").arg(lhs.build_expr(b)))
@@ -288,7 +288,7 @@ impl<'column, S> Expr<'column, S, bool> {
     /// assert_eq!(txn.query_one(false.into_expr().not()), true);
     /// # });
     /// ```
-    pub fn not(&self) -> Expr<'column, S, bool> {
+    pub fn not(&self) -> Self {
         let val = self.inner.clone();
         Expr::adhoc(move |b| val.build_expr(b).not())
     }
@@ -303,7 +303,7 @@ impl<'column, S> Expr<'column, S, bool> {
     /// assert_eq!(txn.query_one(false.into_expr().and(false)), false);
     /// # });
     /// ```
-    pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
+    pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).and(rhs.build_expr(b)))
@@ -319,7 +319,7 @@ impl<'column, S> Expr<'column, S, bool> {
     /// assert_eq!(txn.query_one(false.into_expr().or(false)), false);
     /// # });
     /// ```
-    pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Expr<'column, S, bool> {
+    pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).or(rhs.build_expr(b)))
@@ -405,7 +405,7 @@ impl<'column, S> Expr<'column, S, i64> {
     /// assert_eq!(txn.query_one((-5).into_expr().modulo(3)), -2);
     /// # });
     /// ```
-    pub fn modulo(&self, rhs: impl IntoExpr<'column, S, Typ = i64>) -> Expr<'column, S, i64> {
+    pub fn modulo(&self, rhs: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).modulo(rhs.build_expr(b)))
@@ -536,7 +536,7 @@ impl<'column, S> Expr<'column, S, String> {
     /// assert_eq!(txn.query_one("hello ".into_expr().concat("world").concat("!")), "hello world!");
     /// # });
     /// ```
-    pub fn concat(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, String> {
+    pub fn concat(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| {
@@ -557,7 +557,7 @@ impl<'column, S> Expr<'column, S, String> {
     /// assert_eq!(txn.query_one("WHAT".into_expr().lower()), "what");
     /// # });
     /// ```
-    pub fn lower(&self) -> Expr<'column, S, String> {
+    pub fn lower(&self) -> Self {
         let lhs = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(sea_query::Func::cust("lower").arg(lhs.build_expr(b)))
@@ -573,10 +573,27 @@ impl<'column, S> Expr<'column, S, String> {
     /// assert_eq!(txn.query_one("what".into_expr().upper()), "WHAT");
     /// # });
     /// ```
-    pub fn upper(&self) -> Expr<'column, S, String> {
+    pub fn upper(&self) -> Self {
         let lhs = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(sea_query::Func::cust("upper").arg(lhs.build_expr(b)))
+        })
+    }
+}
+
+impl<'column, S> Expr<'column, S, Vec<u8>> {
+    /// Create a new blob of zero bytes of the specified length.
+    ///
+    /// ```
+    /// # use rust_query::Expr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(Expr::zero_blob(40)), vec![0; 40]);
+    /// # });
+    /// ```
+    pub fn zero_blob(len: impl IntoExpr<'column, S, Typ = i64>) -> Self {
+        let len = len.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("zeroblob").arg(len.build_expr(b)))
         })
     }
 }
