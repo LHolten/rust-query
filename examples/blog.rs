@@ -46,13 +46,19 @@ fn insert_data(txn: &mut Transaction<Schema>) {
     });
 
     // Insert a rating - note the try_insert due to the unique constraint
-    let _rating = txn
+    let rating = txn
         .insert(Rating {
             user: bob,
             story: dream,
             stars: 5,
         })
         .expect("no rating for this user and story exists yet");
+
+    // Update the rating
+    txn.mutable(rating).stars = 3;
+
+    // Read the rating
+    assert_eq!(txn.lazy(rating).stars, 3);
 }
 
 fn query_data(txn: &Transaction<Schema>) {
