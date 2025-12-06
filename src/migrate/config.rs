@@ -1,5 +1,8 @@
 use std::path::Path;
 
+#[cfg(doc)]
+use crate::migrate::{Database, Migrator};
+
 /// [Config] is used to open a database from a file or in memory.
 ///
 /// This is the first step in the [Config] -> [Migrator] -> [Database] chain to

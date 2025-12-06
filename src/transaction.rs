@@ -234,7 +234,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     /// Schema changes are detected with the `schema_version` pragma and will result in a panic when creating a new
     /// [rust_query] transaction.
     ///
-    /// The `foreign_keys` pragma is always enabled here, even if [crate::migrate::ForeignKeys::SQLite] is not used.
+    /// The `foreign_keys` pragma is always enabled here, even if [crate::migration::ForeignKeys::SQLite] is not used.
     ///
     /// Note that many systems have a limit on the number of file descriptors that can
     /// exist in a single process. On my machine the soft limit is (1024) by default.
@@ -676,7 +676,7 @@ impl<S: Schema> TransactionWeak<S> {
     /// - Making changes that violate foreign-key constraints (see below).
     ///
     /// Sadly it is not possible to enable (or disable) the `foreign_keys` pragma during a transaction.
-    /// This means that whether this pragma is enabled depends on which [crate::migrate::ForeignKeys]
+    /// This means that whether this pragma is enabled depends on which [crate::migration::ForeignKeys]
     /// option is used and can not be changed.
     pub fn rusqlite_transaction<R>(&mut self, f: impl FnOnce(&rusqlite::Transaction) -> R) -> R {
         TXN.with_borrow(|txn| f(txn.as_ref().unwrap().get()))
