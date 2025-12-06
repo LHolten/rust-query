@@ -484,6 +484,38 @@ impl<'column, S> Expr<'column, S, String> {
             )
         })
     }
+
+    /// Convert ascii to lowercase.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("Hello".into_expr().lower()), "hello");
+    /// assert_eq!(txn.query_one("WHAT".into_expr().lower()), "what");
+    /// # });
+    /// ```
+    pub fn lower(&self) -> Expr<'column, S, String> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("lower").arg(lhs.build_expr(b)))
+        })
+    }
+
+    /// Convert ascii to uppercase.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("Hello".into_expr().upper()), "HELLO");
+    /// assert_eq!(txn.query_one("what".into_expr().upper()), "WHAT");
+    /// # });
+    /// ```
+    pub fn upper(&self) -> Expr<'column, S, String> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("upper").arg(lhs.build_expr(b)))
+        })
+    }
 }
 
 // This is a copy of the function from the glob crate https://github.com/rust-lang/glob/blob/49ee1e92bd6e8c5854c0b339634f9b4b733aba4f/src/lib.rs#L720-L737.
