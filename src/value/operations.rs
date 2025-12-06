@@ -349,8 +349,19 @@ impl<'column, S> Expr<'column, S, String> {
     /// assert_eq!(txn.query_one("rhubarb".into_expr().contains("Bar")), false);
     /// # });
     /// ```
-    pub fn contains(&self, pattern: impl AsRef<str>) -> Expr<'column, S, bool> {
-        self.glob(format!("*{}*", escape_glob(pattern)))
+    #[doc(alias = "instr")]
+    pub fn contains(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
+        const ZERO: sea_query::Expr = sea_query::Expr::Constant(sea_query::Value::BigInt(Some(0)));
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(
+                sea_query::Func::cust("instr")
+                    .arg(lhs.build_expr(b))
+                    .arg(rhs.build_expr(b)),
+            )
+            .is_not(ZERO)
+        })
     }
 
     /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
@@ -391,6 +402,26 @@ impl<'column, S> Expr<'column, S, String> {
         Expr::adhoc(move |b| {
             sea_query::Expr::expr(lhs.build_expr(b))
                 .like(sea_query::LikeExpr::new(&rhs).escape('\\'))
+        })
+    }
+
+    /// Concatenate two strings.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("hello ".into_expr().concat("world").concat("!")), "hello world!");
+    /// # });
+    /// ```
+    pub fn concat(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, String> {
+        let lhs = self.inner.clone();
+        let rhs = rhs.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(
+                sea_query::Func::cust("concat")
+                    .arg(lhs.build_expr(b))
+                    .arg(rhs.build_expr(b)),
+            )
         })
     }
 }
