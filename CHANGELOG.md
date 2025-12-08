@@ -1,5 +1,14 @@
 # Unreleased
 
+- Added `Transaction::mutable` and `Transaction::mutable_vec`.
+- Deprecated `Transaction::update_ok`.
+- Fix, only allow `Transaction::lazy` on table valued expressions.
+- Added `Expr::div`, `Expr::modulo`, `Expr::concat`, `Expr::max`, `Expr::min`,
+  `Expr::truncate`, `Expr::lower`, `Expr::upper`, `Expr::sign`, `Expr::between`,
+  `Expr::abs`, `Expr::zero_blob`, `Expr::unix_epoch`, `Expr::char_len` and
+  `Expr::byte_len`.
+- Deprecated `UnixEpoch`.
+
 # 0.6.3
 
 - Added `DatabaseAsync` to run transaction asynchronously on any runtime.
