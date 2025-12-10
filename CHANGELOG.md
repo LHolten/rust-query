@@ -8,6 +8,26 @@
   `Expr::abs`, `Expr::zero_blob`, `Expr::unix_epoch`, `Expr::char_len` and
   `Expr::byte_len`.
 - Deprecated `UnixEpoch`.
+- Relaxed trait bound on `Aggregate::max` and `Aggregate::min` to allow table typed
+  expressions.
+
+Example usage of the new `Transaction::mutable` API:
+```rust
+// old
+txn.update_ok(
+    &order.customer,
+    Customer {
+        balance: Update::add(total_amount),
+        delivery_cnt: Update::add(1),
+        ..Default::default()
+    },
+);
+// new
+let mut customer = txn.mutable(&order.customer);
+customer.balance += total_amount;
+customer.delivery_cnt += 1;
+drop(customer);
+```
 
 # 0.6.3
 
