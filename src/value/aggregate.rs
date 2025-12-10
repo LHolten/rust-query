@@ -68,7 +68,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the maximum value in a column, this is [None] if there are zero rows.
     pub fn max<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
     where
-        T: NumTyp,
+        T: EqTyp,
     {
         let val = val.into_expr().inner;
         Expr::new(self.select(move |b| Func::max(val.build_expr(b)).into()))
@@ -77,7 +77,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the minimum value in a column, this is [None] if there are zero rows.
     pub fn min<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
     where
-        T: NumTyp,
+        T: EqTyp,
     {
         let val = val.into_expr().inner;
         Expr::new(self.select(move |b| Func::min(val.build_expr(b)).into()))
