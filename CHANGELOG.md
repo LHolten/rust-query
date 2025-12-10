@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.6.4
+
 - Added `Transaction::mutable` and `Transaction::mutable_vec`.
 - Deprecated `Transaction::update_ok`.
 - Fix, only allow `Transaction::lazy` on table valued expressions.
