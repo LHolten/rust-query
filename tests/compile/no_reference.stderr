@@ -14,6 +14,7 @@ help: the trait `rust_query::schema::from_macro::SchemaType<v0::Schema>` is not 
              Option<T>
              String
              Vec<u8>
+             bool
              f64
              i64
 note: required by a bound in `TypBuilder::<S>::col`
