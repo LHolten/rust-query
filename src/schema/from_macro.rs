@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
 };
 
-use sea_query::{ExprTrait, TableBuilder};
+use sea_query::{ExprTrait, QueryBuilder};
 
 use crate::{
     ast::{CONST_0, CONST_1},
@@ -58,12 +58,14 @@ impl<S> TypBuilder<S> {
                 nullable: T::NULLABLE,
                 fk: T::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: {
-                    let mut sql = String::new();
-                    sea_query::SqliteQueryBuilder.prepare_check_constraint(
-                        &sea_query::Check::unnamed(T::check(sea_query::Alias::new(name))),
-                        &mut sql,
-                    );
-                    sql
+                    let check = T::check(sea_query::Alias::new(name));
+                    if check != sea_query::Expr::Constant(sea_query::Value::Bool(Some(true))) {
+                        let mut sql = String::new();
+                        sea_query::SqliteQueryBuilder.prepare_expr(&check, &mut sql);
+                        Some(sql)
+                    } else {
+                        None
+                    }
                 },
             },
             span,

@@ -102,6 +102,9 @@ impl Table {
             } else {
                 def.not_null();
             }
+            if let Some(check) = &col.check {
+                def.check(sea_query::Expr::cust(check.clone()));
+            }
             create.col(&mut def);
             if let Some((table, fk)) = &col.fk {
                 create.foreign_key(

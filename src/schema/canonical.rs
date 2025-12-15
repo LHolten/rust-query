@@ -9,12 +9,24 @@ pub enum ColumnType {
     Any = 4,
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Column {
     pub typ: ColumnType,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
-    pub check: String,
+    pub check: Option<String>,
+}
+
+impl std::hash::Hash for Column {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.typ.hash(state);
+        self.nullable.hash(state);
+        self.fk.hash(state);
+        // for backwards compatibility
+        if self.check.is_some() {
+            self.check.hash(state);
+        }
+    }
 }
 
 // TODO: remove redundant unique constraints
