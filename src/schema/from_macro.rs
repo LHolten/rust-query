@@ -3,7 +3,10 @@ use std::{
     marker::PhantomData,
 };
 
+use sea_query::{ExprTrait, TableBuilder};
+
 use crate::{
+    ast::{CONST_0, CONST_1},
     schema::{canonical, from_db},
     value::{EqTyp, MyTyp},
 };
@@ -54,6 +57,14 @@ impl<S> TypBuilder<S> {
                 typ: T::TYP,
                 nullable: T::NULLABLE,
                 fk: T::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
+                check: {
+                    let mut sql = String::new();
+                    sea_query::SqliteQueryBuilder.prepare_check_constraint(
+                        &sea_query::Check::unnamed(T::check(sea_query::Alias::new(name))),
+                        &mut sql,
+                    );
+                    sql
+                },
             },
             span,
         };
@@ -83,8 +94,17 @@ struct NotNull;
 )]
 trait SchemaType<S>: MyTyp {
     type N;
+    fn check(_col: sea_query::Alias) -> sea_query::SimpleExpr {
+        sea_query::SimpleExpr::Constant(sea_query::Value::Bool(Some(true)))
+    }
 }
 
+impl<S> SchemaType<S> for bool {
+    type N = NotNull;
+    fn check(col: sea_query::Alias) -> sea_query::SimpleExpr {
+        sea_query::Expr::col(col).is_in([CONST_0, CONST_1]).into()
+    }
+}
 impl<S> SchemaType<S> for String {
     type N = NotNull;
 }

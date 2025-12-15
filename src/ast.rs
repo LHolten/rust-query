@@ -161,4 +161,5 @@ impl ValueBuilder {
     }
 }
 
-const CONST_1: Expr = Expr::Constant(sea_query::Value::BigInt(Some(1)));
+pub const CONST_1: Expr = Expr::Constant(sea_query::Value::BigInt(Some(1)));
+pub const CONST_0: Expr = Expr::Constant(sea_query::Value::BigInt(Some(0)));

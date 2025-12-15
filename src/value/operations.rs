@@ -1,6 +1,9 @@
 use sea_query::{Alias, ExprTrait, extension::sqlite::SqliteExpr};
 
-use crate::value::{BuffTyp, MyTyp};
+use crate::{
+    ast::CONST_0,
+    value::{BuffTyp, MyTyp},
+};
 
 use super::{EqTyp, Expr, IntoExpr, NumTyp};
 
@@ -480,7 +483,6 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     #[doc(alias = "instr")]
     pub fn contains(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
-        const ZERO: sea_query::Expr = sea_query::Expr::Constant(sea_query::Value::BigInt(Some(0)));
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| {
@@ -489,7 +491,7 @@ impl<'column, S> Expr<'column, S, String> {
                     .arg(lhs.build_expr(b))
                     .arg(rhs.build_expr(b)),
             )
-            .is_not(ZERO)
+            .is_not(CONST_0)
         })
     }
 

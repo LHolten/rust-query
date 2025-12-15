@@ -14,6 +14,7 @@ pub struct Column {
     pub typ: ColumnType,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
+    pub check: String,
 }
 
 // TODO: remove redundant unique constraints
