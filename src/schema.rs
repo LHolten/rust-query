@@ -3,6 +3,7 @@
 //! of the column ordering and some other stuff.
 
 pub mod canonical;
+mod check_constraint;
 mod diff;
 pub mod from_db;
 pub mod from_macro;
