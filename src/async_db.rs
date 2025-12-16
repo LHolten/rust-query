@@ -84,22 +84,22 @@ async fn async_run<R: 'static + Send>(f: impl 'static + Send + FnOnce() -> R) ->
         }
     }
 
-    let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-    let done = Arc::new(WakeOnDrop {
-        waker: Mutex::new(waker),
+    // Initally we use a noop waker, because we will override it anyway.
+    let wake_on_drop = Arc::new(WakeOnDrop {
+        waker: Mutex::new(Waker::noop().clone()),
     });
-    let done_weak = Arc::downgrade(&done);
+    let weak = Arc::downgrade(&wake_on_drop);
 
     let handle = std::thread::spawn(move || {
         // waker will be called when thread finishes, even with panic.
-        let _wake_on_drop = done;
+        let _wake_on_drop = wake_on_drop;
         f()
     });
 
     // asynchonously wait for the thread to finish
     future::poll_fn(|cx| {
-        if let Some(done) = done_weak.upgrade() {
-            done.waker.lock().unwrap().clone_from(cx.waker());
+        if let Some(wake_on_drop) = weak.upgrade() {
+            wake_on_drop.waker.lock().unwrap().clone_from(cx.waker());
             Poll::Pending
         } else {
             Poll::Ready(())
