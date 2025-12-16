@@ -1,6 +1,6 @@
 use std::{
     future,
-    sync::Arc,
+    sync::{Arc, Mutex},
     task::{Poll, Waker},
 };
 
@@ -75,36 +75,34 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
 
 async fn async_run<R: 'static + Send>(f: impl 'static + Send + FnOnce() -> R) -> R {
     pub struct WakeOnDrop {
-        waker: Option<Waker>,
+        waker: Mutex<Waker>,
     }
 
     impl Drop for WakeOnDrop {
         fn drop(&mut self) {
-            self.waker.take().unwrap().wake();
+            self.waker.lock().unwrap().wake_by_ref();
         }
     }
 
     let waker = future::poll_fn(|cx| Poll::Ready(cx.waker().clone())).await;
-    let done = Arc::new(());
+    let done = Arc::new(WakeOnDrop {
+        waker: Mutex::new(waker),
+    });
+    let done_weak = Arc::downgrade(&done);
 
-    let handle = std::thread::spawn({
-        let done = done.clone();
-        move || {
-            // waker will be called when thread finishes, even with panic.
-            let _wake_on_drop = WakeOnDrop { waker: Some(waker) };
-            // done arc is dropped before waking
-            let _done_on_drop = done;
-            f()
-        }
+    let handle = std::thread::spawn(move || {
+        // waker will be called when thread finishes, even with panic.
+        let _wake_on_drop = done;
+        f()
     });
 
     // asynchonously wait for the thread to finish
-    future::poll_fn(|_cx| {
-        // check if the done Arc is dropped
-        if Arc::strong_count(&done) == 1 {
-            Poll::Ready(())
-        } else {
+    future::poll_fn(|cx| {
+        if let Some(done) = done_weak.upgrade() {
+            done.waker.lock().unwrap().clone_from(cx.waker());
             Poll::Pending
+        } else {
+            Poll::Ready(())
         }
     })
     .await;
