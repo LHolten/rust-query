@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.6.5
+
+- Fix `DatabaseAsync` to allow the waker to change.
+
 # 0.6.4
 
 - Added `Transaction::mutable` and `Transaction::mutable_vec`.
