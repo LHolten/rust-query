@@ -7,6 +7,7 @@ pub struct Column {
     pub typ: String,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
+    pub check: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -56,10 +57,15 @@ impl Column {
                 _ => format!("{{{}}}", self.typ),
             }
         };
-        if self.nullable {
+        let wrapped = if self.nullable {
             format!("Option<{base}>")
         } else {
             base
+        };
+        if let Some(check) = &self.check {
+            format!("{wrapped} CHECK ({check})")
+        } else {
+            wrapped
         }
     }
 }

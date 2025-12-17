@@ -132,6 +132,7 @@ impl from_db::Table {
                     if from_db.parse_typ() == Some(from_macro.def.typ)
                         && from_db.nullable == from_macro.def.nullable
                         && from_db.fk == from_macro.def.fk
+                        && from_db.check == from_macro.def.check
                     {
                         continue;
                     }

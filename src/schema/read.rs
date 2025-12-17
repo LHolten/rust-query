@@ -6,7 +6,7 @@ use crate::{
     Expr, FromExpr, Table, Transaction,
     alias::JoinableTable,
     private::{Reader, new_column},
-    schema::{self, from_db},
+    schema::{self, check_constraint, from_db},
 };
 
 pub fn strip_raw(inp: &'static str) -> &'static str {
@@ -159,6 +159,18 @@ table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").
     }
 }
 
+struct SqliteSchema;
+
+table! {SqliteSchema, _ => JoinableTable::Normal("sqlite_schema".into()),
+    SqliteSchema,
+    SqliteSchemaSelect {
+        r#type: String,
+        name: String,
+        tbl_name: String,
+        sql: String,
+    }
+}
+
 pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
     let conn = Transaction::new();
 
@@ -179,6 +191,12 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         // filter out tables such as `sqlite_stat1` and `sqlite_stat4`
         q.filter(table.name.starts_with("sqlite_stat").not());
         q.into_vec(&table.name)
+    });
+
+    let table_sql: HashMap<_, _> = conn.query(|q| {
+        let table = q.join_custom(SqliteSchema);
+        q.filter(table.r#type.eq("table"));
+        q.into_iter((&table.name, &table.sql)).collect()
     });
 
     let mut output = from_db::Schema::default();
@@ -210,6 +228,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
                 fk: fks.remove(&col.name).map(|x| (x.table, x.to)),
                 typ: col.r#type,
                 nullable: col.notnull == 0,
+                check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
             };
             if col.pk != 0 {
                 assert_eq!(
