@@ -126,6 +126,8 @@ pub mod vN {
         pub unit_price: f64,
         #[version(2..)]
         pub byte_price: f64,
+        #[version(1..)]
+        pub favorite: bool,
     }
     #[version(2..)]
     pub struct Composer {
@@ -158,6 +160,7 @@ pub fn migrate() -> Database<v2::Schema> {
             });
             Migrated::map_fk_err(|| panic!())
         },
+        track: txn.migrate_ok(|_old| v0::migrate::Track { favorite: false }),
     });
 
     let m = m.migrate(|txn| v1::migrate::Schema {
@@ -196,6 +199,6 @@ mod tests {
         use rust_query::migration::hash_schema;
 
         expect!["ff42d0a99277482e"].assert_eq(&hash_schema::<v0::Schema>());
-        expect!["cee1ab74314c2604"].assert_eq(&hash_schema::<v1::Schema>());
+        expect!["a9ff6714b69e327f"].assert_eq(&hash_schema::<v1::Schema>());
     }
 }
