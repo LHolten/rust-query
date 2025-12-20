@@ -10,13 +10,17 @@ use rust_query::{
 use schema::*;
 
 fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>) {
-    let (mut val, plan) = rust_query::private::get_plan(f);
+    assert_dbg_preordered(file_name, || {
+        let mut res = f();
+        res.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        res.truncate(20);
+        res
+    });
+}
+
+fn assert_dbg_preordered<T: Debug>(file_name: &str, f: impl FnOnce() -> Vec<T>) {
+    let (val, plan) = rust_query::private::get_plan(f);
     let [plan] = plan.into_values().collect::<Vec<_>>().try_into().unwrap();
-    let mut val = &mut val[..];
-    val.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    if val.len() > 20 {
-        val = &mut val[..20];
-    }
     let path = format!("expect/{file_name}.dbg");
     expect_file![path].assert_debug_eq(&val);
     let path = format!("expect/{file_name}.plan");
@@ -45,6 +49,7 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     assert_dbg("high_avg_invoice_total", || high_avg_invoice_total(txn));
     let artist = txn.query_one(Artist.name("U2")).unwrap();
     assert_dbg("artist_details", || vec![artist_details(txn, artist)]);
+    assert_dbg_preordered("top_tracks", || top_tracks(txn));
     assert_eq!(
         customer_spending_by_email(txn, "vstevens@yahoo.com"),
         Some(42.62)
@@ -245,6 +250,33 @@ fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
             customer_name: &customer.last_name,
             total_spending: total,
         })
+    })
+}
+
+#[allow(unused)]
+#[derive(Debug, Select)]
+struct TopTrack {
+    track_name: String,
+    playlist_count: i64,
+}
+
+fn top_tracks(db: &Transaction<Schema>) -> Vec<TopTrack> {
+    db.query(|rows| {
+        let track = rows.join(Track);
+        let count = aggregate(|rows| {
+            let in_playlist = rows.join(PlaylistTrack);
+            rows.filter(in_playlist.track.eq(&track));
+            rows.count_distinct(in_playlist)
+        });
+        rows.order_by()
+            .desc(&count)
+            .asc(&track.name)
+            .into_iter(TopTrackSelect {
+                track_name: &track.name,
+                playlist_count: count,
+            })
+            .take(20)
+            .collect()
     })
 }
 

@@ -1,0 +1,82 @@
+[
+    TopTrack {
+        track_name: "A Midsummer Night's Dream, Op.61 Incidental Music: No.7 Notturno",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Aria Mit 30 Veränderungen, BWV 988 \"Goldberg Variations\": Aria",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Ave Maria",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Carmen: Overture",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Carmina Burana: O Fortuna",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Cavalleria Rusticana \\ Act \\ Intermezzo Sinfonico",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Concerto for Piano No. 2 in F Minor, Op. 21: II. Larghetto",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Concerto for Violin, Strings and Continuo in G Major, Op. 3, No. 9: I. Allegro",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Das Lied Von Der Erde, Von Der Jugend",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Die Walküre: The Ride of the Valkyries",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Die Zauberflöte, K.620: \"Der Hölle Rache Kocht in Meinem Herze\"",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Fantasia On Greensleeves",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Intoitus: Adorate Deum",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Jupiter, the Bringer of Jollity",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Karelia Suite, Op.11: 2. Ballade (Tempo Di Menuetto)",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Koyaanisqatsi",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Lamentations of Jeremiah, First Set \\ Incipit Lamentatio",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Metopes, Op. 29: Calypso",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Miserere mei, Deus",
+        playlist_count: 5,
+    },
+    TopTrack {
+        track_name: "Music for the Royal Fireworks, HWV351 (1749): La Réjouissance",
+        playlist_count: 5,
+    },
+]
