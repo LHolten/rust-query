@@ -46,7 +46,7 @@ use crate::alias::JoinableTable;
 ///
 /// You generally don't need to import these types.
 pub mod args {
-    pub use crate::query::Query;
+    pub use crate::query::{OrderBy, Query};
     pub use crate::rows::Rows;
     pub use crate::value::aggregate::Aggregate;
     pub use crate::value::optional::Optional;

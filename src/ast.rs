@@ -53,13 +53,21 @@ impl MySelect {
 
 impl ValueBuilder {
     pub fn simple_one(&mut self, val: DynTypedExpr) -> (SelectStatement, MyAlias) {
-        let (a, mut b) = self.simple(vec![val]);
-        assert!(b.len() == 1);
-        (a, b.swap_remove(0))
+        let (a, b) = self.simple(vec![val]);
+        let [b] = b.try_into().unwrap();
+        (a, b)
     }
 
     pub fn simple(&mut self, select: Vec<DynTypedExpr>) -> (SelectStatement, Vec<MyAlias>) {
-        let res = self.build_select(select);
+        self.simple_ordered(select, Vec::new())
+    }
+
+    pub fn simple_ordered(
+        &mut self,
+        select: Vec<DynTypedExpr>,
+        order_by: Vec<(DynTypedExpr, sea_query::Order)>,
+    ) -> (SelectStatement, Vec<MyAlias>) {
+        let res = self.build_select(select, order_by);
         assert!(self.forwarded.is_empty());
         res
     }
@@ -67,6 +75,7 @@ impl ValueBuilder {
     pub fn build_select(
         &mut self,
         select_out: Vec<DynTypedExpr>,
+        order_by: Vec<(DynTypedExpr, sea_query::Order)>,
     ) -> (SelectStatement, Vec<MyAlias>) {
         let mut select = SelectStatement::new();
         let from = self.from.clone();
@@ -74,6 +83,10 @@ impl ValueBuilder {
         // this stuff adds more to the self.extra list and self.forwarded list
         let select_out: Vec<_> = select_out.into_iter().map(|val| (val.func)(self)).collect();
         let filters: Vec<_> = from.filters.iter().map(|x| (x.func)(self)).collect();
+        let order_by: Vec<_> = order_by
+            .into_iter()
+            .map(|(x, o)| ((x.func)(self), o))
+            .collect();
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
@@ -143,6 +156,10 @@ impl ValueBuilder {
             out_fields.push(alias);
             select.expr_as(aggr, alias);
             any_expr = true;
+        }
+
+        for (key, order) in order_by {
+            select.order_by_expr(key, order);
         }
 
         if need_from && !any_from {

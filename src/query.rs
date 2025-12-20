@@ -12,10 +12,12 @@ use sea_query_rusqlite::{RusqliteBinder, RusqliteValues};
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{
+    IntoExpr,
     alias::MyAlias,
     rows::Rows,
     select::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     transaction::TXN,
+    value::{DynTypedExpr, OrdTyp},
 };
 
 /// This is the type used by the [crate::Transaction::query] method.
@@ -109,11 +111,64 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
     ///
     /// The order of rows that is returned is unstable. This means that the order may change between any two
     /// executions of the exact same query. If a specific order (or even a consistent order) is required,
-    /// then you have to use something like [slice::sort].
+    /// then you have to use something like [slice::sort]. See also [Self::order_by].
+    pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'t, O> {
+        self.order_by().into_iter(select)
+    }
+
+    /// Use [Self::order_by] to refine the order or retrieved rows (partially).
+    /// This is useful if not all rows are retrieved, e.g. for top N style queries.
+    ///
+    /// Every additional call to [OrderBy::asc] and [OrderBy::desc] refines the order further.
+    /// This means that e.g. `order_by().asc(category).asc(priority)`, will have all items
+    /// with the same `category` grouped together and only within the group are items sorted
+    /// by priority.
+    pub fn order_by<'q>(&'q self) -> OrderBy<'q, 't, 'inner, S> {
+        OrderBy {
+            query: self,
+            order: Vec::new(),
+        }
+    }
+}
+
+/// [Query] is borrowed to prevent joining new tables.
+/// If a copy was made, it would not know about new tables.
+#[derive(Clone)]
+pub struct OrderBy<'q, 't, 'inner, S> {
+    query: &'q Query<'t, 'inner, S>,
+    order: Vec<(DynTypedExpr, sea_query::Order)>,
+}
+
+impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
+    /// Add an additional value to sort on in ascending order.
+    pub fn asc<'q, T: OrdTyp>(mut self, key: impl IntoExpr<'inner, S, Typ = T>) -> Self {
+        self.order
+            .push((DynTypedExpr::erase(key), sea_query::Order::Asc));
+        self
+    }
+
+    /// Add an additional value to sort on in descending order.
+    pub fn desc<'q, T: OrdTyp>(mut self, key: impl IntoExpr<'inner, S, Typ = T>) -> Self {
+        self.order
+            .push((DynTypedExpr::erase(key), sea_query::Order::Desc));
+        self
+    }
+
+    /// Turn a database query into an iterator of results.
+    ///
+    /// Results are ordered as specified by [Self::asc] and [Self::desc].
+    ///
+    /// Rows of which the order is not determined by the calls to [Self::asc] and [Self::desc],
+    /// are returned in unspecified order. See also [Query::into_iter].
     pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'t, O> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
-        let (select, cached) = self.ast.clone().full().simple(cacher.columns);
+        let (select, cached) = self
+            .query
+            .ast
+            .clone()
+            .full()
+            .simple_ordered(cacher.columns, self.order.clone());
         let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
 
         TXN.with_borrow_mut(|txn| {
