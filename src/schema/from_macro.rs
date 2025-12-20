@@ -58,8 +58,7 @@ impl<S> TypBuilder<S> {
                 nullable: T::NULLABLE,
                 fk: T::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: {
-                    let check = T::check(sea_query::Alias::new(name));
-                    if check != sea_query::Expr::Constant(sea_query::Value::Bool(Some(true))) {
+                    if let Some(check) = T::check(sea_query::Alias::new(name)) {
                         let mut sql = String::new();
                         sea_query::SqliteQueryBuilder.prepare_expr(&check, &mut sql);
                         Some(sql)
@@ -96,15 +95,15 @@ struct NotNull;
 )]
 trait SchemaType<S>: MyTyp {
     type N;
-    fn check(_col: sea_query::Alias) -> sea_query::SimpleExpr {
-        sea_query::SimpleExpr::Constant(sea_query::Value::Bool(Some(true)))
+    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        None
     }
 }
 
 impl<S> SchemaType<S> for bool {
     type N = NotNull;
-    fn check(col: sea_query::Alias) -> sea_query::SimpleExpr {
-        sea_query::Expr::col(col).is_in([CONST_0, CONST_1]).into()
+    fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
     }
 }
 impl<S> SchemaType<S> for String {
@@ -126,4 +125,19 @@ impl<S, T: SchemaType<S, N = NotNull>> SchemaType<S> for Option<T> {
 #[diagnostic::do_not_recommend]
 impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for T {
     type N = NotNull;
+}
+
+#[cfg(test)]
+mod tests {
+    use sea_query::{Alias, SqliteQueryBuilder};
+
+    use super::*;
+
+    #[test]
+    fn test_bool_check() {
+        let res = <bool as SchemaType<()>>::check(Alias::new("foo")).unwrap();
+        let mut out = String::new();
+        SqliteQueryBuilder.prepare_expr(&res, &mut out);
+        assert_eq!(out, r#""foo" IN (0, 1)"#);
+    }
 }
