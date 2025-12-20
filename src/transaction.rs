@@ -308,10 +308,7 @@ impl<S> Transaction<S> {
     /// assert_eq!(user_names, vec!["Alice".to_owned()]);
     /// # });
     /// ```
-    pub fn query<'t, F, R>(&'t self, f: F) -> R
-    where
-        F: for<'inner> FnOnce(&mut Query<'t, 'inner, S>) -> R,
-    {
+    pub fn query<'t, R>(&'t self, f: impl FnOnce(&mut Query<'t, '_, S>) -> R) -> R {
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
@@ -372,10 +369,7 @@ impl<S> Transaction<S> {
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl Joinable<'static, Typ = T>,
-    ) -> Vec<Mutable<'t, T>>
-    where
-        S: 'static,
-    {
+    ) -> Vec<Mutable<'t, T>> {
         let val = DynJoinable::new(val);
         self.query(|rows| {
             let val = rows.join(val);
