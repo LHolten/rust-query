@@ -20,10 +20,9 @@ mod unique;
 /// - `f64` (sqlite `real`)
 /// - `String` (sqlite `text`)
 /// - `Vec<u8>` (sqlite `blob`)
+/// - `bool` (sqlite `integer` with `CHECK "col" IN (0, 1)`)
 /// - Any table in the same schema (sqlite `integer` with foreign key constraint)
 /// - `Option<T>` where `T` is not an `Option` (sqlite nullable)
-///
-/// Booleans are not supported in schemas yet.
 ///
 /// ## Unique constraints
 ///

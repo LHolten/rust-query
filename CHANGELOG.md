@@ -1,5 +1,12 @@
 # Unreleased
 
+# 0.6.6
+
+- Check constraint from the database are now verified against the declared schema.
+- Added support for booleans in schemas.
+  This uses a check constraint of the form `"col" IN (0, 1)`.
+- Added `Query::order_by` to order rows in queries.
+
 # 0.6.5
 
 - Fix `DatabaseAsync` to allow the waker to change.
