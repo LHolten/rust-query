@@ -83,6 +83,8 @@ impl ValueBuilder {
         // this stuff adds more to the self.extra list and self.forwarded list
         let select_out: Vec<_> = select_out.into_iter().map(|val| (val.func)(self)).collect();
         let filters: Vec<_> = from.filters.iter().map(|x| (x.func)(self)).collect();
+        // TODO: potentially these could be deduplicated from the select expressions.
+        // then the order by clause can use indices.
         let order_by: Vec<_> = order_by
             .into_iter()
             .map(|(x, o)| ((x.func)(self), o))

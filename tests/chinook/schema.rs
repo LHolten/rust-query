@@ -106,6 +106,7 @@ pub mod vN {
     #[unique(playlist, track)]
     pub struct PlaylistTrack {
         pub playlist: Playlist,
+        #[index]
         pub track: Track,
     }
     pub struct Track {

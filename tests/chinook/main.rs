@@ -264,8 +264,7 @@ fn top_tracks(db: &Transaction<Schema>) -> Vec<TopTrack> {
     db.query(|rows| {
         let track = rows.join(Track);
         let count = aggregate(|rows| {
-            let in_playlist = rows.join(PlaylistTrack);
-            rows.filter(in_playlist.track.eq(&track));
+            let in_playlist = rows.join(PlaylistTrack.track(&track));
             rows.count_distinct(in_playlist)
         });
         rows.order_by()
