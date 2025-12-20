@@ -109,7 +109,7 @@ impl PartialEq for MyTableRef {
     }
 }
 
-pub trait NumTyp: MyTyp + Clone + Copy {
+pub trait NumTyp: OrdTyp + Clone + Copy {
     const ZERO: Self;
     fn into_sea_value(self) -> sea_query::Value;
 }
@@ -126,6 +126,13 @@ impl NumTyp for f64 {
         sea_query::Value::Double(Some(self))
     }
 }
+
+pub trait OrdTyp: EqTyp {}
+impl OrdTyp for String {}
+impl OrdTyp for Vec<u8> {}
+impl OrdTyp for i64 {}
+impl OrdTyp for f64 {}
+impl OrdTyp for bool {}
 
 pub trait BuffTyp: MyTyp {}
 impl BuffTyp for String {}
