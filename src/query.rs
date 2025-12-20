@@ -131,8 +131,9 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
     }
 }
 
-/// [Query] is borrowed to prevent joining new tables.
-/// If a copy was made, it would not know about new tables.
+/// This is an immutable borrow of [Query] that can be sorted.
+///
+/// Use [Self::asc] and [Self::desc] to refine the order of the returned rows.
 #[derive(Clone)]
 pub struct OrderBy<'q, 't, 'inner, S> {
     query: &'q Query<'t, 'inner, S>,
