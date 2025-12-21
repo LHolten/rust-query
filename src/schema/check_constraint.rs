@@ -76,10 +76,9 @@ fn parse_sql_tree(sql: &str) -> Vec<TokenTree> {
     res
 }
 
-#[expect(unused)]
 pub fn get_check_constraint(sql: &str, col: &str) -> Option<String> {
     let tokens = parse_sql_tree(sql);
-    let columns = tokens
+    let mut columns = tokens
         .into_iter()
         .find_map(|x| {
             if let TokenTree::Group(g) = x {
@@ -95,13 +94,16 @@ pub fn get_check_constraint(sql: &str, col: &str) -> Option<String> {
         &sea_query::Alias::new(col).into_column_ref(),
         &mut col_encoded,
     );
-    let mut col_token = TokenTree::Token(col_encoded);
+    let col_token = TokenTree::Token(col_encoded);
+    let col_token_alt = TokenTree::Token(col.to_owned());
 
-    let mut col_def = columns
-        .into_iter()
-        .find(|x| x.tokens[0] == col_token)
-        .expect("column should exist")
-        .tokens;
+    let pos = columns
+        .iter()
+        .position(|x| x.tokens[0] == col_token)
+        // TODO: maybe make this more strict?
+        .or_else(|| columns.iter().position(|x| x.tokens[0] == col_token_alt))
+        .expect("column should exist");
+    let mut col_def = columns.swap_remove(pos).tokens;
 
     let idx = col_def
         .iter()
