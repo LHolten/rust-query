@@ -311,10 +311,3 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
 
     output
 }
-
-pub fn read_index_names_for_table(conn: &Transaction<Pragma>, table_name: &str) -> Vec<String> {
-    conn.query(|q| {
-        let index = q.join_custom(IndexList(table_name.to_owned()));
-        q.into_vec(&index.name)
-    })
-}

@@ -8,21 +8,19 @@ use std::{
 };
 
 use annotate_snippets::{Renderer, renderer::DecorStyle};
-use rusqlite::{Connection, config::DbConfig};
+use rusqlite::config::DbConfig;
 use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder};
 use self_cell::MutBorrow;
 
 use crate::{
     Table, Transaction,
+    alias::Scope,
     migrate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
     },
     pool::Pool,
-    schema::{
-        from_db, from_macro,
-        read::{read_index_names_for_table, read_schema},
-    },
+    schema::{from_db, from_macro, read::read_schema},
     transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
 };
 
@@ -56,18 +54,14 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-fn new_table_inner(
-    conn: &Connection,
-    table: &crate::schema::from_macro::Table,
-    alias: impl IntoTableRef,
-) {
+fn new_table_inner(table: &crate::schema::from_macro::Table, alias: impl IntoTableRef) -> String {
     let mut create = table.create();
     create
         .table(alias)
         .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
     let mut sql = create.to_string(SqliteQueryBuilder);
     sql.push_str(" STRICT");
-    conn.execute(&sql, []).unwrap();
+    sql
 }
 
 pub trait SchemaMigration<'a> {
@@ -111,7 +105,9 @@ impl<S: Schema> Database<S> {
 
             for (table_name, table) in &schema.tables {
                 let table_name_ref = Alias::new(table_name);
-                new_table_inner(txn.get(), table, table_name_ref);
+                txn.get()
+                    .execute(&new_table_inner(table, table_name_ref), [])
+                    .unwrap();
                 for stmt in table.create_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();
                 }
@@ -293,14 +289,48 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
         let expected_table = &expected_schema.tables[&name];
 
         if !check_eq(expected_table, &table) {
-            // Delete all indices associated with the table
-            for index_name in read_index_names_for_table(&crate::Transaction::new(), &name) {
-                let sql = sea_query::Index::drop()
-                    .name(index_name)
-                    .build(SqliteQueryBuilder);
-                txn.execute(&sql);
-            }
+            // Unique constraints that are part of a table definition
+            // can not be dropped, so we assume the worst and just recreate
+            // the whole table.
 
+            let scope = Scope::default();
+            let tmp_name = scope.tmp_table();
+
+            txn.execute(&new_table_inner(&expected_table, tmp_name));
+
+            let mut columns: Vec<_> = expected_table
+                .columns
+                .keys()
+                .map(|x| Alias::new(x))
+                .collect();
+            columns.push(Alias::new("id"));
+
+            txn.execute(
+                &sea_query::InsertStatement::new()
+                    .into_table(tmp_name)
+                    .columns(columns.clone())
+                    .select_from(
+                        sea_query::SelectStatement::new()
+                            .from(Alias::new(&name))
+                            .columns(columns)
+                            .take(),
+                    )
+                    .unwrap()
+                    .build(SqliteQueryBuilder)
+                    .0,
+            );
+
+            txn.execute(
+                &sea_query::TableDropStatement::new()
+                    .table(Alias::new(&name))
+                    .build(SqliteQueryBuilder),
+            );
+
+            txn.execute(
+                &sea_query::TableRenameStatement::new()
+                    .table(tmp_name, Alias::new(&name))
+                    .build(SqliteQueryBuilder),
+            );
             // Add the new indices
             for sql in expected_table.create_indices(&name) {
                 txn.execute(&sql);
@@ -317,6 +347,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
 }
 
 impl<S> Transaction<S> {
+    #[track_caller]
     pub(crate) fn execute(&self, sql: &str) {
         TXN.with_borrow(|txn| txn.as_ref().unwrap().get().execute(sql, []))
             .unwrap();

@@ -720,7 +720,12 @@ pub fn try_insert_private<T: Table>(
     });
 
     match res {
-        Ok(id) => Ok(id),
+        Ok(id) => {
+            if let Some(idx) = idx {
+                assert_eq!(idx, id.inner.idx);
+            }
+            Ok(id)
+        }
         Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
             if kind.code == ErrorCode::ConstraintViolation =>
         {

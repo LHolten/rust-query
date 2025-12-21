@@ -11,7 +11,7 @@ use crate::{
     IntoExpr, Lazy, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     migrate::new_table_inner,
-    transaction::{TXN, try_insert_private},
+    transaction::try_insert_private,
 };
 
 pub trait Migration {
@@ -50,12 +50,9 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
-            TXN.with_borrow(|txn| {
-                let conn = txn.as_ref().unwrap().get();
-                let table = crate::schema::from_macro::Table::new::<T>();
-                new_table_inner(conn, &table, new_table_name);
-                self.extra_index.extend(table.create_indices(T::NAME));
-            });
+            let table = crate::schema::from_macro::Table::new::<T>();
+            self.inner.execute(&new_table_inner(&table, new_table_name));
+            self.extra_index.extend(table.create_indices(T::NAME));
             new_table_name
         })
     }
