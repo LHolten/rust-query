@@ -133,7 +133,7 @@ table! {
     ForeignKeyListSelect {
         table: String,
         from: String,
-        to: String,
+        to: Option<String>,
     }
 }
 
@@ -211,7 +211,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         #[rust_query(From = ForeignKeyList)]
         struct ForeignKey {
             table: String,
-            to: String,
+            to: Option<String>,
         }
 
         let mut fks: HashMap<_, _> = conn
@@ -225,7 +225,11 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         let mut primary_key_exists = false;
         for col in columns {
             let def = from_db::Column {
-                fk: fks.remove(&col.name).map(|x| (x.table, x.to)),
+                fk: fks
+                    .remove(&col.name)
+                    // a missing `to` column means that it references the primary key.
+                    // TODO: lookup the actual primary key when the primary key is not always `id`.
+                    .map(|x| (x.table, x.to.unwrap_or("id".to_owned()))),
                 typ: col.r#type,
                 nullable: col.notnull == 0,
                 check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
