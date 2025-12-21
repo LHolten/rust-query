@@ -1,4 +1,7 @@
+use std::fmt::Display;
+
 use sea_query::{IntoColumnRef, QueryBuilder};
+use sqlite3_parser::lexer::{Scanner, sql::Tokenizer};
 
 #[derive(PartialEq, Debug)]
 enum TokenTree {
@@ -7,71 +10,69 @@ enum TokenTree {
     // inner vec is separated by spaces
     Group(Vec<Parsed>),
 }
-#[derive(PartialEq, Debug)]
-struct Parsed {
-    original: String,
-    tokens: Vec<TokenTree>,
-}
-
-/// get first location of char, will return string len if not found.
-/// skips over aliases and string using the fact that they are quoted and
-/// quotes inside aliases and strings are duplicated.
-fn find_skip_quotes(sql: &str, pat: impl Fn(char) -> bool) -> usize {
-    let mut pos = 0;
-    let mut total_double_quotes = 0;
-    let mut total_single_quotes = 0;
-    loop {
-        let new = sql[pos..].find(&pat).map(|x| x + pos).unwrap_or(sql.len());
-        total_double_quotes += sql[pos..new].chars().filter(|x| *x == '"').count();
-        total_single_quotes += sql[pos..new].chars().filter(|x| *x == '\'').count();
-        pos = new;
-        if total_double_quotes % 2 == 0 && total_single_quotes % 2 == 0 {
-            return pos;
+impl Display for TokenTree {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenTree::Token(x) => f.write_str(x),
+            TokenTree::Group(parsed) => {
+                let formatted: Vec<_> = parsed.iter().map(|x| x.to_string()).collect();
+                write!(f, "({})", formatted.join(", "))
+            }
         }
-        assert!(pos != sql.len())
     }
 }
 
-/// This parses a piece of sql into a token tree assuming that it is well formated.
-fn parse_sql_subtree(sql: &mut &str) -> Vec<TokenTree> {
+#[derive(PartialEq, Debug)]
+struct Parsed {
+    tokens: Vec<TokenTree>,
+}
+
+impl Display for Parsed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let formatted: Vec<_> = self.tokens.iter().map(|x| x.to_string()).collect();
+        write!(f, "{}", formatted.join(" "))
+    }
+}
+
+fn parse_sql_subtree(tokenizer: &mut Scanner<Tokenizer>, sql: &str) -> Vec<TokenTree> {
+    use sqlite3_parser::dialect::TokenType;
     let mut items = Vec::new();
     loop {
-        match &sql.get(..1) {
-            None | Some("," | ")") => break,
-            Some(" ") => *sql = &sql[1..],
-            Some("(") => {
-                *sql = &sql[1..];
-                let mut inner_items = vec![];
-                loop {
-                    let old_sql = *sql;
-                    let tokens = parse_sql_subtree(sql);
-                    inner_items.push(Parsed {
-                        original: old_sql[..old_sql.len() - sql.len()].to_owned(),
-                        tokens,
-                    });
-                    let end_char = &sql[..1];
-                    *sql = &sql[1..];
+        tokenizer.mark();
+        match tokenizer.scan(sql.as_bytes()).unwrap() {
+            (_, None, _) => break,
+            (start, Some((_, token_type)), end) => match token_type {
+                TokenType::TK_LP => {
+                    let mut inner_items = vec![];
+                    loop {
+                        let tokens = parse_sql_subtree(tokenizer, sql);
+                        let next_token = tokenizer.scan(sql.as_bytes()).unwrap().1.unwrap().1;
+                        inner_items.push(Parsed { tokens });
 
-                    if end_char == ")" {
-                        break;
+                        if next_token == TokenType::TK_RP {
+                            break;
+                        }
+                        assert!(!sql.is_empty())
                     }
-                    assert!(!sql.is_empty())
+                    items.push(TokenTree::Group(inner_items));
                 }
-                items.push(TokenTree::Group(inner_items));
-            }
-            Some(_) => {
-                let until = find_skip_quotes(sql, |c| c == ' ' || c == ',' || c == ')');
-                items.push(TokenTree::Token(sql[..until].to_owned()));
-                *sql = &sql[until..];
-            }
+                TokenType::TK_COMMA | TokenType::TK_RP => {
+                    tokenizer.reset_to_mark();
+                    break;
+                }
+                _ => {
+                    items.push(TokenTree::Token(sql[start..end].to_owned()));
+                }
+            },
         }
     }
     items
 }
 
-fn parse_sql_tree(mut sql: &str) -> Vec<TokenTree> {
-    let res = parse_sql_subtree(&mut sql);
-    assert!(sql.is_empty());
+fn parse_sql_tree(sql: &str) -> Vec<TokenTree> {
+    let mut f = sqlite3_parser::lexer::Scanner::new(sqlite3_parser::lexer::sql::Tokenizer::new());
+    let res = parse_sql_subtree(&mut f, sql);
+    assert!(f.scan(sql.as_bytes()).unwrap().1.is_none());
     res
 }
 
@@ -109,7 +110,7 @@ pub fn get_check_constraint(sql: &str, col: &str) -> Option<String> {
         panic!("expected group after CHECK")
     };
     let [check] = check.try_into().unwrap();
-    Some(check.original)
+    Some(check.to_string())
 }
 
 #[cfg(test)]
@@ -123,5 +124,21 @@ mod tests {
             get_check_constraint(sql, "some_bool").as_deref(),
             Some(r#""some_bool" IN (0, 1)"#)
         )
+    }
+
+    #[test]
+    fn parse_some_more() {
+        let item = r#"CREATE TABLE execution (
+        id INTEGER PRIMARY KEY,
+        timestamp INTEGER NOT NULL DEFAULT (unixepoch('now')),
+        fuel_used INTEGER NOT NULL,
+        -- answer can be null if the solution crashed
+        answer INTEGER,
+        instance INTEGER NOT NULL REFERENCES instance,
+        solution INTEGER NOT NULL REFERENCES solution,
+        UNIQUE (instance, solution)
+    ) STRICT"#;
+        let parsed = parse_sql_tree(item);
+        expect_test::expect_file!["parse_result.dbg"].assert_debug_eq(&parsed);
     }
 }

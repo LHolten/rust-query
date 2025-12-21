@@ -1,0 +1,170 @@
+[
+    Token(
+        "CREATE",
+    ),
+    Token(
+        "TABLE",
+    ),
+    Token(
+        "execution",
+    ),
+    Group(
+        [
+            Parsed {
+                tokens: [
+                    Token(
+                        "id",
+                    ),
+                    Token(
+                        "INTEGER",
+                    ),
+                    Token(
+                        "PRIMARY",
+                    ),
+                    Token(
+                        "KEY",
+                    ),
+                ],
+            },
+            Parsed {
+                tokens: [
+                    Token(
+                        "timestamp",
+                    ),
+                    Token(
+                        "INTEGER",
+                    ),
+                    Token(
+                        "NOT",
+                    ),
+                    Token(
+                        "NULL",
+                    ),
+                    Token(
+                        "DEFAULT",
+                    ),
+                    Group(
+                        [
+                            Parsed {
+                                tokens: [
+                                    Token(
+                                        "unixepoch",
+                                    ),
+                                    Group(
+                                        [
+                                            Parsed {
+                                                tokens: [
+                                                    Token(
+                                                        "'now'",
+                                                    ),
+                                                ],
+                                            },
+                                        ],
+                                    ),
+                                ],
+                            },
+                        ],
+                    ),
+                ],
+            },
+            Parsed {
+                tokens: [
+                    Token(
+                        "fuel_used",
+                    ),
+                    Token(
+                        "INTEGER",
+                    ),
+                    Token(
+                        "NOT",
+                    ),
+                    Token(
+                        "NULL",
+                    ),
+                ],
+            },
+            Parsed {
+                tokens: [
+                    Token(
+                        "answer",
+                    ),
+                    Token(
+                        "INTEGER",
+                    ),
+                ],
+            },
+            Parsed {
+                tokens: [
+                    Token(
+                        "instance",
+                    ),
+                    Token(
+                        "INTEGER",
+                    ),
+                    Token(
+                        "NOT",
+                    ),
+                    Token(
+                        "NULL",
+                    ),
+                    Token(
+                        "REFERENCES",
+                    ),
+                    Token(
+                        "instance",
+                    ),
+                ],
+            },
+            Parsed {
+                tokens: [
+                    Token(
+                        "solution",
+                    ),
+                    Token(
+                        "INTEGER",
+                    ),
+                    Token(
+                        "NOT",
+                    ),
+                    Token(
+                        "NULL",
+                    ),
+                    Token(
+                        "REFERENCES",
+                    ),
+                    Token(
+                        "solution",
+                    ),
+                ],
+            },
+            Parsed {
+                tokens: [
+                    Token(
+                        "UNIQUE",
+                    ),
+                    Group(
+                        [
+                            Parsed {
+                                tokens: [
+                                    Token(
+                                        "instance",
+                                    ),
+                                ],
+                            },
+                            Parsed {
+                                tokens: [
+                                    Token(
+                                        "solution",
+                                    ),
+                                ],
+                            },
+                        ],
+                    ),
+                ],
+            },
+        ],
+    ),
+    Token(
+        "STRICT",
+    ),
+]
