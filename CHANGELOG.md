@@ -8,6 +8,7 @@
 - Recreate full table on index change.
   This is required when a unique index is defined in a table.
 - Added cargo-mutants support.
+- Fixed bug that would make a unique constraint violation in a migration into a panic.
 
 # 0.6.6
 
