@@ -79,6 +79,7 @@ async fn async_run<R: 'static + Send>(f: impl 'static + Send + FnOnce() -> R) ->
     }
 
     impl Drop for WakeOnDrop {
+        #[cfg_attr(test, mutants::skip)] // mutating this will make the test hang
         fn drop(&mut self) {
             self.waker.lock().unwrap().wake_by_ref();
         }

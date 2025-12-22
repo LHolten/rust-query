@@ -285,25 +285,6 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
     }
 }
 
-impl<T> Typed for &T
-where
-    T: Typed,
-{
-    type Typ = T::Typ;
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        T::build_expr(self, b)
-    }
-    fn maybe_optional(&self) -> bool {
-        T::maybe_optional(self)
-    }
-    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        T::build_table(self, b)
-    }
-}
-
 impl<'column, S, T> IntoExpr<'column, S> for &T
 where
     T: IntoExpr<'column, S> + Clone,
