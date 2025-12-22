@@ -34,7 +34,7 @@ fn fix_indices1() {
     }
 
     static FILE_NAME: &'static str = "index_test1.sqlite";
-    std::fs::remove_file(FILE_NAME).unwrap();
+    let _ = std::fs::remove_file(FILE_NAME);
 
     let db = open_db::<without_index::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema without index
@@ -86,7 +86,7 @@ fn fix_indices2() {
     }
 
     static FILE_NAME: &'static str = "index_test2.sqlite";
-    std::fs::remove_file(FILE_NAME).unwrap();
+    let _ = std::fs::remove_file(FILE_NAME);
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema with original index
@@ -147,7 +147,7 @@ fn diagnostics() {
     }
 
     static FILE_NAME: &'static str = "diagnostic_test.sqlite";
-    std::fs::remove_file(FILE_NAME).unwrap();
+    let _ = std::fs::remove_file(FILE_NAME);
 
     open_db::<base::v0::Schema>(FILE_NAME);
 
