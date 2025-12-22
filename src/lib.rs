@@ -210,11 +210,6 @@ pub trait Table: Sized + 'static {
     #[doc(hidden)]
     fn get_lazy<'t>(txn: &'t Transaction<Self::Schema>, row: TableRow<Self>) -> Self::Lazy<'t>;
 
-    // used for the first join (useful for pragmas)
-    #[doc(hidden)]
-    fn name(&self) -> JoinableTable {
-        JoinableTable::Normal(Self::NAME.into())
-    }
     #[doc(hidden)]
     fn typs(f: &mut TypBuilder<Self::Schema>);
 
@@ -225,6 +220,10 @@ pub trait Table: Sized + 'static {
     const ID: &'static str;
     #[doc(hidden)]
     const NAME: &'static str;
+}
+
+trait CustomJoin: Table {
+    fn name(&self) -> JoinableTable;
 }
 
 #[test]

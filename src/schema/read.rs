@@ -22,6 +22,12 @@ macro_rules! table {
         pub struct $dummy<'t> {
             $($field_name: Expr<'t, Pragma, $field_typ>,)*
         }
+        impl crate::CustomJoin for $typ {
+            fn name(&self) -> JoinableTable {
+                let $var = self;
+                $name
+            }
+        }
         impl Table for $typ {
             type MigrateFrom = Self;
             type Ext2<'t> = $dummy<'t>;
@@ -39,11 +45,6 @@ macro_rules! table {
             type Schema = Pragma;
             type Referer = ();
             fn get_referer_unchecked() -> Self::Referer {}
-
-            fn name(&self) -> JoinableTable {
-                let $var = self;
-                $name
-            }
 
             fn typs(_f: &mut schema::from_macro::TypBuilder<Self::Schema>) {}
 

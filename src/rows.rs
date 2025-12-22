@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::{ExprTrait, IntoIden};
 
 use crate::{
-    Expr, Table,
+    CustomJoin, Expr, Table,
     alias::{Field, JoinableTable, TmpTable},
     ast::MySelect,
     db::Join,
@@ -51,7 +51,7 @@ impl<'inner, S> Rows<'inner, S> {
         self.join_inner(JoinableTable::Normal(T::NAME.into()))
     }
 
-    pub(crate) fn join_custom<T: Table<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
+    pub(crate) fn join_custom<T: CustomJoin<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
         self.join_inner(t.name())
     }
 
