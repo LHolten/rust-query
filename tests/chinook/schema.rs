@@ -61,7 +61,7 @@ pub mod vN {
         pub email: String,
     }
     pub struct Genre {
-        #[index]
+        #[unique]
         pub name: String,
     }
     #[version(1..)]
@@ -199,7 +199,7 @@ mod tests {
     fn backwards_compat() {
         use rust_query::migration::hash_schema;
 
-        expect!["ff42d0a99277482e"].assert_eq(&hash_schema::<v0::Schema>());
-        expect!["a9ff6714b69e327f"].assert_eq(&hash_schema::<v1::Schema>());
+        expect!["3944d3e8bd2922be"].assert_eq(&hash_schema::<v0::Schema>());
+        expect!["a93ff07cbd480913"].assert_eq(&hash_schema::<v1::Schema>());
     }
 }

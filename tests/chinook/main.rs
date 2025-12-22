@@ -56,6 +56,9 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     );
     assert_eq!(customer_spending_by_email(txn, "asdf"), None);
 
+    let jazz = txn.query_one(Genre.name("Jazz")).unwrap();
+    assert_eq!(txn.lazy_iter(Track.genre(jazz)).count(), 130);
+
     free_reference(txn);
 
     txn.insert(Artist { name: "first" }).unwrap();
@@ -173,7 +176,7 @@ struct Stats {
 
 fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     db.query(|rows| {
-        let genre = rows.join(Genre.name(genre));
+        let genre = rows.filter_some(Genre.name(genre));
         let track = rows.join(Track.genre(genre));
         rows.filter(track.milliseconds.lt(max_milis));
         rows.into_vec(FilteredTrackSelect {

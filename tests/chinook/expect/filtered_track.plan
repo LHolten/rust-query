@@ -1,5 +1,5 @@
 QUERY PLAN [
-    SEARCH _0 USING COVERING INDEX genre_index_0 (name=?),
-    SEARCH _1 USING INDEX track_index_1 (genre=?),
-    SEARCH _2 USING INTEGER PRIMARY KEY (rowid=?),
+    SEARCH _2 USING COVERING INDEX genre_index_0 (name=?),
+    SEARCH _0 USING INDEX track_index_1 (genre=?),
+    SEARCH _1 USING INTEGER PRIMARY KEY (rowid=?),
 ]
