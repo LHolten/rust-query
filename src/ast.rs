@@ -23,21 +23,10 @@ pub(super) struct Source {
     pub(super) kind: SourceKind,
 }
 
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub(super) enum SourceKind {
     Aggregate(Rc<SelectStatement>),
     Implicit(String, JoinType),
-}
-
-impl PartialEq for SourceKind {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            // TODO: possible optimization to unify the join_type?
-            (Self::Implicit(l0, l1), Self::Implicit(r0, r1)) => l0 == r0 && l1 == r1,
-            (Self::Aggregate(l0), Self::Aggregate(l1)) => l0 == l1,
-            _ => false,
-        }
-    }
 }
 
 impl MySelect {

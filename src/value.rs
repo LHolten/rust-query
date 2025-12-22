@@ -62,6 +62,9 @@ impl ValueBuilder {
             conds: vec![(Field::Str(T::ID), expr)],
         };
         let new_alias = || self.scope.new_alias();
+
+        // TODO: possible optimization to unify the join_type?
+        // e.g. join + left join = join
         *self.extra.get_or_init(source, new_alias)
     }
 
