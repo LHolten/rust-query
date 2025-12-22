@@ -34,6 +34,7 @@ fn fix_indices1() {
     }
 
     static FILE_NAME: &'static str = "index_test1.sqlite";
+    std::fs::remove_file(FILE_NAME).unwrap();
 
     let db = open_db::<without_index::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema without index
@@ -58,8 +59,6 @@ fn fix_indices1() {
     db.check_schema(expect_test::expect![[
         r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
     ]]);
-
-    std::fs::remove_file(FILE_NAME).unwrap();
 }
 
 #[test]
@@ -87,6 +86,7 @@ fn fix_indices2() {
     }
 
     static FILE_NAME: &'static str = "index_test2.sqlite";
+    std::fs::remove_file(FILE_NAME).unwrap();
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema with original index
@@ -111,8 +111,6 @@ fn fix_indices2() {
     db.check_schema(expect_test::expect![[r#"
             CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
             CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("field1", "baz")"#]]);
-
-    std::fs::remove_file(FILE_NAME).unwrap();
 }
 
 #[test]
@@ -149,6 +147,8 @@ fn diagnostics() {
     }
 
     static FILE_NAME: &'static str = "diagnostic_test.sqlite";
+    std::fs::remove_file(FILE_NAME).unwrap();
+
     open_db::<base::v0::Schema>(FILE_NAME);
 
     let err = std::panic::catch_unwind(|| {
@@ -157,7 +157,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Table mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:132:36
+           ╭▸ src/schema/test.rs:130:36
            │
         LL │         #[crate::migration::schema(Schema)]
            │                                    ━━━━━━ database has table `foo`
@@ -172,7 +172,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Column mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:144:24
+           ╭▸ src/schema/test.rs:142:24
            │
         LL │             pub struct Foo {
            │                        ━━━ database has column `field1: String`
@@ -182,13 +182,11 @@ fn diagnostics() {
            │                     ━━━ database column has type `String`
            ╰╴
         error: Unique constraint mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:143:15
+           ╭▸ src/schema/test.rs:141:15
            │
         LL │             #[unique(baz, field2)]
            │               ━━━━━━ database does not have this unique constraint
         LL │             pub struct Foo {
            ╰╴                       ━━━ database has `#[unique(baz, field1)]`"#]]
     .assert_eq(err.downcast_ref::<String>().unwrap());
-
-    std::fs::remove_file(FILE_NAME).unwrap();
 }
