@@ -15,6 +15,37 @@ rust-version = "1.85"
 name = "tpc-c"
 harness = false
 
+[[example]]
+name = "axum_tokio"
+test = true
+[[example]]
+name = "blog"
+test = true
+[[example]]
+name = "delete"
+test = true
+[[example]]
+name = "empty_table"
+test = true
+[[example]]
+name = "insert_and_select"
+test = true
+[[example]]
+name = "new_blog"
+test = true
+[[example]]
+name = "query_optional"
+test = true
+[[example]]
+name = "queue"
+test = true
+[[example]]
+name = "table_from"
+test = true
+[[example]]
+name = "unchecked"
+test = true
+
 [dependencies]
 sea-query = { version = "=1.0.0-rc.17", default-features = false, features = ["backend-sqlite"] }
 sea-query-rusqlite = "=0.8.0-rc.8"
