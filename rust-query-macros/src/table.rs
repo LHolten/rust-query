@@ -106,8 +106,8 @@ fn define_table(
         for col in &index.columns {
             col_str.push(col.to_string());
         }
-        let is_unique = index.unique;
-        let index_span = byte_range(source, index.span);
+        let is_unique = index.kind.unique;
+        let index_span = byte_range(source, index.kind.span);
         unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique, #index_span)});
     }
 
@@ -360,7 +360,11 @@ fn define_table(
 
 impl SingleVersionTable {
     pub fn conflict(&self) -> (TokenStream, TokenStream) {
-        let unique_indices: Vec<_> = self.indices.iter().filter(|index| index.unique).collect();
+        let unique_indices: Vec<_> = self
+            .indices
+            .iter()
+            .filter(|index| index.kind.unique)
+            .collect();
         match *unique_indices {
             [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
             [unique] => {

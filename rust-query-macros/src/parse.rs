@@ -5,10 +5,10 @@ use syn::{
     punctuated::Punctuated, spanned::Spanned, Attribute, Field, Ident, Item, Token, Visibility,
 };
 
-use crate::multi::{Index, VersionedColumn, VersionedSchema, VersionedTable};
+use crate::multi::{Index, IndexKind, VersionedColumn, VersionedSchema, VersionedTable};
 
 impl VersionedColumn {
-    pub fn parse(field: Field, limit: Range<u32>, indices: &mut Vec<Index>) -> syn::Result<Self> {
+    pub fn parse(field: Field, limit: Range<u32>) -> syn::Result<Self> {
         let Some(name) = field.ident.clone() else {
             return Err(syn::Error::new_spanned(field, "field must be named"));
         };
@@ -27,15 +27,20 @@ impl VersionedColumn {
 
         let mut other_field_attr = vec![];
         let mut doc_comments = vec![];
+        let mut index = None;
         for attr in field.attrs {
             let path = attr.path();
             if path.is_ident("unique") || path.is_ident("index") {
                 attr.meta.require_path_only()?;
-                indices.push(Index {
-                    columns: vec![name.clone()],
+                let new_val = IndexKind {
                     unique: path.is_ident("unique"),
                     span: attr.meta.span(),
-                })
+                };
+                let prev = index.get_or_insert(new_val.clone());
+                if path.is_ident("unique") {
+                    // we prefer unique constraints
+                    *prev = new_val;
+                }
             } else if path.is_ident("doc") {
                 doc_comments.push(attr);
             } else {
@@ -51,6 +56,7 @@ impl VersionedColumn {
             name,
             typ: field.ty.into_token_stream(),
             doc_comments,
+            index,
         })
     }
 }
@@ -74,8 +80,10 @@ impl VersionedTable {
                     attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?;
                 indices.push(Index {
                     columns: idents.into_iter().collect(),
-                    unique: path.is_ident("unique"),
-                    span: attr.meta.span(),
+                    kind: IndexKind {
+                        unique: path.is_ident("unique"),
+                        span: attr.meta.span(),
+                    },
                 })
             } else if path.is_ident("no_reference") {
                 referenceable = false;
@@ -105,7 +113,7 @@ impl VersionedTable {
         let columns = table
             .fields
             .into_iter()
-            .map(|x| VersionedColumn::parse(x, versions.clone(), &mut indices))
+            .map(|x| VersionedColumn::parse(x, versions.clone()))
             .collect::<Result<_, _>>()?;
 
         Ok(VersionedTable {

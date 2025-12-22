@@ -7,6 +7,11 @@ use syn::{Attribute, Ident};
 #[derive(Clone)]
 pub(crate) struct Index {
     pub columns: Vec<Ident>,
+    pub kind: IndexKind,
+}
+
+#[derive(Clone)]
+pub(crate) struct IndexKind {
     pub unique: bool,
     pub span: Span,
 }
@@ -33,6 +38,7 @@ pub(crate) struct VersionedColumn {
     pub name: Ident,
     pub typ: TokenStream,
     pub doc_comments: Vec<Attribute>,
+    pub index: Option<IndexKind>,
 }
 
 impl VersionedSchema {
@@ -50,6 +56,7 @@ impl VersionedSchema {
     fn get_table(&self, table: &VersionedTable, version: u32) -> syn::Result<SingleVersionTable> {
         assert!(table.versions.contains(&version));
         let mut columns = BTreeMap::new();
+        let mut indices = table.indices.clone();
         for (i, c) in table.columns.iter().enumerate() {
             if c.versions.contains(&version) {
                 columns.insert(
@@ -61,6 +68,12 @@ impl VersionedSchema {
                         doc_comments: c.doc_comments.clone(),
                     },
                 );
+                if let Some(kind) = c.index.clone() {
+                    indices.push(Index {
+                        columns: vec![c.name.clone()],
+                        kind,
+                    });
+                }
             }
         }
         // we don't want to leak the span from table.name into `prev`
@@ -78,7 +91,7 @@ impl VersionedSchema {
         Ok(SingleVersionTable {
             prev,
             name: table.name.clone(),
-            indices: table.indices.clone(),
+            indices,
             doc_comments: table.doc_comments.clone(),
             columns,
             referenceable: table.referenceable,

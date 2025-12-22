@@ -10,7 +10,7 @@ impl SingleVersionTable {
     pub fn make_unique_tree(&self) -> UniqueTree {
         let mut res = UniqueTree::default();
         for index in &self.indices {
-            res.add_unique(&index.columns, index.unique);
+            res.add_unique(&index.columns, index.kind.unique);
         }
         res
     }
