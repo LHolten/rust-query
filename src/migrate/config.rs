@@ -43,7 +43,7 @@ pub enum Synchronous {
 }
 
 impl Synchronous {
-    #[cfg_attr(feature = "mutants", mutants::skip)] // hard to test
+    #[cfg_attr(test, mutants::skip)] // hard to test
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Synchronous::Full => "FULL",

@@ -70,6 +70,7 @@ indicatif = "0.18.2"
 tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }
 axum = "0.8.7"
 serde = { version = "1.0.228", features = ["derive"] }
+mutants = "=0.0.3"
 
 [features]
 default = ["dev"]
