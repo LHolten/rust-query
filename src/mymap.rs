@@ -1,4 +1,4 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 #[derive(Clone)]
 pub struct MyMap<K, V> {
@@ -38,11 +38,5 @@ impl<K, V> Deref for MyMap<K, V> {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
-    }
-}
-
-impl<K, V> DerefMut for MyMap<K, V> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
     }
 }
