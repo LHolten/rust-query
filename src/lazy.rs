@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, ops::Deref};
+use std::{cell::OnceCell, fmt::Debug, ops::Deref};
 
 #[cfg(doc)]
 use crate::FromExpr;
@@ -38,6 +38,12 @@ pub struct Lazy<'transaction, T: Table> {
     pub(crate) id: TableRow<T>,
     pub(crate) lazy: OnceCell<Box<T::Lazy<'transaction>>>,
     pub(crate) txn: &'transaction Transaction<T::Schema>,
+}
+
+impl<T: Table> Debug for Lazy<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Lazy").field(&self.id).finish()
+    }
 }
 
 impl<'transaction, T: Table> Lazy<'transaction, T> {
