@@ -11,7 +11,7 @@ pub mod read;
 #[cfg(test)]
 mod test;
 
-use sea_query::{Alias, IndexCreateStatement, SqliteQueryBuilder, TableCreateStatement};
+use sea_query::{Alias, IndexCreateStatement, IntoIden, SqliteQueryBuilder, TableCreateStatement};
 
 use crate::schema::{
     canonical::ColumnType,
@@ -64,7 +64,7 @@ mod normalize {
                 tables: self
                     .tables
                     .into_iter()
-                    .map(|(k, v)| (k, v.normalize()))
+                    .map(|(k, v)| (k.to_owned(), v.normalize()))
                     .collect(),
             }
         }
@@ -114,18 +114,32 @@ impl Table {
                 );
             }
         }
+        for index in &self.indices {
+            let mut index = index.create();
+            // only unique indexes are allows on table definitions.
+            // by making these part of the table, we don't need to rename them
+            // after the migration
+            if index.is_unique_key() {
+                create.index(&mut index);
+            }
+        }
         create
     }
 
-    pub fn create_indices(&self, table_name: &str) -> impl Iterator<Item = String> {
-        let index_table_ref = Alias::new(table_name);
+    /// This gives the sql to create the remaining non unique indices
+    /// Indices can not be renamed in sqlite.
+    /// These are named, so we delay creating them until after the old indices
+    /// are deleted.
+    pub fn delayed_indices(&self, table_name: &'static str) -> impl Iterator<Item = String> {
+        let table_name = table_name.into_iden();
         self.indices
             .iter()
+            .map(|x| x.create())
+            .filter(|x| !x.is_unique_key())
             .enumerate()
-            .map(move |(index_num, index)| {
+            .map(move |(index_num, mut index)| {
                 index
-                    .create()
-                    .table(index_table_ref.clone())
+                    .table(table_name.clone())
                     .name(format!("{table_name}_index_{index_num}"))
                     .to_string(SqliteQueryBuilder)
             })

@@ -597,7 +597,7 @@ impl<S: Schema> TransactionWeak<S> {
         // We do this manually because we don't want to enabled foreign key constraints for the whole
         // transaction (and is not possible to enable for part of a transaction).
         let mut checks = vec![];
-        for (table_name, table) in &schema.tables {
+        for (&table_name, table) in &schema.tables {
             for col in table.columns.iter().filter_map(|(col_name, col)| {
                 let col = &col.def;
                 col.fk
@@ -609,7 +609,7 @@ impl<S: Schema> TransactionWeak<S> {
                     .expr(
                         val.in_subquery(
                             SelectStatement::new()
-                                .from(Alias::new(table_name))
+                                .from(table_name)
                                 .column(Alias::new(col))
                                 .take(),
                         ),

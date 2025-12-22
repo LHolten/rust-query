@@ -34,7 +34,7 @@ pub struct TransactionMigrate<FromSchema> {
     pub(super) inner: Transaction<FromSchema>,
     pub(super) scope: Scope,
     pub(super) rename_map: HashMap<&'static str, TmpTable>,
-    // creating indices is delayed so that they don't need to be renamed
+    // creating non unique indices is delayed so that they don't need to be renamed
     pub(super) extra_index: Vec<String>,
 }
 
@@ -52,7 +52,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
             let new_table_name = self.scope.tmp_table();
             let table = crate::schema::from_macro::Table::new::<T>();
             self.inner.execute(&new_table_inner(&table, new_table_name));
-            self.extra_index.extend(table.create_indices(T::NAME));
+            self.extra_index.extend(table.delayed_indices(T::NAME));
             new_table_name
         })
     }

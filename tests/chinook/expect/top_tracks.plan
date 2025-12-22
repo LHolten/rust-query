@@ -1,7 +1,7 @@
 QUERY PLAN [
     MATERIALIZE _1 [
         SCAN _1,
-        SEARCH _0 USING COVERING INDEX playlist_track_index_1 (track=?),
+        SEARCH _0 USING COVERING INDEX playlist_track_index_0 (track=?),
     ],
     SCAN _0,
     BLOOM FILTER ON _1 (_0=?),

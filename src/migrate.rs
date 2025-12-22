@@ -1,5 +1,7 @@
 pub mod config;
 pub mod migration;
+#[cfg(test)]
+mod test;
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -9,7 +11,7 @@ use std::{
 
 use annotate_snippets::{Renderer, renderer::DecorStyle};
 use rusqlite::config::DbConfig;
-use sea_query::{Alias, ColumnDef, IntoTableRef, SqliteQueryBuilder};
+use sea_query::{Alias, ColumnDef, IntoIden, SqliteQueryBuilder};
 use self_cell::MutBorrow;
 
 use crate::{
@@ -41,7 +43,7 @@ impl<S> Default for TableTypBuilder<S> {
 impl<S> TableTypBuilder<S> {
     pub fn table<T: Table<Schema = S>>(&mut self) {
         let table = from_macro::Table::new::<T>();
-        let old = self.ast.tables.insert(T::NAME.to_owned(), table);
+        let old = self.ast.tables.insert(T::NAME, table);
         debug_assert!(old.is_none());
     }
 }
@@ -54,10 +56,11 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-fn new_table_inner(table: &crate::schema::from_macro::Table, alias: impl IntoTableRef) -> String {
+fn new_table_inner(table: &crate::schema::from_macro::Table, alias: impl IntoIden) -> String {
+    let alias = alias.into_iden();
     let mut create = table.create();
     create
-        .table(alias)
+        .table(alias.clone())
         .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
     let mut sql = create.to_string(SqliteQueryBuilder);
     sql.push_str(" STRICT");
@@ -103,12 +106,11 @@ impl<S: Schema> Database<S> {
         if schema_version(txn.get()) == 0 {
             let schema = crate::schema::from_macro::Schema::new::<S>();
 
-            for (table_name, table) in &schema.tables {
-                let table_name_ref = Alias::new(table_name);
+            for (&table_name, table) in &schema.tables {
                 txn.get()
-                    .execute(&new_table_inner(table, table_name_ref), [])
+                    .execute(&new_table_inner(table, table_name), [])
                     .unwrap();
-                for stmt in table.create_indices(table_name) {
+                for stmt in table.delayed_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();
                 }
             }
@@ -203,7 +205,7 @@ impl<S: Schema> Migrator<S> {
                         unreachable_code,
                         reason = "rustc is stupid and thinks this is unreachable"
                     )]
-                    // adding indexes is fine to do after checking foreign keys
+                    // adding non unique indexes is fine to do after checking foreign keys
                     for stmt in builder.inner.extra_index {
                         transaction.get().execute(&stmt, []).unwrap();
                     }
@@ -285,8 +287,8 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
         expected == actual
     }
 
-    for (name, table) in schema.tables {
-        let expected_table = &expected_schema.tables[&name];
+    for (&table_name, expected_table) in &expected_schema.tables {
+        let table = &schema.tables[table_name];
 
         if !check_eq(expected_table, &table) {
             // Unique constraints that are part of a table definition
@@ -296,7 +298,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
             let scope = Scope::default();
             let tmp_name = scope.tmp_table();
 
-            txn.execute(&new_table_inner(&expected_table, tmp_name));
+            txn.execute(&new_table_inner(expected_table, tmp_name));
 
             let mut columns: Vec<_> = expected_table
                 .columns
@@ -311,7 +313,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
                     .columns(columns.clone())
                     .select_from(
                         sea_query::SelectStatement::new()
-                            .from(Alias::new(&name))
+                            .from(table_name)
                             .columns(columns)
                             .take(),
                     )
@@ -322,17 +324,17 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
 
             txn.execute(
                 &sea_query::TableDropStatement::new()
-                    .table(Alias::new(&name))
+                    .table(table_name)
                     .build(SqliteQueryBuilder),
             );
 
             txn.execute(
                 &sea_query::TableRenameStatement::new()
-                    .table(tmp_name, Alias::new(&name))
+                    .table(tmp_name, table_name)
                     .build(SqliteQueryBuilder),
             );
-            // Add the new indices
-            for sql in expected_table.create_indices(&name) {
+            // Add the new non-unique indices
+            for sql in expected_table.delayed_indices(table_name) {
                 txn.execute(&sql);
             }
         }
@@ -341,7 +343,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
     // check that we solved the mismatch
     let schema = read_schema(txn);
     for (name, table) in schema.tables {
-        let expected_table = &expected_schema.tables[&name];
+        let expected_table = &expected_schema.tables[&*name];
         assert!(check_eq(expected_table, &table));
     }
 }
@@ -403,9 +405,9 @@ impl<S> Transaction<S> {
                 .get()
                 .prepare("SELECT sql FROM 'main'.'sqlite_schema'")
                 .unwrap()
-                .query_map([], |row| row.get("sql"))
+                .query_map([], |row| row.get::<_, Option<String>>("sql"))
                 .unwrap()
-                .map(|x| x.unwrap())
+                .flat_map(|x| x.unwrap())
                 .collect()
         })
     }

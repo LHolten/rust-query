@@ -32,7 +32,7 @@ pub struct Table {
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Schema {
-    pub tables: BTreeMap<String, Table>,
+    pub tables: BTreeMap<&'static str, Table>,
     pub span: (usize, usize),
 }
 

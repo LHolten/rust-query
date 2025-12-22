@@ -49,7 +49,12 @@ impl from_db::Schema {
         let mut annotations = Vec::new();
         let mut report = Vec::new();
 
-        for (table, diff) in diff_map(from_macro.tables, self.tables) {
+        let macro_tables = from_macro
+            .tables
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v))
+            .collect();
+        for (table, diff) in diff_map(macro_tables, self.tables) {
             match diff {
                 EntryDiff::DbOnly(_) => db_only.push(table),
                 EntryDiff::MacroOnly(val) => {

@@ -90,27 +90,19 @@ fn fix_indices2() {
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema with original index
-    db.check_schema(expect_test::expect![[r#"
-            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
-            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("field1", "baz")"#]]);
+    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("field1", "baz") ) STRICT"#]]);
 
     let db_with_reversed = open_db::<reversed::v0::Schema>(FILE_NAME);
     // The database is updated without a new schema version.
     // Changing the index column order is allowed because it does not change database validity.
-    db_with_reversed.check_schema(expect_test::expect![[r#"
-            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
-            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("baz", "field1")"#]]);
+    db_with_reversed.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("baz", "field1") ) STRICT"#]]);
 
     // Using the old database connection will still work, because the new schema is compatible.
-    db.check_schema(expect_test::expect![[r#"
-            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
-            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("baz", "field1")"#]]);
+    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("baz", "field1") ) STRICT"#]]);
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
     // Opening the database with the old schema again changes the index back.
-    db.check_schema(expect_test::expect![[r#"
-            CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY ) STRICT
-            CREATE UNIQUE INDEX "foo_index_0" ON "foo" ("field1", "baz")"#]]);
+    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("field1", "baz") ) STRICT"#]]);
 }
 
 #[test]
@@ -157,7 +149,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Table mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:130:36
+           ╭▸ src/schema/test.rs:122:36
            │
         LL │         #[crate::migration::schema(Schema)]
            │                                    ━━━━━━ database has table `foo`
@@ -172,7 +164,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Column mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:142:24
+           ╭▸ src/schema/test.rs:134:24
            │
         LL │             pub struct Foo {
            │                        ━━━ database has column `field1: String`
@@ -182,7 +174,7 @@ fn diagnostics() {
            │                     ━━━ database column has type `String`
            ╰╴
         error: Unique constraint mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:141:15
+           ╭▸ src/schema/test.rs:133:15
            │
         LL │             #[unique(baz, field2)]
            │               ━━━━━━ database does not have this unique constraint
