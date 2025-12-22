@@ -10,3 +10,4 @@ test.db
 Cargo.lock
 TODO.md
 /.vscode
+/mutants.out
