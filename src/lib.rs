@@ -14,6 +14,8 @@ mod joinable;
 mod lazy;
 mod migrate;
 mod mutable;
+#[cfg(feature = "mutants")]
+mod mutants;
 mod mymap;
 mod pool;
 mod query;
@@ -130,7 +132,7 @@ pub mod private {
         }
         pub use v0::*;
 
-        #[mutants::skip] // this function is only used in doc tests
+        #[cfg_attr(feature = "mutants", mutants::skip)] // this function is only used in doc tests
         pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
             let db = Database::new(Config::open_in_memory());
             db.transaction_mut_ok(|txn| {

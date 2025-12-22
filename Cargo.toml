@@ -60,7 +60,7 @@ parking_lot = "0.12.5"
 slab = "0.4.11"
 annotate-snippets = "0.12.9"
 sqlite3-parser = "0.15.0"
-mutants = "=0.0.3"
+mutants = { version = "=0.0.3", optional = true }
 
 [dev-dependencies]
 trybuild = "1.0.114"
@@ -75,3 +75,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 default = ["dev"]
 bundled = ["rusqlite/bundled"]
 dev = ["dep:k12"]
+
+# this adds some additional default impls to help cargo-mutants.
+# do not enable this for for other reasons.
+mutants = ["dep:mutants"]

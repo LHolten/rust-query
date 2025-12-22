@@ -1,2 +1,3 @@
 #:schema https://json.schemastore.org/cargo-mutants-config.json
 gitignore = true
+features = ["mutants"]
