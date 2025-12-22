@@ -9,6 +9,7 @@
   This is required when a unique index is defined in a table.
 - Added cargo-mutants support.
 - Fixed bug that would make a unique constraint violation in a migration into a panic.
+- Allow changing indices on individual fields without new table.
 
 # 0.6.6
 
