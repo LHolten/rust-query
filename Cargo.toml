@@ -60,6 +60,7 @@ parking_lot = "0.12.5"
 slab = "0.4.11"
 annotate-snippets = "0.12.9"
 sqlite3-parser = "0.15.0"
+mutants = "=0.0.3"
 
 [dev-dependencies]
 trybuild = "1.0.114"
