@@ -135,7 +135,11 @@ fn define_table(
         let ident = &col.name;
         let tmp = format_ident!("_{table_ident}{i}", span = col.typ.span());
 
-        let mut unique_columns = table.indices.iter().flat_map(|u| &u.columns);
+        let mut unique_columns = table
+            .indices
+            .iter()
+            .filter(|x| x.kind.unique)
+            .flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
