@@ -2,7 +2,7 @@ use std::{cell::OnceCell, fmt::Debug, ops::Deref};
 
 #[cfg(doc)]
 use crate::FromExpr;
-use crate::{Table, TableRow, Transaction, value::SecretFromSql};
+use crate::{IntoExpr, Table, TableRow, Transaction, value::SecretFromSql};
 
 /// [Lazy] can be used to read any column of a table row and its parents.
 /// Columns are loaded on demand, one row at at time.
@@ -82,5 +82,13 @@ impl<'transaction, T: Table> SecretFromSql for Lazy<'transaction, T> {
             lazy: OnceCell::new(),
             txn: Transaction::new_ref(),
         })
+    }
+}
+
+impl<'column, T: Table> IntoExpr<'column, T::Schema> for Lazy<'_, T> {
+    type Typ = T;
+
+    fn into_expr(self) -> crate::Expr<'column, T::Schema, Self::Typ> {
+        self.id.into_expr()
     }
 }
