@@ -131,7 +131,7 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
     }
 }
 
-/// This is an immutable borrow of [Query] that can be sorted.
+/// This is the result of calling [Query::order_by].
 ///
 /// Use [Self::asc] and [Self::desc] to refine the order of the returned rows.
 #[derive(Clone)]

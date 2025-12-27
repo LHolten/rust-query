@@ -392,7 +392,7 @@ impl<S: 'static> Transaction<S> {
     /// Returns [Ok] with a reference to the new inserted value or an [Err] with conflict information.
     /// The type of conflict information depends on the number of unique constraints on the table:
     /// - 0 unique constraints => [Infallible]
-    /// - 1 unique constraint => [Expr] reference to the conflicting table row.
+    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
     ///
     /// ```
@@ -464,7 +464,7 @@ impl<S: 'static> Transaction<S> {
     /// When the update succeeds, this function returns [Ok], when it fails it returns [Err] with one of
     /// three conflict types:
     /// - 0 unique constraints => [Infallible]
-    /// - 1 unique constraint => [Expr] reference to the conflicting table row.
+    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
     ///
     /// ```

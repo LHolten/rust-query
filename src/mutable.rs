@@ -11,6 +11,8 @@ use crate::{Table, TableRow, Transaction};
 /// However, only rows that are not used in a `#[unique]`
 /// constraint can be updated using [Mutable].
 ///
+/// To update columns with a unique constraint, please use [Transaction::update] for now.
+///
 /// [Mutable] only executes an `UPDATE` statement when it is dropped.
 /// This delay can not be observed because the transaction is borrowed mutably.
 pub struct Mutable<'transaction, T: Table> {

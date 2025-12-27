@@ -12,8 +12,8 @@ use crate::migrate::{Database, Migrator};
 ///
 /// Sqlite is configured to be in [WAL mode](https://www.sqlite.org/wal.html).
 /// The effect of this mode is that there can be any number of readers with one concurrent writer.
-/// What is nice about this is that a `&`[crate::Transaction] can always be made immediately.
-/// Making a `&mut`[crate::Transaction] has to wait until all other `&mut`[crate::Transaction]s are finished.
+/// What is nice about this is that an immutable [crate::Transaction] can always be made immediately.
+/// Making a mutable [crate::Transaction] has to wait until all other mutable [crate::Transaction]s are finished.
 pub struct Config {
     pub(super) manager: r2d2_sqlite::SqliteConnectionManager,
     pub(super) init: Box<dyn FnOnce(&rusqlite::Transaction)>,
@@ -22,6 +22,8 @@ pub struct Config {
     /// The default is [Synchronous::Full].
     pub synchronous: Synchronous,
     /// Configure how foreign keys should be checked.
+    ///
+    /// The default is [ForeignKeys::SQLite], but this is likely to change to [ForeignKeys::Rust].
     pub foreign_keys: ForeignKeys,
 }
 
@@ -54,7 +56,6 @@ impl Synchronous {
 
 /// Which method should be used to check foreign-key constraints.
 ///
-/// The default is [ForeignKeys::SQLite], but this is likely to change to [ForeignKeys::Rust].
 #[non_exhaustive]
 pub enum ForeignKeys {
     /// Foreign-key constraints are checked by rust-query only.
@@ -93,7 +94,13 @@ impl Config {
     ///
     /// Opening the same database multiple times at the same time is fine,
     /// as long as they migrate to or use the same schema.
-    /// All locking is done by sqlite, so connections can even be made using different client implementations.
+    /// All locking is done by SQLite, so connections can even be made using different client implementations.
+    ///
+    /// IMPORTANT: rust-query uses SQLite in WAL mode. While a connection to the database is open there will
+    /// be an additional file with the same name as the database, but with `-wal` appended.
+    /// This "write ahead log" is automatically removed when the last connection to the database closes cleanly.
+    /// Any `-wal` file should be considered an integral part of the database and as such should be kept together.
+    /// For more details see <https://sqlite.org/howtocorrupt.html>.
     pub fn open(p: impl AsRef<Path>) -> Self {
         let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
         Self::open_internal(manager)
