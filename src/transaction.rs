@@ -118,15 +118,7 @@ impl TransactionWithRows {
 }
 
 impl<S: Send + Sync + Schema> Database<S> {
-    /// Create a [Transaction]. Creating the transaction will not block by default.
-    ///
-    /// This function will panic if the schema was modified compared to when the [Database] value
-    /// was created. This can happen for example by running another instance of your program with
-    /// additional migrations.
-    ///
-    /// Note that many systems have a limit on the number of file descriptors that can
-    /// exist in a single process. On my machine the soft limit is (1024) by default.
-    /// If this limit is reached, it may cause a panic in this method.
+    #[doc = include_str!("database/transaction.md")]
     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
         let res = std::thread::scope(|scope| scope.spawn(|| self.transaction_local(f)).join());
         match res {
@@ -151,21 +143,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         res
     }
 
-    /// Create a mutable [Transaction].
-    /// This operation needs to wait for all other mutable [Transaction]s for this database to be finished.
-    /// There is currently no timeout on this operation, so it will wait indefinitly if required.
-    ///
-    /// Whether the transaction is commited depends on the result of the closure.
-    /// The transaction is only commited if the closure return [Ok]. In the case that it returns [Err]
-    /// or when the closure panics, a rollback is performed.
-    ///
-    /// This function will panic if the schema was modified compared to when the [Database] value
-    /// was created. This can happen for example by running another instance of your program with
-    /// additional migrations.
-    ///
-    /// Note that many systems have a limit on the number of file descriptors that can
-    /// exist in a single process. On my machine the soft limit is (1024) by default.
-    /// If this limit is reached, it may cause a panic in this method.
+    #[doc = include_str!("database/transaction_mut.md")]
     pub fn transaction_mut<O: Send, E: Send>(
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
@@ -216,9 +194,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         res
     }
 
-    /// Same as [Self::transaction_mut], but always commits the transaction.
-    ///
-    /// The only exception is that if the closure panics, a rollback is performed.
+    #[doc = include_str!("database/transaction_mut_ok.md")]
     pub fn transaction_mut_ok<R: Send>(
         &self,
         f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,

@@ -8,7 +8,11 @@ use crate::{Database, Transaction, migrate::Schema};
 
 /// This is an async wrapper for [Database].
 ///
-/// You can easily achieve the same thing with `tokio::task::spawn_blocking`,
+/// Transaction methods on this type are identical to [Database], but they spawn
+/// an async task and return a future to await the transaction completion.
+/// Because of this difference, the transaction closures must be `'static`.
+///
+/// You can easily implement [DatabaseAsync] manually using `tokio::task::spawn_blocking`,
 /// but this wrapper is a little bit more efficient while also being runtime agnostic.
 pub struct DatabaseAsync<S> {
     inner: Arc<Database<S>>,
@@ -35,10 +39,7 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         DatabaseAsync { inner: db }
     }
 
-    /// This is a lot like [Database::transaction], the only difference is that the async function
-    /// does not block the runtime and requires the closure to be `'static`.
-    /// The static requirement is because the future may be canceled, but the transaction can not
-    /// be canceled.
+    #[doc = include_str!("database/transaction.md")]
     pub async fn transaction<R: 'static + Send>(
         &self,
         f: impl 'static + Send + FnOnce(&'static Transaction<S>) -> R,
@@ -47,10 +48,7 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         async_run(move || db.transaction_local(f)).await
     }
 
-    /// This is a lot like [Database::transaction_mut], the only difference is that the async function
-    /// does not block the runtime and requires the closure to be `'static`.
-    /// The static requirement is because the future may be canceled, but the transaction can not
-    /// be canceled.
+    #[doc = include_str!("database/transaction_mut.md")]
     pub async fn transaction_mut<O: 'static + Send, E: 'static + Send>(
         &self,
         f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
@@ -59,10 +57,7 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         async_run(move || db.transaction_mut_local(f)).await
     }
 
-    /// This is a lot like [Database::transaction_mut_ok], the only difference is that the async function
-    /// does not block the runtime and requires the closure to be `'static`.
-    /// The static requirement is because the future may be canceled, but the transaction can not
-    /// be canceled.
+    #[doc = include_str!("database/transaction_mut_ok.md")]
     pub async fn transaction_mut_ok<R: 'static + Send>(
         &self,
         f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> R,
