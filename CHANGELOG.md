@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.6.8
+
 - Allow mutating columns that are used in an index.
 - Implement `IntoExpr` for `Lazy`.
 - Add some more documentation.
