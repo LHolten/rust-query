@@ -1,6 +1,8 @@
 [![Latest Version](https://img.shields.io/crates/v/rust-query.svg)](https://crates.io/crates/rust-query)
 [![Documentation](https://docs.rs/rust-query/badge.svg)](https://docs.rs/rust-query)
 
+## Example
+
 ```rust
 # use rust_query::{migration::{schema, Config}, aggregate, Database};
 # use std::fs;
@@ -76,10 +78,6 @@ fn main() {
 Use this library if you want to fearlessly query and migrate your SQLite 
 database with a Rusty API build on an encoding of your schema in types.
 
-Do not use `rust-query` if you want a zero-cost abstraction.
-The focus of this project is on bringing errors to compile-time and
-generally making transactions easier to write.
-
 Here are some errors that `rust-query` can prevent at compile-time:
 - Column type errors.
 - Foreign key violations on insert/update.
@@ -97,6 +95,17 @@ Next to those features, `rust-query` also helps writing complex queries:
 Query types are kept simple so that the required function signature is easy to write.
 - Aggregates that always return a single row make it easier to reason about queries.
 - Automatic decorrelation of correlated sub-queries makes it possible to run those on SQLite.
+
+## When not to use
+
+Do not use `rust-query` if you want a zero-cost abstraction.
+The focus of this project is on bringing errors to compile-time and
+generally making transactions easier to write.
+
+Do not use `rust-query` migrations if you plan to keep those migrations around for a long time.
+Currently `rust-query` generates quite a bit of code for every version of your schema and migrations
+may need to be updated to work with a new breaking version of `rust-query`.
+Improving compatiblity with migrations managed by other tools is on the roadmap.
 
 Note that this project is still in relatively early stages.
 There might be bugs to catch, so if you are worried about that, then don't use this yet.
