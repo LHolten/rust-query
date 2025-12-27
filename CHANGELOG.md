@@ -1,9 +1,12 @@
 # Unreleased
 
+- Allow mutating columns that are used in an index.
+- Implement `IntoExpr` for `Lazy`.
+
 # 0.6.7
 
 - Fix to allow implicit reference to primary key in sqlite schema.
-- Switch to `sqlite2-parser` for lexing the sqlite schema.
+- Switch to `sqlite3-parser` for lexing the sqlite schema.
 - Fix to allow unquoted column names in the schema.
 - Recreate full table on index change.
   This is required when a unique index is defined in a table.

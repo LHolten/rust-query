@@ -174,6 +174,20 @@ pub trait Typed {
 }
 
 /// Trait for all values that can be used as expressions in queries.
+///
+/// There is a hierarchy of types that can be used to build queries.
+/// - [TableRow], [i64], [f64], [bool], `&[u8]`, `&str`:
+///   These are the base types for building expressions. They all
+///   implement [IntoExpr] and are [Copy]. Note that [TableRow] is special
+///   because it refers to a table row that is guaranteed to exist.
+/// - [Expr] is the type that all [IntoExpr] values can be converted into.
+///   It has a lot of methods to combine expressions into more complicated expressions.
+///   Next to those, it implements [std::ops::Deref], if the expression is a table expression.
+///   This can be used to get access to the columns of the table, which can themselves be table expressions.
+///   Note that combinators like [optional] and [aggregate] also have [Expr] as return type.
+///
+/// Note that while [Expr] implements [IntoExpr], you may want to use `&Expr` instead.
+/// Using a reference lets you reuse [Expr] without calling [Clone] explicitly.
 pub trait IntoExpr<'column, S> {
     /// The type of the expression.
     type Typ: MyTyp;

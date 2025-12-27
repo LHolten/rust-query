@@ -1,6 +1,78 @@
 [![Latest Version](https://img.shields.io/crates/v/rust-query.svg)](https://crates.io/crates/rust-query)
 [![Documentation](https://docs.rs/rust-query/badge.svg)](https://docs.rs/rust-query)
 
+```rust
+# use rust_query::{migration::{schema, Config}, aggregate, Database};
+# use std::fs;
+#[schema(MySchema)]
+pub mod vN {
+    // Structs are database tables.
+    pub struct User {
+        pub name: String,
+    }
+    pub struct Image {
+        // This column has a unique constraint.
+        #[unique]
+        pub file_name: String,
+        // This column has an index and a foreign key constraint to the `User` table.
+        #[index]
+        pub uploaded_by: User,
+    }
+}
+// Import the table names from the schema we just created.
+use v0::*;
+
+fn main() {
+    # let _ = fs::remove_file("my_database.sqlite");
+    let database = Database::new(Config::open("my_database.sqlite"));
+
+    database.transaction_mut_ok(|txn| {
+        // First we insert a new `User` in the database.
+        // There are no unique constraints on this table, so no errors to handle.
+        let mike = txn.insert_ok(User { name: "mike" });
+        // Inserting an `Image` can fail, because of the unique constraint on
+        // the `file_name` column.
+        txn.insert(Image {
+            file_name: "dog.png",
+            uploaded_by: mike,
+        })
+        .expect("no other file called `dog.png` should exist");
+    }); // Changes are committed at the end of the closure!
+
+    database.transaction_mut_ok(|txn| {
+        let ref dog = txn.lazy(Image.file_name("dog.png")).expect("`dog.png` should exist");
+        // Note that this automatically retrieves the `User` row that matches the image!
+        println!("`dog` image was uploaded by {}", dog.uploaded_by.name);
+        
+        let ref user = dog.uploaded_by;
+        let upload_count = txn.query_one(aggregate(|rows| {
+            let user_images = rows.join(Image.uploaded_by(user));
+            // No error handling is required for this aggregate, an integer is always returned.
+            // This works even if `rows` is empty.
+            rows.count_distinct(user_images)
+        }));
+        println!("{} uploaded {} images", user.name, upload_count);
+        
+        // Since we are going to do mutations now, we need to disable
+        // the automatic retrieval of column data for the rows that
+        // we still want to use.
+        let dog = dog.table_row();
+        let user = user.table_row();
+
+        let paul = txn.insert_ok(User { name: "paul" });
+        // We can mutate rows with a simple assignment.
+        txn.mutable(dog).uploaded_by = paul;
+    
+        // Deleting happens in a separate transaction mode.
+        let txn = txn.downgrade();
+        // Since users can be referenced by images, we need to handle a potential error.
+        txn.delete(user).expect("no images should refer to this user anymore");
+    });
+}
+```
+
+## When to use
+
 Use this library if you want to fearlessly query and migrate your SQLite 
 database with a Rusty API build on an encoding of your schema in types.
 
@@ -29,124 +101,28 @@ Query types are kept simple so that the required function signature is easy to w
 Note that this project is still in relatively early stages.
 There might be bugs to catch, so if you are worried about that, then don't use this yet.
 
-- [Overview of types](#overview-of-types)
-- [How to provide `IntoSelect`](#how-to-provide-intoselect)
-- [How to work with optional rows](#how-to-work-with-optional-rows)
-- [FAQ](#faq)
-- [What it looks like](#what-it-looks-like)
+<!--
+## how to work with optional rows
 
-## Overview of types
+a single optional row is quite common as the result of using unique constraint.
+for example you might create a `expr<option<user>>` with something like `user.name(name)`.
+- [trait@fromexpr] is automatically implemented for `option<t>` if it is implemented for `t`, so
+  you can do something like `option::<userinfo>::from_expr(user.name(name))`.
+- [transaction::lazy] also works with optional rows, so you can write `txn.lazy(user.name(name))`.
+- for more complicated queries you have to use [args::optional::then_select].
 
-There is a hierarchy of types that can be used to build queries.
-- [TableRow], [i64], [f64], [bool], `&[u8]`, `&str`:
-  These are the base types for building expressions. They all
-  implement [IntoExpr] and are [Copy]. Note that [TableRow] is special
-  because it refers to a table row that is guaranteed to exist.
-- [Expr] is the type that all [IntoExpr] values can be converted into.
-  It has a lot of methods to combine expressions into more complicated expressions.
-  Most importantly, it implements [std::ops::Deref], if the expression is a table expression.
-  This can be used to get access to the columns of the table, which can themselves be table expressions.
-  Note that combinators like [optional] and [aggregate] also have [Expr] as return type.
-- `()`, [Expr] and `(Expr, Expr)` implement [IntoSelect]
-  These types can be used as the return type of a query.
-  They specify exactly which values should be returned for each row in the result set.
-- [struct@Select] is the type that all [IntoSelect] value can be converted into.
-  It has the [Select::map] method which allows changing the type that is returned from the query.
+## faq
+- q: how do i get a full row from the database?
 
-## How to provide [IntoSelect]
+  a: the [lazy] type is most convenient if you want to use the row columns immediately.
+  for other use cases, please take a look at the [other options](#how-to-provide-intoselect).
+- q: how do i retrieve some columns + the [tablerow] of a row?
 
-Making a selection of values to return for each row in the result set is the final step when
-building queries. [rust_query] has many different methods of selecting.
-- First, you can specify the columns that you want directly.
-  `into_vec(&user.name)` or `into_vec((&user.name, some_other_expr))`
-  Note that this method only supports tuples of size 2 (which can be nested).
-  If you want to have more expressions, then you probably want to use one of the other methods.
-- Derive [derive@Select], super useful when some of the values are aggregates.
-- Derive [derive@FromExpr], choose this method if you just want (a subset of) existing columns.
-- Finally, you can implement [trait@IntoSelect] manually, for maximum flexibility.
+  a: the [lazy] type has a [lazy::table_row] method to get the [tablerow].
+- q: why is [tablerow] (and many other types) `!send`?
 
-## How to work with optional rows
-
-A single optional row is quite common as the result of using unique constraint.
-For example you might create a `Expr<Option<User>>` with something like `User.name(name)`.
-- [trait@FromExpr] is automatically implemented for `Option<T>` if it is implemented for `T`, so
-  you can do something like `Option::<UserInfo>::from_expr(User.name(name))`.
-- [Transaction::lazy] also works with optional rows, so you can write `txn.lazy(User.name(name))`.
-- For more complicated queries you have to use [args::Optional::then_select].
-
-## FAQ
-- Q: How do I get a full row from the database?
-
-  A: The [Lazy] type is most convenient if you want to use the row columns immediately.
-  For other use cases, please take a look at the [other options](#how-to-provide-intoselect).
-- Q: How do I retrieve some columns + the [TableRow] of a row?
-
-  A: The [Lazy] type has a [Lazy::table_row] method to get the [TableRow].
-- Q: Why is [TableRow] (and many other types) `!Send`?
-
-  A: This prevents moving the [TableRow] between transactions. Moving a [TableRow] between transactions
-  would make it possible for the refered row to already be deleted in the new transaction.
-
-
-## What it looks like
-
-Define a schema using the syntax of a module with structs:
-```rust
-# fn main() {}
-use rust_query::migration::schema;
-
-#[schema(MySchema)]
-pub mod vN {
-    // Structs are database tables
-    pub struct User {
-        // This table has one column with String (sqlite TEXT) type.
-        pub name: String,
-    }
-    pub struct Image {
-        pub description: String,
-        // This column has a foreign key constraint to the User table
-        pub uploaded_by: User,
-    }
-}
-```
-Initialize a database:
-```rust,ignore
-let database = Database::new(Config::open("my_database.sqlite"));
-```
-Perform a transaction!
-```rust,ignore
-database.transaction_mut_ok(|txn| {
-    do_stuff_with_database(txn);
-    // Changes are committed at the end of the closure!
-});
-```
-Insert in the database:
-```rust,ignore
-// Lets make a new user 'mike',
-let mike = User { name: "mike" };
-let mike_id = txn.insert_ok(mike);
-// and also insert a dog picture for 'mike'.
-let dog_picture = Image {
-    description: "dog",
-    uploaded_by: mike_id,
-};
-let _picture_id = txn.insert_ok(dog_picture);
-```
-Query from the database:
-```rust,ignore
-// Now we want to get all pictures for 'mike'.
-let mike_pictures = txn.query(|rows| {
-    // Initially there is one empty row.
-    // Lets join the pictures table.
-    let picture = rows.join(Image);
-    // Now lets filter for pictures from mike,
-    rows.filter(picture.uploaded_by.eq(mike_id));
-    // and finally turn the rows into a vec.
-    rows.into_vec(&picture.description)
-});
-
-println!("{mike_pictures:?}"); // This should print `["dog"]`.
-```
+  a: this prevents moving the [tablerow] between transactions. moving a [tablerow] between transactions
+  would make it possible for the refered row to already be deleted in the new transaction.-->
 
 ## Roadmap
 
