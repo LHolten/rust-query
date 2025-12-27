@@ -150,8 +150,8 @@ pub trait SelectImpl {
 ///   `into_vec(&user.name)` or `into_vec((&user.name, some_other_expr))`
 ///   Note that this method only supports tuples of size 2 (which can be nested).
 ///   If you want to have more expressions, then you probably want to use one of the other methods.
-/// - Derive [derive@Select], super useful when some of the values are aggregates.
-/// - Derive [derive@FromExpr], choose this method if you just want (a subset of) existing columns.
+/// - Derive [derive@crate::Select], super useful when some of the values are aggregates.
+/// - Derive [derive@crate::FromExpr], choose this method if you just want (a subset of) existing columns.
 /// - Finally, you can implement [trait@IntoSelect] manually, for maximum flexibility.
 ///
 /// Note that you can often easily solve ownership issues by adding a reference.

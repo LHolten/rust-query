@@ -30,8 +30,12 @@ impl<'inner, S> Rows<'inner, S> {
     ///
     /// After this operation [Rows] has rows for the combinations of each original row with each row of the table.
     /// (Also called the "Carthesian product")
-    ///
     /// The expression that is returned refers to the joined table.
+    ///
+    /// The parameter must be a table name from the schema like `v0::User`.
+    /// This table can be filtered by `#[index]`: `rows.join(v0::User.score(100))`.
+    ///
+    /// See also [Self::filter_some] if you want to join a table that is filtered by `#[unique]`.
     pub fn join<T: Table<Schema = S>>(
         &mut self,
         j: impl Joinable<'inner, Typ = T>,

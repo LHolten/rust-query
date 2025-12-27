@@ -53,10 +53,7 @@ mod using_v0 {
 
     #[expect(unused)]
     fn read_scores3(txn: &Transaction<Schema>) -> Vec<Lazy<'_, Measurement>> {
-        txn.query(|rows| {
-            let m = rows.join(Measurement);
-            rows.into_iter(m).map(|x| txn.lazy(x)).collect()
-        })
+        txn.lazy_iter(Measurement).collect()
     }
 }
 

@@ -29,6 +29,7 @@ mod writable;
 pub use async_db::DatabaseAsync;
 pub use db::TableRow;
 pub use lazy::Lazy;
+pub use mutable::Mutable;
 use private::Reader;
 pub use rust_query_macros::{FromExpr, Select};
 use schema::from_macro::TypBuilder;

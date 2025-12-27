@@ -184,7 +184,7 @@ pub trait Typed {
 ///   It has a lot of methods to combine expressions into more complicated expressions.
 ///   Next to those, it implements [std::ops::Deref], if the expression is a table expression.
 ///   This can be used to get access to the columns of the table, which can themselves be table expressions.
-///   Note that combinators like [optional] and [aggregate] also have [Expr] as return type.
+///   Note that combinators like [crate::optional] and [crate::aggregate] also have [Expr] as return type.
 ///
 /// Note that while [Expr] implements [IntoExpr], you may want to use `&Expr` instead.
 /// Using a reference lets you reuse [Expr] without calling [Clone] explicitly.

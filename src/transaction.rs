@@ -340,10 +340,20 @@ impl<S> Transaction<S> {
         self.query(|e| e.into_iter(val.into_select()).next().unwrap())
     }
 
+    /// Retrieve a [crate::Lazy] value from the database.
+    ///
+    /// This is very similar to [Self::query_one], except that it retrieves
+    /// [crate::Lazy] instead of [TableRow]. As such it only works with
+    /// table valued [Expr].
+    ///
+    /// [Self::lazy] also works for optional rows, so you can write `txn.lazy(User.email(e))`.
     pub fn lazy<'t, T: OptTable>(&'t self, val: impl IntoExpr<'static, S, Typ = T>) -> T::Lazy<'t> {
         T::out_to_lazy(self.query_one(val.into_expr()))
     }
 
+    /// This retrieves an iterator of [crate::Lazy] values.
+    ///
+    /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     pub fn lazy_iter<'t, T: Table<Schema = S>>(
         &'t self,
         val: impl Joinable<'static, Typ = T>,
@@ -358,6 +368,9 @@ impl<S> Transaction<S> {
         })
     }
 
+    /// Retrieves a [Mutable] row from the database.
+    ///
+    /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.
     pub fn mutable<'t, T: OptTable<Schema = S>>(
         &'t mut self,
         val: impl IntoExpr<'static, S, Typ = T>,
@@ -366,6 +379,9 @@ impl<S> Transaction<S> {
         T::into_mutable(x)
     }
 
+    /// Retrieve multiple [crate::Mutable] rows from the database.
+    ///
+    /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl Joinable<'static, Typ = T>,

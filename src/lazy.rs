@@ -32,7 +32,6 @@ use crate::{IntoExpr, Table, TableRow, Transaction, value::SecretFromSql};
 /// Here are some alternatives to solve this problem:
 /// - [Copy]/[Clone] the columns that you need from the [Lazy] value before doing inserts and or updates.
 /// - Another option is to use [Lazy::table_row] to retrieve an owned [TableRow].
-///   This can then be used to create [crate::Expr] referencing the table columns for use in queries.
 /// - If you need many columns in a struct, then consider [derive@crate::FromExpr].
 pub struct Lazy<'transaction, T: Table> {
     pub(crate) id: TableRow<T>,

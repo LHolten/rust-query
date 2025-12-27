@@ -5,6 +5,14 @@ use std::{
 
 use crate::{Table, TableRow, Transaction};
 
+/// [Mutable] access to columns of a single table row.
+///
+/// The whole row is retrieved and can be inspected from Rust code.
+/// However, only rows that are not used in a `#[unique]`
+/// constraint can be updated using [Mutable].
+///
+/// [Mutable] only executes an `UPDATE` statement when it is dropped.
+/// This delay can not be observed because the transaction is borrowed mutably.
 pub struct Mutable<'transaction, T: Table> {
     inner: Option<T::Mutable>,
     row_id: TableRow<T>,
@@ -22,6 +30,12 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
         }
     }
 
+    /// Turn the [Mutable] into a [TableRow].
+    ///
+    /// This will end the lifetime of the [Mutable], which is useful since
+    /// [Mutable] does not have a non lexical lifetime, because of the [Drop] impl.
+    ///
+    /// If you do not need the [TableRow], then it is also possible to just call [drop].
     pub fn into_table_row(self) -> TableRow<T> {
         self.row_id
     }
