@@ -1,0 +1,7 @@
+error[E0594]: cannot assign to data in dereference of `UserMut`
+  --> tests/compile/mutate_unique.rs:13:5
+   |
+13 |     foo.name = "test".to_owned();
+   |     ^^^^^^^^ cannot assign
+   |
+   = help: trait `DerefMut` is required to modify through a dereference, but it is not implemented for `UserMut`
