@@ -4,8 +4,7 @@ use std::fmt::Debug;
 
 use expect_test::expect_file;
 use rust_query::{
-    Expr, FromExpr, IntoExpr, IntoSelect, Select, TableRow, Transaction, Update, aggregate,
-    optional,
+    Expr, FromExpr, IntoExpr, IntoSelect, Select, TableRow, Transaction, aggregate, optional,
 };
 use schema::*;
 
@@ -64,21 +63,15 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     txn.insert(Artist { name: "first" }).unwrap();
     let id = txn.insert(Artist { name: "second" }).unwrap();
 
-    let Err(_) = txn.update(
-        id,
-        Artist {
-            name: Update::set("first"),
-        },
-    ) else {
+    let Err(_) = txn
+        .mutable(id)
+        .unique(|artist| artist.name = "first".to_owned())
+    else {
         panic!()
     };
-    txn.update(
-        id,
-        Artist {
-            name: Update::set("other"),
-        },
-    )
-    .unwrap();
+    txn.mutable(id)
+        .unique(|artist| artist.name = "other".to_owned())
+        .unwrap();
     assert_eq!(txn.query_one(&id.into_expr().name), "other");
 
     let db = txn.downgrade();

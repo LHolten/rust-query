@@ -296,11 +296,15 @@ fn define_table(
                         }, #row_id))
                 }
 
-                fn mutable_into_update(val: Self::Mutable) -> Self::UpdateOk {
+                fn mutable_into_update(val: Self::Mutable) -> Self::Update {
                     #table_ident {
                         #(#col_ident_mut: ::rust_query::Update::set(val.#col_ident_mut),)*
-                        #(#col_ident_immut: (),)*
+                        #(#col_ident_immut: ::rust_query::Update::set(val.#private.#col_ident_immut),)*
                     }
+                }
+
+                fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as ::std::ops::Deref>::Target {
+                    &mut val.#private
                 }
 
                 fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {

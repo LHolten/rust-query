@@ -478,6 +478,7 @@ impl<S: 'static> Transaction<S> {
     /// }).unwrap();
     /// # });
     /// ```
+    #[deprecated = "Use `Mutable::unique` instead"]
     pub fn update<T: Table<Schema = S>>(
         &mut self,
         row: impl IntoExpr<'static, S, Typ = T>,
@@ -550,6 +551,7 @@ impl<S: 'static> Transaction<S> {
         row: impl IntoExpr<'static, S, Typ = T>,
         val: T::UpdateOk,
     ) {
+        #[expect(deprecated)]
         match self.update(row, T::update_into_try_update(val)) {
             Ok(val) => val,
             Err(_) => {

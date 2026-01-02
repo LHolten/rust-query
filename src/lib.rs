@@ -26,6 +26,8 @@ mod transaction;
 mod value;
 mod writable;
 
+use std::ops::Deref;
+
 pub use async_db::DatabaseAsync;
 pub use db::TableRow;
 pub use lazy::Lazy;
@@ -176,7 +178,7 @@ pub trait Table: Sized + 'static {
     type Referer;
 
     #[doc(hidden)]
-    type Mutable;
+    type Mutable: Deref;
     #[doc(hidden)]
     type Lazy<'t>;
     #[doc(hidden)]
@@ -197,7 +199,10 @@ pub trait Table: Sized + 'static {
     ) -> Select<'_, Self::Schema, (Self::Mutable, TableRow<Self>)>;
 
     #[doc(hidden)]
-    fn mutable_into_update(val: Self::Mutable) -> Self::UpdateOk;
+    fn mutable_into_update(val: Self::Mutable) -> Self::Update;
+
+    #[doc(hidden)]
+    fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target;
 
     #[doc(hidden)]
     fn update_into_try_update(val: Self::UpdateOk) -> Self::Update;

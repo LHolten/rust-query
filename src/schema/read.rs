@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible};
+use std::{collections::HashMap, convert::Infallible, ops::Deref};
 
 use sea_query::Func;
 
@@ -11,6 +11,15 @@ use crate::{
 
 pub fn strip_raw(inp: &'static str) -> &'static str {
     inp.strip_prefix("r#").unwrap_or(inp)
+}
+
+struct NoMut;
+impl Deref for NoMut {
+    type Target = ();
+
+    fn deref(&self) -> &Self::Target {
+        &()
+    }
 }
 
 macro_rules! table {
@@ -53,14 +62,18 @@ macro_rules! table {
             type Update = ();
             type Insert = ();
             type Lazy<'t> = ();
-            type Mutable = ();
+            type Mutable = NoMut;
 
             fn select_mutable(_val: Expr<'_, Self::Schema, Self>)
             -> crate::Select<'_, Self::Schema, (Self::Mutable, crate::TableRow<Self>)> {
                 unreachable!()
             }
 
-            fn mutable_into_update(_val: Self::Mutable) -> Self::UpdateOk {
+            fn mutable_into_update(_val: Self::Mutable) -> Self::Update {
+                unreachable!()
+            }
+
+            fn mutable_as_unique(_val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target {
                 unreachable!()
             }
 

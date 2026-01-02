@@ -41,6 +41,23 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
     pub fn into_table_row(self) -> TableRow<T> {
         self.row_id
     }
+
+    /// Update unique constraint columns.
+    ///
+    /// This can result in a conflict with other rows.
+    pub fn unique(
+        mut self,
+        f: impl FnOnce(&mut <T::Mutable as Deref>::Target),
+    ) -> Result<Self, T::Conflict> {
+        f(T::mutable_as_unique(self.inner.as_mut().unwrap()));
+        let txn = Transaction::new_ref();
+        #[expect(deprecated)]
+        txn.update(
+            self.row_id,
+            T::mutable_into_update(self.inner.take().unwrap()),
+        )?;
+        Ok(txn.mutable(self.row_id))
+    }
 }
 
 impl<'transaction, T: Table> Deref for Mutable<'transaction, T> {
@@ -61,9 +78,14 @@ impl<'transaction, T: Table> DerefMut for Mutable<'transaction, T> {
 impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
     fn drop(&mut self) {
         if self.any_update {
-            let update = T::mutable_into_update(self.inner.take().unwrap());
+            let Some(inner) = self.inner.take() else {
+                return;
+            };
+            let update = T::mutable_into_update(inner);
             #[expect(deprecated)]
-            Transaction::new_ref().update_ok(self.row_id, update);
+            let Ok(_) = Transaction::new_ref().update(self.row_id, update) else {
+                panic!("mutable can not fail, no unique is updated")
+            };
         }
     }
 }
