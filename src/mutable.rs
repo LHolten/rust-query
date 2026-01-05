@@ -11,12 +11,9 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 ///
 /// The whole row is retrieved and can be inspected from Rust code.
 /// However, only rows that are not used in a `#[unique]`
-/// constraint can be updated using [Mutable].
+/// constraint can be updated directly [Mutable].
 ///
-/// To update columns with a unique constraint, please use [Transaction::update] for now.
-///
-/// [Mutable] only executes an `UPDATE` statement when it is dropped.
-/// This delay can not be observed because the transaction is borrowed mutably.
+/// To update columns with a unique constraint, you have to use [Mutable::unique].
 pub struct Mutable<'transaction, T: Table> {
     cell: OnceCell<MutableInner<T>>,
     row_id: TableRow<T>,
@@ -63,7 +60,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
     ///
     /// When the update succeeds, this function returns [Ok], when it fails it returns [Err] with one of
     /// three conflict types:
-    /// - 0 unique constraints => [Infallible]
+    /// - 0 unique constraints => [std::convert::Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
     /// - 2+ unique constraints => `()` no further information is provided.
     ///

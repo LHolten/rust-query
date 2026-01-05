@@ -251,7 +251,7 @@ impl<S: Schema> Migrator<S> {
     ///
     /// The closure will only be executed if the database got migrated to schema version `S`
     /// by this [Migrator] instance.
-    /// If [Migrator::fixup] is used before [Migrator::migrate], then the closures is only executed
+    /// If [Migrator::fixup] is used before all [Migrator::migrate], then the closures is only executed
     /// when the database is created.
     pub fn fixup(mut self, f: impl Send + FnOnce(&mut Transaction<S>)) -> Self {
         if self.user_version.is_none() {
