@@ -286,14 +286,14 @@ fn define_table(
                 type Mutable = #mut_ident;
 
                 fn select_mutable(col: ::rust_query::Expr<'_, Self::Schema, Self>)
-                -> ::rust_query::Select<'_, Self::Schema, (Self::Mutable, ::rust_query::TableRow<Self>)> {
+                -> ::rust_query::Select<'_, Self::Schema, Self::Mutable> {
                     ::rust_query::IntoSelect::into_select((#wrap_parts, &col)).map(
-                        |(#wrap_ident, #row_id)| (#mut_ident {
+                        |(#wrap_ident, #row_id)| #mut_ident {
                             #(#col_ident_mut,)*
                             #private: #immut_ident {
                                 #(#col_ident_immut,)*
                             },
-                        }, #row_id))
+                        })
                 }
 
                 fn mutable_into_update(val: Self::Mutable) -> Self::Update {

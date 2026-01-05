@@ -365,7 +365,7 @@ impl<S> Transaction<S> {
         let val = DynJoinable::new(val);
         self.query(|rows| {
             let val = rows.join(val);
-            rows.into_vec(T::select_mutable(val))
+            rows.into_vec((T::select_mutable(val.clone()), val))
                 .into_iter()
                 .map(T::into_mutable)
                 .collect()

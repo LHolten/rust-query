@@ -30,9 +30,7 @@ struct MutableInner<T: Table> {
 impl<T: Table> MutableInner<T> {
     fn new(row_id: TableRow<T>) -> Self {
         Self {
-            val: Transaction::new_ref()
-                .query_one(T::select_mutable(row_id.into_expr()))
-                .0,
+            val: Transaction::new_ref().query_one(T::select_mutable(row_id.into_expr())),
             any_update: false,
         }
     }

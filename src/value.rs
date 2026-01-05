@@ -8,7 +8,7 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
-    Lazy, Select, Table, Transaction,
+    IntoSelect, Lazy, Select, Table, Transaction,
     alias::{Field, MyAlias, Scope},
     ast::{MySelect, Source},
     db::{Join, TableRow, TableRowInner},
@@ -348,7 +348,7 @@ impl<T: Table> OptTable for T {
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
-        T::select_mutable(val)
+        (T::select_mutable(val.clone()), val).into_select()
     }
 
     fn into_mutable<'t>((inner, row_id): Self::Select) -> Self::Mutable<'t> {
@@ -365,7 +365,7 @@ impl<T: Table> OptTable for Option<T> {
     ) -> Select<'_, Self::Schema, Self::Select> {
         crate::optional(|row| {
             let val = row.and(val);
-            row.then_select(T::select_mutable(val))
+            row.then_select((T::select_mutable(val.clone()), val))
         })
     }
 

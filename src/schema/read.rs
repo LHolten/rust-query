@@ -65,7 +65,7 @@ macro_rules! table {
             type Mutable = NoMut;
 
             fn select_mutable(_val: Expr<'_, Self::Schema, Self>)
-            -> crate::Select<'_, Self::Schema, (Self::Mutable, crate::TableRow<Self>)> {
+            -> crate::Select<'_, Self::Schema, Self::Mutable> {
                 unreachable!()
             }
 
