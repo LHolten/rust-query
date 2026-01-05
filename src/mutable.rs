@@ -2,6 +2,7 @@ use std::{
     cell::OnceCell,
     marker::PhantomData,
     ops::{Deref, DerefMut},
+    panic::AssertUnwindSafe,
 };
 
 use crate::{IntoExpr, Table, TableRow, Transaction};
@@ -60,19 +61,36 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
 
     /// Update unique constraint columns.
     ///
-    /// This can result in a conflict with other rows.
+    /// If the changes made inside the closure conflict with an existing row, then those changes
+    /// are reverted.
+    ///
+    /// If the closure panics, then the changes made inside the closure are also reverted.
+    /// Applying those changes is not possible, as conflicts can not be reported if there is a panic.
     pub fn unique<O>(
         &mut self,
         f: impl FnOnce(&mut <T::Mutable as Deref>::Target) -> O,
     ) -> Result<O, T::Conflict> {
-        let res = f(T::mutable_as_unique(self));
-        let txn = Transaction::new_ref();
-        // taking `self.cell` means that values are read from the database again the next time
-        // that the `Mutable` is dereferenced.
+        // this drops the old mutable, causing all previous writes to be applied.
+        *self = Mutable {
+            cell: OnceCell::new(),
+            row_id: self.row_id,
+            _txn: PhantomData,
+        };
+        // we need to catch panics so that we can restore `self` to a valid state.
+        // if we don't do this then the Drop impl is likely to panic.
+        let res = std::panic::catch_unwind(AssertUnwindSafe(|| f(T::mutable_as_unique(self))));
+        // taking `self.cell` puts the Mutable in a guaranteed valid state.
+        // it doesn't matter if the update succeeds or not as long as we only deref after the update.
         let update = T::mutable_into_update(self.cell.take().unwrap().val);
+        let out = match res {
+            Ok(out) => out,
+            Err(payload) => std::panic::resume_unwind(payload),
+        };
+        // only apply the update if there was no panic
         #[expect(deprecated)]
-        txn.update(self.row_id, update)?;
-        Ok(res)
+        Transaction::new_ref().update(self.row_id, update)?;
+
+        Ok(out)
     }
 }
 
@@ -87,7 +105,7 @@ impl<'transaction, T: Table> Deref for Mutable<'transaction, T> {
 impl<'transaction, T: Table> DerefMut for Mutable<'transaction, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // initialize the cell
-        let _ = self.deref();
+        let _ = Mutable::deref(self);
         let inner = self.cell.get_mut().unwrap();
         inner.any_update = true;
         &mut inner.val
@@ -106,5 +124,57 @@ impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
                 panic!("mutable can not fail, no unique is updated")
             };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{Database, migration::Config};
+
+    #[test]
+    fn mutable_shenanigans() {
+        #[crate::migration::schema(Test)]
+        pub mod vN {
+            pub struct Foo {
+                pub alpha: i64,
+                #[unique]
+                pub bravo: i64,
+            }
+        }
+        use v0::*;
+
+        let err = std::panic::catch_unwind(move || {
+            let db = Database::new(Config::open_in_memory());
+            db.transaction_mut_ok(|txn| {
+                txn.insert(Foo { alpha: 1, bravo: 1 }).unwrap();
+                let row = txn.insert(Foo { alpha: 1, bravo: 2 }).unwrap();
+                let mut mutable = txn.mutable(row);
+                mutable.alpha = 100;
+                mutable
+                    .unique(|x| {
+                        x.bravo = 1;
+                    })
+                    .unwrap_err();
+                assert_eq!(mutable.alpha, 100);
+                assert_eq!(mutable.bravo, 2);
+
+                let row = mutable.into_table_row();
+                let view = txn.lazy(row);
+                assert_eq!(view.alpha, 100);
+                assert_eq!(view.bravo, 2);
+
+                let mut mutable = txn.mutable(row);
+                mutable.alpha = 200;
+                mutable
+                    .unique(|x| {
+                        x.bravo = 1;
+                        panic!("error in unique")
+                    })
+                    .unwrap();
+            });
+        })
+        .unwrap_err();
+        assert_eq!(*err.downcast_ref::<&str>().unwrap(), "error in unique");
     }
 }
