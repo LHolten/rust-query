@@ -124,6 +124,8 @@ impl Config {
     /// Append a raw sql statement to be executed if the database was just created.
     ///
     /// The statement is executed after creating the empty database and executing all previous statements.
+    ///
+    /// [crate::migration::Migrator::fixup] should be prefered over this method.
     pub fn init_stmt(mut self, sql: &'static str) -> Self {
         self.init = Box::new(move |txn| {
             (self.init)(txn);

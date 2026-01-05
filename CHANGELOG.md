@@ -1,5 +1,12 @@
 # Unreleased
 
+# 0.6.9
+
+- Added `Mutable::unique` to mutate unique columns.
+- Deprecated `Transaction::update`.
+- Added `Migrator::fixup` to mutate the database after a migration and within
+  the same transaction.
+
 # 0.6.8
 
 - Allow mutating columns that are used in an index.

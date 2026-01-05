@@ -61,10 +61,16 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
 
     /// Update unique constraint columns.
     ///
-    /// If the changes made inside the closure conflict with an existing row, then those changes
-    /// are reverted.
+    /// When the update succeeds, this function returns [Ok], when it fails it returns [Err] with one of
+    /// three conflict types:
+    /// - 0 unique constraints => [Infallible]
+    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
+    /// - 2+ unique constraints => `()` no further information is provided.
     ///
-    /// If the closure panics, then the changes made inside the closure are also reverted.
+    /// If any of the changes made inside the closure conflict with an existing row, then all changes
+    /// made inside the closure are reverted.
+    ///
+    /// If the closure panics, then all changes made inside the closure are also reverted.
     /// Applying those changes is not possible, as conflicts can not be reported if there is a panic.
     pub fn unique<O>(
         &mut self,
