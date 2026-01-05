@@ -240,6 +240,10 @@ impl<S> Transaction<S> {
         }
     }
 
+    pub(crate) fn copy(&self) -> Self {
+        Self::new()
+    }
+
     pub(crate) fn new_ref() -> &'static mut Self {
         // no memory is leaked because Self is zero sized
         Box::leak(Box::new(Self::new()))

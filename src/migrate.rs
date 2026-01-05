@@ -102,8 +102,12 @@ impl<S: Schema> Database<S> {
             )
         });
 
+        let mut user_version = Some(user_version(txn.get()).unwrap());
+
         // check if this database is newly created
         if schema_version(txn.get()) == 0 {
+            user_version = None;
+
             let schema = crate::schema::from_macro::Schema::new::<S>();
 
             for (&table_name, table) in &schema.tables {
@@ -115,14 +119,11 @@ impl<S: Schema> Database<S> {
                 }
             }
             (config.init)(txn.get());
-            set_user_version(txn.get(), S::VERSION).unwrap();
-        }
-
-        let user_version = user_version(txn.get()).unwrap();
-        // We can not migrate databases older than `S`
-        if user_version < S::VERSION {
+        } else if user_version.unwrap() < S::VERSION {
+            // We can not migrate databases older than `S`
             return None;
         }
+
         debug_assert_eq!(
             foreign_key_check(txn.get()),
             None,
@@ -130,7 +131,7 @@ impl<S: Schema> Database<S> {
         );
 
         Some(Migrator {
-            indices_fixed: false,
+            user_version,
             manager,
             transaction: txn,
             _p: PhantomData,
@@ -145,11 +146,45 @@ impl<S: Schema> Database<S> {
 pub struct Migrator<S> {
     manager: r2d2_sqlite::SqliteConnectionManager,
     transaction: OwnedTransaction,
-    indices_fixed: bool,
+    // Initialized to the user version when the transaction starts.
+    // This is set to None if the schema user_version is updated.
+    // Fixups are only applied if the user_version is None.
+    // Indices are fixed before this is set to None.
+    user_version: Option<i64>,
     _p: PhantomData<S>,
 }
 
 impl<S: Schema> Migrator<S> {
+    fn with_transaction(mut self, f: impl Send + FnOnce(&mut Transaction<S>)) -> Self {
+        assert!(self.user_version.is_none_or(|x| x == S::VERSION));
+        let res = std::thread::scope(|s| {
+            s.spawn(|| {
+                TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
+                let txn = Transaction::new_ref();
+
+                // check if this is the first migration that is applied
+                if self.user_version.take().is_some() {
+                    // we check the schema before doing any migrations
+                    check_schema::<S>(txn);
+                    // fixing indices before migrations can help with migration performance
+                    fix_indices::<S>(txn);
+                }
+
+                f(txn);
+
+                let transaction = TXN.take().unwrap();
+
+                transaction.into_owner()
+            })
+            .join()
+        });
+        match res {
+            Ok(val) => self.transaction = val,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+        self
+    }
+
     /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
@@ -160,73 +195,69 @@ impl<S: Schema> Migrator<S> {
     where
         M: SchemaMigration<'x, From = S>,
     {
-        if user_version(self.transaction.get()).unwrap() == S::VERSION {
-            let res = std::thread::scope(|s| {
-                s.spawn(|| {
-                    TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
-                    let txn = Transaction::new_ref();
+        if self.user_version.is_none_or(|x| x == S::VERSION) {
+            self = self.with_transaction(|txn| {
+                let mut txn = TransactionMigrate {
+                    inner: txn.copy(),
+                    scope: Default::default(),
+                    rename_map: HashMap::new(),
+                    extra_index: Vec::new(),
+                };
+                let m = m(&mut txn);
 
-                    check_schema::<S>(txn);
-                    if !self.indices_fixed {
-                        fix_indices::<S>(txn);
-                        self.indices_fixed = true;
-                    }
+                let mut builder = SchemaBuilder {
+                    drop: vec![],
+                    foreign_key: HashMap::new(),
+                    inner: txn,
+                };
+                m.tables(&mut builder);
 
-                    let mut txn = TransactionMigrate {
-                        inner: Transaction::new(),
-                        scope: Default::default(),
-                        rename_map: HashMap::new(),
-                        extra_index: Vec::new(),
-                    };
-                    let m = m(&mut txn);
+                let transaction = TXN.take().unwrap();
 
-                    let mut builder = SchemaBuilder {
-                        drop: vec![],
-                        foreign_key: HashMap::new(),
-                        inner: txn,
-                    };
-                    m.tables(&mut builder);
+                for drop in builder.drop {
+                    let sql = drop.to_string(SqliteQueryBuilder);
+                    transaction.get().execute(&sql, []).unwrap();
+                }
+                for (to, tmp) in builder.inner.rename_map {
+                    let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
+                    let sql = rename.to_string(SqliteQueryBuilder);
+                    transaction.get().execute(&sql, []).unwrap();
+                }
+                if let Some(fk) = foreign_key_check(transaction.get()) {
+                    (builder.foreign_key.remove(&*fk).unwrap())();
+                }
+                #[allow(
+                    unreachable_code,
+                    reason = "rustc is stupid and thinks this is unreachable"
+                )]
+                // adding non unique indexes is fine to do after checking foreign keys
+                for stmt in builder.inner.extra_index {
+                    transaction.get().execute(&stmt, []).unwrap();
+                }
 
-                    let transaction = TXN.take().unwrap();
-
-                    for drop in builder.drop {
-                        let sql = drop.to_string(SqliteQueryBuilder);
-                        transaction.get().execute(&sql, []).unwrap();
-                    }
-                    for (to, tmp) in builder.inner.rename_map {
-                        let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
-                        let sql = rename.to_string(SqliteQueryBuilder);
-                        transaction.get().execute(&sql, []).unwrap();
-                    }
-                    if let Some(fk) = foreign_key_check(transaction.get()) {
-                        (builder.foreign_key.remove(&*fk).unwrap())();
-                    }
-                    #[allow(
-                        unreachable_code,
-                        reason = "rustc is stupid and thinks this is unreachable"
-                    )]
-                    // adding non unique indexes is fine to do after checking foreign keys
-                    for stmt in builder.inner.extra_index {
-                        transaction.get().execute(&stmt, []).unwrap();
-                    }
-                    set_user_version(transaction.get(), M::To::VERSION).unwrap();
-
-                    transaction.into_owner()
-                })
-                .join()
+                TXN.set(Some(transaction));
             });
-            match res {
-                Ok(val) => self.transaction = val,
-                Err(payload) => std::panic::resume_unwind(payload),
-            }
         }
 
         Migrator {
-            indices_fixed: self.indices_fixed,
+            user_version: self.user_version,
             manager: self.manager,
             transaction: self.transaction,
             _p: PhantomData,
         }
+    }
+
+    /// Mutate the database as part of migrations.
+    ///
+    /// The closure will only be executed if the database got migrated to schema version `S`
+    /// by this [Migrator] instance.
+    /// If [Migrator::fixup] is used before [Migrator::migrate], then the closures is only executed
+    /// when the database is created.
+    pub fn fixup(mut self, f: impl Send + FnOnce(&mut Transaction<S>)) -> Self {
+        if self.user_version.is_none() {
+            self = self.with_transaction(f);
+        }
+        self
     }
 
     /// Commit the migration transaction and return a [Database].
@@ -235,29 +266,15 @@ impl<S: Schema> Migrator<S> {
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
     pub fn finish(mut self) -> Option<Database<S>> {
-        if user_version(self.transaction.get()).unwrap() != S::VERSION {
+        if self.user_version.is_some_and(|x| x != S::VERSION) {
             return None;
         }
 
-        let res = std::thread::scope(|s| {
-            s.spawn(|| {
-                TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
-                let txn = Transaction::new_ref();
-
-                check_schema::<S>(txn);
-                if !self.indices_fixed {
-                    fix_indices::<S>(txn);
-                    self.indices_fixed = true;
-                }
-
-                TXN.take().unwrap().into_owner()
-            })
-            .join()
+        // This checks that the schema is correct and fixes indices etc
+        self = self.with_transaction(|txn| {
+            // sanity check, this should never fail
+            check_schema::<S>(txn);
         });
-        match res {
-            Ok(val) => self.transaction = val,
-            Err(payload) => std::panic::resume_unwind(payload),
-        }
 
         // adds an sqlite_stat1 table
         self.transaction
@@ -265,6 +282,7 @@ impl<S: Schema> Migrator<S> {
             .execute_batch("PRAGMA optimize;")
             .unwrap();
 
+        set_user_version(self.transaction.get(), S::VERSION).unwrap();
         let schema_version = schema_version(self.transaction.get());
         self.transaction.with(|x| x.commit().unwrap());
 
