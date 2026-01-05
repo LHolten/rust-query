@@ -28,6 +28,9 @@ test = true
 name = "empty_table"
 test = true
 [[example]]
+name = "expense"
+test = true
+[[example]]
 name = "insert_and_select"
 test = true
 [[example]]
