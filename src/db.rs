@@ -5,7 +5,7 @@ use sea_query::Alias;
 use crate::{
     Expr, IntoExpr, Table,
     alias::MyAlias,
-    value::{MyTableRef, MyTyp, Typed, ValueBuilder},
+    value::{MyTableRef, Typed, ValueBuilder},
 };
 
 /// Table reference that is the result of a join.
@@ -25,7 +25,7 @@ impl<T> Join<T> {
     }
 }
 
-impl<T: MyTyp> Typed for Join<T> {
+impl<T: Table> Typed for Join<T> {
     type Typ = T;
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()

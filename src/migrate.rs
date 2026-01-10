@@ -224,13 +224,13 @@ impl<S: Schema> Migrator<S> {
                     let sql = rename.to_string(SqliteQueryBuilder);
                     transaction.get().execute(&sql, []).unwrap();
                 }
-                if let Some(fk) = foreign_key_check(transaction.get()) {
-                    (builder.foreign_key.remove(&*fk).unwrap())();
-                }
                 #[allow(
                     unreachable_code,
                     reason = "rustc is stupid and thinks this is unreachable"
                 )]
+                if let Some(fk) = foreign_key_check(transaction.get()) {
+                    (builder.foreign_key.remove(&*fk).unwrap())();
+                }
                 // adding non unique indexes is fine to do after checking foreign keys
                 for stmt in builder.inner.extra_index {
                     transaction.get().execute(&stmt, []).unwrap();

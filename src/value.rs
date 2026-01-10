@@ -601,9 +601,9 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(
-    j: impl IntoJoinable<'inner, Typ = T>,
+    j: impl IntoJoinable<'inner, T::Schema, Typ = T>,
 ) -> Expr<'inner, T::Schema, Option<T>> {
-    let list = j.conds();
+    let list = j.into_joinable().conds;
     ::rust_query::private::adhoc_expr(move |_b| {
         let list = list
             .iter()
