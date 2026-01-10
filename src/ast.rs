@@ -122,12 +122,15 @@ impl ValueBuilder {
 
         let mut any_expr = false;
 
-        for (idx, group) in self.forwarded.iter().enumerate() {
-            select.from_as((Alias::new("main"), Alias::new(group.1.0)), group.1.2);
+        for (idx, (_outermost_join, forward)) in self.forwarded.iter().enumerate() {
+            select.from_as(
+                (Alias::new("main"), Alias::new(forward.table_name)),
+                forward.inner_table_alias,
+            );
             any_from = true;
 
             select.expr_as(
-                Expr::column((group.1.2, Alias::new("id"))),
+                Expr::column((forward.inner_table_alias, Alias::new("id"))),
                 MyAlias::new(idx),
             );
             any_expr = true;

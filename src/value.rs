@@ -26,7 +26,16 @@ pub struct ValueBuilder {
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
     // calculating these results
-    pub(super) forwarded: MyMap<MyTableRef, (&'static str, DynTypedExpr, MyAlias)>,
+    pub(super) forwarded: MyMap<MyTableRef, Forwarded>,
+}
+
+pub struct Forwarded {
+    // name of the table in the schema
+    pub table_name: &'static str,
+    // this is the table expression that our table should be equal to
+    pub join_in_outer_scope: DynTypedExpr,
+    // alias of the table inside the aggregate
+    pub inner_table_alias: MyAlias,
 }
 
 impl ValueBuilder {
@@ -86,22 +95,27 @@ impl ValueBuilder {
         if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
             MyAlias::new(table.idx)
         } else {
-            let join = Join::<T>::new(table.clone());
+            let join_in_outer_scope = Join::<T>::new(table.clone());
             self.forwarded
-                .get_or_init(table, || {
-                    (
-                        T::NAME,
-                        DynTypedExpr::new(move |b| join.build_expr(b)),
-                        self.scope.new_alias(),
-                    )
+                .get_or_init(table, || Forwarded {
+                    table_name: T::NAME,
+                    join_in_outer_scope: DynTypedExpr::new(move |b| {
+                        join_in_outer_scope.build_expr(b)
+                    }),
+                    inner_table_alias: self.scope.new_alias(),
                 })
-                .2
+                .inner_table_alias
         }
     }
 }
 
+/// This references a particular user specified join,
+/// so not any of the forwarded joins.
+/// We use this to know if the current scope has the original join or needs to forward it.
 #[derive(Clone)]
 pub struct MyTableRef {
+    // one Rc exists for each scope, so we can check if we have the right
+    // scope by comparing the Rc ptr.
     pub(crate) scope_rc: Rc<()>,
     pub(crate) idx: usize,
 }

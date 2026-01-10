@@ -46,7 +46,11 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let mut builder = self.query.ast.clone().full();
         let (select, mut fields) = builder.build_select(vec![expr], Vec::new());
 
-        let conds = builder.forwarded.into_iter().map(|x| x.1.1).collect();
+        let conds = builder
+            .forwarded
+            .into_iter()
+            .map(|x| x.1.join_in_outer_scope)
+            .collect();
 
         Aggr {
             _p2: PhantomData,
