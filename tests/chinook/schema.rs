@@ -143,26 +143,32 @@ pub fn migrate() -> Database<v2::Schema> {
             Please download it from https://github.com/lerocha/chinook-database/releases/tag/v1.4.5"
         );
     }
-    let config = Config::open_in_memory()
-        .init_stmt("ATTACH 'Chinook_Sqlite.sqlite' AS old;")
-        .init_stmt(include_str!("migrate.sql"));
+    let config = Config::open_in_memory();
 
     let genre_extra = HashMap::from([("rock", 10)]);
     let m = Database::migrator(config).unwrap();
-    let m = m.migrate(|txn| v0::migrate::Schema {
-        genre_new: txn.migrate_ok(|old: Lazy<v0::Genre>| v0::migrate::GenreNew {
-            name: old.name.clone(),
-        }),
-        short_genre: {
-            let Ok(()) = txn.migrate_optional(|old: Lazy<v0::Genre>| {
-                (old.name.len() <= 10).then_some(v0::migrate::GenreNew {
-                    name: old.name.clone(),
-                })
-            });
-            Migrated::map_fk_err(|| panic!())
-        },
-        track: txn.migrate_ok(|_old| v0::migrate::Track { favorite: false }),
-    });
+    let m = m
+        .fixup(|txn| {
+            txn.downgrade().rusqlite_transaction(|txn| {
+                txn.execute_batch("ATTACH 'Chinook_Sqlite.sqlite' AS old;")
+                    .unwrap();
+                txn.execute_batch(include_str!("migrate.sql")).unwrap();
+            })
+        })
+        .migrate(|txn| v0::migrate::Schema {
+            genre_new: txn.migrate_ok(|old: Lazy<v0::Genre>| v0::migrate::GenreNew {
+                name: old.name.clone(),
+            }),
+            short_genre: {
+                let Ok(()) = txn.migrate_optional(|old: Lazy<v0::Genre>| {
+                    (old.name.len() <= 10).then_some(v0::migrate::GenreNew {
+                        name: old.name.clone(),
+                    })
+                });
+                Migrated::map_fk_err(|| panic!())
+            },
+            track: txn.migrate_ok(|_old| v0::migrate::Track { favorite: false }),
+        });
 
     let m = m.migrate(|txn| v1::migrate::Schema {
         customer: txn.migrate_ok(|old: Lazy<v1::Customer>| {

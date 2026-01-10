@@ -155,7 +155,7 @@ pub struct Migrator<S> {
 }
 
 impl<S: Schema> Migrator<S> {
-    fn with_transaction(mut self, f: impl Send + FnOnce(&mut Transaction<S>)) -> Self {
+    fn with_transaction(mut self, f: impl Send + FnOnce(&'static mut Transaction<S>)) -> Self {
         assert!(self.user_version.is_none_or(|x| x == S::VERSION));
         let res = std::thread::scope(|s| {
             s.spawn(|| {
@@ -253,7 +253,7 @@ impl<S: Schema> Migrator<S> {
     /// by this [Migrator] instance.
     /// If [Migrator::fixup] is used before all [Migrator::migrate], then the closures is only executed
     /// when the database is created.
-    pub fn fixup(mut self, f: impl Send + FnOnce(&mut Transaction<S>)) -> Self {
+    pub fn fixup(mut self, f: impl Send + FnOnce(&'static mut Transaction<S>)) -> Self {
         if self.user_version.is_none() {
             self = self.with_transaction(f);
         }
