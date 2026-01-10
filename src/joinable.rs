@@ -22,12 +22,17 @@ pub struct Joinable<'inner, S, T: MyTyp> {
 }
 
 impl<'inner, S, T: Table> Joinable<'inner, S, T> {
-    pub fn table(conds: Vec<(&'static str, DynTypedExpr)>) -> Self {
+    pub fn table() -> Self {
         Self {
             _p: PhantomData,
             table: JoinableTable::Normal(T::NAME.into_iden()),
-            conds,
+            conds: Vec::new(),
         }
+    }
+
+    pub fn add_cond<C: MyTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
+        self.conds.push((col, DynTypedExpr::erase(val)));
+        self
     }
 }
 

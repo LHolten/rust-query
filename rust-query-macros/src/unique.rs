@@ -84,12 +84,10 @@ pub fn unique_tree(
         out.extend(quote! {
             pub struct #helper_name<'inner>(#prefix<#prefix_lt>, ::rust_query::Expr<'inner, #schema, #col_typ>);
 
-            impl<'inner> ::rust_query::private::Joinable<'inner> for #helper_name<'inner> {
+            impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #helper_name<'inner> {
                 type Typ = #table;
-                fn conds(self) -> ::std::vec::Vec<(&'static str, ::rust_query::private::DynTypedExpr)> {
-                    let mut list = self.0.conds();
-                    list.push((#col_str, ::rust_query::private::DynTypedExpr::erase(self.1)));
-                    list
+                fn into_joinable(self) -> ::rust_query::private::Joinable<'inner, #schema, Self::Typ> {
+                    ::rust_query::private::IntoJoinable::into_joinable(self.0).add_cond(#col_str, self.1)
                 }
             }
         });

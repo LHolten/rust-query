@@ -212,10 +212,10 @@ fn define_table(
         #[allow(non_upper_case_globals)]
         pub const #table_ident_with_span: #table_helper = #table_helper(());
 
-        impl<'inner> ::rust_query::private::Joinable<'inner> for #table_helper {
+        impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #table_helper {
             type Typ = #table_ident;
-            fn conds(self) -> ::std::vec::Vec<(&'static str, ::rust_query::private::DynTypedExpr)> {
-                ::std::vec::Vec::new()
+            fn into_joinable(self) -> ::rust_query::private::Joinable<'inner, #schema, Self::Typ> {
+                ::rust_query::private::Joinable::table()
             }
         }
 

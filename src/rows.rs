@@ -8,6 +8,7 @@ use crate::{
     ast::MySelect,
     db::Join,
     joinable::IntoJoinable,
+    private::Joinable,
     value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
 };
 
@@ -36,7 +37,10 @@ impl<'inner, S> Rows<'inner, S> {
     /// This table can be filtered by `#[index]`: `rows.join(v0::User.score(100))`.
     ///
     /// See also [Self::filter_some] if you want to join a table that is filtered by `#[unique]`.
-    pub fn join<T>(&mut self, j: impl IntoJoinable<'inner, S, Typ = T>) -> Expr<'inner, S, T> {
+    pub fn join<T: MyTyp>(
+        &mut self,
+        j: impl IntoJoinable<'inner, S, Typ = T>,
+    ) -> Expr<'inner, S, T> {
         let joinable = j.into_joinable();
         let out = self.join_inner(joinable.table);
         for (name, val) in joinable.conds {
@@ -50,7 +54,7 @@ impl<'inner, S> Rows<'inner, S> {
 
     #[doc(hidden)]
     pub fn join_private<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
-        self.join_inner(JoinableTable::Normal(T::NAME.into()))
+        self.join(Joinable::table())
     }
 
     pub(crate) fn join_custom<T: CustomJoin<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
@@ -62,7 +66,7 @@ impl<'inner, S> Rows<'inner, S> {
         self.join_inner(JoinableTable::Normal(tmp_string))
     }
 
-    fn join_inner<T: Table<Schema = S>>(&mut self, name: JoinableTable) -> Expr<'inner, S, T> {
+    fn join_inner<T: MyTyp>(&mut self, name: JoinableTable) -> Expr<'inner, S, T> {
         let table_idx = self.ast.tables.len();
         Rc::make_mut(&mut self.ast).tables.push(name);
         Expr::new(Join::new(MyTableRef {
