@@ -14,7 +14,7 @@ use crate::{
     db::{Join, TableRow, TableRowInner},
     mutable::Mutable,
     mymap::MyMap,
-    private::Joinable,
+    private::IntoJoinable,
     schema::canonical,
 };
 
@@ -601,7 +601,7 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(
-    j: impl Joinable<'inner, Typ = T>,
+    j: impl IntoJoinable<'inner, Typ = T>,
 ) -> Expr<'inner, T::Schema, Option<T>> {
     let list = j.conds();
     ::rust_query::private::adhoc_expr(move |_b| {

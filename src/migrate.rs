@@ -88,6 +88,7 @@ impl<S: Schema> Database<S> {
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+            rusqlite::vtab::array::load_module(inner).unwrap();
             Ok(())
         });
 

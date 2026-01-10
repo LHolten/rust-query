@@ -1,32 +1,40 @@
 use std::marker::PhantomData;
 
-use crate::{Expr, Table, value::DynTypedExpr};
+use sea_query::IntoIden;
 
-pub trait Joinable<'inner> {
-    type Typ: Table;
-    fn conds(self) -> Vec<(&'static str, DynTypedExpr)>;
+use crate::{
+    Expr, Table,
+    alias::JoinableTable,
+    value::{DynTypedExpr, MyTyp},
+};
+
+pub trait IntoJoinable<'inner, S> {
+    type Typ: MyTyp;
+    fn into_joinable(self) -> Joinable<'inner, S, Self::Typ>;
 }
 
 /// This struct exists because Joinable is not covariant in `'inner`.
-/// We can restore the convariant by making [DynJoinable].
-pub struct DynJoinable<'inner, T: Table> {
-    _p: PhantomData<Expr<'inner, T::Schema, T>>,
-    conds: Vec<(&'static str, DynTypedExpr)>,
+/// We can get a covariant value by converting to [DynJoinable].
+pub struct Joinable<'inner, S, T: MyTyp> {
+    _p: PhantomData<Expr<'inner, S, T>>,
+    pub(crate) table: JoinableTable,
+    pub(crate) conds: Vec<(&'static str, DynTypedExpr)>,
 }
 
-impl<'inner, T: Table> DynJoinable<'inner, T> {
-    pub(crate) fn new(val: impl Joinable<'inner, Typ = T>) -> Self {
+impl<'inner, S, T: Table> Joinable<'inner, S, T> {
+    pub fn table(conds: Vec<(&'static str, DynTypedExpr)>) -> Self {
         Self {
             _p: PhantomData,
-            conds: val.conds(),
+            table: JoinableTable::Normal(T::NAME.into_iden()),
+            conds,
         }
     }
 }
 
-impl<'inner, T: Table> Joinable<'inner> for DynJoinable<'inner, T> {
+impl<'inner, S, T: MyTyp> IntoJoinable<'inner, S> for Joinable<'inner, S, T> {
     type Typ = T;
 
-    fn conds(self) -> Vec<(&'static str, DynTypedExpr)> {
-        self.conds
+    fn into_joinable(self) -> Joinable<'inner, S, Self::Typ> {
+        self
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     alias::{Field, JoinableTable, TmpTable},
     ast::MySelect,
     db::Join,
-    joinable::Joinable,
+    joinable::IntoJoinable,
     value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
 };
 
@@ -36,12 +36,10 @@ impl<'inner, S> Rows<'inner, S> {
     /// This table can be filtered by `#[index]`: `rows.join(v0::User.score(100))`.
     ///
     /// See also [Self::filter_some] if you want to join a table that is filtered by `#[unique]`.
-    pub fn join<T: Table<Schema = S>>(
-        &mut self,
-        j: impl Joinable<'inner, Typ = T>,
-    ) -> Expr<'inner, S, T> {
-        let out = self.join_private::<T>();
-        for (name, val) in j.conds() {
+    pub fn join<T>(&mut self, j: impl IntoJoinable<'inner, S, Typ = T>) -> Expr<'inner, S, T> {
+        let joinable = j.into_joinable();
+        let out = self.join_inner(joinable.table);
+        for (name, val) in joinable.conds {
             let out = out.inner.clone();
             self.filter(Expr::adhoc(move |b| {
                 sea_query::Expr::col((out.build_table(b), Field::Str(name))).eq((val.func)(b))

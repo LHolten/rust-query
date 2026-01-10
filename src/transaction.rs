@@ -12,12 +12,12 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
-    joinable::DynJoinable,
+    joinable::Joinable,
     migrate::{Schema, check_schema, schema_version, user_version},
     migration::Config,
     mutable::Mutable,
     pool::Pool,
-    private::{Joinable, Reader},
+    private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
     value::{DynTypedExpr, MyTyp, OptTable, SecretFromSql, ValueBuilder},
@@ -336,9 +336,9 @@ impl<S> Transaction<S> {
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     pub fn lazy_iter<'t, T: Table<Schema = S>>(
         &'t self,
-        val: impl Joinable<'static, Typ = T>,
+        val: impl IntoJoinable<'static, Typ = T>,
     ) -> LazyIter<'t, T> {
-        let val = DynJoinable::new(val);
+        let val = Joinable::new(val);
         self.query(|rows| {
             let table = rows.join(val);
             LazyIter {
@@ -364,9 +364,9 @@ impl<S> Transaction<S> {
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
-        val: impl Joinable<'static, Typ = T>,
+        val: impl IntoJoinable<'static, Typ = T>,
     ) -> Vec<Mutable<'t, T>> {
-        let val = DynJoinable::new(val);
+        let val = Joinable::new(val);
         self.query(|rows| {
             let val = rows.join(val);
             rows.into_vec((T::select_mutable(val.clone()), val))

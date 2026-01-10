@@ -77,7 +77,7 @@ pub mod migration {
 pub mod private {
     use std::marker::PhantomData;
 
-    pub use crate::joinable::Joinable;
+    pub use crate::joinable::{IntoJoinable, Joinable};
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
         migration::{Migration, SchemaBuilder},
