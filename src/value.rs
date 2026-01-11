@@ -33,14 +33,19 @@ impl ValueBuilder {
     pub(crate) fn get_aggr(
         &mut self,
         aggr: Rc<SelectStatement>,
-        conds: Vec<sea_query::Expr>,
+        conds: Vec<MyTableRef>,
     ) -> MyAlias {
         let source = Source {
             kind: crate::ast::SourceKind::Aggregate(aggr),
             conds: conds
                 .into_iter()
                 .enumerate()
-                .map(|(idx, expr)| (Field::U64(MyAlias::new(idx)), expr))
+                .map(|(idx, join)| {
+                    (
+                        Field::U64(MyAlias::new(idx)),
+                        sea_query::Expr::col((self.get_table(join), Alias::new("id"))),
+                    )
+                })
                 .collect(),
         };
         let new_alias = || self.scope.new_alias();

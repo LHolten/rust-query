@@ -4,13 +4,13 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{Alias, Asterisk, ExprTrait, Func, SelectStatement};
+use sea_query::{Asterisk, ExprTrait, Func, SelectStatement};
 
 use crate::{
     Expr,
     alias::MyAlias,
     rows::Rows,
-    value::{EqTyp, IntoExpr, MyTyp, NumTyp, Typed, ValueBuilder},
+    value::{EqTyp, IntoExpr, MyTableRef, MyTyp, NumTyp, Typed, ValueBuilder},
 };
 
 use super::DynTypedExpr;
@@ -46,15 +46,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let mut builder = self.query.ast.clone().full();
         let (select, mut fields) = builder.build_select(vec![expr], Vec::new());
 
-        let conds = builder
-            .forwarded
-            .into_iter()
-            .map(|(x, _)| {
-                DynTypedExpr::new(move |b| {
-                    sea_query::Expr::col((b.get_table(x.clone()), Alias::new("id"))).into()
-                })
-            })
-            .collect();
+        let conds = builder.forwarded.into_iter().map(|(x, _)| x).collect();
 
         Aggr {
             _p2: PhantomData,
@@ -128,7 +120,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 pub struct Aggr<S, T> {
     pub(crate) _p2: PhantomData<(S, T)>,
     pub(crate) select: Rc<SelectStatement>,
-    pub(crate) conds: Vec<DynTypedExpr>,
+    pub(crate) conds: Vec<MyTableRef>,
     pub(crate) field: MyAlias,
 }
 
@@ -152,8 +144,7 @@ impl<S, T: MyTyp> Typed for Aggr<S, T> {
 
 impl<S, T> Aggr<S, T> {
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
-        let conds = self.conds.iter().map(|expr| (expr.func)(b)).collect();
-        b.get_aggr(self.select.clone(), conds)
+        b.get_aggr(self.select.clone(), self.conds.clone())
     }
 }
 
