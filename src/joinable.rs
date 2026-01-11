@@ -13,8 +13,6 @@ pub trait IntoJoinable<'inner, S> {
     fn into_joinable(self) -> Joinable<'inner, S, Self::Typ>;
 }
 
-/// This struct exists because Joinable is not covariant in `'inner`.
-/// We can get a covariant value by converting to [DynJoinable].
 pub struct Joinable<'inner, S, T: MyTyp> {
     _p: PhantomData<Expr<'inner, S, T>>,
     pub(crate) table: JoinableTable,
