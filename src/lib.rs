@@ -47,12 +47,11 @@ pub use writable::Update;
 
 /// Derive [derive@Select] to create a new `*Select` struct.
 ///
-/// This `*Select` struct will implement the `IntoSelect` trait and can be used with `Query::into_vec`
-/// or `Transaction::query_one`.
+/// This `*Select` struct will implement the [IntoSelect] trait and can be used
+/// with [args::Query::into_iter], [Transaction::query_one] etc.
 ///
 /// Usage can also be nested.
 ///
-/// Example:
 /// ```
 /// #[rust_query::migration::schema(Schema)]
 /// pub mod vN {
@@ -102,11 +101,11 @@ pub use writable::Update;
 pub use rust_query_macros::Select;
 
 /// Use in combination with `#[rust_query(From = Thing)]` to specify which tables
-/// this struct should implement `FromExpr` for.
+/// this struct should implement [trait@FromExpr] for.
 ///
-/// The implementation of `FromExpr` will initialize every field from the column with
+/// The implementation of [trait@FromExpr] will initialize every field from the column with
 /// the corresponding name. It is also possible to change the type of each field
-/// as long as the new field type implements `FromExpr`.
+/// as long as the new field type implements [trait@FromExpr].
 ///
 /// ```
 /// # use rust_query::migration::schema;
