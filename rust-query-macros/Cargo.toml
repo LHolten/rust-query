@@ -14,6 +14,3 @@ proc-macro2 = { version = "1.0.103", features = ["span-locations"] }
 quote = "1.0.42"
 syn = { version = "2.0.109", features = ["full"] }
 heck = "0.5.0"
-
-[dev-dependencies]
-rust-query = { path = ".." }
