@@ -1,5 +1,9 @@
 # Unreleased
 
+- Allow `Transaction::downgrade` in `Migrator::fixup`.
+- Deprecated `Config::init_stmt`.
+- Improved documentation, added docs for `#[index]`.
+
 # 0.6.9
 
 - Added `Mutable::unique` to mutate unique columns.
