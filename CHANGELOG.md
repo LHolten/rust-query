@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.6.10
+
 - Allow `Transaction::downgrade` in `Migrator::fixup`.
 - Deprecated `Config::init_stmt`.
 - Improved documentation, added docs for `#[index]`.
