@@ -11,7 +11,7 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 ///
 /// The whole row is retrieved and can be inspected from Rust code.
 /// However, only rows that are not used in a `#[unique]`
-/// constraint can be updated directly [Mutable].
+/// constraint can be updated directly by dereferencing [Mutable].
 ///
 /// To update columns with a unique constraint, you have to use [Mutable::unique].
 pub struct Mutable<'transaction, T: Table> {

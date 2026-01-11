@@ -9,9 +9,9 @@ use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
     IntoSelect, Lazy, Select, Table, Transaction,
-    alias::{Field, MyAlias, Scope},
+    alias::{Field, JoinableTable, MyAlias, Scope},
     ast::{MySelect, Source},
-    db::{Join, TableRow, TableRowInner},
+    db::{TableRow, TableRowInner},
     mutable::Mutable,
     mymap::MyMap,
     private::IntoJoinable,
@@ -26,16 +26,7 @@ pub struct ValueBuilder {
     // implicit joins
     pub(super) extra: MyMap<Source, MyAlias>,
     // calculating these results
-    pub(super) forwarded: MyMap<MyTableRef, Forwarded>,
-}
-
-pub struct Forwarded {
-    // name of the table in the schema
-    pub table_name: &'static str,
-    // this is the table expression that our table should be equal to
-    pub join_in_outer_scope: DynTypedExpr,
-    // alias of the table inside the aggregate
-    pub inner_table_alias: MyAlias,
+    pub(super) forwarded: MyMap<MyTableRef, MyAlias>,
 }
 
 impl ValueBuilder {
@@ -91,20 +82,11 @@ impl ValueBuilder {
         sea_query::Expr::col((*table, Alias::new(T::ID))).into()
     }
 
-    pub fn get_table<T: Table>(&mut self, table: MyTableRef) -> MyAlias {
+    pub fn get_table(&mut self, table: MyTableRef) -> MyAlias {
         if Rc::ptr_eq(&self.from.scope_rc, &table.scope_rc) {
             MyAlias::new(table.idx)
         } else {
-            let join_in_outer_scope = Join::<T>::new(table.clone());
-            self.forwarded
-                .get_or_init(table, || Forwarded {
-                    table_name: T::NAME,
-                    join_in_outer_scope: DynTypedExpr::new(move |b| {
-                        join_in_outer_scope.build_expr(b)
-                    }),
-                    inner_table_alias: self.scope.new_alias(),
-                })
-                .inner_table_alias
+            *self.forwarded.get_or_init(table, || self.scope.new_alias())
         }
     }
 }
@@ -118,6 +100,7 @@ pub struct MyTableRef {
     // scope by comparing the Rc ptr.
     pub(crate) scope_rc: Rc<()>,
     pub(crate) idx: usize,
+    pub(crate) table_name: JoinableTable,
 }
 
 impl PartialEq for MyTableRef {

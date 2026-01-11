@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{Asterisk, ExprTrait, Func, SelectStatement};
+use sea_query::{Alias, Asterisk, ExprTrait, Func, SelectStatement};
 
 use crate::{
     Expr,
@@ -49,7 +49,11 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let conds = builder
             .forwarded
             .into_iter()
-            .map(|x| x.1.join_in_outer_scope)
+            .map(|(x, _)| {
+                DynTypedExpr::new(move |b| {
+                    sea_query::Expr::col((b.get_table(x.clone()), Alias::new("id"))).into()
+                })
+            })
             .collect();
 
         Aggr {

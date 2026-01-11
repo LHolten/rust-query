@@ -68,10 +68,11 @@ impl<'inner, S> Rows<'inner, S> {
 
     fn join_inner<T: Table>(&mut self, name: JoinableTable) -> Expr<'inner, S, T> {
         let table_idx = self.ast.tables.len();
-        Rc::make_mut(&mut self.ast).tables.push(name);
+        Rc::make_mut(&mut self.ast).tables.push(name.clone());
         Expr::new(Join::new(MyTableRef {
             scope_rc: self.ast.scope_rc.clone(),
             idx: table_idx,
+            table_name: name,
         }))
     }
 

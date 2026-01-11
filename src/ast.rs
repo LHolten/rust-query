@@ -81,15 +81,7 @@ impl ValueBuilder {
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
-            match table {
-                JoinableTable::Normal(table_name) => {
-                    let tbl_ref = ("main", table_name.clone());
-                    select.from_as(tbl_ref, MyAlias::new(idx));
-                }
-                JoinableTable::Pragma(func) => {
-                    select.from_function(func.clone(), MyAlias::new(idx));
-                }
-            }
+            table.join_on_as(&mut select, MyAlias::new(idx));
             any_from = true;
         }
 
@@ -122,15 +114,12 @@ impl ValueBuilder {
 
         let mut any_expr = false;
 
-        for (idx, (_outermost_join, forward)) in self.forwarded.iter().enumerate() {
-            select.from_as(
-                (Alias::new("main"), Alias::new(forward.table_name)),
-                forward.inner_table_alias,
-            );
+        for (idx, (table, forward)) in self.forwarded.iter().enumerate() {
+            table.table_name.join_on_as(&mut select, *forward);
             any_from = true;
 
             select.expr_as(
-                Expr::column((forward.inner_table_alias, Alias::new("id"))),
+                Expr::column((*forward, Alias::new("id"))),
                 MyAlias::new(idx),
             );
             any_expr = true;
@@ -169,6 +158,20 @@ impl ValueBuilder {
         assert!(any_expr);
 
         (select, out_fields)
+    }
+}
+
+impl JoinableTable {
+    fn join_on_as(&self, select: &mut SelectStatement, alias: MyAlias) {
+        match self {
+            JoinableTable::Normal(table_name) => {
+                let tbl_ref = ("main", table_name.clone());
+                select.from_as(tbl_ref, alias);
+            }
+            JoinableTable::Pragma(func) => {
+                select.from_function(func.clone(), alias);
+            }
+        }
     }
 }
 

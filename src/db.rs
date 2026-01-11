@@ -35,7 +35,7 @@ impl<T: Table> Typed for Join<T> {
     }
 
     fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
-        b.get_table::<T>(self.table_idx.clone())
+        b.get_table(self.table_idx.clone())
     }
 }
 
