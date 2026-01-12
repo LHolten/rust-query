@@ -159,14 +159,6 @@ pub trait Typed {
     fn maybe_optional(&self) -> bool {
         true
     }
-
-    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias
-    where
-        Self::Typ: Table,
-    {
-        let expr = self.build_expr(b);
-        b.get_join::<Self::Typ>(expr, self.maybe_optional())
-    }
 }
 
 /// Trait for all values that can be used as expressions in queries.
@@ -598,9 +590,33 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
     let table = table.into_expr().inner;
     let possible_null = table.maybe_optional();
     Expr::adhoc_promise(
-        move |b| sea_query::Expr::col((table.build_table(b), Field::Str(name))).into(),
+        move |b| {
+            let main_column = table.build_expr(b);
+            b.change_col::<T>(main_column, name, table.maybe_optional())
+                .into()
+        },
         possible_null,
     )
+}
+
+impl ValueBuilder {
+    pub fn change_col<T: Table>(
+        &mut self,
+        expr: sea_query::Expr,
+        col: &'static str,
+        possible_null: bool,
+    ) -> sea_query::Expr {
+        match expr {
+            sea_query::Expr::Column(sea_query::ColumnRef::Column(sea_query::ColumnName(
+                table,
+                _,
+            ))) => sea_query::Expr::Column(sea_query::ColumnRef::Column(sea_query::ColumnName(
+                table,
+                col.into(),
+            ))),
+            _ => sea_query::Expr::col((self.get_join::<T>(expr, possible_null), col)),
+        }
+    }
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(

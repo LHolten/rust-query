@@ -4,7 +4,7 @@ use sea_query::{ExprTrait, IntoIden};
 
 use crate::{
     CustomJoin, Expr, Table,
-    alias::{Field, JoinableTable, TmpTable},
+    alias::{JoinableTable, MyAlias, TmpTable},
     ast::MySelect,
     db::Join,
     joinable::IntoJoinable,
@@ -42,14 +42,22 @@ impl<'inner, S> Rows<'inner, S> {
         j: impl IntoJoinable<'inner, S, Typ = T>,
     ) -> Expr<'inner, S, T> {
         let joinable = j.into_joinable();
-        let out = self.join_inner(joinable.table);
+
+        let table_idx = self.ast.tables.len();
+        Rc::make_mut(&mut self.ast)
+            .tables
+            .push(joinable.table.clone());
         for (name, val) in joinable.conds {
-            let out = out.inner.clone();
             self.filter(Expr::adhoc(move |b| {
-                sea_query::Expr::col((out.build_table(b), Field::Str(name))).eq((val.func)(b))
+                // it is fine to directly use the alias here because the filter is in the same scope as the join
+                sea_query::Expr::col((MyAlias::new(table_idx), name)).eq((val.func)(b))
             }));
         }
-        out
+        Expr::new(Join::new(MyTableRef {
+            scope_rc: self.ast.scope_rc.clone(),
+            idx: table_idx,
+            table_name: joinable.table,
+        }))
     }
 
     #[doc(hidden)]
@@ -58,28 +66,13 @@ impl<'inner, S> Rows<'inner, S> {
     }
 
     pub(crate) fn join_custom<T: CustomJoin<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
-        self.join_inner(t.name())
+        self.join(Joinable::new(t.name()))
     }
 
     pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
         let tmp_string = tmp.into_iden();
-        self.join_inner(JoinableTable::Normal(tmp_string))
+        self.join(Joinable::new(JoinableTable::Normal(tmp_string)))
     }
-
-    fn join_inner<T: Table>(&mut self, name: JoinableTable) -> Expr<'inner, S, T> {
-        let table_idx = self.ast.tables.len();
-        Rc::make_mut(&mut self.ast).tables.push(name.clone());
-        Expr::new(Join::new(MyTableRef {
-            scope_rc: self.ast.scope_rc.clone(),
-            idx: table_idx,
-            table_name: name,
-        }))
-    }
-
-    // Join a vector of values.
-    // pub fn vec<V: IntoExpr<'inner>>(&mut self, vec: Vec<V>) -> Join<'inner, V::Typ> {
-    //     todo!()
-    // }
 
     /// Filter rows based on an expression.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {

@@ -79,7 +79,7 @@ impl JoinableTable {
     pub fn main_column(&self) -> &'static str {
         match self {
             JoinableTable::Normal(_) => "id",
-            JoinableTable::Pragma(_) => panic!("main_column should not be used on pragma"),
+            JoinableTable::Pragma(_) => "pragma_id", // should always be replaced
             JoinableTable::Vec(_) => "value",
         }
     }

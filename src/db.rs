@@ -4,7 +4,6 @@ use sea_query::Alias;
 
 use crate::{
     Expr, IntoExpr, Table,
-    alias::MyAlias,
     value::{MyTableRef, MyTyp, Typed, ValueBuilder},
 };
 
@@ -35,10 +34,6 @@ impl<T: MyTyp> Typed for Join<T> {
     }
     fn maybe_optional(&self) -> bool {
         false // the table is joined so this column is not null
-    }
-
-    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
-        b.get_table(self.table_idx.clone())
     }
 }
 

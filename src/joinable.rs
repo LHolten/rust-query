@@ -19,13 +19,19 @@ pub struct Joinable<'inner, S, T: MyTyp> {
     pub(crate) conds: Vec<(&'static str, DynTypedExpr)>,
 }
 
-impl<'inner, S, T: Table> Joinable<'inner, S, T> {
-    pub fn table() -> Self {
+impl<'inner, S, T: MyTyp> Joinable<'inner, S, T> {
+    pub fn new(j: JoinableTable) -> Self {
         Self {
             _p: PhantomData,
-            table: JoinableTable::Normal(T::NAME.into_iden()),
+            table: j,
             conds: Vec::new(),
         }
+    }
+}
+
+impl<'inner, S, T: Table> Joinable<'inner, S, T> {
+    pub fn table() -> Self {
+        Self::new(JoinableTable::Normal(T::NAME.into_iden()))
     }
 
     pub fn add_cond<C: MyTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
