@@ -9,7 +9,7 @@ use crate::{
     db::Join,
     joinable::IntoJoinable,
     private::Joinable,
-    value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
+    value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp, Typed},
 };
 
 /// [Rows] keeps track of all rows in the current query.

@@ -220,7 +220,12 @@ impl<X: MyTyp> Typed for Option<Rc<dyn Typed<Typ = X>>> {
 impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp> IntoExpr<'column, S> for Option<T> {
     type Typ = Option<X>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self.map(|x| x.into_expr().inner))
+        let this = self.map(|x| x.into_expr().inner);
+        Expr::adhoc(move |b| {
+            this.as_ref()
+                .map(|x| (x.func)(b))
+                .unwrap_or(<X::Sql as Nullable>::null().into())
+        })
     }
 }
 
@@ -577,7 +582,7 @@ impl<T: SecretFromSql> SecretFromSql for Option<T> {
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
 pub struct Expr<'column, S, T: MyTyp> {
     pub(crate) _local: PhantomData<*const ()>,
-    pub(crate) inner: Rc<dyn Typed<Typ = T>>,
+    pub(crate) inner: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
@@ -634,12 +639,12 @@ pub fn unique_from_joinable<'inner, T: Table>(
     })
 }
 
-struct AdHoc<F, T> {
-    func: F,
+pub struct AdHoc<F: ?Sized, T> {
     maybe_optional: bool,
     _p: PhantomData<T>,
+    func: F,
 }
-impl<F: Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
+impl<F: ?Sized + Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
     type Typ = T;
 
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
@@ -648,6 +653,10 @@ impl<F: Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
     fn maybe_optional(&self) -> bool {
         self.maybe_optional
     }
+}
+
+fn helper<T: Fn(&mut ValueBuilder) -> sea_query::Expr>(t: T) -> T {
+    t
 }
 
 impl<S, T: MyTyp> Expr<'_, S, T> {
@@ -673,7 +682,11 @@ impl<S, T: MyTyp> Expr<'_, S, T> {
     pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
         Self {
             _local: PhantomData,
-            inner: Rc::new(val),
+            inner: Rc::new(AdHoc {
+                maybe_optional: val.maybe_optional(),
+                _p: PhantomData,
+                func: helper(move |b| val.build_expr(b)),
+            }),
             _p: PhantomData,
             _p2: PhantomData,
             ext: OnceCell::new(),

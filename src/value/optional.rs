@@ -5,7 +5,7 @@ use sea_query::ExprTrait;
 use crate::{
     IntoSelect,
     select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
-    value::DynTypedExpr,
+    value::{DynTypedExpr, Typed},
 };
 
 use super::{Expr, IntoExpr, MyTyp};
