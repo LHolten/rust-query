@@ -81,7 +81,7 @@ impl ValueBuilder {
 
         let mut any_from = false;
         for (idx, table) in from.tables.iter().enumerate() {
-            table.join_on_as(&mut select, MyAlias::new(idx));
+            table.join_on_as(&mut select, MyAlias::new(idx), false);
             any_from = true;
         }
 
@@ -115,11 +115,11 @@ impl ValueBuilder {
         let mut any_expr = false;
 
         for (idx, (table, forward)) in self.forwarded.iter().enumerate() {
-            table.table_name.join_on_as(&mut select, *forward);
+            table.table_name.join_on_as(&mut select, *forward, true);
             any_from = true;
 
             select.expr_as(
-                Expr::column((*forward, Alias::new("id"))),
+                Expr::column((*forward, table.table_name.main_column())),
                 MyAlias::new(idx),
             );
             any_expr = true;
@@ -162,7 +162,7 @@ impl ValueBuilder {
 }
 
 impl JoinableTable {
-    fn join_on_as(&self, select: &mut SelectStatement, alias: MyAlias) {
+    fn join_on_as(&self, select: &mut SelectStatement, alias: MyAlias, distinct: bool) {
         match self {
             JoinableTable::Normal(table_name) => {
                 let tbl_ref = ("main", table_name.clone());
@@ -170,6 +170,23 @@ impl JoinableTable {
             }
             JoinableTable::Pragma(func) => {
                 select.from_function(func.clone(), alias);
+            }
+            JoinableTable::Vec(values) => {
+                let func =
+                    sea_query::Func::cust("rarray").arg(sea_query::Expr::Values(values.clone()));
+
+                if distinct {
+                    select.from_subquery(
+                        SelectStatement::new()
+                            .from_function(func, "arr")
+                            .column("value")
+                            .distinct()
+                            .take(),
+                        alias,
+                    );
+                } else {
+                    select.from_function(func, alias);
+                }
             }
         }
     }

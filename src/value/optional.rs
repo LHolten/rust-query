@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sea_query::{ExprTrait, Nullable};
+use sea_query::ExprTrait;
 
 use crate::{
     IntoSelect,
@@ -92,7 +92,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
 
     /// This is much like combining [Self::and] with [Self::then], but it
     /// allows returning an optional value without mutating self.
-    pub fn and_then<T: MyTyp<Sql: Nullable>>(
+    pub fn and_then<T: MyTyp>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'outer, S, Option<T>> {
@@ -108,7 +108,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
-    pub fn then<T: MyTyp<Sql: Nullable> + 'outer>(
+    pub fn then<T: MyTyp + 'outer>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {

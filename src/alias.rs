@@ -72,6 +72,7 @@ impl From<TmpTable> for sea_query::DynIden {
 pub(crate) enum JoinableTable {
     Normal(DynIden),
     Pragma(FunctionCall),
+    Vec(Vec<sea_query::Value>),
 }
 
 impl JoinableTable {
@@ -79,6 +80,7 @@ impl JoinableTable {
         match self {
             JoinableTable::Normal(_) => "id",
             JoinableTable::Pragma(_) => panic!("main_column should not be used on pragma"),
+            JoinableTable::Vec(_) => "value",
         }
     }
 }

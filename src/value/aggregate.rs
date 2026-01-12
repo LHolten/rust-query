@@ -92,8 +92,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let val = self.select::<T>(move |b| Func::sum(val.build_expr(b)).into());
 
         Expr::adhoc(move |b| {
-            sea_query::Expr::expr(val.build_expr(b))
-                .if_null(sea_query::Expr::Constant(T::ZERO.into_sea_value()))
+            sea_query::Expr::expr(val.build_expr(b)).if_null(sea_query::Expr::Constant(T::ZERO))
         })
     }
 
@@ -105,8 +104,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         let val = val.into_expr().inner;
         let val = self.select::<i64>(move |b| Func::count_distinct(val.build_expr(b)).into());
         Expr::adhoc(move |b| {
-            sea_query::Expr::expr(val.build_expr(b))
-                .if_null(sea_query::Expr::Constant(0i64.into_sea_value()))
+            sea_query::Expr::expr(val.build_expr(b)).if_null(sea_query::Expr::Constant(0i64.into()))
         })
     }
 

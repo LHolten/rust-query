@@ -41,9 +41,10 @@ impl ValueBuilder {
                 .into_iter()
                 .enumerate()
                 .map(|(idx, join)| {
+                    let alias = Alias::new(join.table_name.main_column());
                     (
                         Field::U64(MyAlias::new(idx)),
-                        sea_query::Expr::col((self.get_table(join), Alias::new("id"))),
+                        sea_query::Expr::col((self.get_table(join), alias)),
                     )
                 })
                 .collect(),
@@ -115,21 +116,14 @@ impl PartialEq for MyTableRef {
 }
 
 pub trait NumTyp: OrdTyp + Clone + Copy {
-    const ZERO: Self;
-    fn into_sea_value(self) -> sea_query::Value;
+    const ZERO: sea_query::Value;
 }
 
 impl NumTyp for i64 {
-    const ZERO: Self = 0;
-    fn into_sea_value(self) -> sea_query::Value {
-        sea_query::Value::BigInt(Some(self))
-    }
+    const ZERO: sea_query::Value = sea_query::Value::BigInt(Some(0));
 }
 impl NumTyp for f64 {
-    const ZERO: Self = 0.;
-    fn into_sea_value(self) -> sea_query::Value {
-        sea_query::Value::Double(Some(self))
-    }
+    const ZERO: sea_query::Value = sea_query::Value::Double(Some(0.));
 }
 
 pub trait OrdTyp: EqTyp {}
@@ -198,19 +192,17 @@ pub trait IntoExpr<'column, S> {
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
 }
 
-impl<X: MyTyp<Sql: Nullable>> Typed for Option<Rc<dyn Typed<Typ = X>>> {
+impl<X: MyTyp> Typed for Option<Rc<dyn Typed<Typ = X>>> {
     type Typ = Option<X>;
 
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         self.as_ref()
             .map(|x| x.build_expr(b))
-            .unwrap_or(X::Sql::null().into())
+            .unwrap_or(<X::Sql as Nullable>::null().into())
     }
 }
 
-impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp<Sql: Nullable>> IntoExpr<'column, S>
-    for Option<T>
-{
+impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp> IntoExpr<'column, S> for Option<T> {
     type Typ = Option<X>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
         Expr::new(self.map(|x| x.into_expr().inner))
@@ -384,8 +376,9 @@ pub trait MyTyp: Sized + 'static {
     type Out: SecretFromSql;
     type Lazy<'t>;
     type Ext<'t>;
-    type Sql;
+    type Sql: Nullable;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t>;
+    fn out_to_value(val: Self::Out) -> sea_query::Value;
 }
 
 pub(crate) trait SecretFromSql: Sized {
@@ -407,6 +400,9 @@ impl<T: Table> MyTyp for T {
             lazy: OnceCell::new(),
             txn: Transaction::new_ref(),
         }
+    }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.inner.idx.into()
     }
 }
 
@@ -432,6 +428,9 @@ impl MyTyp for i64 {
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
     }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.into()
+    }
 }
 
 impl SecretFromSql for i64 {
@@ -449,6 +448,9 @@ impl MyTyp for f64 {
     type Sql = f64;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
+    }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.into()
     }
 }
 
@@ -468,6 +470,9 @@ impl MyTyp for bool {
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
     }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.into()
+    }
 }
 
 impl SecretFromSql for bool {
@@ -485,6 +490,9 @@ impl MyTyp for String {
     type Sql = String;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
+    }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.into()
     }
 }
 assert_impl_all!(String: Nullable);
@@ -504,6 +512,9 @@ impl MyTyp for Vec<u8> {
     type Sql = Vec<u8>;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
+    }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.into()
     }
 }
 assert_impl_all!(Vec<u8>: Nullable);
@@ -525,6 +536,10 @@ impl<T: MyTyp> MyTyp for Option<T> {
     type Sql = T::Sql;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val.map(T::out_to_lazy)
+    }
+    fn out_to_value(val: Self::Out) -> sea_query::Value {
+        val.map(T::out_to_value)
+            .unwrap_or_else(<T::Sql as Nullable>::null)
     }
 }
 
