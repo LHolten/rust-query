@@ -57,7 +57,28 @@ impl ValueBuilder {
         &mut self,
         expr: sea_query::Expr,
         possible_null: bool,
-    ) -> MyAlias {
+        new_col: &'static str,
+    ) -> sea_query::Expr {
+        match &expr {
+            // we could use our own type instead of `sea_query::Expr` to make it much easier
+            // to know if we joined the table explicitly, but that would add much complexity
+            // everywhere else
+            sea_query::Expr::Column(sea_query::ColumnRef::Column(sea_query::ColumnName(
+                Some(sea_query::TableName(None, table)),
+                col,
+            ))) => {
+                // check if this table has been joined explicitly
+                if let Some(alias) = MyAlias::try_from(table)
+                    && let Some(from) = self.from.tables.get(alias.idx)
+                    && from.main_column() == col.inner().as_ref()
+                {
+                    // No need to join the table again
+                    return sea_query::Expr::col((alias, new_col));
+                }
+            }
+            _ => (),
+        };
+
         let join_type = if possible_null {
             JoinType::LeftJoin
         } else {
@@ -71,7 +92,9 @@ impl ValueBuilder {
 
         // TODO: possible optimization to unify the join_type?
         // e.g. join + left join = join
-        *self.extra.get_or_init(source, new_alias)
+        let alias = *self.extra.get_or_init(source, new_alias);
+
+        sea_query::Expr::col((alias, new_col))
     }
 
     pub fn get_unique<T: Table>(
@@ -592,31 +615,10 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
     Expr::adhoc_promise(
         move |b| {
             let main_column = table.build_expr(b);
-            b.change_col::<T>(main_column, name, table.maybe_optional())
-                .into()
+            b.get_join::<T>(main_column, table.maybe_optional(), name)
         },
         possible_null,
     )
-}
-
-impl ValueBuilder {
-    pub fn change_col<T: Table>(
-        &mut self,
-        expr: sea_query::Expr,
-        col: &'static str,
-        possible_null: bool,
-    ) -> sea_query::Expr {
-        match expr {
-            sea_query::Expr::Column(sea_query::ColumnRef::Column(sea_query::ColumnName(
-                table,
-                _,
-            ))) => sea_query::Expr::Column(sea_query::ColumnRef::Column(sea_query::ColumnName(
-                table,
-                col.into(),
-            ))),
-            _ => sea_query::Expr::col((self.get_join::<T>(expr, possible_null), col)),
-        }
-    }
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(

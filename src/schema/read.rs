@@ -103,7 +103,7 @@ macro_rules! table {
                 ()
             }
 
-            const ID: &'static str = "";
+            const ID: &'static str = "pragma_id";
             const NAME: &'static str = "";
             const SPAN: (usize, usize) = (0, 0);
         }

@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use sea_query::{DynIden, FunctionCall};
 
@@ -10,7 +10,7 @@ pub(super) enum Field {
 
 #[derive(Default)]
 pub struct Scope {
-    iden_num: AtomicU64,
+    iden_num: AtomicUsize,
 }
 
 impl Scope {
@@ -20,31 +20,36 @@ impl Scope {
     }
 
     pub fn new_alias(&self) -> MyAlias {
-        let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
-        MyAlias { name: next }
+        let idx = self.iden_num.fetch_add(1, Ordering::Relaxed);
+        MyAlias { idx }
     }
 
     pub fn create(num_tables: usize, num_filter_on: usize) -> Self {
         Self {
-            iden_num: AtomicU64::new(num_tables.max(num_filter_on) as u64),
+            iden_num: AtomicUsize::new(num_tables.max(num_filter_on)),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MyAlias {
-    name: u64,
+    pub(crate) idx: usize,
 }
 
 impl MyAlias {
     pub fn new(idx: usize) -> Self {
-        Self { name: idx as u64 }
+        Self { idx }
+    }
+    pub fn try_from(iden: &sea_query::DynIden) -> Option<Self> {
+        Some(Self {
+            idx: iden.inner().strip_prefix("_")?.parse().ok()?,
+        })
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct TmpTable {
-    name: u64,
+    name: usize,
 }
 
 impl From<Field> for sea_query::DynIden {
@@ -58,7 +63,7 @@ impl From<Field> for sea_query::DynIden {
 
 impl From<MyAlias> for sea_query::DynIden {
     fn from(value: MyAlias) -> Self {
-        format!("_{}", value.name).into()
+        format!("_{}", value.idx).into()
     }
 }
 
