@@ -5,7 +5,7 @@ use sea_query::Alias;
 use crate::{
     Expr, IntoExpr, Table,
     alias::MyAlias,
-    value::{MyTableRef, Typed, ValueBuilder},
+    value::{MyTableRef, MyTyp, Typed, ValueBuilder},
 };
 
 /// Table reference that is the result of a join.
@@ -25,10 +25,13 @@ impl<T> Join<T> {
     }
 }
 
-impl<T: Table> Typed for Join<T> {
+impl<T: MyTyp> Typed for Join<T> {
     type Typ = T;
     fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::col((self.build_table(b), Alias::new(T::ID))).into()
+        sea_query::Expr::col((
+            b.get_table(self.table_idx.clone()),
+            Alias::new(self.table_idx.table_name.main_column()),
+        ))
     }
     fn maybe_optional(&self) -> bool {
         false // the table is joined so this column is not null

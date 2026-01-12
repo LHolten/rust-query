@@ -73,3 +73,12 @@ pub(crate) enum JoinableTable {
     Normal(DynIden),
     Pragma(FunctionCall),
 }
+
+impl JoinableTable {
+    pub fn main_column(&self) -> &'static str {
+        match self {
+            JoinableTable::Normal(_) => "id",
+            JoinableTable::Pragma(_) => panic!("main_column should not be used on pragma"),
+        }
+    }
+}
