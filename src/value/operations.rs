@@ -339,10 +339,7 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     /// assert_eq!(txn.query_one(None::<String>.into_expr().unwrap_or("foo")), "foo");
     /// # });
     /// ```
-    pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ>
-    where
-        Self: IntoExpr<'column, S, Typ = Option<Typ>>,
-    {
+    pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         let maybe_optional = rhs.maybe_optional();

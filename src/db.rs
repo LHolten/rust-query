@@ -103,7 +103,7 @@ impl<T: Table> Typed for TableRowInner<T> {
         sea_query::Expr::val(self.idx).into()
     }
     fn maybe_optional(&self) -> bool {
-        false
+        false // table row is proof of existence
     }
 }
 

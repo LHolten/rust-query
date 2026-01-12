@@ -652,11 +652,7 @@ impl<F: Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
 
 impl<S, T: MyTyp> Expr<'_, S, T> {
     pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
-        Self::new(AdHoc {
-            func: f,
-            maybe_optional: true,
-            _p: PhantomData,
-        })
+        Self::adhoc_promise(f, true)
     }
 
     /// Only set `maybe_optional` to `false` if you are absolutely sure that the
