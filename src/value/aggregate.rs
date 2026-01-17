@@ -4,13 +4,12 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{Asterisk, ExprTrait, Func, SelectStatement};
+use sea_query::{Asterisk, ExprTrait, Func};
 
 use crate::{
     Expr,
-    alias::MyAlias,
     rows::Rows,
-    value::{EqTyp, IntoExpr, MyTableRef, MyTyp, NumTyp, Typed, ValueBuilder},
+    value::{AdHoc, EqTyp, IntoExpr, MyTyp, NumTyp, ValueBuilder},
 };
 
 use super::DynTypedExpr;
@@ -38,25 +37,26 @@ impl<S> DerefMut for Aggregate<'_, '_, S> {
 impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// This must be used with an aggregating expression.
     /// otherwise there is a change that there are multiple rows.
-    fn select<T>(
+    fn select<T: MyTyp>(
         &self,
         expr: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
-    ) -> Aggr<S, Option<T>> {
+    ) -> Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, Option<T>>> {
         let expr = DynTypedExpr::new(expr);
         let mut builder = self.query.ast.clone().full();
         let (select, mut fields) = builder.build_select(vec![expr], Vec::new());
 
-        let conds = builder.forwarded.into_iter().map(|(x, _)| x).collect();
+        let conds: Vec<_> = builder.forwarded.into_iter().map(|(x, _)| x).collect();
 
-        Aggr {
-            _p2: PhantomData,
-            select: Rc::new(select),
-            field: {
-                debug_assert_eq!(fields.len(), 1);
-                fields.swap_remove(0)
-            },
-            conds,
-        }
+        let select = Rc::new(select);
+        let field = {
+            debug_assert_eq!(fields.len(), 1);
+            fields.swap_remove(0)
+        };
+
+        Expr::<S, _>::adhoc(move |b| {
+            sea_query::Expr::col((b.get_aggr(select.clone(), conds.clone()), field))
+        })
+        .inner
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
@@ -112,37 +112,6 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     pub fn exists(&self) -> Expr<'outer, S, bool> {
         let val = self.select::<i64>(|_| Func::count(sea_query::Expr::col(Asterisk)).into());
         Expr::adhoc(move |b| sea_query::Expr::expr(val.build_expr(b)).is_not_null())
-    }
-}
-
-pub struct Aggr<S, T> {
-    pub(crate) _p2: PhantomData<(S, T)>,
-    pub(crate) select: Rc<SelectStatement>,
-    pub(crate) conds: Vec<MyTableRef>,
-    pub(crate) field: MyAlias,
-}
-
-impl<S, T> Clone for Aggr<S, T> {
-    fn clone(&self) -> Self {
-        Self {
-            _p2: PhantomData,
-            select: self.select.clone(),
-            conds: self.conds.clone(),
-            field: self.field,
-        }
-    }
-}
-
-impl<S, T: MyTyp> Typed for Aggr<S, T> {
-    type Typ = T;
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::col((self.build_table(b), self.field)).into()
-    }
-}
-
-impl<S, T> Aggr<S, T> {
-    fn build_table(&self, b: &mut ValueBuilder) -> MyAlias {
-        b.get_aggr(self.select.clone(), self.conds.clone())
     }
 }
 

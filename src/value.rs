@@ -174,16 +174,6 @@ impl EqTyp for bool {}
 #[diagnostic::do_not_recommend]
 impl<T: Table> EqTyp for T {}
 
-/// Typ does not depend on scope, so it gets its own trait
-pub trait Typed {
-    type Typ;
-
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr;
-    fn maybe_optional(&self) -> bool {
-        true
-    }
-}
-
 /// Trait for all values that can be used as expressions in queries.
 ///
 /// There is a hierarchy of types that can be used to build queries.
@@ -206,17 +196,6 @@ pub trait IntoExpr<'column, S> {
     /// Turn this value into an [Expr].
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
 }
-
-impl<X: MyTyp> Typed for Option<Rc<dyn Typed<Typ = X>>> {
-    type Typ = Option<X>;
-
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        self.as_ref()
-            .map(|x| x.build_expr(b))
-            .unwrap_or(<X::Sql as Nullable>::null().into())
-    }
-}
-
 impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp> IntoExpr<'column, S> for Option<T> {
     type Typ = Option<X>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
@@ -229,87 +208,51 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp> IntoExpr<'column, S
     }
 }
 
-impl Typed for String {
-    type Typ = String;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::from(self)
-    }
-}
-
 impl<'column, S> IntoExpr<'column, S> for String {
     type Typ = String;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self)
+        Expr::adhoc(move |_| sea_query::Expr::from(self.clone()))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for &str {
     type Typ = String;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self.to_owned())
-    }
-}
-
-impl Typed for Vec<u8> {
-    type Typ = Vec<u8>;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::from(self.to_owned())
+        self.to_owned().into_expr()
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     type Typ = Vec<u8>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self)
+        Expr::adhoc(move |_| sea_query::Expr::from(self.clone()))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for &[u8] {
     type Typ = Vec<u8>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self.to_owned())
-    }
-}
-
-impl Typed for bool {
-    type Typ = bool;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::from(*self)
+        self.to_owned().into_expr()
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for bool {
     type Typ = bool;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self)
-    }
-}
-
-impl Typed for i64 {
-    type Typ = i64;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::from(*self)
+        Expr::adhoc(move |_| sea_query::Expr::from(self))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self)
+        Expr::adhoc(move |_| sea_query::Expr::from(self))
     }
 }
-
-impl Typed for f64 {
-    type Typ = f64;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::from(*self)
-    }
-}
-
 impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self)
+        Expr::adhoc(move |_| sea_query::Expr::from(self))
     }
 }
 
@@ -329,18 +272,10 @@ where
 pub struct UnixEpoch;
 
 #[expect(deprecated)]
-impl Typed for UnixEpoch {
-    type Typ = i64;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::cust("unixepoch('now')").into()
-    }
-}
-
-#[expect(deprecated)]
 impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::new(self)
+        Expr::adhoc(|_| sea_query::Expr::cust("unixepoch('now')"))
     }
 }
 
@@ -598,10 +533,8 @@ impl<'column, S, T: MyTyp> Expr<'column, S, T> {
     /// Extremely easy to use API. Should only be used by the macro to implement migrations.
     #[doc(hidden)]
     pub fn _migrate<OldS>(prev: impl IntoExpr<'column, OldS>) -> Self {
-        Self::new(MigratedExpr {
-            prev: DynTypedExpr::erase(prev),
-            _p: PhantomData,
-        })
+        let prev = DynTypedExpr::erase(prev);
+        Self::adhoc(move |b| (prev.func)(b))
     }
 }
 
@@ -616,11 +549,11 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
     name: &'static str,
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
-    let possible_null = table.maybe_optional();
+    let possible_null = table.maybe_optional;
     Expr::adhoc_promise(
         move |b| {
             let main_column = table.build_expr(b);
-            b.get_join::<T>(main_column, table.maybe_optional(), name)
+            b.get_join::<T>(main_column, table.maybe_optional, name)
         },
         possible_null,
     )
@@ -644,19 +577,11 @@ pub struct AdHoc<F: ?Sized, T> {
     _p: PhantomData<T>,
     func: F,
 }
-impl<F: ?Sized + Fn(&mut ValueBuilder) -> sea_query::Expr, T> Typed for AdHoc<F, T> {
-    type Typ = T;
 
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
+impl<F: ?Sized + Fn(&mut ValueBuilder) -> sea_query::Expr, T> AdHoc<F, T> {
+    pub fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
         (self.func)(b)
     }
-    fn maybe_optional(&self) -> bool {
-        self.maybe_optional
-    }
-}
-
-fn helper<T: Fn(&mut ValueBuilder) -> sea_query::Expr>(t: T) -> T {
-    t
 }
 
 impl<S, T: MyTyp> Expr<'_, S, T> {
@@ -672,21 +597,17 @@ impl<S, T: MyTyp> Expr<'_, S, T> {
         f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
         maybe_optional: bool,
     ) -> Self {
-        Self::new(AdHoc {
+        Self::new(Rc::new(AdHoc {
             func: f,
             maybe_optional,
             _p: PhantomData,
-        })
+        }))
     }
 
-    pub(crate) fn new(val: impl Typed<Typ = T> + 'static) -> Self {
+    pub(crate) fn new(val: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>) -> Self {
         Self {
             _local: PhantomData,
-            inner: Rc::new(AdHoc {
-                maybe_optional: val.maybe_optional(),
-                _p: PhantomData,
-                func: helper(move |b| val.build_expr(b)),
-            }),
+            inner: val,
             _p: PhantomData,
             _p2: PhantomData,
             ext: OnceCell::new(),
@@ -718,18 +639,6 @@ impl DynTypedExpr {
     pub fn erase<'x, S>(expr: impl IntoExpr<'x, S>) -> Self {
         let typed = expr.into_expr().inner;
         Self::new(move |b| typed.build_expr(b))
-    }
-}
-
-pub struct MigratedExpr<Typ> {
-    prev: DynTypedExpr,
-    _p: PhantomData<Typ>,
-}
-
-impl<Typ> Typed for MigratedExpr<Typ> {
-    type Typ = Typ;
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        (self.prev.func)(b)
     }
 }
 

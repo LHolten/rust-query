@@ -371,7 +371,7 @@ pub mod private {
     pub use crate::query::get_plan;
     pub use crate::schema::from_macro::TypBuilder;
     pub use crate::value::{
-        DynTypedExpr, MyTyp, Typed, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
+        DynTypedExpr, MyTyp, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };
     pub use crate::writable::{Reader, TableInsert};
 

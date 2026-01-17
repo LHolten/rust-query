@@ -1,41 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData};
 
-use sea_query::Alias;
-
-use crate::{
-    Expr, IntoExpr, Table,
-    value::{MyTableRef, MyTyp, Typed, ValueBuilder},
-};
-
-/// Table reference that is the result of a join.
-/// It can only be used in the query where it was created.
-/// Invariant in `'t`.
-pub(crate) struct Join<T> {
-    pub(crate) table_idx: MyTableRef,
-    pub(crate) _p: PhantomData<T>,
-}
-
-impl<T> Join<T> {
-    pub(crate) fn new(table_idx: MyTableRef) -> Self {
-        Self {
-            table_idx,
-            _p: PhantomData,
-        }
-    }
-}
-
-impl<T: MyTyp> Typed for Join<T> {
-    type Typ = T;
-    fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::col((
-            b.get_table(self.table_idx.clone()),
-            Alias::new(self.table_idx.table_name.main_column()),
-        ))
-    }
-    fn maybe_optional(&self) -> bool {
-        false // the table is joined so this column is not null
-    }
-}
+use crate::{Expr, IntoExpr, Table};
 
 /// Row reference that can be used in any query in the same transaction.
 ///
@@ -97,21 +62,16 @@ impl<T: Table> From<TableRow<T>> for sea_query::Value {
     }
 }
 
-impl<T: Table> Typed for TableRowInner<T> {
-    type Typ = T;
-    fn build_expr(&self, _: &mut ValueBuilder) -> sea_query::Expr {
-        sea_query::Expr::val(self.idx).into()
-    }
-    fn maybe_optional(&self) -> bool {
-        false // table row is proof of existence
-    }
-}
-
 // works for any schema?
 impl<'column, S, T: Table> IntoExpr<'column, S> for TableRow<T> {
     type Typ = T;
     fn into_expr(self) -> Expr<'static, S, Self::Typ> {
-        Expr::new(self.inner)
+        let idx = self.inner.idx;
+
+        Expr::adhoc_promise(
+            move |_| sea_query::Expr::val(idx),
+            false, // table row is proof of existence
+        )
     }
 }
 

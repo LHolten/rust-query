@@ -2,7 +2,7 @@ use sea_query::{Alias, ExprTrait, extension::sqlite::SqliteExpr};
 
 use crate::{
     ast::CONST_0,
-    value::{BuffTyp, MyTyp, Typed},
+    value::{BuffTyp, MyTyp},
 };
 
 use super::{EqTyp, Expr, IntoExpr, NumTyp};
@@ -342,7 +342,7 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
     pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        let maybe_optional = rhs.maybe_optional();
+        let maybe_optional = rhs.maybe_optional;
         Expr::adhoc_promise(
             move |b| sea_query::Expr::expr(lhs.build_expr(b)).if_null(rhs.build_expr(b)),
             maybe_optional,

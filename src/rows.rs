@@ -1,15 +1,14 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use sea_query::{ExprTrait, IntoIden};
+use sea_query::{Alias, ExprTrait, IntoIden};
 
 use crate::{
     CustomJoin, Expr, Table,
     alias::{JoinableTable, MyAlias, TmpTable},
     ast::MySelect,
-    db::Join,
     joinable::IntoJoinable,
     private::Joinable,
-    value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp, Typed},
+    value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -53,11 +52,22 @@ impl<'inner, S> Rows<'inner, S> {
                 sea_query::Expr::col((MyAlias::new(table_idx), name)).eq((val.func)(b))
             }));
         }
-        Expr::new(Join::new(MyTableRef {
+
+        let table_idx = MyTableRef {
             scope_rc: self.ast.scope_rc.clone(),
             idx: table_idx,
             table_name: joinable.table,
-        }))
+        };
+
+        Expr::adhoc_promise(
+            move |b| {
+                sea_query::Expr::col((
+                    b.get_table(table_idx.clone()),
+                    Alias::new(table_idx.table_name.main_column()),
+                ))
+            },
+            false, // the table is joined so this column is not null
+        )
     }
 
     #[doc(hidden)]
