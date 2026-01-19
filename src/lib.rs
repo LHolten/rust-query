@@ -18,6 +18,7 @@ mod db;
 mod error;
 mod joinable;
 mod lazy;
+mod lower;
 mod migrate;
 mod mutable;
 #[cfg(feature = "mutants")]
