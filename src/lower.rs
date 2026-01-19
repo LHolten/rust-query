@@ -1,3 +1,4 @@
+mod emit;
 mod ord_rc;
 
 use std::{collections::BTreeSet, rc::Rc};
@@ -16,12 +17,15 @@ pub enum JoinableTable {
 struct Join(OrdRc<JoinableTable>);
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Unique {
+    table: JoinableTable,
+    conds: Vec<(&'static str, Rc<Expr>)>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum RowLike {
     Join(Join),
-    Unique {
-        table: JoinableTable,
-        conds: Vec<(&'static str, Rc<Expr>)>,
-    },
+    Unique(Unique),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -43,10 +47,11 @@ impl Expr {
             return Rc::new(Expr::RowIndex(table.clone(), col));
         }
 
-        let row = Rc::new(RowLike::Unique {
+        let unique = Unique {
             table,
             conds: vec![("id", self.clone())],
-        });
+        };
+        let row = Rc::new(RowLike::Unique(unique));
         Rc::new(Expr::RowIndex(row, col))
     }
 }
