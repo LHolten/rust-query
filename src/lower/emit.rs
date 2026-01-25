@@ -4,10 +4,36 @@ use std::{
     rc::Rc,
 };
 
+use rusqlite::ToSql;
+
 use crate::lower::{
     Expr, Join, JoinableTable, RowLike, SelectVec, Unique,
     list_writer::{Alias, ListWriter},
+    ord_rc::OrdRc,
 };
+
+struct Stmt {
+    sql: String,
+    params: Vec<OrdRc<dyn ToSql>>,
+}
+
+impl Write for Stmt {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.sql.write_str(s)
+    }
+}
+
+impl Stmt {
+    fn write_param(&mut self, param: &OrdRc<dyn ToSql>) -> fmt::Result {
+        let position = self.params.iter().position(|x| x == param);
+        let pos = position.unwrap_or_else(|| {
+            let pos = self.params.len();
+            self.params.push(param.clone());
+            pos
+        });
+        write!(self, "${}", pos + 1)
+    }
+}
 
 struct SelectInfo {
     /// These are the tables that are grouped by
@@ -46,7 +72,7 @@ impl SelectInfo {
 }
 
 impl SelectInfoVecs {
-    pub fn emit(&self, w: &mut dyn Write, is_aggregate: bool) -> fmt::Result {
+    pub fn emit(&self, w: &mut Stmt, is_aggregate: bool) -> fmt::Result {
         write!(w, "SELECT ")?;
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in self.forwarded.iter().enumerate() {
@@ -128,14 +154,21 @@ impl SelectInfoVecs {
         Ok(())
     }
 
-    pub fn emit_joinable(&self, w: &mut dyn Write, joinable: &JoinableTable) -> fmt::Result {
+    pub fn emit_joinable(&self, w: &mut Stmt, joinable: &JoinableTable) -> fmt::Result {
         match joinable {
             JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
-            JoinableTable::Pragma(_, items) => todo!(),
+            JoinableTable::Pragma(func, params) => {
+                write!(w, "{func}(")?;
+                let mut list = ListWriter::new(w, ", ");
+                for param in params {
+                    list.item()?.write_param(param)?;
+                }
+                write!(w, ")")
+            }
         }
     }
 
-    pub fn emit_join(&self, w: &mut dyn Write, join: &Join) -> fmt::Result {
+    pub fn emit_join(&self, w: &mut Stmt, join: &Join) -> fmt::Result {
         if let Ok(idx) = self.rows.from.binary_search(join) {
             write!(w, "j{idx}")
         } else {
@@ -144,10 +177,10 @@ impl SelectInfoVecs {
         }
     }
 
-    pub fn emit_expr(&self, w: &mut dyn Write, expr: &Expr) -> fmt::Result {
+    pub fn emit_expr(&self, w: &mut Stmt, expr: &Expr) -> fmt::Result {
         match expr {
             Expr::Constant(c) => write!(w, "{c}"),
-            Expr::Parameter(ord_rc) => todo!(),
+            Expr::Parameter(param) => w.write_param(param),
             Expr::AggrIndex(select_vec, expr) => {
                 let aggr_idx = self
                     .aggregate

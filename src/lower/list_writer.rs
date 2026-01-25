@@ -3,20 +3,20 @@ use std::{
     mem::replace,
 };
 
-pub struct ListWriter<'a> {
-    writer: &'a mut dyn Write,
+pub struct ListWriter<'a, W: ?Sized> {
+    writer: &'a mut W,
     any_items: bool,
     separator: &'static str,
 }
-impl<'a> ListWriter<'a> {
-    pub fn new(writer: &'a mut dyn Write, separator: &'static str) -> Self {
+impl<'a, W: ?Sized + Write> ListWriter<'a, W> {
+    pub fn new(writer: &'a mut W, separator: &'static str) -> Self {
         Self {
             writer,
             any_items: false,
             separator,
         }
     }
-    pub fn item(&mut self) -> Result<&mut dyn Write, fmt::Error> {
+    pub fn item(&mut self) -> Result<&mut W, fmt::Error> {
         if replace(&mut self.any_items, true) {
             write!(&mut self.writer, "{}", self.separator)?;
         }

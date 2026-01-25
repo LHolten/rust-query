@@ -9,7 +9,7 @@ use ord_rc::OrdRc;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
     Table(&'static str),
-    Pragma(&'static str, Vec<String>),
+    Pragma(&'static str, Vec<OrdRc<dyn rusqlite::ToSql>>),
     // Vec(OrdRc<Vec<rusqlite::types::Value>>),
 }
 
