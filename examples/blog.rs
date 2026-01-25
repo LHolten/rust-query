@@ -30,19 +30,19 @@ use v1::*;
 fn insert_data(txn: &mut Transaction<Schema>) {
     // Insert users
     let alice = txn.insert_ok(User {
-        name: "alice",
-        email: "test",
+        name: "alice".to_owned(),
+        email: "test".to_owned(),
     });
     let bob = txn.insert_ok(User {
-        name: "bob",
-        email: "test",
+        name: "bob".to_owned(),
+        email: "test".to_owned(),
     });
 
     // Insert a story
     let dream = txn.insert_ok(Story {
         author: alice,
-        title: "My crazy dream",
-        content: "A dinosaur and a bird...",
+        title: "My crazy dream".to_owned(),
+        content: "A dinosaur and a bird...".to_owned(),
     });
 
     // Insert a rating - note the try_insert due to the unique constraint

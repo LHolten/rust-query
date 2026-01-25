@@ -401,11 +401,11 @@ impl<S: 'static> Transaction<S> {
     /// # use rust_query::{private::doctest::*, IntoExpr};
     /// # rust_query::private::doctest::get_txn(|mut txn| {
     /// let res = txn.insert(User {
-    ///     name: "Bob",
+    ///     name: "Bob".to_owned(),
     /// });
     /// assert!(res.is_ok());
     /// let res = txn.insert(User {
-    ///     name: "Bob",
+    ///     name: "Bob".to_owned(),
     /// });
     /// assert!(res.is_err(), "there is a unique constraint on the name");
     /// # });
@@ -437,10 +437,10 @@ impl<S: 'static> Transaction<S> {
     /// # use rust_query::{private::doctest::*, IntoExpr};
     /// # rust_query::private::doctest::get_txn(|mut txn| {
     /// let bob = txn.insert(User {
-    ///     name: "Bob",
+    ///     name: "Bob".to_owned(),
     /// }).unwrap();
     /// let bob2 = txn.find_or_insert(User {
-    ///     name: "Bob", // this will conflict with the existing row.
+    ///     name: "Bob".to_owned(), // this will conflict with the existing row.
     /// });
     /// assert_eq!(bob, bob2);
     /// # });
@@ -455,28 +455,6 @@ impl<S: 'static> Transaction<S> {
         }
     }
 
-    /// Try updating a row in the database to have new column values.
-    ///
-    /// Updating can fail just like [Transaction::insert] because of unique constraint conflicts.
-    /// This happens when the new values are in conflict with an existing different row.
-    ///
-    /// When the update succeeds, this function returns [Ok], when it fails it returns [Err] with one of
-    /// three conflict types:
-    /// - 0 unique constraints => [Infallible]
-    /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
-    /// - 2+ unique constraints => `()` no further information is provided.
-    ///
-    /// ```
-    /// # use rust_query::{private::doctest::*, IntoExpr, Update};
-    /// # rust_query::private::doctest::get_txn(|mut txn| {
-    /// let bob = txn.insert(User {
-    ///     name: "Bob",
-    /// }).unwrap();
-    /// txn.update(bob, User {
-    ///     name: Update::set("New Bob"),
-    /// }).unwrap();
-    /// # });
-    /// ```
     pub(crate) fn update<T: Table<Schema = S>>(
         &mut self,
         row: TableRow<T>,

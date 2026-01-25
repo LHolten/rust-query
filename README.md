@@ -31,11 +31,13 @@ fn main() {
     database.transaction_mut_ok(|txn| {
         // First we insert a new `User` in the database.
         // There are no unique constraints on this table, so no errors to handle.
-        let mike = txn.insert_ok(User { name: "mike" });
+        let mike = txn.insert_ok(User { 
+            name: "mike".to_owned(),
+        });
         // Inserting an `Image` can fail, because of the unique constraint on
         // the `file_name` column.
         txn.insert(Image {
-            file_name: "dog.png",
+            file_name: "dog.png".to_owned(),
             uploaded_by: mike,
         })
         .expect("no other file called `dog.png` should exist");
@@ -61,7 +63,9 @@ fn main() {
         let dog = dog.table_row();
         let user = user.table_row();
 
-        let paul = txn.insert_ok(User { name: "paul" });
+        let paul = txn.insert_ok(User { 
+            name: "paul".to_owned(),
+        });
         // We can mutate rows with a simple assignment.
         txn.mutable(dog).uploaded_by = paul;
     

@@ -20,7 +20,7 @@ fn main() {
     database.transaction_mut_ok(|txn| {
         let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
             .into_iter()
-            .map(|name| txn.insert_ok(Name { name }))
+            .map(|name| txn.insert_ok(Name { name: name.to_owned() }))
             .collect();
 
         let txn = txn.downgrade();

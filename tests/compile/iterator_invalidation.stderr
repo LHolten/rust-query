@@ -1,11 +1,13 @@
 error[E0502]: cannot borrow `*txn` as mutable because it is also borrowed as immutable
   --> tests/compile/iterator_invalidation.rs:19:9
    |
-13 |         let names = txn.query(|rows| {
-   |                     --- immutable borrow occurs here
+13 |           let names = txn.query(|rows| {
+   |                       --- immutable borrow occurs here
 ...
-19 |         txn.insert_ok(MyTable { name: "foo" });
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
-20 |
-21 |         for name in names {
-   |                     ----- immutable borrow later used here
+19 | /         txn.insert_ok(MyTable {
+20 | |             name: "foo".to_owned(),
+21 | |         });
+   | |__________^ mutable borrow occurs here
+22 |
+23 |           for name in names {
+   |                       ----- immutable borrow later used here

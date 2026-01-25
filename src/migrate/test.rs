@@ -27,8 +27,12 @@ fn unique_constraint_violation() {
 
     let db: Database<v0::Test> = Database::new(Config::open(FILE));
     db.transaction_mut_ok(|txn| {
-        txn.insert_ok(v0::Foo { name: "alpha" });
-        txn.insert_ok(v0::Foo { name: "alpha" });
+        txn.insert_ok(v0::Foo {
+            name: "alpha".to_owned(),
+        });
+        txn.insert_ok(v0::Foo {
+            name: "alpha".to_owned(),
+        });
     });
 
     Database::migrator(Config::open(FILE))
@@ -83,9 +87,15 @@ fn migrations_preserve_index() {
 
     let db: Database<v0::Test> = Database::new(Config::open(FILE));
     db.transaction_mut_ok(|txn| {
-        let alpha = txn.insert_ok(v0::Foo { name: "alpha" });
-        txn.insert_ok(v0::Foo { name: "brave" });
-        let charlie = txn.insert_ok(v0::Foo { name: "charlie" });
+        let alpha = txn.insert_ok(v0::Foo {
+            name: "alpha".to_owned(),
+        });
+        txn.insert_ok(v0::Foo {
+            name: "brave".to_owned(),
+        });
+        let charlie = txn.insert_ok(v0::Foo {
+            name: "charlie".to_owned(),
+        });
         txn.insert_ok(v0::Ref { foo: charlie });
         let txn = txn.downgrade();
         // delete the first item so that migrations that do not preserve index

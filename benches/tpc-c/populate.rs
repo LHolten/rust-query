@@ -1,14 +1,15 @@
 use std::{
     iter::{self, zip},
     ops::Range,
+    time::SystemTime,
 };
 
 use indicatif::{ProgressIterator, ProgressStyle};
 use rand::seq::{IndexedRandom, IteratorRandom, SliceRandom};
-use rust_query::{Expr, TableRow, Transaction};
+use rust_query::{TableRow, Transaction};
 
 use crate::{
-    Nu, random_to_last_name,
+    Nu, UnixEpoch, random_to_last_name,
     v0::{Customer, District, History, Item, NewOrder, Order, OrderLine, Schema, Stock, Warehouse},
 };
 
@@ -88,7 +89,7 @@ fn populate_warehouse(
 ) {
     let stock: Box<_> = items
         .iter()
-        .map(|item| {
+        .map(|&item| {
             txn.insert(Stock {
                 warehouse,
                 item,
@@ -146,7 +147,7 @@ fn populate_district(
                 district,
                 number,
                 first: a_string(8, 16),
-                middle: "OE",
+                middle: "OE".to_owned(),
                 last: if number < 1001 {
                     random_to_last_name(number - 1)
                 } else {
@@ -158,11 +159,11 @@ fn populate_district(
                 state: a_string(2, 2),
                 zip: zip_code(),
                 phone: n_string(16, 16),
-                since: Expr::unix_epoch(),
+                since: SystemTime::now().as_unix_epoch(),
                 credit: if rand::random_ratio(10, 100) {
-                    "BC"
+                    "BC".to_owned()
                 } else {
-                    "GC"
+                    "GC".to_owned()
                 },
                 credit_lim: 50_000 * 100,
                 discount: rand::random_range(0.0..=0.5),
@@ -177,7 +178,7 @@ fn populate_district(
         txn.insert_ok(History {
             customer,
             district,
-            date: Expr::unix_epoch(),
+            date: SystemTime::now().as_unix_epoch(),
             amount: 10 * 100,
             data: a_string(12, 24),
         });
@@ -194,7 +195,7 @@ fn populate_district(
             .insert(Order {
                 customer,
                 number: order_number as i64,
-                entry_d: Expr::unix_epoch(),
+                entry_d: SystemTime::now().as_unix_epoch(),
                 carrier_id: delivered.then_some(rand::random_range(1..=10)),
                 order_line_cnt,
                 all_local: 1,
@@ -205,10 +206,10 @@ fn populate_district(
             txn.insert(OrderLine {
                 order,
                 number: line_number,
-                stock: stock
+                stock: *stock
                     .choose(&mut rand::rng())
                     .expect("stock array is not empty"),
-                delivery_d: delivered.then_some(Expr::unix_epoch()),
+                delivery_d: delivered.then_some(SystemTime::now().as_unix_epoch()),
                 quantity: 5,
                 amount: if delivered {
                     0

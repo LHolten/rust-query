@@ -16,7 +16,9 @@ fn test(db: Database<Schema>) {
         });
 
         // mutating invalidates the iterator.
-        txn.insert_ok(MyTable { name: "foo" });
+        txn.insert_ok(MyTable {
+            name: "foo".to_owned(),
+        });
 
         for name in names {
             println!("{name}")

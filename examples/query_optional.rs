@@ -60,10 +60,12 @@ fn queries(txn: &'static mut Transaction<Schema>) {
 
     assert!(info.is_none());
 
-    let home = txn.insert_ok(World { name: "Dune" });
+    let home = txn.insert_ok(World {
+        name: "Dune".to_owned(),
+    });
     txn.insert(Player {
         pub_id,
-        name: "Asterix",
+        name: "Asterix".to_owned(),
         score: 3000,
         home,
     })

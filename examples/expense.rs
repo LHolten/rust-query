@@ -34,10 +34,18 @@ fn migrate() -> Database<v1::Mifg> {
         .unwrap()
         .fixup(|txn| {
             // we insert some test data when the database is created
-            let user1 = txn.insert(v0::User { user_id: "user1" }).unwrap();
-            let user2 = txn.insert(v0::User { user_id: "user2" }).unwrap();
+            let user1 = txn
+                .insert(v0::User {
+                    user_id: "user1".to_owned(),
+                })
+                .unwrap();
+            let user2 = txn
+                .insert(v0::User {
+                    user_id: "user2".to_owned(),
+                })
+                .unwrap();
             txn.insert(v0::Expense {
-                expense_id: "test expense",
+                expense_id: "test expense".to_owned(),
                 paid_by: user1,
                 split_with: user2,
             })
@@ -75,7 +83,7 @@ fn main() {
     db.transaction_mut_ok(|txn| {
         let user1 = txn.query_one(User.user_id("user1")).unwrap();
         txn.insert(Expense {
-            expense_id: "expense without split",
+            expense_id: "expense without split".to_owned(),
             paid_by: user1,
         })
         .unwrap();

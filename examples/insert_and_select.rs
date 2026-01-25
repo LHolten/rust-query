@@ -30,12 +30,14 @@ fn main() {
 // Use the database to insert and query.
 fn do_stuff_with_database(txn: &mut Transaction<MySchema>) {
     // Lets make a new user 'mike',
-    let mike = User { name: "mike" };
+    let mike = User {
+        name: "mike".to_owned(),
+    };
     let mike_id = txn.insert_ok(mike);
 
     // and also insert a dog picture for 'mike'.
     let dog_picture = Image {
-        description: "dog",
+        description: "dog".to_owned(),
         uploaded_by: mike_id,
     };
     let _picture_id = txn.insert_ok(dog_picture);

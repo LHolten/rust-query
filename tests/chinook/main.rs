@@ -60,8 +60,15 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
 
     free_reference(txn);
 
-    txn.insert(Artist { name: "first" }).unwrap();
-    let id = txn.insert(Artist { name: "second" }).unwrap();
+    txn.insert(Artist {
+        name: "first".to_owned(),
+    })
+    .unwrap();
+    let id = txn
+        .insert(Artist {
+            name: "second".to_owned(),
+        })
+        .unwrap();
 
     let Err(_) = txn
         .mutable(id)

@@ -80,7 +80,7 @@ pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOut
     txn.insert_ok(History {
         customer,
         district,
-        date: input.date,
+        date: input.date.as_unix_epoch(),
         amount: input.amount,
         data: format!("{}    {}", warehouse_name, district_name),
     });

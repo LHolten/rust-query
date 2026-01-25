@@ -86,8 +86,8 @@ pub fn new_order(
         .insert(Order {
             number: next_order,
             customer,
-            entry_d: input.entry_date,
-            carrier_id: None::<i64>,
+            entry_d: input.entry_date.as_unix_epoch(),
+            carrier_id: None,
             all_local: local as i64,
             order_line_cnt: input.items.len() as i64,
         })
@@ -136,7 +136,7 @@ pub fn new_order(
         }
         let old_quantity = replace(&mut stock.quantity, new_quantity);
 
-        let dist_info = &[
+        let dist_info = [
             &stock.dist_00,
             &stock.dist_01,
             &stock.dist_02,

@@ -85,7 +85,7 @@ mod using_v1 {
     }
 
     pub fn do_stuff(txn: &'static mut Transaction<Schema>) {
-        let loc: TableRow<Location> = txn.insert_ok(Location { name: "Amsterdam" });
+        let loc: TableRow<Location> = txn.insert_ok(Location { name: "Amsterdam".to_owned() });
         let _ = location_info(txn, loc);
 
         let txn = txn.downgrade();

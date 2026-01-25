@@ -349,14 +349,16 @@ fn customer_ident() -> CustomerIdent {
     }
 }
 
-impl<'column> IntoExpr<'column, Schema> for SystemTime {
-    type Typ = i64;
+pub(crate) trait UnixEpoch {
+    fn as_unix_epoch(self) -> i64;
+}
 
-    fn into_expr(self) -> rust_query::Expr<'column, Schema, Self::Typ> {
+impl UnixEpoch for SystemTime {
+    fn as_unix_epoch(self) -> i64 {
         let millis = self
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        (millis as i64).into_expr()
+        millis as i64
     }
 }
