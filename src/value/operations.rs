@@ -343,10 +343,7 @@ impl<'column, S, Typ: EqTyp> Expr<'column, S, Option<Typ>> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
         let maybe_optional = rhs.maybe_optional;
-        Expr::adhoc_promise(
-            move |b| sea_query::Expr::expr(lhs.build_expr(b)).if_null(rhs.build_expr(b)),
-            maybe_optional,
-        )
+        Expr::adhoc(move |b| sea_query::Expr::expr(lhs.build_expr(b)).if_null(rhs.build_expr(b)))
     }
 
     /// Check that the expression is [Some].

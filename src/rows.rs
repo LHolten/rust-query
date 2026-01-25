@@ -57,15 +57,12 @@ impl<'inner, S> Rows<'inner, S> {
             table_name: joinable.table,
         };
 
-        Expr::adhoc_promise(
-            move |b| {
-                sea_query::Expr::col((
-                    b.get_table(table_idx.clone()),
-                    Alias::new(table_idx.table_name.main_column()),
-                ))
-            },
-            false, // the table is joined so this column is not null
-        )
+        Expr::adhoc(move |b| {
+            sea_query::Expr::col((
+                b.get_table(table_idx.clone()),
+                Alias::new(table_idx.table_name.main_column()),
+            ))
+        })
     }
 
     #[doc(hidden)]
@@ -107,6 +104,6 @@ impl<'inner, S> Rows<'inner, S> {
             .push(DynTypedExpr::erase(val.is_some()));
 
         // we already removed all rows with null, so this is ok.
-        Expr::adhoc_promise(move |b| val.inner.build_expr(b), false)
+        Expr::adhoc(move |b| val.inner.build_expr(b))
     }
 }

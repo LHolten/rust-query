@@ -128,10 +128,7 @@ impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
     fn into_expr(self) -> Expr<'static, T::Schema, Self::Typ> {
         let idx = self.inner.idx;
 
-        Expr::adhoc_promise(
-            move |_| sea_query::Expr::val(idx),
-            false, // table row is proof of existence
-        )
+        Expr::adhoc(move |_| sea_query::Expr::val(idx))
     }
 }
 

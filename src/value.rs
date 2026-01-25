@@ -271,13 +271,10 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
     let possible_null = table.maybe_optional;
-    Expr::adhoc_promise(
-        move |b| {
-            let main_column = table.build_expr(b);
-            b.get_join::<T>(main_column, table.maybe_optional, name)
-        },
-        possible_null,
-    )
+    Expr::adhoc(move |b| {
+        let main_column = table.build_expr(b);
+        b.get_join::<T>(main_column, table.maybe_optional, name)
+    })
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(
@@ -307,17 +304,6 @@ impl<F: ?Sized + Fn(&mut ValueBuilder) -> sea_query::Expr, T> AdHoc<F, T> {
 
 impl<S, T: DbTyp> Expr<'_, S, T> {
     pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
-        Self::adhoc_promise(f, true)
-    }
-
-    /// Only set `maybe_optional` to `false` if you are absolutely sure that the
-    /// value is not null. The [crate::optional] combinator makes this more difficult.
-    /// There is no reason to use this for values that can not be foreign keys.
-    /// This is used to optimize implicit joins from LEFT JOIN to just JOIN.
-    pub(crate) fn adhoc_promise(
-        f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
-        maybe_optional: bool,
-    ) -> Self {
         Self::new(Rc::new(AdHoc {
             func: f,
             maybe_optional,

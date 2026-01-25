@@ -11,7 +11,6 @@ extern crate static_assertions;
 #[cfg(doc)]
 #[doc = include_str!("_guide.md")]
 pub mod _guide {}
-mod alias;
 mod ast;
 mod async_db;
 mod db;
@@ -33,7 +32,6 @@ mod transaction;
 mod value;
 mod writable;
 
-use alias::JoinableTable;
 use private::Reader;
 use schema::from_macro::TypBuilder;
 use std::ops::Deref;

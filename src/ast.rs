@@ -1,9 +1,6 @@
 use std::rc::Rc;
 
-use crate::{
-    alias::{Field, JoinableTable, MyAlias, Scope},
-    value::{DynTypedExpr, ValueBuilder},
-};
+use crate::value::{DynTypedExpr, ValueBuilder};
 
 #[derive(Default, Clone)]
 pub struct MySelect {
