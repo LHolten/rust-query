@@ -223,14 +223,6 @@ fn define_table(
             pub(super) type #col_typ = #col_typ_original;
         )*
 
-        impl<#(#generic: ::rust_query::private::UpdateOrUnit< #schema, #col_typ>),*> Default for #table_ident<#(#generic),*> {
-            fn default() -> Self {
-                Self {#(
-                    #col_ident: Default::default(),
-                )*}
-            }
-        }
-
         const _: () = {
             type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
 
@@ -279,8 +271,6 @@ fn define_table(
                 const SPAN: (usize, usize) = #table_span;
 
                 type Conflict = #conflict_type;
-                type UpdateOk = (#alias_ident<#(#update_columns_safe),*>);
-                type Update = (#alias_ident<#(#empty ::rust_query::private::AsUpdate),*>);
                 type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
                 type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
                 type Mutable = #mut_ident;
@@ -295,14 +285,6 @@ fn define_table(
                             },
                         })
                 }
-
-                fn mutable_into_update(val: Self::Mutable) -> Self::Update {
-                    #table_ident {
-                        #(#col_ident_mut: ::rust_query::Update::set(val.#col_ident_mut),)*
-                        #(#col_ident_immut: ::rust_query::Update::set(val.#private.#col_ident_immut),)*
-                    }
-                }
-
                 fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as ::std::ops::Deref>::Target {
                     &mut val.#private
                 }
@@ -310,27 +292,18 @@ fn define_table(
                 fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
+                fn mutable_into_insert(val: Self::Mutable) -> Self::Insert {
+                    Self::Insert {
+                        #(#col_ident_mut: ::rust_query::IntoExpr::into_expr(val.#col_ident_mut)),*
+                        #(#col_ident_immut: ::rust_query::IntoExpr::into_expr(val.#private.#col_ident_immut)),*
+                    }
+                }
 
                 fn get_conflict_unchecked(
                     txn: &::rust_query::Transaction<Self::Schema>,
                     val: &Self::Insert
                 ) -> Self::Conflict {
                     #conflict_dummy_insert
-                }
-
-                fn update_into_try_update(val: Self::UpdateOk) -> Self::Update {
-                    #table_ident {#(
-                        #col_ident: #try_from_update,
-                    )*}
-                }
-
-                fn apply_try_update(
-                    val: Self::Update,
-                    old: ::rust_query::Expr<'static, Self::Schema, Self>,
-                ) -> Self::Insert {
-                    #table_ident {#(
-                        #col_ident: val.#col_ident.apply(&old.#col_ident),
-                    )*}
                 }
 
                 type Referer = #referer;

@@ -19,7 +19,7 @@ use crate::{
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    value::{DynTypedExpr, MyTyp, OptTable, SecretFromSql, ValueBuilder},
+    value::{MyTyp, OptTable, SecretFromSql, ValueBuilder},
     writable::TableInsert,
 };
 
@@ -481,17 +481,12 @@ impl<S: 'static> Transaction<S> {
     /// }).unwrap();
     /// # });
     /// ```
-    #[deprecated = "Use `Mutable::unique` instead"]
-    pub fn update<T: Table<Schema = S>>(
+    pub(crate) fn update<T: Table<Schema = S>>(
         &mut self,
-        row: impl IntoExpr<'static, S, Typ = T>,
-        val: T::Update,
+        row: TableRow<T>,
+        val: T::Mutable,
     ) -> Result<(), T::Conflict> {
-        let mut id = ValueBuilder::default();
-        let row = row.into_expr();
-        let (id, _) = id.simple_one(DynTypedExpr::erase(&row));
-
-        let val = T::apply_try_update(val, row);
+        let val = T::mutable_into_insert(val);
         let mut reader = Reader::default();
         T::read(&val, &mut reader);
         let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
@@ -506,7 +501,7 @@ impl<S: 'static> Transaction<S> {
 
         let mut update = UpdateStatement::new()
             .table(("main", T::NAME))
-            .cond_where(Expr::col(("main", T::NAME, T::ID)).in_subquery(id))
+            .cond_where(Expr::col((T::NAME, T::ID)).eq(row))
             .to_owned();
 
         for (name, field) in zip(col_names, col_fields) {
@@ -540,26 +535,6 @@ impl<S: 'static> Transaction<S> {
                 Err(T::get_conflict_unchecked(self, &val))
             }
             Err(err) => panic!("{err:?}"),
-        }
-    }
-
-    /// This is a convenience function to use [Transaction::update] for updates
-    /// that can not cause unique constraint violations.
-    ///
-    /// This method can be used for all tables, it just does not allow modifying
-    /// columns that are part of unique constraints.
-    #[deprecated = "Use Transaction::mutable instead"]
-    pub fn update_ok<T: Table<Schema = S>>(
-        &mut self,
-        row: impl IntoExpr<'static, S, Typ = T>,
-        val: T::UpdateOk,
-    ) {
-        #[expect(deprecated)]
-        match self.update(row, T::update_into_try_update(val)) {
-            Ok(val) => val,
-            Err(_) => {
-                unreachable!("update can not fail")
-            }
         }
     }
 

@@ -41,7 +41,6 @@ pub use transaction::{Database, Transaction, TransactionWeak};
 pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
 pub use value::{Expr, IntoExpr, optional::optional};
-pub use writable::Update;
 
 /// Derive [derive@Select] to create a new `*Select` struct.
 ///
@@ -395,17 +394,9 @@ pub mod private {
         type Out<T: MyTyp, S> = X;
     }
 
-    impl Apply for AsUpdate {
-        type Out<T: MyTyp, S> = crate::Update<S, T>;
-    }
-
     impl<'t> Apply for AsExpr<'t> {
         type Out<T: MyTyp, S> = crate::Expr<'t, S, T>;
     }
-
-    pub trait UpdateOrUnit<S, T>: Default {}
-    impl<S, T: MyTyp> UpdateOrUnit<S, T> for crate::Update<S, T> {}
-    impl<S, T> UpdateOrUnit<S, T> for () {}
 
     pub mod doctest {
         use crate::{Database, Transaction, migrate::config::Config, migration};
@@ -453,11 +444,6 @@ pub trait Table: Sized + 'static {
     /// The type of conflict that can result from inserting a row in this table.
     /// This is the same type that is used for row updates too.
     type Conflict;
-
-    /// The type of updates used by [Transaction::update_ok].
-    type UpdateOk;
-    /// The type of updates used by [Transaction::update].
-    type Update;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
 
@@ -482,16 +468,10 @@ pub trait Table: Sized + 'static {
     -> Select<'_, Self::Schema, Self::Mutable>;
 
     #[doc(hidden)]
-    fn mutable_into_update(val: Self::Mutable) -> Self::Update;
-
-    #[doc(hidden)]
     fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target;
 
     #[doc(hidden)]
-    fn update_into_try_update(val: Self::UpdateOk) -> Self::Update;
-
-    #[doc(hidden)]
-    fn apply_try_update(val: Self::Update, old: Expr<'static, Self::Schema, Self>) -> Self::Insert;
+    fn mutable_into_insert(val: Self::Mutable) -> Self::Insert;
 
     #[doc(hidden)]
     fn get_referer_unchecked() -> Self::Referer;

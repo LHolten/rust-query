@@ -58,8 +58,6 @@ macro_rules! table {
             fn typs(_f: &mut schema::from_macro::TypBuilder<Self::Schema>) {}
 
             type Conflict = Infallible;
-            type UpdateOk = ();
-            type Update = ();
             type Insert = ();
             type Lazy<'t> = ();
             type Mutable = NoMut;
@@ -69,11 +67,10 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn mutable_into_update(_val: Self::Mutable) -> Self::Update {
+            fn mutable_as_unique(_val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target {
                 unreachable!()
             }
-
-            fn mutable_as_unique(_val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target {
+            fn mutable_into_insert(_val: Self::Mutable) -> Self::Insert {
                 unreachable!()
             }
 
@@ -85,17 +82,6 @@ macro_rules! table {
                 _txn: &crate::Transaction< Self::Schema>,
                 _val: &Self::Insert,
             ) -> Self::Conflict {
-                unreachable!()
-            }
-
-            fn update_into_try_update(_val: Self::UpdateOk) -> Self::Update {
-                unreachable!()
-            }
-
-            fn apply_try_update(
-                _val: Self::Update,
-                _old: Expr<'static, Self::Schema, Self>,
-            ) -> Self::Insert {
                 unreachable!()
             }
 

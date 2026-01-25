@@ -84,13 +84,12 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
         let res = std::panic::catch_unwind(AssertUnwindSafe(|| f(T::mutable_as_unique(self))));
         // taking `self.cell` puts the Mutable in a guaranteed valid state.
         // it doesn't matter if the update succeeds or not as long as we only deref after the update.
-        let update = T::mutable_into_update(self.cell.take().unwrap().val);
+        let update = self.cell.take().unwrap().val;
         let out = match res {
             Ok(out) => out,
             Err(payload) => std::panic::resume_unwind(payload),
         };
         // only apply the update if there was no panic
-        #[expect(deprecated)]
         Transaction::new_ref().update(self.row_id, update)?;
 
         Ok(out)
@@ -121,8 +120,7 @@ impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
             return;
         };
         if cell.any_update {
-            let update = T::mutable_into_update(cell.val);
-            #[expect(deprecated)]
+            let update = cell.val;
             let Ok(_) = Transaction::new_ref().update(self.row_id, update) else {
                 panic!("mutable can not fail, no unique is updated")
             };
