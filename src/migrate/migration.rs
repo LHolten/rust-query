@@ -5,8 +5,6 @@ use std::{
     ops::Deref,
 };
 
-use sea_query::{Alias, IntoIden, TableDropStatement};
-
 use crate::{
     Lazy, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},

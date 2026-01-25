@@ -11,7 +11,6 @@ use std::{
 
 use annotate_snippets::{Renderer, renderer::DecorStyle};
 use rusqlite::config::DbConfig;
-use sea_query::{Alias, ColumnDef, IntoIden, SqliteQueryBuilder};
 use self_cell::MutBorrow;
 
 use crate::{

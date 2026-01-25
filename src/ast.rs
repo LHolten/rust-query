@@ -1,7 +1,5 @@
 use std::rc::Rc;
 
-use sea_query::{Alias, Condition, Expr, ExprTrait, JoinType, NullAlias, SelectStatement};
-
 use crate::{
     alias::{Field, JoinableTable, MyAlias, Scope},
     value::{DynTypedExpr, ValueBuilder},

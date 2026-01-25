@@ -1,7 +1,5 @@
 use std::{borrow::Cow, collections::HashMap, convert::Infallible, ops::Deref};
 
-use sea_query::Func;
-
 use crate::{
     Expr, FromExpr, IntoSelect, Select, Table, TableRow, Transaction,
     alias::JoinableTable,

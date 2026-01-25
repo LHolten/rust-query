@@ -1,7 +1,5 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use sea_query::{Alias, ExprTrait, IntoIden};
-
 use crate::{
     CustomJoin, Expr, IntoExpr, Table, TableRow,
     alias::{JoinableTable, MyAlias, TmpTable},

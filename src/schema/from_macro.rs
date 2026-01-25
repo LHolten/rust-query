@@ -4,8 +4,6 @@ use std::{
     marker::PhantomData,
 };
 
-use sea_query::QueryBuilder;
-
 use crate::{
     IntoExpr,
     schema::{canonical, check_constraint::Parsed, from_db},
@@ -96,7 +94,6 @@ impl<T, S> SchemaType<S> for T where T: IntoExpr<'static, S, Typ = Self> + Stora
 
 #[cfg(test)]
 mod tests {
-    use sea_query::{Alias, SqliteQueryBuilder};
 
     use super::*;
 
@@ -126,7 +123,6 @@ mod tests {
         let res = <jiff::civil::Date as StorableTyp>::check(Alias::new("foo")).unwrap();
         let mut out = String::new();
         SqliteQueryBuilder.prepare_expr(&res, &mut out);
-        expect_test::expect![[r#""foo" IS ltrim(date("foo"), '-')"#]]
-            .assert_eq(&out);
+        expect_test::expect![[r#""foo" IS ltrim(date("foo"), '-')"#]].assert_eq(&out);
     }
 }

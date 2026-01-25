@@ -1,7 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use sea_query::{DynIden, FunctionCall};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) enum Field {
     U64(MyAlias),

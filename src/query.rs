@@ -7,8 +7,6 @@ use std::{
 };
 
 use rusqlite::Connection;
-use sea_query::SqliteQueryBuilder;
-use sea_query_rusqlite::{RusqliteBinder, RusqliteValues};
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{

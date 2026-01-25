@@ -1,11 +1,6 @@
 use std::{cell::RefCell, convert::Infallible, marker::PhantomData, sync::atomic::AtomicI64};
 
 use rusqlite::ErrorCode;
-use sea_query::{
-    Alias, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoIden, SelectStatement,
-    SqliteQueryBuilder, UpdateStatement,
-};
-use sea_query_rusqlite::RusqliteBinder;
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{

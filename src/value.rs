@@ -9,8 +9,6 @@ pub mod optional;
 
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
-use sea_query::{Alias, JoinType, SelectStatement};
-
 use crate::{
     IntoExpr, IntoSelect, Select, Table,
     alias::{Field, JoinableTable, MyAlias, Scope},

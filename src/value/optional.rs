@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use sea_query::ExprTrait;
-
 use crate::{
     IntoSelect,
     select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},

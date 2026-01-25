@@ -1,7 +1,5 @@
 use std::fmt::Display;
 
-use sea_query::{IntoColumnRef, QueryBuilder};
-
 use crate::private::{Token, get_token};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]

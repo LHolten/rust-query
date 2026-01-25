@@ -4,8 +4,6 @@ use std::{
     rc::Rc,
 };
 
-use sea_query::{ExprTrait, Func};
-
 use crate::{
     Expr, IntoExpr,
     ast::CONST_0,

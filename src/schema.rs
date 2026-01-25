@@ -12,8 +12,6 @@ pub mod read;
 mod test;
 pub mod tokenizer;
 
-use sea_query::{Alias, IndexCreateStatement, IntoIden, SqliteQueryBuilder, TableCreateStatement};
-
 use crate::schema::{
     canonical::ColumnType,
     from_macro::{Index, Schema, Table},
@@ -21,7 +19,6 @@ use crate::schema::{
 
 impl ColumnType {
     pub fn sea_type(&self) -> sea_query::ColumnType {
-        use sea_query::ColumnType as T;
         match self {
             ColumnType::Integer => T::Integer,
             ColumnType::Real => T::custom("REAL"),
@@ -91,7 +88,6 @@ impl Schema {
 
 impl Table {
     pub fn create(&self) -> TableCreateStatement {
-        use sea_query::*;
         let mut create = Table::create();
         for (name, col) in &self.columns {
             let col = &col.def;

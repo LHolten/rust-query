@@ -1,4 +1,3 @@
-use sea_query::IntoIden;
 
 use crate::{
     Expr, IntoExpr, Table, TableRow,

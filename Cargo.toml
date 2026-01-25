@@ -59,8 +59,6 @@ name = "chinook"
 required-features = ["jiff-02"]
 
 [dependencies]
-sea-query = { version = "=1.0.0-rc.34", default-features = false, features = ["backend-sqlite"] }
-sea-query-rusqlite = "=0.8.0-rc.18"
 rusqlite = "0.38"
 k12 = { version = "0.3", optional = true }
 rust-query-macros = { path = "rust-query-macros", version = "=0.7.0" }

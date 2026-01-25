@@ -1,7 +1,5 @@
 use std::marker::PhantomData;
 
-use sea_query::IntoIden;
-
 use crate::{
     Expr, Table, TableRow,
     alias::JoinableTable,
