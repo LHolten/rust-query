@@ -1,4 +1,5 @@
 mod emit;
+pub(crate) mod list_writer;
 mod ord_rc;
 
 use std::{collections::BTreeSet, rc::Rc};
@@ -8,8 +9,8 @@ use ord_rc::OrdRc;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
     Table(&'static str),
-    Pragma(&'static str),
-    Vec(OrdRc<Vec<rusqlite::types::Value>>),
+    Pragma(&'static str, Vec<String>),
+    // Vec(OrdRc<Vec<rusqlite::types::Value>>),
 }
 
 /// Specific join of a table
@@ -32,7 +33,7 @@ pub enum RowLike {
 pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<dyn rusqlite::ToSql>),
-    AggrIndex(Rc<Select>, Rc<Expr>),
+    AggrIndex(Rc<SelectVec>, Rc<Expr>),
     RowIndex(Rc<RowLike>, &'static str),
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
@@ -65,6 +66,12 @@ pub struct Select {
     filter: BTreeSet<Rc<Expr>>,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SelectVec {
+    from: Vec<Join>,
+    filter: BTreeSet<Rc<Expr>>,
+}
+
 impl Select {
     pub fn join(self: &mut Rc<Self>, table: JoinableTable) -> Join {
         let join = Join(OrdRc(Rc::new(table)));
@@ -76,5 +83,12 @@ impl Select {
     pub fn filter(self: &mut Rc<Self>, expr: Rc<Expr>) {
         let this = Rc::make_mut(self);
         this.filter.insert(expr);
+    }
+
+    pub fn into_vecs(self) -> SelectVec {
+        SelectVec {
+            from: self.from.into_iter().collect(),
+            filter: self.filter,
+        }
     }
 }
