@@ -45,7 +45,7 @@ impl SelectInfo {
 }
 
 impl SelectInfoVecs {
-    pub fn emit(&self, w: &mut dyn Write) -> fmt::Result {
+    pub fn emit(&self, w: &mut dyn Write, is_aggregate: bool) -> fmt::Result {
         write!(w, "SELECT ")?;
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in self.forwarded.iter().enumerate() {
@@ -56,9 +56,13 @@ impl SelectInfoVecs {
             self.emit_expr(list_item, expr)?;
             write!(list_item, " AS s{select_idx}")?;
         }
+        if is_aggregate && self.forwarded.is_empty() {
+            // force aggregation even without group by
+            write!(list.item()?, "count(*)")?;
+        }
         list.default("1")?;
 
-        if !self.rows.from.is_empty() || !self.unique.is_empty() {
+        if !self.rows.from.is_empty() || !self.unique.is_empty() || !self.aggregate.is_empty() {
             write!(w, " FROM ")?;
             let mut list = ListWriter::new(w, ", ");
             for (join_idx, join) in self.rows.from.iter().enumerate() {
@@ -82,6 +86,21 @@ impl SelectInfoVecs {
                     }
                 }
             }
+
+            for (aggr_idx, aggr) in self.aggregate.iter().enumerate() {
+                write!(w, " JOIN (")?;
+                aggr.emit(w, true)?;
+                write!(w, ") AS a{aggr_idx}")?;
+                if !aggr.forwarded.is_empty() {
+                    write!(w, " ON ")?;
+                    let mut list = ListWriter::new(w, " AND ");
+                    for (forward_idx, join) in aggr.forwarded.iter().enumerate() {
+                        let list_item = list.item()?;
+                        write!(list_item, "a{aggr_idx}.f{forward_idx} = ")?;
+                        self.emit_join(list_item, join)?;
+                    }
+                }
+            }
         }
 
         if !self.rows.filter.is_empty() {
@@ -92,6 +111,14 @@ impl SelectInfoVecs {
             }
         }
 
+        if !self.forwarded.is_empty() {
+            write!(w, " GROUP BY ")?;
+            let mut list = ListWriter::new(w, ", ");
+            for (forward_idx, _) in self.forwarded.iter().enumerate() {
+                write!(list.item()?, "{}", forward_idx + 1)?;
+            }
+        }
+
         Ok(())
     }
 
@@ -99,6 +126,15 @@ impl SelectInfoVecs {
         match joinable {
             JoinableTable::Table(name) => write!(w, "main.{name}"),
             JoinableTable::Pragma(_, items) => todo!(),
+        }
+    }
+
+    pub fn emit_join(&self, w: &mut dyn Write, join: &Join) -> fmt::Result {
+        if let Ok(idx) = self.rows.from.binary_search(join) {
+            write!(w, "j{idx}")
+        } else {
+            let idx = self.forwarded.binary_search(join).unwrap();
+            write!(w, "f{idx}")
         }
     }
 
@@ -119,13 +155,12 @@ impl SelectInfoVecs {
             }
             Expr::RowIndex(row_like, col) => match row_like.as_ref() {
                 RowLike::Join(join) => {
-                    let join_idx = self.rows.from.binary_search(join).unwrap();
-                    write!(w, "j{join_idx}.{col}")
+                    self.emit_join(w, join)?;
+                    write!(w, ".{col}")
                 }
                 RowLike::Unique(unique) => {
                     let unique_idx = self.unique.binary_search(unique).unwrap();
-                    // TODO: add support for vec
-                    write!(w, "u{unique_idx}.id")
+                    write!(w, "u{unique_idx}.{col}")
                 }
             },
             Expr::Prefix(prefix, expr) => {
