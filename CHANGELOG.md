@@ -1,5 +1,8 @@
 # Unreleased
 
+- Removed deprecated methods and types.
+- Change table insert structs to not be generic.
+
 # 0.6.11
 
 - Renamed `Expr::as_float` to `Expr::to_f64`.

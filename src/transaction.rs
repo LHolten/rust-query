@@ -616,7 +616,7 @@ pub fn try_insert_private<T: Table>(
     insert.into_table(table);
     insert.columns(col_names);
     if is_empty {
-        // select always has at least one column, so we leave it out when there are no columns
+        // values always has at least one column, so we leave it out when there are no columns
         insert.or_default_values();
     } else {
         insert.values(col_exprs).unwrap();
