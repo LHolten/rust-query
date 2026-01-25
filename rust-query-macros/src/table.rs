@@ -295,8 +295,8 @@ fn define_table(
                     &mut val.#private
                 }
 
-                fn read(val: &Self, f: &mut ::rust_query::private::Reader<Self::Schema>) {
-                    #(f.col(#col_str, &val.#col_ident);)*
+                fn read(&self, f: &mut ::rust_query::private::Reader) {
+                    #(f.col::<#col_typ>(#col_str, ::std::clone::Clone::clone(&self.#col_ident));)*
                 }
                 fn mutable_into_insert(val: Self::Mutable) -> Self {
                     Self {

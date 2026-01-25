@@ -1,11 +1,9 @@
-use std::{
-    cell::RefCell, convert::Infallible, iter::zip, marker::PhantomData, sync::atomic::AtomicI64,
-};
+use std::{cell::RefCell, convert::Infallible, marker::PhantomData, sync::atomic::AtomicI64};
 
 use rusqlite::ErrorCode;
 use sea_query::{
-    Alias, CommonTableExpression, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoTableRef,
-    SelectStatement, SqliteQueryBuilder, UpdateStatement, WithClause,
+    Alias, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoTableRef, SelectStatement,
+    SqliteQueryBuilder, UpdateStatement,
 };
 use sea_query_rusqlite::RusqliteBinder;
 use self_cell::{MutBorrow, self_cell};
@@ -19,7 +17,7 @@ use crate::{
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    value::{MyTyp, OptTable, SecretFromSql, ValueBuilder},
+    value::{MyTyp, OptTable, SecretFromSql},
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -463,34 +461,12 @@ impl<S: 'static> Transaction<S> {
         let val = T::mutable_into_insert(val);
         let mut reader = Reader::default();
         T::read(&val, &mut reader);
-        let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
 
-        let (select, col_fields) = ValueBuilder::default().simple(col_exprs);
-        let cte = CommonTableExpression::new()
-            .query(select)
-            .columns(col_fields.clone())
-            .table_name(Alias::new("cte"))
-            .to_owned();
-        let with_clause = WithClause::new().cte(cte).to_owned();
-
-        let mut update = UpdateStatement::new()
+        let (query, args) = UpdateStatement::new()
             .table(("main", T::NAME))
-            .cond_where(Expr::col((T::NAME, T::ID)).eq(row))
-            .to_owned();
-
-        for (name, field) in zip(col_names, col_fields) {
-            let select = SelectStatement::new()
-                .from(Alias::new("cte"))
-                .column(field)
-                .to_owned();
-            let value = sea_query::Expr::SubQuery(
-                None,
-                Box::new(sea_query::SubQueryStatement::SelectStatement(select)),
-            );
-            update.value(Alias::new(name), value);
-        }
-
-        let (query, args) = update.with(with_clause).build_rusqlite(SqliteQueryBuilder);
+            .values(reader.builder)
+            .cond_where(Expr::col((T::NAME, T::ID)).eq(row.inner.idx))
+            .build_rusqlite(SqliteQueryBuilder);
 
         let res = TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
@@ -553,7 +529,7 @@ impl<S: Schema> TransactionWeak<S> {
             }) {
                 let stmt = SelectStatement::new()
                     .expr(
-                        val.in_subquery(
+                        val.inner.idx.in_subquery(
                             SelectStatement::new()
                                 .from(table_name)
                                 .column(Alias::new(col))
@@ -631,21 +607,19 @@ pub fn try_insert_private<T: Table>(
     let mut reader = Reader::default();
     T::read(&val, &mut reader);
     if let Some(idx) = idx {
-        reader.col(T::ID, idx);
+        reader.col::<i64>(T::ID, idx);
     }
     let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
     let is_empty = col_names.is_empty();
 
-    let (select, _) = ValueBuilder::default().simple(col_exprs);
-
     let mut insert = InsertStatement::new();
     insert.into_table(table);
-    insert.columns(col_names.into_iter().map(Alias::new));
+    insert.columns(col_names);
     if is_empty {
         // select always has at least one column, so we leave it out when there are no columns
         insert.or_default_values();
     } else {
-        insert.select_from(select).unwrap();
+        insert.values(col_exprs).unwrap();
     }
     insert.returning_col(T::ID);
 

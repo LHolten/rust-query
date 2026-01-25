@@ -455,7 +455,7 @@ pub trait Table: Sized + 'static {
     type Lazy<'t>;
 
     #[doc(hidden)]
-    fn read(val: &Self, f: &mut Reader<Self::Schema>);
+    fn read(&self, f: &mut Reader);
 
     #[doc(hidden)]
     fn get_conflict_unchecked(txn: &Transaction<Self::Schema>, val: &Self) -> Self::Conflict;

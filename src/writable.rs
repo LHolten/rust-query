@@ -1,27 +1,19 @@
-use std::marker::PhantomData;
+use crate::value::MyTyp;
 
-use crate::{IntoExpr, value::DynTypedExpr};
-
-pub struct Reader<S> {
-    pub(crate) builder: Vec<(&'static str, DynTypedExpr)>,
-    pub(crate) _p: PhantomData<S>,
+pub struct Reader {
+    pub(crate) builder: Vec<(&'static str, sea_query::Expr)>,
 }
 
-impl<S> Default for Reader<S> {
+impl Default for Reader {
     fn default() -> Self {
         Self {
             builder: Default::default(),
-            _p: Default::default(),
         }
     }
 }
 
-impl<S> Reader<S> {
-    pub fn col(&mut self, name: &'static str, val: impl IntoExpr<'static, S>) {
-        self.col_erased(name, DynTypedExpr::erase(val));
-    }
-
-    pub(crate) fn col_erased(&mut self, name: &'static str, val: DynTypedExpr) {
-        self.builder.push((name, val));
+impl Reader {
+    pub fn col<T: MyTyp>(&mut self, name: &'static str, val: T::Out) {
+        self.builder.push((name, T::out_to_value(val).into()));
     }
 }

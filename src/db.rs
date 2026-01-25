@@ -68,12 +68,6 @@ impl<T> Clone for TableRowInner<T> {
 }
 impl<T> Copy for TableRowInner<T> {}
 
-impl<T: Table> From<TableRow<T>> for sea_query::Value {
-    fn from(value: TableRow<T>) -> Self {
-        value.inner.idx.into()
-    }
-}
-
 // works for any schema?
 impl<'column, S, T: Table> IntoExpr<'column, S> for TableRow<T> {
     type Typ = T;

@@ -73,7 +73,7 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn read(_val: &Self, _f: &mut Reader<Self::Schema>) {
+            fn read(&self, _f: &mut Reader) {
                 unreachable!()
             }
 
