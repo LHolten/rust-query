@@ -30,7 +30,6 @@ use alias::JoinableTable;
 use private::Reader;
 use schema::from_macro::TypBuilder;
 use std::ops::Deref;
-use value::MyTyp;
 
 pub use async_db::DatabaseAsync;
 pub use db::TableRow;
@@ -368,9 +367,9 @@ pub mod private {
     pub use crate::query::get_plan;
     pub use crate::schema::from_macro::TypBuilder;
     pub use crate::value::{
-        DynTypedExpr, MyTyp, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
+        DynTypedExpr, MigrateTyp, MyTyp, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };
-    pub use crate::writable::{Reader, TableInsert};
+    pub use crate::writable::Reader;
 
     pub struct Lazy<'t>(PhantomData<&'t ()>);
     pub struct Ignore;
@@ -439,7 +438,7 @@ pub trait Table: Sized + 'static {
 
     #[doc(hidden)]
     /// The table that this table can be migrated from.
-    type MigrateFrom: MyTyp;
+    type MigrateFrom: Table;
 
     /// The type of conflict that can result from inserting a row in this table.
     /// This is the same type that is used for row updates too.
@@ -451,17 +450,12 @@ pub trait Table: Sized + 'static {
     type Mutable: Deref;
     #[doc(hidden)]
     type Lazy<'t>;
-    #[doc(hidden)]
-    type Insert;
 
     #[doc(hidden)]
-    fn read(val: &Self::Insert, f: &mut Reader<Self::Schema>);
+    fn read(val: &Self, f: &mut Reader<Self::Schema>);
 
     #[doc(hidden)]
-    fn get_conflict_unchecked(
-        txn: &Transaction<Self::Schema>,
-        val: &Self::Insert,
-    ) -> Self::Conflict;
+    fn get_conflict_unchecked(txn: &Transaction<Self::Schema>, val: &Self) -> Self::Conflict;
 
     #[doc(hidden)]
     fn select_mutable(val: Expr<'_, Self::Schema, Self>)
@@ -471,7 +465,7 @@ pub trait Table: Sized + 'static {
     fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target;
 
     #[doc(hidden)]
-    fn mutable_into_insert(val: Self::Mutable) -> Self::Insert;
+    fn mutable_into_insert(val: Self::Mutable) -> Self;
 
     #[doc(hidden)]
     fn get_referer_unchecked() -> Self::Referer;

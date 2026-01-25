@@ -20,7 +20,6 @@ use crate::{
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
     value::{MyTyp, OptTable, SecretFromSql, ValueBuilder},
-    writable::TableInsert,
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -411,11 +410,8 @@ impl<S: 'static> Transaction<S> {
     /// assert!(res.is_err(), "there is a unique constraint on the name");
     /// # });
     /// ```
-    pub fn insert<T: Table<Schema = S>>(
-        &mut self,
-        val: impl TableInsert<T = T>,
-    ) -> Result<TableRow<T>, T::Conflict> {
-        try_insert_private(T::NAME.into_table_ref(), None, val.into_insert())
+    pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
+        try_insert_private(T::NAME.into_table_ref(), None, val)
     }
 
     /// This is a convenience function to make using [Transaction::insert]
@@ -424,7 +420,7 @@ impl<S: 'static> Transaction<S> {
     /// The new row is added to the table and the row reference is returned.
     pub fn insert_ok<T: Table<Schema = S, Conflict = Infallible>>(
         &mut self,
-        val: impl TableInsert<T = T>,
+        val: T,
     ) -> TableRow<T> {
         let Ok(row) = self.insert(val);
         row
@@ -451,7 +447,7 @@ impl<S: 'static> Transaction<S> {
     /// ```
     pub fn find_or_insert<T: Table<Schema = S, Conflict = TableRow<T>>>(
         &mut self,
-        val: impl TableInsert<T = T>,
+        val: T,
     ) -> TableRow<T> {
         match self.insert(val) {
             Ok(row) => row,
@@ -652,7 +648,7 @@ impl<S: Schema> TransactionWeak<S> {
 pub fn try_insert_private<T: Table>(
     table: sea_query::TableRef,
     idx: Option<i64>,
-    val: T::Insert,
+    val: T,
 ) -> Result<TableRow<T>, T::Conflict> {
     let mut reader = Reader::default();
     T::read(&val, &mut reader);

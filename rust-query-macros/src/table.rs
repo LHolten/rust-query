@@ -93,6 +93,7 @@ fn define_table(
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
+    let table_template = format_ident!("{table_ident}Template");
     let table_span = byte_range(source, table_ident_with_span.span());
 
     let unique_tree = table.make_unique_tree();
@@ -202,9 +203,9 @@ fn define_table(
 
     Ok(quote! {
         #(#table_doc_comments)*
-        pub struct #table_ident_with_span<#(#generic = ()),*> {#(
+        pub struct #table_ident_with_span {#(
             #(#col_doc)*
-            pub #col_ident: #generic,
+            pub #col_ident: <#col_typ as ::rust_query::private::MyTyp>::Out,
         )*}
 
         #[doc(hidden)]
@@ -224,7 +225,13 @@ fn define_table(
         )*
 
         const _: () = {
-            type #alias_ident<#(#generic),*> = #table_ident<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
+            #[doc(hidden)]
+            pub struct #table_template<#(#generic),*> {#(
+                #(#col_doc)*
+                pub #col_ident: #generic,
+            )*}
+
+            type #alias_ident<#(#generic),*> = #table_template<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
 
             pub struct #mut_ident {
                 #private: #immut_ident,
@@ -271,7 +278,6 @@ fn define_table(
                 const SPAN: (usize, usize) = #table_span;
 
                 type Conflict = #conflict_type;
-                type Insert = (#alias_ident<#(#empty ::rust_query::private::AsExpr<'static>),*>);
                 type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
                 type Mutable = #mut_ident;
 
@@ -289,19 +295,19 @@ fn define_table(
                     &mut val.#private
                 }
 
-                fn read(val: &Self::Insert, f: &mut ::rust_query::private::Reader<Self::Schema>) {
+                fn read(val: &Self, f: &mut ::rust_query::private::Reader<Self::Schema>) {
                     #(f.col(#col_str, &val.#col_ident);)*
                 }
-                fn mutable_into_insert(val: Self::Mutable) -> Self::Insert {
-                    Self::Insert {
-                        #(#col_ident_mut: ::rust_query::IntoExpr::into_expr(val.#col_ident_mut)),*
-                        #(#col_ident_immut: ::rust_query::IntoExpr::into_expr(val.#private.#col_ident_immut)),*
+                fn mutable_into_insert(val: Self::Mutable) -> Self {
+                    Self {
+                        #(#col_ident_mut: val.#col_ident_mut,)*
+                        #(#col_ident_immut: val.#private.#col_ident_immut,)*
                     }
                 }
 
                 fn get_conflict_unchecked(
                     txn: &::rust_query::Transaction<Self::Schema>,
-                    val: &Self::Insert
+                    val: &Self
                 ) -> Self::Conflict {
                     #conflict_dummy_insert
                 }
@@ -314,24 +320,12 @@ fn define_table(
                 fn get_lazy<'t>(txn: &'t ::rust_query::Transaction<Self::Schema>, row: ::rust_query::TableRow<Self>) -> Self::Lazy<'t> {
                     let col = ::rust_query::IntoExpr::<'_, #schema>::into_expr(row);
                     let #wrap_ident = txn.query_one(#wrap_parts);
-                    #table_ident {
+                    Self::Lazy {
                         #(#col_ident: <#col_typ as ::rust_query::private::MyTyp>::out_to_lazy(#col_ident),)*
                     }
                 }
             }
         };
-
-        impl<#(#generic),*> ::rust_query::private::TableInsert for #table_ident<#(#generic),*>
-        where
-            #(#generic: ::rust_query::IntoExpr<'static, #schema, Typ = #col_typ>,)*
-        {
-            type T = #table_ident;
-            fn into_insert(self) -> <Self::T as ::rust_query::Table>::Insert {
-                #table_ident {#(
-                    #col_ident: ::rust_query::IntoExpr::into_expr(self.#col_ident),
-                )*}
-            }
-        }
 
         const _: () = {
             #unique_helpers

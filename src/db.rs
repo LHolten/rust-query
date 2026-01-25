@@ -10,6 +10,18 @@ pub struct TableRow<T: Table> {
     pub(crate) inner: TableRowInner<T>,
 }
 
+impl<T: Table> TableRow<T> {
+    pub(crate) fn migrate_row(prev: TableRow<T::MigrateFrom>) -> Self {
+        Self {
+            _local: PhantomData,
+            inner: TableRowInner {
+                _p: PhantomData,
+                idx: prev.inner.idx,
+            },
+        }
+    }
+}
+
 impl<T: Table> Eq for TableRow<T> {}
 
 impl<T: Table> PartialOrd for TableRow<T> {

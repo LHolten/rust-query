@@ -84,9 +84,8 @@ fn define_table_migration(
     always_migrate: bool,
     new_mod: &TokenStream,
 ) -> syn::Result<Option<TokenStream>> {
-    let mut col_new = vec![];
-    let mut col_ident = vec![];
     let mut alter_ident = vec![];
+    let mut old_ident = vec![];
     let mut alter_typ = vec![];
     let mut alter_tmp = vec![];
 
@@ -96,20 +95,18 @@ fn define_table_migration(
     for (i, col) in &table.columns {
         let name = &col.name;
         if prev_columns.contains_key(i) {
-            col_new.push(quote! {&prev.#name});
+            old_ident.push(name);
         } else {
             let mut unique_columns = table.indices.iter().flat_map(|u| &u.columns);
             if unique_columns.any(|c| c == name) {
                 migration_conflict = quote! {::rust_query::TableRow<Self::From>};
                 conflict_from = quote! {val};
             }
-            col_new.push(quote! {val.#name});
 
             alter_ident.push(name);
             alter_typ.push(&col.typ);
             alter_tmp.push(format_ident!("Tmp{i}"))
         }
-        col_ident.push(name);
     }
 
     // check that nothing was added or removed
@@ -141,11 +138,12 @@ fn define_table_migration(
 
             fn prepare(
                 val: Self,
-                prev: ::rust_query::Expr<'static, Self::FromSchema, Self::From>,
-            ) -> <Self::To as ::rust_query::Table>::Insert {
-                #new_mod::#table_ident {#(
-                    #col_ident: ::rust_query::Expr::_migrate::<Self::FromSchema>(#col_new),
-                )*}
+                prev: ::rust_query::Lazy<'_, Self::From>,
+            ) -> Self::To {
+                #new_mod::#table_ident {
+                    #(#old_ident: ::rust_query::private::MigrateTyp::from_lazy(&prev.#old_ident),)*
+                    #(#alter_ident: ::rust_query::private::MigrateTyp::migrate(val.#alter_ident),)*
+                }
             }
 
             fn map_conflict(val: ::rust_query::TableRow<Self::From>) -> Self::Conflict {

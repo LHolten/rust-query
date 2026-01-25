@@ -315,7 +315,7 @@ pub trait MyTyp: Sized + 'static {
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: SecretFromSql;
+    type Out: SecretFromSql + MigrateTyp<From = <Self::Prev as MyTyp>::Out>;
     type Lazy<'t>;
     type Ext<'t>;
     type Sql: Nullable;
@@ -650,5 +650,53 @@ impl<'t, T: Table> Deref for Expr<'t, T::Schema, T> {
             };
             Box::new(T::build_ext2(&expr))
         }))
+    }
+}
+
+pub trait MigrateTyp {
+    type From;
+    type Lazy<'x>;
+    fn migrate(prev: Self::From) -> Self;
+    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self;
+}
+macro_rules! impl_migrate {
+    ($typ:ty) => {
+        impl MigrateTyp for $typ {
+            type From = Self;
+            type Lazy<'x> = Self;
+            fn migrate(prev: Self) -> Self {
+                prev
+            }
+            fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+                lazy.clone()
+            }
+        }
+    };
+}
+impl_migrate!(i64);
+impl_migrate!(String);
+impl_migrate!(bool);
+impl_migrate!(Vec<u8>);
+impl_migrate!(f64);
+
+impl<T: MigrateTyp> MigrateTyp for Option<T> {
+    type From = Option<T::From>;
+    type Lazy<'x> = Option<T::Lazy<'x>>;
+    fn migrate(prev: Self::From) -> Self {
+        prev.map(T::migrate)
+    }
+    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+        lazy.as_ref().map(T::from_lazy)
+    }
+}
+
+impl<T: Table> MigrateTyp for TableRow<T> {
+    type From = TableRow<<T as MyTyp>::Prev>;
+    type Lazy<'x> = Lazy<'x, <T as MyTyp>::Prev>;
+    fn migrate(prev: Self::From) -> Self {
+        TableRow::migrate_row(prev)
+    }
+    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+        TableRow::migrate_row(lazy.table_row())
     }
 }

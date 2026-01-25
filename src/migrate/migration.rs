@@ -8,7 +8,7 @@ use std::{
 use sea_query::{Alias, IntoTableRef, TableDropStatement};
 
 use crate::{
-    IntoExpr, Lazy, Table, TableRow, Transaction,
+    Lazy, Table, TableRow, Transaction,
     alias::{Scope, TmpTable},
     migrate::new_table_inner,
     transaction::try_insert_private,
@@ -21,10 +21,7 @@ pub trait Migration {
     type Conflict;
 
     #[doc(hidden)]
-    fn prepare(
-        val: Self,
-        prev: crate::Expr<'static, Self::FromSchema, Self::From>,
-    ) -> <Self::To as Table>::Insert;
+    fn prepare(val: Self, prev: Lazy<'_, Self::From>) -> Self::To;
     #[doc(hidden)]
     fn map_conflict(val: TableRow<Self::From>) -> Self::Conflict;
 }
@@ -91,12 +88,10 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 
         for row in self.unmigrated::<M>(new_name) {
             if let Some(new) = f(self.lazy(row)) {
-                try_insert_private::<M::To>(
-                    new_name.into_table_ref(),
-                    Some(row.inner.idx),
-                    M::prepare(new, row.into_expr()),
-                )
-                .map_err(|_| M::map_conflict(row))?;
+                // TODO: deduplicate this self.lazy call
+                let val = M::prepare(new, self.lazy(row));
+                try_insert_private::<M::To>(new_name.into_table_ref(), Some(row.inner.idx), val)
+                    .map_err(|_| M::map_conflict(row))?;
             };
         }
         Ok(())

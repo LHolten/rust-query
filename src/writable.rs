@@ -1,12 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{IntoExpr, Table, value::DynTypedExpr};
-
-/// this trait has to be implemented by the `schema` macro.
-pub trait TableInsert {
-    type T: Table;
-    fn into_insert(self) -> <Self::T as Table>::Insert;
-}
+use crate::{IntoExpr, value::DynTypedExpr};
 
 pub struct Reader<S> {
     pub(crate) builder: Vec<(&'static str, DynTypedExpr)>,

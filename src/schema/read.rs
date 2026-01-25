@@ -58,7 +58,6 @@ macro_rules! table {
             fn typs(_f: &mut schema::from_macro::TypBuilder<Self::Schema>) {}
 
             type Conflict = Infallible;
-            type Insert = ();
             type Lazy<'t> = ();
             type Mutable = NoMut;
 
@@ -70,17 +69,17 @@ macro_rules! table {
             fn mutable_as_unique(_val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target {
                 unreachable!()
             }
-            fn mutable_into_insert(_val: Self::Mutable) -> Self::Insert {
+            fn mutable_into_insert(_val: Self::Mutable) -> Self {
                 unreachable!()
             }
 
-            fn read(_val: &Self::Insert, _f: &mut Reader<Self::Schema>) {
+            fn read(_val: &Self, _f: &mut Reader<Self::Schema>) {
                 unreachable!()
             }
 
             fn get_conflict_unchecked(
                 _txn: &crate::Transaction< Self::Schema>,
-                _val: &Self::Insert,
+                _val: &Self,
             ) -> Self::Conflict {
                 unreachable!()
             }
