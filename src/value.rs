@@ -266,19 +266,6 @@ where
     }
 }
 
-/// Use this a value in a query to get the current datetime as a number of seconds.
-#[derive(Clone, Copy)]
-#[deprecated = "Use `Expr::unix_epoch` instead"]
-pub struct UnixEpoch;
-
-#[expect(deprecated)]
-impl<'column, S> IntoExpr<'column, S> for UnixEpoch {
-    type Typ = i64;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(|_| sea_query::Expr::cust("unixepoch('now')"))
-    }
-}
-
 pub trait OptTable: MyTyp {
     type Schema;
     type Select;

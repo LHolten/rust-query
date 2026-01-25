@@ -38,8 +38,6 @@ pub use lazy::Lazy;
 pub use mutable::Mutable;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
-#[expect(deprecated)]
-pub use value::UnixEpoch;
 pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
 pub use value::{Expr, IntoExpr, optional::optional};

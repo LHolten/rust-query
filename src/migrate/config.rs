@@ -120,20 +120,4 @@ impl Config {
             foreign_keys: ForeignKeys::SQLite,
         }
     }
-
-    /// Append a raw sql statement to be executed if the database was just created.
-    ///
-    /// The statement is executed after creating the empty database and executing all previous statements.
-    ///
-    /// [crate::migration::Migrator::fixup] should be prefered over this method.
-    #[deprecated(note = "Please use [crate::migration::Migrator::fixup] instead.")]
-    pub fn init_stmt(mut self, sql: &'static str) -> Self {
-        self.init = Box::new(move |txn| {
-            (self.init)(txn);
-
-            txn.execute_batch(sql)
-                .expect("raw sql statement to populate db failed");
-        });
-        self
-    }
 }
