@@ -2,6 +2,7 @@
 
 - Removed deprecated methods and types.
 - Change table insert structs to not be generic.
+- Add required feature `base0` to prevent future breakage.
 
 # 0.6.11
 

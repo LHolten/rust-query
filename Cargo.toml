@@ -76,9 +76,12 @@ serde = { version = "1.0.228", features = ["derive"] }
 mutants = "=0.0.3"
 
 [features]
-default = ["dev"]
+default = ["dev", "base0"]
 bundled = ["rusqlite/bundled"]
 dev = ["dep:k12"]
+# this feature is required for everything, it allows making
+# anything optional without breaking dependent crates.
+base0 = []
 
 # this adds some additional default impls to help cargo-mutants.
 # do not enable this for for other reasons.
