@@ -1,7 +1,8 @@
-use sea_query::Nullable;
+use std::rc::Rc;
 
 use crate::{
     Expr, Lazy, Table, TableRow,
+    lower::{self, ord_rc::OrdRc},
     value::{DbTyp, EqTyp},
 };
 
@@ -32,18 +33,16 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: EqTyp> IntoExpr<'column, S
     type Typ = Option<X>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
         let this = self.map(|x| x.into_expr().inner);
-        Expr::adhoc(move |b| {
-            this.as_ref()
-                .map(|x| (x.func)(b))
-                .unwrap_or(<X::Sql as Nullable>::null().into())
-        })
+
+        // TODO: check if the original expression is a parameter and then upgrade the parameter to be nullable instead
+        Expr::new(this.unwrap_or_else(|| Rc::new(lower::Expr::Constant("NULL"))))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for String {
     type Typ = String;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self.clone()))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
     }
 }
 
@@ -57,7 +56,7 @@ impl<'column, S> IntoExpr<'column, S> for &str {
 impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     type Typ = Vec<u8>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self.clone()))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
     }
 }
 
@@ -71,20 +70,20 @@ impl<'column, S> IntoExpr<'column, S> for &[u8] {
 impl<'column, S> IntoExpr<'column, S> for bool {
     type Typ = bool;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
     }
 }
 impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
     }
 }
 
@@ -97,7 +96,7 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
 impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
     type Typ = Self;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self.out_to_value()))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(self.out_to_value())))
     }
 }
 
@@ -109,7 +108,7 @@ impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
     type Typ = Self;
 
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(move |_| sea_query::Expr::from(self.out_to_value()))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(self.out_to_value())))
     }
 }
 
@@ -128,7 +127,7 @@ impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
     fn into_expr(self) -> Expr<'static, T::Schema, Self::Typ> {
         let idx = self.inner.idx;
 
-        Expr::adhoc(move |_| sea_query::Expr::val(idx))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(idx))))
     }
 }
 

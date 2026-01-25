@@ -1,5 +1,5 @@
 use std::{
-    fmt::{self, Display, Write, write},
+    fmt::{self, Display, Write},
     mem::replace,
 };
 

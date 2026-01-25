@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use crate::private::{Token, get_token};
 
+use crate::lower;
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum TokenTree {
     Token(String),
@@ -94,11 +96,7 @@ pub fn get_check_constraint(sql: &str, col: &str) -> Option<Parsed> {
         })
         .expect("expected column defs");
 
-    let mut col_encoded = String::new();
-    sea_query::SqliteQueryBuilder.prepare_column_ref(
-        &sea_query::Alias::new(col).into_column_ref(),
-        &mut col_encoded,
-    );
+    let col_encoded = lower::list_writer::Alias(col).to_string();
     let col_token = TokenTree::Token(col_encoded);
     let col_token_alt = TokenTree::Token(col.to_owned());
 

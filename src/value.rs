@@ -11,11 +11,9 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
 use crate::{
     IntoExpr, IntoSelect, Select, Table,
-    alias::{Field, JoinableTable, MyAlias, Scope},
-    ast::{MySelect, Source},
     db::TableRow,
+    lower::{self, ord_rc::OrdRc},
     mutable::Mutable,
-    mymap::MyMap,
     private::IntoJoinable,
 };
 pub use db_typ::{DbTyp, StorableTyp};
@@ -141,14 +139,14 @@ impl PartialEq for MyTableRef {
 }
 
 pub trait NumTyp: OrdTyp + Clone + Copy {
-    const ZERO: sea_query::Value;
+    const ZERO: &str;
 }
 
 impl NumTyp for i64 {
-    const ZERO: sea_query::Value = sea_query::Value::BigInt(Some(0));
+    const ZERO: &str = "0";
 }
 impl NumTyp for f64 {
-    const ZERO: sea_query::Value = sea_query::Value::Double(Some(0.));
+    const ZERO: &str = "0.0";
 }
 
 pub trait OrdTyp: EqTyp {}
@@ -237,7 +235,7 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
 pub struct Expr<'column, S, T: DbTyp> {
     pub(crate) _local: PhantomData<*const ()>,
-    pub(crate) inner: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>,
+    pub(crate) inner: Rc<lower::Expr>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
@@ -254,14 +252,12 @@ impl<'column, S, T: DbTyp> Expr<'column, S, T> {
     /// Extremely easy to use API. Should only be used by the macro to implement migrations.
     #[doc(hidden)]
     pub fn _migrate<OldS>(prev: impl IntoExpr<'column, OldS>) -> Self {
-        let prev = DynTypedExpr::erase(prev);
-        Self::adhoc(move |b| (prev.func)(b))
+        let prev = prev.into_expr().inner;
+        Self::new(prev)
     }
 }
 
-pub fn adhoc_expr<S, T: DbTyp>(
-    f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
-) -> Expr<'static, S, T> {
+pub fn adhoc_expr<S, T: DbTyp>(f: lower::Expr) -> Expr<'static, S, T> {
     Expr::adhoc(f)
 }
 
@@ -296,22 +292,12 @@ pub struct AdHoc<F: ?Sized, T: ?Sized> {
     func: F,
 }
 
-impl<F: ?Sized + Fn(&mut ValueBuilder) -> sea_query::Expr, T> AdHoc<F, T> {
-    pub fn build_expr(&self, b: &mut ValueBuilder) -> sea_query::Expr {
-        (self.func)(b)
-    }
-}
-
 impl<S, T: DbTyp> Expr<'_, S, T> {
-    pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
-        Self::new(Rc::new(AdHoc {
-            func: f,
-            maybe_optional,
-            _p: PhantomData,
-        }))
+    pub(crate) fn adhoc(e: lower::Expr) -> Self {
+        Self::new(Rc::new(e))
     }
 
-    pub(crate) fn new(val: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>) -> Self {
+    pub(crate) fn new(val: Rc<lower::Expr>) -> Self {
         Self {
             _local: PhantomData,
             inner: val,

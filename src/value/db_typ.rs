@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, marker::PhantomData};
+use std::{cell::OnceCell, marker::PhantomData, rc::Rc};
 
 use sea_query::{ExprTrait, Nullable};
 
@@ -18,14 +18,14 @@ pub trait DbTyp: Sized + 'static {
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
     type Ext<'t>;
-    type Sql: Nullable;
+    type Sql;
 
     type FromLazy<'x>;
     type Lazy<'t>: Sized;
 
     fn migrate(prev: Self::Prev) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
-    fn out_to_value(self) -> sea_query::Value;
+    fn out_to_value(self) -> Rc<dyn rusqlite::ToSql>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>

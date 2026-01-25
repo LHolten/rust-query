@@ -1,6 +1,6 @@
 mod emit;
 pub(crate) mod list_writer;
-mod ord_rc;
+pub(crate) mod ord_rc;
 
 use std::{collections::BTreeSet, rc::Rc};
 
