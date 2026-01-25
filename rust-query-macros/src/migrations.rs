@@ -4,7 +4,7 @@ use crate::{
     multi::{SingleVersionColumn, SingleVersionTable},
     to_lower,
 };
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::Ident;
 
@@ -21,9 +21,10 @@ pub fn migrations(
     let mut table_migrations = TokenStream::new();
     // loop over all new table and see what changed
     for (i, table) in new_tables {
-        let table_name = &table.name;
+        let mut table_name = table.name.clone();
+        table_name.set_span(Span::call_site());
 
-        let table_lower = to_lower(table_name);
+        let table_lower = to_lower(&table_name);
 
         if let Some(prev_table) = prev_tables.remove(i) {
             // a table already existed, so we need to define a migration
@@ -36,7 +37,7 @@ pub fn migrations(
             table_migrations.extend(migration);
 
             create_table_lower.push(table_lower);
-            create_table_name.push(table_name);
+            create_table_name.push(table_name.clone());
 
             tables.push(quote! {b.drop_table::<#prev_mod::#table_name>()})
         } else if table.prev.is_some() {
@@ -115,7 +116,8 @@ fn define_table_migration(
         return Ok(None);
     }
 
-    let table_ident = &table.name;
+    let mut table_ident = table.name.clone();
+    table_ident.set_span(Span::call_site());
     let typs_mod = format_ident!("_{table_ident}");
 
     let migration = quote! {

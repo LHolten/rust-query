@@ -211,7 +211,7 @@ fn define_table(
         #[doc(hidden)]
         pub struct #table_helper(());
         #[allow(non_upper_case_globals)]
-        pub const #table_ident_with_span: #table_helper = #table_helper(());
+        pub const #table_ident: #table_helper = #table_helper(());
 
         impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #table_helper {
             type Typ = #table_ident;
