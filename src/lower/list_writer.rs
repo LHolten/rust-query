@@ -1,5 +1,5 @@
 use std::{
-    fmt::{self, Write},
+    fmt::{self, Display, Write, write},
     mem::replace,
 };
 
@@ -27,5 +27,20 @@ impl<'a> ListWriter<'a> {
             write!(&mut self.writer, "{val}")?;
         }
         Ok(())
+    }
+}
+
+pub struct Alias<'a>(pub &'a str);
+impl Display for Alias<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_char('"')?;
+        let mut input = self.0;
+        while let Some(pos) = input.find('"') {
+            f.write_str(&input[..pos + 1])?;
+            f.write_char('"')?;
+            input = &input[pos + 1..];
+        }
+        f.write_str(input)?;
+        f.write_char('"')
     }
 }

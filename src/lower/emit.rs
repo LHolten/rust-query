@@ -1,11 +1,12 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
-    rc::{self, Rc},
+    rc::Rc,
 };
 
 use crate::lower::{
-    Expr, Join, JoinableTable, RowLike, SelectVec, Unique, list_writer::ListWriter,
+    Expr, Join, JoinableTable, RowLike, SelectVec, Unique,
+    list_writer::{Alias, ListWriter},
 };
 
 struct SelectInfo {
@@ -13,7 +14,7 @@ struct SelectInfo {
     /// These are joined distinct to not influence the aggregate
     forwarded: BTreeSet<Join>,
     // unique and aggregate are similar, they don't change number of rows
-    aggregate: BTreeMap<SelectVec, SelectInfo>,
+    aggregate: BTreeMap<Rc<SelectVec>, SelectInfo>,
     unique: BTreeSet<Unique>,
     // The results returned from the aggregate or select
     select: BTreeSet<Rc<Expr>>,
@@ -21,7 +22,7 @@ struct SelectInfo {
 
 // All the information required to write sql
 struct SelectInfoVecs {
-    rows: SelectVec,
+    rows: Rc<SelectVec>,
     forwarded: Vec<Join>,
     aggregate: Vec<SelectInfoVecs>,
     unique: Vec<Unique>,
@@ -29,7 +30,7 @@ struct SelectInfoVecs {
 }
 
 impl SelectInfo {
-    pub fn into_vecs(self, from: SelectVec) -> SelectInfoVecs {
+    pub fn into_vecs(self, from: Rc<SelectVec>) -> SelectInfoVecs {
         SelectInfoVecs {
             rows: from,
             forwarded: self.forwarded.into_iter().collect(),
@@ -70,6 +71,11 @@ impl SelectInfoVecs {
                 self.emit_joinable(list_item, &join.0)?;
                 write!(list_item, " AS j{join_idx}")?;
             }
+            for (forwarded_idx, forwarded) in self.forwarded.iter().enumerate() {
+                let list_item = list.item()?;
+                self.emit_joinable(list_item, &forwarded.0)?;
+                write!(list_item, " AS f{forwarded_idx}")?;
+            }
             list.default("(SELECT 1)")?;
 
             for (unique_idx, unique) in self.unique.iter().enumerate() {
@@ -81,7 +87,7 @@ impl SelectInfoVecs {
                     let mut list = ListWriter::new(w, " AND ");
                     for (col, expr) in &unique.conds {
                         let list_item = list.item()?;
-                        write!(list_item, "u{unique_idx}.{col} = ")?;
+                        write!(list_item, "u{unique_idx}.{} = ", Alias(col))?;
                         self.emit_expr(list_item, expr)?;
                     }
                 }
@@ -124,7 +130,7 @@ impl SelectInfoVecs {
 
     pub fn emit_joinable(&self, w: &mut dyn Write, joinable: &JoinableTable) -> fmt::Result {
         match joinable {
-            JoinableTable::Table(name) => write!(w, "main.{name}"),
+            JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
             JoinableTable::Pragma(_, items) => todo!(),
         }
     }
@@ -156,11 +162,11 @@ impl SelectInfoVecs {
             Expr::RowIndex(row_like, col) => match row_like.as_ref() {
                 RowLike::Join(join) => {
                     self.emit_join(w, join)?;
-                    write!(w, ".{col}")
+                    write!(w, ".{}", Alias(col))
                 }
                 RowLike::Unique(unique) => {
                     let unique_idx = self.unique.binary_search(unique).unwrap();
-                    write!(w, "u{unique_idx}.{col}")
+                    write!(w, "u{unique_idx}.{}", Alias(col))
                 }
             },
             Expr::Prefix(prefix, expr) => {
@@ -186,82 +192,56 @@ impl SelectInfoVecs {
     }
 }
 
-// impl SelectInfo {
+impl SelectInfo {
+    pub fn new(rows: &SelectVec) -> Self {
+        let mut out = Self {
+            forwarded: BTreeSet::new(),
+            aggregate: BTreeMap::new(),
+            unique: BTreeSet::new(),
+            select: BTreeSet::new(),
+        };
+        for expr in &rows.filter {
+            out.analyze(rows, expr);
+        }
+        out
+    }
 
-//     pub fn new(select: Select) -> Self {
-//         let mut out = SelectInfo {
-//             from: select
-//                 .from
-//                 .into_iter()
-//                 .enumerate()
-//                 .map(|(idx, val)| (val, TableAlias::Join(idx)))
-//                 .collect(),
-//             unique: BTreeMap::new(),
-//             filter: BTreeMap::new(),
-//             forwarded: BTreeMap::new(),
-//             select: BTreeMap::new(),
-//         };
-//         for expr in select.filter {
-//             out.filter(expr);
-//         }
-//         out
-//     }
+    pub fn add_select(&mut self, rows: &SelectVec, expr: &Rc<Expr>) {
+        if self.select.insert(expr.clone()) {
+            self.analyze(rows, expr);
+        }
+    }
 
-//     pub fn select_alias(&mut self, val: Rc<Expr>) -> ColAlias {
-//         if let Some(ops) = self.select.get(&val) {
-//             return ops.alias;
-//         }
-//         let emitted = self.emit(&val);
-//         let alias = ColAlias::Select(self.select.len());
-//         let options = SelectOptions { emitted, alias };
-//         assert!(self.select.insert(val, options).is_none());
-//         alias
-//     }
-
-//     fn emit(&mut self, expr: &Expr) -> String {
-//         match expr {
-//             Expr::Constant(val) => (*val).to_owned(),
-//             Expr::Parameter(ord_rc) => (),
-//             Expr::AggrIndex(select, expr) => {}
-//             Expr::RowIndex(row_like, _) => todo!(),
-//             Expr::Prefix(_, expr) => self.emit(expr),
-//             Expr::Infix(expr, _, expr1) => todo!(),
-//             Expr::Func(_, exprs) => todo!(),
-//         }
-//     }
-
-//     fn join_alias(&mut self, join: Join) -> TableAlias {
-//         if let Some(from) = self.from.get(&join) {
-//             return *from;
-//         }
-//         let next = self.forwarded.len();
-//         let idx = *self.forwarded.entry(join).or_insert(next);
-//         TableAlias::Forward(idx)
-//     }
-
-//     fn unique_alias(&mut self, unique: Unique) -> TableAlias {
-//         if let Some(val) = self.unique.get(&unique) {
-//             return val.alias;
-//         }
-//         let emitted_conds: Vec<_> = unique.conds.iter().map(|(_, v)| self.emit(v)).collect();
-//         // reserve new alias after emitting all conds
-//         let alias = TableAlias::Unique(self.unique.len());
-//         let options = UniqueOptions {
-//             alias,
-//             filter: false,
-//             emitted_conds,
-//         };
-//         assert!(self.unique.insert(unique, options,).is_none());
-//         alias
-//     }
-
-//     fn filter(&mut self, expr: Rc<Expr>) {
-//         if self.filter.contains_key(&expr) {
-//             return;
-//         }
-//         // TODO: if the expr checks that some tableidx is some, we might be able
-//         // to change joinoptions instead of filtering.
-//         let emitted = self.emit(&expr);
-//         assert!(self.filter.insert(expr, emitted).is_none());
-//     }
-// }
+    fn analyze(&mut self, rows: &SelectVec, expr: &Expr) {
+        match expr {
+            Expr::Constant(_const) => {}
+            Expr::Parameter(_ord_rc) => {}
+            Expr::AggrIndex(aggr_rows, expr) => {
+                self.aggregate
+                    .entry(aggr_rows.clone())
+                    .or_insert_with(|| Self::new(aggr_rows))
+                    .add_select(aggr_rows, expr);
+            }
+            Expr::RowIndex(row_like, _col) => match row_like.as_ref() {
+                RowLike::Join(join) => {
+                    if !rows.from.contains(join) {
+                        self.forwarded.insert(join.clone());
+                    }
+                }
+                RowLike::Unique(unique) => {
+                    self.unique.insert(unique.clone());
+                }
+            },
+            Expr::Prefix(_prefix, expr) => self.analyze(rows, expr),
+            Expr::Infix(lhs, _infix, rhs) => {
+                self.analyze(rows, lhs);
+                self.analyze(rows, rhs);
+            }
+            Expr::Func(_func, exprs) => {
+                for expr in exprs.as_ref() {
+                    self.analyze(rows, expr);
+                }
+            }
+        }
+    }
+}
