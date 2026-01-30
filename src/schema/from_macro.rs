@@ -94,39 +94,39 @@ pub trait SchemaType<S>: for<'x> IntoExpr<'x, S> + MigrateTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t>;
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self>;
 }
 
 impl<S> SchemaType<S> for bool {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
     }
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
         self
     }
 }
 impl<S> SchemaType<S> for String {
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
         self
     }
 }
 impl<S> SchemaType<S> for Vec<u8> {
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
         self
     }
 }
 impl<S> SchemaType<S> for i64 {
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
         self
     }
 }
 impl<S> SchemaType<S> for f64 {
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
         self
     }
 }
 impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
         todo!()
     }
 }

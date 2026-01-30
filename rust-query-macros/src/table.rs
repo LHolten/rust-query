@@ -93,7 +93,8 @@ fn define_table(
     let table_ident = &table.name;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
-    let table_template = format_ident!("{table_ident}Template");
+    let table_lazy = format_ident!("{table_ident}Lazy");
+    let table_expr = format_ident!("{table_ident}Expr");
     let table_span = byte_range(source, table_ident_with_span.span());
 
     let unique_tree = table.make_unique_tree();
@@ -174,7 +175,6 @@ fn define_table(
         empty.push(quote! {});
     }
 
-    let alias_ident = format_ident!("{}Alias", table_ident);
     let mut_ident = format_ident!("{}Mut", table_ident);
     let immut_ident = format_ident!("{}Immut", table_ident);
 
@@ -225,13 +225,21 @@ fn define_table(
         )*
 
         const _: () = {
-            #[doc(hidden)]
-            pub struct #table_template<#(#generic),*> {#(
-                #(#col_doc)*
-                pub #col_ident: #generic,
-            )*}
+            pub struct #table_lazy<'x> {
+                #(
+                    #(#col_doc)*
+                    pub #col_ident: ::rust_query::private::SchemaTypLazy<'x, #schema, #col_typ>,
+                )*
+                #private: ::std::marker::PhantomData<&'x ()>
+            }
 
-            type #alias_ident<#(#generic),*> = #table_template<#(<#generic as ::rust_query::private::Apply>::Out<#col_typ, #schema>),*>;
+            pub struct #table_expr<'x> {
+                #(
+                    #(#col_doc)*
+                    pub #col_ident: ::rust_query::private::SchemaTypExpr<'x, #schema, #col_typ>,
+                )*
+                #private: ::std::marker::PhantomData<&'x ()>
+            }
 
             pub struct #mut_ident {
                 #private: #immut_ident,
@@ -253,7 +261,7 @@ fn define_table(
             impl ::rust_query::Table for #table_ident {
                 type MigrateFrom = #migrate_from;
 
-                type Ext2<'t> = #alias_ident<#(#empty ::rust_query::private::AsExpr<'t>),*>;
+                type Ext2<'t> = #table_expr<'t>;
 
                 fn covariant_ext<'x, 't>(val: &'x Self::Ext2<'static>) -> &'x Self::Ext2<'t> {
                     val
@@ -262,6 +270,7 @@ fn define_table(
                 fn build_ext2<'t>(val: &::rust_query::Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t> {
                     Self::Ext2 {
                         #(#col_ident: ::rust_query::private::new_column(val, #col_str),)*
+                        #private: ::std::marker::PhantomData,
                     }
                 }
 
@@ -278,7 +287,7 @@ fn define_table(
                 const SPAN: (usize, usize) = #table_span;
 
                 type Conflict = #conflict_type;
-                type Lazy<'t> = (#alias_ident<#(#empty ::rust_query::private::Lazy<'t>),*>);
+                type Lazy<'t> = #table_lazy<'t>;
                 type Mutable = #mut_ident;
 
                 fn select_mutable(col: ::rust_query::Expr<'_, Self::Schema, Self>)
@@ -322,6 +331,7 @@ fn define_table(
                     let #wrap_ident = txn.query_one(#wrap_parts);
                     Self::Lazy {
                         #(#col_ident: <#col_typ as ::rust_query::private::SchemaType<Self::Schema>>::out_to_lazy(#col_ident),)*
+                        #private: ::std::marker::PhantomData,
                     }
                 }
             }
