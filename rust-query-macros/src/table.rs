@@ -228,7 +228,7 @@ fn define_table(
             pub struct #table_lazy<'x> {
                 #(
                     #(#col_doc)*
-                    pub #col_ident: ::rust_query::private::SchemaTypLazy<'x, #col_typ>,
+                    pub #col_ident: <#col_typ as ::rust_query::private::MigrateTyp>::Lazy<'x>,
                 )*
                 #private: ::std::marker::PhantomData<&'x ()>
             }
@@ -236,7 +236,7 @@ fn define_table(
             pub struct #table_expr<'x> {
                 #(
                     #(#col_doc)*
-                    pub #col_ident: ::rust_query::private::SchemaTypExpr<'x, #schema, #col_typ>,
+                    pub #col_ident: ::rust_query::Expr<'x, #schema, <#col_typ as ::rust_query::private::MigrateTyp>::ExprTyp>,
                 )*
                 #private: ::std::marker::PhantomData<&'x ()>
             }

@@ -2,7 +2,7 @@ use std::{cell::OnceCell, fmt::Debug, ops::Deref};
 
 #[cfg(doc)]
 use crate::FromExpr;
-use crate::{IntoExpr, Table, TableRow, Transaction, value::SecretFromSql};
+use crate::{IntoExpr, Table, TableRow, Transaction};
 
 /// [Lazy] can be used to read any column of a table row and its parents.
 /// Columns are loaded on demand, one row at at time.
@@ -71,16 +71,6 @@ impl<'transaction, T: Table> Deref for Lazy<'transaction, T> {
     fn deref(&self) -> &Self::Target {
         self.lazy
             .get_or_init(|| Box::new(T::get_lazy(self.txn, self.id)))
-    }
-}
-
-impl<'transaction, T: Table> SecretFromSql for Lazy<'transaction, T> {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(Self {
-            id: TableRow::from_sql(value)?,
-            lazy: OnceCell::new(),
-            txn: Transaction::new_ref(),
-        })
     }
 }
 

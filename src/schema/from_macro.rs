@@ -90,7 +90,7 @@ impl<S> TypBuilder<S> {
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
-pub trait SchemaType<S>: for<'x> IntoExpr<'x, S> + MigrateTyp {
+pub trait SchemaType<S>: for<'x> IntoExpr<'x, S, Typ = Self::ExprTyp> + MigrateTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
@@ -142,6 +142,7 @@ impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {
 }
 
 pub trait MigrateTyp {
+    type ExprTyp: MyTyp;
     type From;
     type FromLazy<'x>;
     fn migrate(prev: Self::From) -> Self;
@@ -153,6 +154,7 @@ pub trait MigrateTyp {
 macro_rules! impl_migrate {
     ($typ:ty) => {
         impl MigrateTyp for $typ {
+            type ExprTyp = Self;
             type From = Self;
             type FromLazy<'x> = Self;
             fn migrate(prev: Self) -> Self {
@@ -177,7 +179,8 @@ impl_migrate!(bool);
 impl_migrate!(Vec<u8>);
 impl_migrate!(f64);
 
-impl<T: MigrateTyp> MigrateTyp for Option<T> {
+impl<T: MigrateTyp<ExprTyp: EqTyp>> MigrateTyp for Option<T> {
+    type ExprTyp = Option<T::ExprTyp>;
     type From = Option<T::From>;
     type FromLazy<'x> = Option<T::FromLazy<'x>>;
     fn migrate(prev: Self::From) -> Self {
@@ -197,6 +200,7 @@ impl<T: MigrateTyp> MigrateTyp for Option<T> {
 }
 
 impl<T: crate::Table> MigrateTyp for TableRow<T> {
+    type ExprTyp = T;
     type From = TableRow<T::MigrateFrom>;
     type FromLazy<'x> = crate::Lazy<'x, <T as MyTyp>::Prev>;
     fn migrate(prev: Self::From) -> Self {

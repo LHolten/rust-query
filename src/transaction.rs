@@ -323,11 +323,11 @@ impl<S> Transaction<S> {
     /// table valued [Expr].
     ///
     /// [Self::lazy] also works for optional rows, so you can write `txn.lazy(User.email(e))`.
-    pub fn lazy<'t, T: OptTable>(
+    pub fn lazy<'t, T: OptTable<Schema = S>>(
         &'t self,
         val: impl IntoExpr<'static, S, Typ = T>,
-    ) -> <T::Out as MigrateTyp>::Lazy<'t> {
-        T::Out::out_to_lazy(self.query_one(val.into_expr()))
+    ) -> T::Lazy<'t> {
+        T::into_lazy(self, val.into_expr())
     }
 
     /// This retrieves an iterator of [crate::Lazy] values.

@@ -271,17 +271,23 @@ pub trait OptTable: MyTyp {
     type Schema;
     type Select;
     type Mutable<'t>;
+    type Lazy<'t>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select>;
 
     fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t>;
+    fn into_lazy<'t>(
+        txn: &'t Transaction<Self::Schema>,
+        val: Expr<'static, Self::Schema, Self>,
+    ) -> Self::Lazy<'t>;
 }
 
 impl<T: Table> OptTable for T {
     type Schema = T::Schema;
     type Select = (T::Mutable, TableRow<T>);
     type Mutable<'t> = Mutable<'t, T>;
+    type Lazy<'t> = Lazy<'t, T>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
@@ -291,12 +297,23 @@ impl<T: Table> OptTable for T {
     fn into_mutable<'t>((inner, row_id): Self::Select) -> Self::Mutable<'t> {
         Mutable::new(inner, row_id)
     }
+    fn into_lazy<'t>(
+        txn: &'t Transaction<Self::Schema>,
+        val: Expr<'static, Self::Schema, Self>,
+    ) -> Self::Lazy<'t> {
+        Lazy {
+            id: txn.query_one(val),
+            lazy: OnceCell::new(),
+            txn,
+        }
+    }
 }
 
 impl<T: Table> OptTable for Option<T> {
     type Schema = T::Schema;
     type Select = Option<(T::Mutable, TableRow<T>)>;
     type Mutable<'t> = Option<Mutable<'t, T>>;
+    type Lazy<'t> = Option<Lazy<'t, T>>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
@@ -309,6 +326,16 @@ impl<T: Table> OptTable for Option<T> {
     fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t> {
         val.map(T::into_mutable)
     }
+    fn into_lazy<'t>(
+        txn: &'t Transaction<Self::Schema>,
+        val: Expr<'static, Self::Schema, Self>,
+    ) -> Self::Lazy<'t> {
+        txn.query_one(val).map(|id| Lazy {
+            id,
+            lazy: OnceCell::new(),
+            txn,
+        })
+    }
 }
 
 pub trait MyTyp: Sized + 'static {
@@ -316,7 +343,7 @@ pub trait MyTyp: Sized + 'static {
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: SecretFromSql + MigrateTyp;
+    type Out: SecretFromSql;
     type Ext<'t>;
     type Sql: Nullable;
 }
