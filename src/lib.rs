@@ -358,7 +358,7 @@ pub mod migration {
 /// Direct use is unsupported.
 #[doc(hidden)]
 pub mod private {
-    pub type SchemaTypLazy<'x, S, T> = <<T as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'x>;
+    pub type SchemaTypLazy<'x, T> = <T as MigrateTyp>::Lazy<'x>;
     pub type SchemaTypExpr<'x, S, T> = crate::Expr<'x, S, <T as IntoExpr<'static, S>>::Typ>;
 
     use crate::IntoExpr;

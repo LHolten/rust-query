@@ -88,51 +88,51 @@ impl<S> TypBuilder<S> {
 
 #[diagnostic::on_unimplemented(
     message = "Can not use `{Self}` as a column type in schema `{S}`",
-    note = "Table names can be used as schema column types as long as they are not #[no_reference]"
+    note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
 pub trait SchemaType<S>: for<'x> IntoExpr<'x, S> + MigrateTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self>;
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t>;
 }
 
 impl<S> SchemaType<S> for bool {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
     }
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         self
     }
 }
 impl<S> SchemaType<S> for String {
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         self
     }
 }
 impl<S> SchemaType<S> for Vec<u8> {
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         self
     }
 }
 impl<S> SchemaType<S> for i64 {
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         self
     }
 }
 impl<S> SchemaType<S> for f64 {
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         self
     }
 }
 impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {
-    fn out_to_lazy<'t>(self) -> crate::private::SchemaTypLazy<'t, S, Self> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         todo!()
     }
 }
 // only tables with `Referer = ()` are valid columns
 impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {
-    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, T::Schema>>::Typ as MyTyp>::Lazy<'t> {
+    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
         crate::Lazy {
             id: self,
             lazy: OnceCell::new(),
@@ -147,6 +147,8 @@ pub trait MigrateTyp {
     fn migrate(prev: Self::From) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
     fn out_to_value(self) -> sea_query::Value;
+    type Lazy<'t>;
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 }
 macro_rules! impl_migrate {
     ($typ:ty) => {
@@ -161,6 +163,10 @@ macro_rules! impl_migrate {
             }
             fn out_to_value(self) -> sea_query::Value {
                 self.into()
+            }
+            type Lazy<'t> = Self;
+            fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+                self
             }
         }
     };
@@ -184,6 +190,10 @@ impl<T: MigrateTyp> MigrateTyp for Option<T> {
         self.map(T::out_to_value)
             .unwrap_or(sea_query::Value::Bool(None))
     }
+    type Lazy<'t> = Option<T::Lazy<'t>>;
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+        self.map(T::out_to_lazy)
+    }
 }
 
 impl<T: crate::Table> MigrateTyp for TableRow<T> {
@@ -197,6 +207,14 @@ impl<T: crate::Table> MigrateTyp for TableRow<T> {
     }
     fn out_to_value(self) -> sea_query::Value {
         self.inner.idx.into()
+    }
+    type Lazy<'t> = crate::Lazy<'t, T>;
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+        crate::Lazy {
+            id: self,
+            lazy: OnceCell::new(),
+            txn: Transaction::new_ref(),
+        }
     }
 }
 

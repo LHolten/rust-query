@@ -228,7 +228,7 @@ fn define_table(
             pub struct #table_lazy<'x> {
                 #(
                     #(#col_doc)*
-                    pub #col_ident: ::rust_query::private::SchemaTypLazy<'x, #schema, #col_typ>,
+                    pub #col_ident: ::rust_query::private::SchemaTypLazy<'x, #col_typ>,
                 )*
                 #private: ::std::marker::PhantomData<&'x ()>
             }

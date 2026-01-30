@@ -14,7 +14,7 @@ use crate::{
     db::{TableRow, TableRowInner},
     mutable::Mutable,
     mymap::MyMap,
-    private::IntoJoinable,
+    private::{IntoJoinable, MigrateTyp},
     schema::canonical,
 };
 
@@ -316,11 +316,9 @@ pub trait MyTyp: Sized + 'static {
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: SecretFromSql;
-    type Lazy<'t>;
+    type Out: SecretFromSql + MigrateTyp;
     type Ext<'t>;
     type Sql: Nullable;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t>;
 }
 
 pub(crate) trait SecretFromSql: Sized {
@@ -333,16 +331,8 @@ impl<T: Table> MyTyp for T {
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Out = TableRow<T>;
-    type Lazy<'t> = Lazy<'t, T>;
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        Lazy {
-            id: val,
-            lazy: OnceCell::new(),
-            txn: Transaction::new_ref(),
-        }
-    }
 }
 
 impl<T: Table> SecretFromSql for TableRow<T> {
@@ -361,12 +351,8 @@ impl MyTyp for i64 {
     type Prev = Self;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     type Out = Self;
-    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = i64;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        val
-    }
 }
 
 impl SecretFromSql for i64 {
@@ -379,12 +365,8 @@ impl MyTyp for f64 {
     type Prev = Self;
     const TYP: canonical::ColumnType = canonical::ColumnType::Real;
     type Out = Self;
-    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = f64;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        val
-    }
 }
 
 impl SecretFromSql for f64 {
@@ -397,12 +379,8 @@ impl MyTyp for bool {
     type Prev = Self;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     type Out = Self;
-    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = bool;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        val
-    }
 }
 
 impl SecretFromSql for bool {
@@ -415,12 +393,8 @@ impl MyTyp for String {
     type Prev = Self;
     const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     type Out = Self;
-    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = String;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        val
-    }
 }
 assert_impl_all!(String: Nullable);
 
@@ -434,12 +408,8 @@ impl MyTyp for Vec<u8> {
     type Prev = Self;
     const TYP: canonical::ColumnType = canonical::ColumnType::Blob;
     type Out = Self;
-    type Lazy<'t> = Self;
     type Ext<'t> = ();
     type Sql = Vec<u8>;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        val
-    }
 }
 assert_impl_all!(Vec<u8>: Nullable);
 
@@ -455,12 +425,8 @@ impl<T: EqTyp> MyTyp for Option<T> {
     const NULLABLE: bool = true;
     const FK: Option<(&'static str, &'static str)> = T::FK;
     type Out = Option<T::Out>;
-    type Lazy<'t> = Option<T::Lazy<'t>>;
     type Ext<'t> = ();
     type Sql = T::Sql;
-    fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
-        val.map(T::out_to_lazy)
-    }
 }
 
 impl<T: SecretFromSql> SecretFromSql for Option<T> {
