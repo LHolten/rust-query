@@ -379,7 +379,14 @@ impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
 }
 
 impl<'column, S> Expr<'column, S, i64> {
+    #[deprecated(note = "Renamed to [Self::to_f64]")]
+    pub fn as_float(&self) -> Expr<'column, S, f64> {
+        self.to_f64()
+    }
+
     /// Convert the [i64] expression to [f64] type.
+    ///
+    /// The conversion may not be lossless for integers larger than 2^53 or smaller than (-2^53).
     ///
     /// ```
     /// # use rust_query::IntoExpr;
@@ -387,7 +394,7 @@ impl<'column, S> Expr<'column, S, i64> {
     /// assert_eq!(txn.query_one(10.into_expr().as_float()), 10.0);
     /// # });
     /// ```
-    pub fn as_float(&self) -> Expr<'column, S, f64> {
+    pub fn to_f64(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
         Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("REAL")))
     }
@@ -419,23 +426,29 @@ impl<'column, S> Expr<'column, S, i64> {
 }
 
 impl<'column, S> Expr<'column, S, f64> {
-    /// Truncate the [f64] expression to [i64] type.
+    #[deprecated(note = "Renamed to [Self::to_i64]")]
+    pub fn truncate(&self) -> Expr<'column, S, i64> {
+        self.to_i64()
+    }
+
+    /// Convert the [f64] expression to [i64] type.
     ///
-    /// Always rounds towards zero.
+    /// Always rounds towards zero for floats that are not already an integer.
     ///
-    /// Note that it will return the first representable integer, which is relevant for
-    /// float values that are out of range for i64.
+    /// Values outside the range `i64::MIN..=i64::MAX`, will be converted to
+    /// the closest integer in that range.
     ///
     /// ```
     /// # use rust_query::IntoExpr;
     /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(10.9.into_expr().truncate()), 10);
     /// assert_eq!(txn.query_one((-10.9).into_expr().truncate()), -10);
+    /// assert_eq!(txn.query_one((342143124.0).into_expr().truncate()), 342143124);
     /// assert_eq!(txn.query_one((f64::MIN).into_expr().truncate()), i64::MIN);
     /// assert_eq!(txn.query_one((f64::NEG_INFINITY).into_expr().truncate()), i64::MIN);
     /// # });
     /// ```
-    pub fn truncate(&self) -> Expr<'column, S, i64> {
+    pub fn to_i64(&self) -> Expr<'column, S, i64> {
         let val = self.inner.clone();
         Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("INTEGER")))
     }

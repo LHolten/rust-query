@@ -127,7 +127,7 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
                 let track = rows.join(Track.album(album));
                 rows.count_distinct(track)
             });
-            rows.avg(track_count.as_float())
+            rows.avg(track_count.to_f64())
         });
         rows.into_vec((&artist.name, avg_track_count))
     })
@@ -195,8 +195,8 @@ fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
         let (bytes, milis) = aggregate(|rows| {
             let track = rows.join(Track.genre(&genre));
             (
-                rows.avg(track.bytes.as_float()),
-                rows.avg(track.milliseconds.as_float()),
+                rows.avg(track.bytes.to_f64()),
+                rows.avg(track.milliseconds.to_f64()),
             )
         });
         rows.into_vec(GenreStatsSelect {
@@ -325,7 +325,7 @@ fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistD
             let album = rows.join(Album.artist(artist));
             let track = rows.join(Track.album(album));
             TrackStatsSelect {
-                avg_len_milis: rows.avg(track.milliseconds.as_float()),
+                avg_len_milis: rows.avg(track.milliseconds.to_f64()),
                 max_len_milis: rows.max(&track.milliseconds),
                 genre_count: rows.count_distinct(&track.genre),
             }

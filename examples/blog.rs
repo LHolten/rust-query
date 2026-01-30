@@ -66,7 +66,7 @@ fn query_data(txn: &Transaction<Schema>) {
         let story = rows.join(Story);
         let avg_rating = aggregate(|rows| {
             let rating = rows.join(Rating.story(&story));
-            rows.avg(rating.stars.as_float())
+            rows.avg(rating.stars.to_f64())
         });
         rows.into_vec((&story.title, avg_rating))
     });
