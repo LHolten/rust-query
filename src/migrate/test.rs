@@ -63,7 +63,7 @@ fn migrations_preserve_index() {
                 pub name: String,
             }
             pub struct Ref {
-                pub foo: Foo,
+                pub foo: rust_query::TableRow<Foo>,
             }
         }
     }
@@ -76,7 +76,7 @@ fn migrations_preserve_index() {
                 pub name: String,
             }
             pub struct Ref {
-                pub foo: Foo,
+                pub foo: rust_query::TableRow<Foo>,
             }
         }
     }

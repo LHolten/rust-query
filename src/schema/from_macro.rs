@@ -6,6 +6,7 @@ use std::{
 use sea_query::{ExprTrait, QueryBuilder};
 
 use crate::{
+    IntoExpr, TableRow,
     ast::{CONST_0, CONST_1},
     schema::{canonical, from_db},
     value::{EqTyp, MyTyp},
@@ -54,9 +55,9 @@ impl<S> TypBuilder<S> {
     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
         let item = Column {
             def: canonical::Column {
-                typ: T::TYP,
-                nullable: T::NULLABLE,
-                fk: T::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
+                typ: <T::Typ as MyTyp>::TYP,
+                nullable: <T::Typ as MyTyp>::NULLABLE,
+                fk: <T::Typ as MyTyp>::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: {
                     if let Some(check) = T::check(sea_query::Alias::new(name)) {
                         let mut sql = String::new();
@@ -90,7 +91,7 @@ impl<S> TypBuilder<S> {
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "Table names can be used as schema column types as long as they are not #[no_reference]"
 )]
-trait SchemaType<S>: MyTyp {
+trait SchemaType<S>: for<'x> IntoExpr<'x, S> {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
@@ -105,10 +106,9 @@ impl<S> SchemaType<S> for String {}
 impl<S> SchemaType<S> for Vec<u8> {}
 impl<S> SchemaType<S> for i64 {}
 impl<S> SchemaType<S> for f64 {}
-impl<S, T: EqTyp + SchemaType<S>> SchemaType<S> for Option<T> {}
+impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {}
 // only tables with `Referer = ()` are valid columns
-#[diagnostic::do_not_recommend]
-impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for T {}
+impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {}
 
 #[cfg(test)]
 mod tests {
