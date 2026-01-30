@@ -77,6 +77,7 @@ impl From<TmpTable> for sea_query::DynIden {
 pub(crate) enum JoinableTable {
     Normal(DynIden),
     Pragma(FunctionCall),
+    #[expect(unused, reason = "vec support doesn't work yet")]
     Vec(Vec<sea_query::Value>),
 }
 

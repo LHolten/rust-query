@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.6.11
+
 - Renamed `Expr::as_float` to `Expr::to_f64`.
 - Renamed `Expr::truncate` to `Expr::to_i64`.
 - Added `Expr::floor`, `Expr::ceil`, `Expr::round_with_precision`, 

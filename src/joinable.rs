@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use sea_query::IntoIden;
 
 use crate::{
-    Expr, IntoExpr, Table,
+    Expr, Table,
     alias::JoinableTable,
     value::{DynTypedExpr, MyTyp},
 };
@@ -48,10 +48,12 @@ impl<'inner, S, T: MyTyp> IntoJoinable<'inner, S> for Joinable<'inner, S, T> {
     }
 }
 
-trait ConstExpr<S>: IntoExpr<'static, S> {
+#[cfg(false)] // vec support doesn't work yet
+trait ConstExpr<S>: crate::IntoExpr<'static, S> {
     fn into_out(self) -> <Self::Typ as MyTyp>::Out;
 }
 
+#[cfg(false)] // vec support doesn't work yet
 impl<'x, S, T: IntoIterator<Item: ConstExpr<S>>> IntoJoinable<'x, S> for T {
     type Typ = <T::Item as IntoExpr<'static, S>>::Typ;
 
