@@ -124,7 +124,7 @@ fn define_table_migration(
         mod #typs_mod {
             use super::#new_mod::*;
             #(
-                pub type #alter_tmp = <<#alter_typ as ::rust_query::private::MyTyp>::Prev as ::rust_query::private::MyTyp>::Out;
+                pub type #alter_tmp = <#alter_typ as ::rust_query::private::MigrateTyp>::From;
             )*
         }
 

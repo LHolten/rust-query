@@ -1,4 +1,5 @@
 use std::{
+    cell::OnceCell,
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
 };
@@ -6,7 +7,7 @@ use std::{
 use sea_query::{ExprTrait, QueryBuilder};
 
 use crate::{
-    IntoExpr, TableRow,
+    IntoExpr, TableRow, Transaction,
     ast::{CONST_0, CONST_1},
     schema::{canonical, from_db},
     value::{EqTyp, MyTyp},
@@ -93,37 +94,73 @@ pub trait SchemaType<S>: for<'x> IntoExpr<'x, S> + MigrateTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t>;
 }
 
 impl<S> SchemaType<S> for bool {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
     }
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+        self
+    }
 }
-impl<S> SchemaType<S> for String {}
-impl<S> SchemaType<S> for Vec<u8> {}
-impl<S> SchemaType<S> for i64 {}
-impl<S> SchemaType<S> for f64 {}
-impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {}
+impl<S> SchemaType<S> for String {
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+        self
+    }
+}
+impl<S> SchemaType<S> for Vec<u8> {
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+        self
+    }
+}
+impl<S> SchemaType<S> for i64 {
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+        self
+    }
+}
+impl<S> SchemaType<S> for f64 {
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+        self
+    }
+}
+impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t> {
+        todo!()
+    }
+}
 // only tables with `Referer = ()` are valid columns
-impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {}
+impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {
+    fn out_to_lazy<'t>(self) -> <<Self as IntoExpr<'static, T::Schema>>::Typ as MyTyp>::Lazy<'t> {
+        crate::Lazy {
+            id: self,
+            lazy: OnceCell::new(),
+            txn: Transaction::new_ref(),
+        }
+    }
+}
 
 pub trait MigrateTyp {
     type From;
-    type Lazy<'x>;
+    type FromLazy<'x>;
     fn migrate(prev: Self::From) -> Self;
-    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self;
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
+    fn out_to_value(self) -> sea_query::Value;
 }
 macro_rules! impl_migrate {
     ($typ:ty) => {
         impl MigrateTyp for $typ {
             type From = Self;
-            type Lazy<'x> = Self;
+            type FromLazy<'x> = Self;
             fn migrate(prev: Self) -> Self {
                 prev
             }
-            fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+            fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
                 lazy.clone()
+            }
+            fn out_to_value(self) -> sea_query::Value {
+                self.into()
             }
         }
     };
@@ -136,23 +173,30 @@ impl_migrate!(f64);
 
 impl<T: MigrateTyp> MigrateTyp for Option<T> {
     type From = Option<T::From>;
-    type Lazy<'x> = Option<T::Lazy<'x>>;
+    type FromLazy<'x> = Option<T::FromLazy<'x>>;
     fn migrate(prev: Self::From) -> Self {
         prev.map(T::migrate)
     }
-    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         lazy.as_ref().map(T::from_lazy)
+    }
+    fn out_to_value(self) -> sea_query::Value {
+        self.map(T::out_to_value)
+            .unwrap_or(sea_query::Value::Bool(None))
     }
 }
 
 impl<T: crate::Table> MigrateTyp for TableRow<T> {
-    type From = TableRow<<T as MyTyp>::Prev>;
-    type Lazy<'x> = crate::Lazy<'x, <T as MyTyp>::Prev>;
+    type From = TableRow<T::MigrateFrom>;
+    type FromLazy<'x> = crate::Lazy<'x, <T as MyTyp>::Prev>;
     fn migrate(prev: Self::From) -> Self {
         TableRow::migrate_row(prev)
     }
-    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         TableRow::migrate_row(lazy.table_row())
+    }
+    fn out_to_value(self) -> sea_query::Value {
+        self.inner.idx.into()
     }
 }
 

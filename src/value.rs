@@ -321,7 +321,6 @@ pub trait MyTyp: Sized + 'static {
     type Ext<'t>;
     type Sql: Nullable;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t>;
-    fn out_to_value(val: Self::Out) -> sea_query::Value;
 }
 
 pub(crate) trait SecretFromSql: Sized {
@@ -343,9 +342,6 @@ impl<T: Table> MyTyp for T {
             lazy: OnceCell::new(),
             txn: Transaction::new_ref(),
         }
-    }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.inner.idx.into()
     }
 }
 
@@ -371,9 +367,6 @@ impl MyTyp for i64 {
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
     }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.into()
-    }
 }
 
 impl SecretFromSql for i64 {
@@ -391,9 +384,6 @@ impl MyTyp for f64 {
     type Sql = f64;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
-    }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.into()
     }
 }
 
@@ -413,9 +403,6 @@ impl MyTyp for bool {
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
     }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.into()
-    }
 }
 
 impl SecretFromSql for bool {
@@ -433,9 +420,6 @@ impl MyTyp for String {
     type Sql = String;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
-    }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.into()
     }
 }
 assert_impl_all!(String: Nullable);
@@ -455,9 +439,6 @@ impl MyTyp for Vec<u8> {
     type Sql = Vec<u8>;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val
-    }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.into()
     }
 }
 assert_impl_all!(Vec<u8>: Nullable);
@@ -479,10 +460,6 @@ impl<T: EqTyp> MyTyp for Option<T> {
     type Sql = T::Sql;
     fn out_to_lazy<'t>(val: Self::Out) -> Self::Lazy<'t> {
         val.map(T::out_to_lazy)
-    }
-    fn out_to_value(val: Self::Out) -> sea_query::Value {
-        val.map(T::out_to_value)
-            .unwrap_or_else(<T::Sql as Nullable>::null)
     }
 }
 

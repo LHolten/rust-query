@@ -360,42 +360,32 @@ pub mod migration {
 pub mod private {
     use std::marker::PhantomData;
 
+    use crate::IntoExpr;
     pub use crate::joinable::{IntoJoinable, Joinable};
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
         migration::{Migration, SchemaBuilder},
     };
     pub use crate::query::get_plan;
-    pub use crate::schema::from_macro::{MigrateTyp, TypBuilder};
+    pub use crate::schema::from_macro::{MigrateTyp, SchemaType, TypBuilder};
     pub use crate::value::{
         DynTypedExpr, MyTyp, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };
     pub use crate::writable::Reader;
 
     pub struct Lazy<'t>(PhantomData<&'t ()>);
-    pub struct Ignore;
-    pub struct Custom<T>(PhantomData<T>);
-    pub struct AsUpdate;
     pub struct AsExpr<'t>(PhantomData<&'t ()>);
 
     pub trait Apply {
-        type Out<T: MyTyp, S>;
+        type Out<T: SchemaType<S>, S>;
     }
 
     impl<'t> Apply for Lazy<'t> {
-        type Out<T: MyTyp, S> = T::Lazy<'t>;
-    }
-
-    impl Apply for Ignore {
-        type Out<T: MyTyp, S> = ();
-    }
-
-    impl<X> Apply for Custom<X> {
-        type Out<T: MyTyp, S> = X;
+        type Out<T: SchemaType<S>, S> = <<T as IntoExpr<'static, S>>::Typ as MyTyp>::Lazy<'t>;
     }
 
     impl<'t> Apply for AsExpr<'t> {
-        type Out<T: MyTyp, S> = crate::Expr<'t, S, T>;
+        type Out<T: SchemaType<S>, S> = crate::Expr<'t, S, <T as IntoExpr<'t, S>>::Typ>;
     }
 
     pub mod doctest {

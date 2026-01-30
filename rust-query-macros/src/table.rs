@@ -166,7 +166,7 @@ fn define_table(
         } else {
             let next_mod = next_mod.unwrap();
             col_typ_original
-                .push(quote! {<super::#next_mod::#tmp as ::rust_query::private::MyTyp>::Prev});
+                .push(quote! {<super::#next_mod::#tmp as ::rust_query::private::MigrateTyp>::From});
         }
 
         col_typ.push(tmp);
@@ -205,7 +205,7 @@ fn define_table(
         #(#table_doc_comments)*
         pub struct #table_ident_with_span {#(
             #(#col_doc)*
-            pub #col_ident: <#col_typ as ::rust_query::private::MyTyp>::Out,
+            pub #col_ident: #col_typ,
         )*}
 
         #[doc(hidden)]
@@ -235,11 +235,11 @@ fn define_table(
 
             pub struct #mut_ident {
                 #private: #immut_ident,
-                #(pub #col_ident_mut: <#col_typ_mut as ::rust_query::private::MyTyp>::Out,)*
+                #(pub #col_ident_mut: #col_typ_mut,)*
             }
 
             pub struct #immut_ident {
-                #(pub #col_ident_immut: <#col_typ_immut as ::rust_query::private::MyTyp>::Out,)*
+                #(pub #col_ident_immut: #col_typ_immut,)*
             }
 
             impl ::std::ops::Deref for #mut_ident {
@@ -321,7 +321,7 @@ fn define_table(
                     let col = ::rust_query::IntoExpr::<'_, #schema>::into_expr(row);
                     let #wrap_ident = txn.query_one(#wrap_parts);
                     Self::Lazy {
-                        #(#col_ident: <#col_typ as ::rust_query::private::MyTyp>::out_to_lazy(#col_ident),)*
+                        #(#col_ident: <#col_typ as ::rust_query::private::SchemaType<Self::Schema>>::out_to_lazy(#col_ident),)*
                     }
                 }
             }
