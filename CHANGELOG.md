@@ -1,5 +1,10 @@
 # Unreleased
 
+- Renamed `Expr::as_float` to `Expr::to_f64`.
+- Renamed `Expr::truncate` to `Expr::to_i64`.
+- Added `Expr::floor`, `Expr::ceil`, `Expr::round_with_precision`, 
+  `Expr::replace`, `Expr::trim`, `Expr::ltrim` and `Expr::rtrim`.
+
 # 0.6.10
 
 - Allow `Transaction::downgrade` in `Migrator::fixup`.
