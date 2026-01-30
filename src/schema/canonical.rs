@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
@@ -43,12 +43,14 @@ impl std::hash::Hash for Unique {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[cfg(feature = "dev")]
 pub struct Table {
-    pub columns: BTreeMap<String, Column>,
+    pub columns: std::collections::BTreeMap<String, Column>,
     pub indices: BTreeSet<Unique>,
 }
 
 #[derive(Debug, Hash, Default, PartialEq, Eq)]
+#[cfg(feature = "dev")]
 pub struct Schema {
-    pub tables: BTreeMap<String, Table>,
+    pub tables: std::collections::BTreeMap<String, Table>,
 }

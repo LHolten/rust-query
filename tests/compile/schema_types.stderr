@@ -1,3 +1,80 @@
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `Apply::Out`
+ --> src/lib.rs
+  |
+  |         type Out<T: MyTyp, S>;
+  |                     ^^^^^ required by this bound in `Apply::Out`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied in `TableMut`
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ within `TableMut`, the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `TableMut`
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+note: required by a bound in `rust_query::Table::Mutable`
+ --> src/lib.rs
+  |
+  |     type Mutable: Deref;
+  |     ^^^^^^^^^^^^^^^^^^^^ required by this bound in `Table::Mutable`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied in `TableMut`
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ within `TableMut`, the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `TableMut`
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+note: required by an implicit `Sized` bound in `Select`
+ --> src/select.rs
+  |
+  | pub struct Select<'columns, S, Out> {
+  |                                ^^^ required by the implicit `Sized` requirement on this type parameter in `Select`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
 error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `v0::Schema`
  --> tests/compile/schema_types.rs:8:21
   |
@@ -11,8 +88,8 @@ error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `v0::
 help: the trait `rust_query::schema::from_macro::SchemaType<S>` is implemented for `Option<T>`
  --> src/schema/from_macro.rs
   |
-  | impl<S, T: SchemaType<S, N = NotNull>> SchemaType<S> for Option<T> {
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | impl<S, T: EqTyp + SchemaType<S>> SchemaType<S> for Option<T> {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
   |
@@ -37,3 +114,64 @@ note: required by a bound in `TypBuilder::<S>::check_unique_compatible`
   |
   |     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
   |                                       ^^^^^ required by this bound in `TypBuilder::<S>::check_unique_compatible`
+
+error[E0609]: no field `my_bool` on type `Expr<'_, v0::Schema, v0::Table>`
+ --> tests/compile/schema_types.rs:7:13
+  |
+7 |         pub my_bool: bool,
+  |             ^^^^^^^ unknown field
+
+error[E0609]: no field `nested` on type `Expr<'_, v0::Schema, v0::Table>`
+ --> tests/compile/schema_types.rs:8:13
+  |
+8 |         pub nested: Option<Option<i64>>,
+  |             ^^^^^^ unknown field
+
+error[E0609]: no field `optional` on type `Expr<'_, v0::Schema, v0::Table>`
+ --> tests/compile/schema_types.rs:9:13
+  |
+9 |         pub optional: Option<i64>,
+  |             ^^^^^^^^ unknown field
+
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied
+ --> tests/compile/schema_types.rs:8:13
+  |
+8 |         pub nested: Option<Option<i64>>,
+  |             ^^^^^^ the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied in `TableMut`
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ within `TableMut`, the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required because it appears within the type `TableMut`
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = note: the return type of a function must have a statically known size
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Option<Option<i64>>: MyTyp` is not satisfied
+ --> tests/compile/schema_types.rs:8:21
+  |
+8 |         pub nested: Option<Option<i64>>,
+  |                     ^^^^^^ the trait `MyTyp` is not implemented for `Option<Option<i64>>`
+  |
+help: the trait `MyTyp` is implemented for `Option<T>`
+ --> src/value.rs
+  |
+  | impl<T: EqTyp> MyTyp for Option<T> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

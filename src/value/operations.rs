@@ -1,9 +1,6 @@
 use sea_query::{Alias, ExprTrait, extension::sqlite::SqliteExpr};
 
-use crate::{
-    ast::CONST_0,
-    value::{BuffTyp, MyTyp},
-};
+use crate::{ast::CONST_0, value::BuffTyp};
 
 use super::{EqTyp, Expr, IntoExpr, NumTyp};
 
@@ -329,7 +326,7 @@ impl<'column, S> Expr<'column, S, bool> {
     }
 }
 
-impl<'column, S, Typ: MyTyp> Expr<'column, S, Option<Typ>> {
+impl<'column, S, Typ: EqTyp> Expr<'column, S, Option<Typ>> {
     /// Use the first expression if it is [Some], otherwise use the second expression.
     ///
     /// ```

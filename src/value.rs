@@ -196,7 +196,8 @@ pub trait IntoExpr<'column, S> {
     /// Turn this value into an [Expr].
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
 }
-impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: MyTyp> IntoExpr<'column, S> for Option<T> {
+
+impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: EqTyp> IntoExpr<'column, S> for Option<T> {
     type Typ = Option<X>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
         let this = self.map(|x| x.into_expr().inner);
@@ -311,11 +312,11 @@ impl<T: Table> OptTable for Option<T> {
 }
 
 pub trait MyTyp: Sized + 'static {
-    type Prev: MyTyp;
+    type Prev;
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: SecretFromSql + MigrateTyp<From = <Self::Prev as MyTyp>::Out>;
+    type Out: SecretFromSql;
     type Lazy<'t>;
     type Ext<'t>;
     type Sql: Nullable;
@@ -467,7 +468,7 @@ impl SecretFromSql for Vec<u8> {
     }
 }
 
-impl<T: MyTyp> MyTyp for Option<T> {
+impl<T: EqTyp> MyTyp for Option<T> {
     type Prev = Option<T::Prev>;
     const TYP: canonical::ColumnType = T::TYP;
     const NULLABLE: bool = true;

@@ -1,6 +1,4 @@
-use crate::{IntoExpr, IntoSelect, Table, TableRow, optional, select::Select};
-
-use super::MyTyp;
+use crate::{IntoExpr, IntoSelect, Table, TableRow, optional, select::Select, value::EqTyp};
 
 /// Trait for values that can be retrieved from the database using one expression.
 ///
@@ -41,7 +39,7 @@ impl<T: Table> FromExpr<T::Schema, T> for TableRow<T> {
     }
 }
 
-impl<S, T, From: MyTyp> FromExpr<S, Option<From>> for Option<T>
+impl<S, T, From: EqTyp> FromExpr<S, Option<From>> for Option<T>
 where
     T: FromExpr<S, From>,
 {

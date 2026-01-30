@@ -32,10 +32,7 @@ impl ColumnType {
 }
 
 mod normalize {
-    use crate::schema::{
-        canonical, from_db,
-        from_macro::{Schema, Table},
-    };
+    use crate::schema::{canonical, from_db};
 
     impl from_db::Index {
         pub fn normalize(self) -> Option<canonical::Unique> {
@@ -45,7 +42,8 @@ mod normalize {
         }
     }
 
-    impl Table {
+    #[cfg(feature = "dev")]
+    impl crate::schema::from_macro::Table {
         fn normalize(self) -> canonical::Table {
             canonical::Table {
                 columns: self.columns.into_iter().map(|(k, v)| (k, v.def)).collect(),
@@ -58,7 +56,8 @@ mod normalize {
         }
     }
 
-    impl Schema {
+    #[cfg(feature = "dev")]
+    impl crate::schema::from_macro::Schema {
         pub(crate) fn normalize(self) -> canonical::Schema {
             canonical::Schema {
                 tables: self

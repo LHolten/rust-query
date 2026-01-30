@@ -5,10 +5,10 @@ use sea_query::ExprTrait;
 use crate::{
     IntoSelect,
     select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
-    value::DynTypedExpr,
+    value::{DynTypedExpr, EqTyp},
 };
 
-use super::{Expr, IntoExpr, MyTyp};
+use super::{Expr, IntoExpr};
 
 /// This is a combinator function that allows constructing single row optional queries.
 ///
@@ -63,7 +63,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     ///
     /// If the joined column is [None], then the whole [optional] combinator will return [None].
     #[doc(alias = "join")]
-    pub fn and<T: MyTyp>(
+    pub fn and<T: EqTyp>(
         &mut self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
@@ -92,7 +92,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
 
     /// This is much like combining [Self::and] with [Self::then], but it
     /// allows returning an optional value without mutating self.
-    pub fn and_then<T: MyTyp>(
+    pub fn and_then<T: EqTyp>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'outer, S, Option<T>> {
@@ -108,7 +108,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
-    pub fn then<T: MyTyp + 'outer>(
+    pub fn then<T: EqTyp + 'outer>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {

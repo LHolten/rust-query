@@ -195,13 +195,13 @@ pub fn migrate() -> Database<v2::Schema> {
 }
 
 #[cfg(test)]
+#[cfg(feature = "dev")]
 mod tests {
     use expect_test::expect;
 
     use super::*;
 
     #[test]
-    #[cfg(feature = "dev")]
     fn backwards_compat() {
         use rust_query::migration::hash_schema;
 

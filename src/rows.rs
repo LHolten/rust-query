@@ -8,7 +8,7 @@ use crate::{
     ast::MySelect,
     joinable::IntoJoinable,
     private::Joinable,
-    value::{DynTypedExpr, IntoExpr, MyTableRef, MyTyp},
+    value::{DynTypedExpr, EqTyp, IntoExpr, MyTableRef},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -93,7 +93,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter out rows where this expression is [None].
     ///
     /// Returns a new expression with the unwrapped type.
-    pub fn filter_some<Typ: MyTyp>(
+    pub fn filter_some<Typ: EqTyp>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {

@@ -9,7 +9,7 @@ use sea_query::{Asterisk, ExprTrait, Func};
 use crate::{
     Expr,
     rows::Rows,
-    value::{AdHoc, EqTyp, IntoExpr, MyTyp, NumTyp, ValueBuilder},
+    value::{AdHoc, EqTyp, IntoExpr, NumTyp, ValueBuilder},
 };
 
 use super::DynTypedExpr;
@@ -37,7 +37,7 @@ impl<S> DerefMut for Aggregate<'_, '_, S> {
 impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// This must be used with an aggregating expression.
     /// otherwise there is a change that there are multiple rows.
-    fn select<T: MyTyp>(
+    fn select<T: EqTyp>(
         &self,
         expr: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
     ) -> Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, Option<T>>> {

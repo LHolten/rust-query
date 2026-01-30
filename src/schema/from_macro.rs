@@ -84,9 +84,6 @@ impl<S> TypBuilder<S> {
     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
 }
 
-struct Null;
-struct NotNull;
-
 // TODO: maybe remove this trait?
 // currently this prevents storing booleans and nested `Option`.
 #[diagnostic::on_unimplemented(
@@ -94,38 +91,24 @@ struct NotNull;
     note = "Table names can be used as schema column types as long as they are not #[no_reference]"
 )]
 trait SchemaType<S>: MyTyp {
-    type N;
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
 }
 
 impl<S> SchemaType<S> for bool {
-    type N = NotNull;
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
     }
 }
-impl<S> SchemaType<S> for String {
-    type N = NotNull;
-}
-impl<S> SchemaType<S> for Vec<u8> {
-    type N = NotNull;
-}
-impl<S> SchemaType<S> for i64 {
-    type N = NotNull;
-}
-impl<S> SchemaType<S> for f64 {
-    type N = NotNull;
-}
-impl<S, T: SchemaType<S, N = NotNull>> SchemaType<S> for Option<T> {
-    type N = Null;
-}
+impl<S> SchemaType<S> for String {}
+impl<S> SchemaType<S> for Vec<u8> {}
+impl<S> SchemaType<S> for i64 {}
+impl<S> SchemaType<S> for f64 {}
+impl<S, T: EqTyp + SchemaType<S>> SchemaType<S> for Option<T> {}
 // only tables with `Referer = ()` are valid columns
 #[diagnostic::do_not_recommend]
-impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for T {
-    type N = NotNull;
-}
+impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for T {}
 
 #[cfg(test)]
 mod tests {
