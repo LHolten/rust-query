@@ -566,6 +566,84 @@ impl<'column, S> Expr<'column, S, String> {
         })
     }
 
+    /// Replace all occurences of a string with another string.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("very,cool,list".into_expr().replace(",", "::")), "very::cool::list");
+    /// assert_eq!(txn.query_one("rarar".into_expr().replace("rar", "rer")), "rerar");
+    /// # });
+    /// ```
+    pub fn replace(
+        &self,
+        pattern: impl IntoExpr<'column, S, Typ = String>,
+        new: impl IntoExpr<'column, S, Typ = String>,
+    ) -> Self {
+        let lhs = self.inner.clone();
+        let pat = pattern.into_expr().inner;
+        let new = new.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("replace")
+                .args([lhs.build_expr(b), pat.build_expr(b), new.build_expr(b)])
+                .into()
+        })
+    }
+
+    /// Removes all characters from a set from the start of a string.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("abacda".into_expr().ltrim("ab")), "cda");
+    /// # });
+    /// ```
+    pub fn ltrim(&self, char_set: impl IntoExpr<'column, S, Typ = String>) -> Self {
+        let lhs = self.inner.clone();
+        let char_set = char_set.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("ltrim")
+                .args([lhs.build_expr(b), char_set.build_expr(b)])
+                .into()
+        })
+    }
+
+    /// Removes all characters from a set from the end of a string.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("adcaba".into_expr().rtrim("ab")), "adc");
+    /// # });
+    /// ```
+    pub fn rtrim(&self, char_set: impl IntoExpr<'column, S, Typ = String>) -> Self {
+        let lhs = self.inner.clone();
+        let char_set = char_set.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("rtrim")
+                .args([lhs.build_expr(b), char_set.build_expr(b)])
+                .into()
+        })
+    }
+
+    /// Removes all characters from a set from both the start and end of a string.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one("ffzfzf".into_expr().trim("f")), "zfz");
+    /// # });
+    /// ```
+    pub fn trim(&self, char_set: impl IntoExpr<'column, S, Typ = String>) -> Self {
+        let lhs = self.inner.clone();
+        let char_set = char_set.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("trim")
+                .args([lhs.build_expr(b), char_set.build_expr(b)])
+                .into()
+        })
+    }
+
     /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
     ///
     /// This is a case-sensitive version of [like](Self::like). It uses Unix file globbing syntax for wild
