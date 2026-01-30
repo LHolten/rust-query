@@ -419,20 +419,81 @@ impl<'column, S> Expr<'column, S, i64> {
 }
 
 impl<'column, S> Expr<'column, S, f64> {
-    /// Convert the [f64] expression to [i64] type.
+    /// Truncate the [f64] expression to [i64] type.
     ///
     /// Always rounds towards zero.
+    ///
+    /// Note that it will return the first representable integer, which is relevant for
+    /// float values that are out of range for i64.
     ///
     /// ```
     /// # use rust_query::IntoExpr;
     /// # rust_query::private::doctest::get_txn(|txn| {
     /// assert_eq!(txn.query_one(10.9.into_expr().truncate()), 10);
     /// assert_eq!(txn.query_one((-10.9).into_expr().truncate()), -10);
+    /// assert_eq!(txn.query_one((f64::MIN).into_expr().truncate()), i64::MIN);
+    /// assert_eq!(txn.query_one((f64::NEG_INFINITY).into_expr().truncate()), i64::MIN);
     /// # });
     /// ```
     pub fn truncate(&self) -> Expr<'column, S, i64> {
         let val = self.inner.clone();
         Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("INTEGER")))
+    }
+
+    /// Round the [f64] expression down.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(10.9.into_expr().floor()), 10.0);
+    /// assert_eq!(txn.query_one((-10.9).into_expr().floor()), -11.0);
+    /// assert_eq!(txn.query_one((f64::MIN).into_expr().floor()), f64::MIN);
+    /// assert_eq!(txn.query_one((f64::NEG_INFINITY).into_expr().floor()), f64::NEG_INFINITY);
+    /// # });
+    /// ```
+    pub fn floor(&self) -> Expr<'column, S, f64> {
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| sea_query::Func::cust("floor").arg(val.build_expr(b)).into())
+    }
+
+    /// Round the [f64] expression up.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(10.9.into_expr().ceil()), 11.0);
+    /// assert_eq!(txn.query_one((-10.9).into_expr().ceil()), -10.0);
+    /// assert_eq!(txn.query_one((f64::MIN).into_expr().ceil()), f64::MIN);
+    /// assert_eq!(txn.query_one((f64::NEG_INFINITY).into_expr().ceil()), f64::NEG_INFINITY);
+    /// # });
+    /// ```
+    pub fn ceil(&self) -> Expr<'column, S, f64> {
+        let val = self.inner.clone();
+        Expr::adhoc(move |b| sea_query::Func::cust("ceil").arg(val.build_expr(b)).into())
+    }
+
+    /// Round the [f64] expression to the specified precision.
+    ///
+    /// Precision specifies the number of decimal places to keep.
+    /// A negative precision is treated as zero.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(10.85.into_expr().round_with_precision(0)), 11.0);
+    /// assert_eq!(txn.query_one((-10.85).into_expr().round_with_precision(0)), -11.0);
+    /// assert_eq!(txn.query_one(10.85.into_expr().round_with_precision(1)), 10.8);
+    /// assert_eq!(txn.query_one((-10.85).into_expr().round_with_precision(1)), -10.8);
+    /// assert_eq!(txn.query_one((f64::MIN).into_expr().round_with_precision(0)), f64::MIN);
+    /// assert_eq!(txn.query_one((f64::NEG_INFINITY).into_expr().round_with_precision(0)), f64::NEG_INFINITY);
+    /// # });
+    /// ```
+    pub fn round_with_precision(&self, precision: impl IntoExpr<'column, S, Typ = i64>) -> Self {
+        let val = self.inner.clone();
+        let precision = precision.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::round_with_precision(val.build_expr(b), precision.build_expr(b)).into()
+        })
     }
 }
 
