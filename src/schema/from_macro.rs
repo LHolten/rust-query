@@ -85,13 +85,11 @@ impl<S> TypBuilder<S> {
     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
 }
 
-// TODO: maybe remove this trait?
-// currently this prevents storing booleans and nested `Option`.
 #[diagnostic::on_unimplemented(
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "Table names can be used as schema column types as long as they are not #[no_reference]"
 )]
-trait SchemaType<S>: for<'x> IntoExpr<'x, S> {
+pub trait SchemaType<S>: for<'x> IntoExpr<'x, S> + MigrateTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
@@ -109,6 +107,54 @@ impl<S> SchemaType<S> for f64 {}
 impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {}
 // only tables with `Referer = ()` are valid columns
 impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {}
+
+pub trait MigrateTyp {
+    type From;
+    type Lazy<'x>;
+    fn migrate(prev: Self::From) -> Self;
+    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self;
+}
+macro_rules! impl_migrate {
+    ($typ:ty) => {
+        impl MigrateTyp for $typ {
+            type From = Self;
+            type Lazy<'x> = Self;
+            fn migrate(prev: Self) -> Self {
+                prev
+            }
+            fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+                lazy.clone()
+            }
+        }
+    };
+}
+impl_migrate!(i64);
+impl_migrate!(String);
+impl_migrate!(bool);
+impl_migrate!(Vec<u8>);
+impl_migrate!(f64);
+
+impl<T: MigrateTyp> MigrateTyp for Option<T> {
+    type From = Option<T::From>;
+    type Lazy<'x> = Option<T::Lazy<'x>>;
+    fn migrate(prev: Self::From) -> Self {
+        prev.map(T::migrate)
+    }
+    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+        lazy.as_ref().map(T::from_lazy)
+    }
+}
+
+impl<T: crate::Table> MigrateTyp for TableRow<T> {
+    type From = TableRow<<T as MyTyp>::Prev>;
+    type Lazy<'x> = crate::Lazy<'x, <T as MyTyp>::Prev>;
+    fn migrate(prev: Self::From) -> Self {
+        TableRow::migrate_row(prev)
+    }
+    fn from_lazy(lazy: &Self::Lazy<'_>) -> Self {
+        TableRow::migrate_row(lazy.table_row())
+    }
+}
 
 #[cfg(test)]
 mod tests {
