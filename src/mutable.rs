@@ -27,8 +27,9 @@ struct MutableInner<T: Table> {
 
 impl<T: Table> MutableInner<T> {
     fn new(row_id: TableRow<T>) -> Self {
+        let select = Transaction::new_ref().query_one(T::into_select(row_id.into_expr()));
         Self {
-            val: Transaction::new_ref().query_one(T::select_mutable(row_id.into_expr())),
+            val: T::select_mutable(select),
             any_update: false,
         }
     }

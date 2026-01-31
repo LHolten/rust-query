@@ -179,7 +179,6 @@ fn define_table(
     let immut_ident = format_ident!("{}Immut", table_ident);
 
     let private = Ident::new("private", Span::call_site());
-    let row_id = Ident::new("row_id", Span::call_site());
 
     let (referer, referer_expr) = if table.referenceable {
         (quote! {()}, quote! {})
@@ -189,6 +188,7 @@ fn define_table(
 
     let wrap_parts = wrap(&parts);
     let wrap_ident = wrap(&col_ident);
+    let wrap_typs = wrap(&col_typ);
 
     // Default to the current table if there is no previous table.
     // This could change to another default type in the future.
@@ -290,16 +290,28 @@ fn define_table(
                 type Lazy<'t> = #table_lazy<'t>;
                 type Mutable = #mut_ident;
 
-                fn select_mutable(col: ::rust_query::Expr<'_, Self::Schema, Self>)
-                -> ::rust_query::Select<'_, Self::Schema, Self::Mutable> {
-                    ::rust_query::IntoSelect::into_select((#wrap_parts, &col)).map(
-                        |(#wrap_ident, #row_id)| #mut_ident {
-                            #(#col_ident_mut,)*
-                            #private: #immut_ident {
-                                #(#col_ident_immut,)*
-                            },
-                        })
+                type Select = #wrap_typs;
+
+                fn into_select(col: ::rust_query::Expr<'_, Self::Schema, Self>) -> ::rust_query::Select<'_, Self::Schema, Self::Select> {
+                    ::rust_query::IntoSelect::into_select(#wrap_parts)
                 }
+
+                fn select_mutable(#wrap_ident: Self::Select) -> Self::Mutable {
+                    #mut_ident {
+                        #(#col_ident_mut,)*
+                        #private: #immut_ident {
+                            #(#col_ident_immut,)*
+                        },
+                    }
+                }
+
+                fn select_lazy<'t>(#wrap_ident: Self::Select) -> Self::Lazy<'t> {
+                    Self::Lazy {
+                        #(#col_ident: <#col_typ as ::rust_query::private::SchemaType<Self::Schema>>::out_to_lazy(#col_ident),)*
+                        #private: ::std::marker::PhantomData,
+                    }
+                }
+
                 fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as ::std::ops::Deref>::Target {
                     &mut val.#private
                 }
@@ -324,14 +336,6 @@ fn define_table(
                 type Referer = #referer;
                 fn get_referer_unchecked() -> Self::Referer {
                     #referer_expr
-                }
-
-                fn get_lazy<'t>(txn: &'t ::rust_query::Transaction<Self::Schema>, col: ::rust_query::Expr<'static, Self::Schema, Self>) -> Self::Lazy<'t> {
-                    let #wrap_ident = txn.query_one(#wrap_parts);
-                    Self::Lazy {
-                        #(#col_ident: <#col_typ as ::rust_query::private::SchemaType<Self::Schema>>::out_to_lazy(#col_ident),)*
-                        #private: ::std::marker::PhantomData,
-                    }
                 }
             }
         };

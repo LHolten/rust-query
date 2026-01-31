@@ -285,17 +285,17 @@ pub trait OptTable: MyTyp {
 
 impl<T: Table> OptTable for T {
     type Schema = T::Schema;
-    type Select = (T::Mutable, TableRow<T>);
+    type Select = (T::Select, TableRow<T>);
     type Mutable<'t> = Mutable<'t, T>;
     type Lazy<'t> = Lazy<'t, T>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
-        (T::select_mutable(val.clone()), val).into_select()
+        (T::into_select(val.clone()), val).into_select()
     }
 
     fn into_mutable<'t>((inner, row_id): Self::Select) -> Self::Mutable<'t> {
-        Mutable::new(inner, row_id)
+        Mutable::new(T::select_mutable(inner), row_id)
     }
     fn into_lazy<'t>(
         txn: &'t Transaction<Self::Schema>,
@@ -311,7 +311,7 @@ impl<T: Table> OptTable for T {
 
 impl<T: Table> OptTable for Option<T> {
     type Schema = T::Schema;
-    type Select = Option<(T::Mutable, TableRow<T>)>;
+    type Select = Option<(T::Select, TableRow<T>)>;
     type Mutable<'t> = Option<Mutable<'t, T>>;
     type Lazy<'t> = Option<Lazy<'t, T>>;
     fn select_opt_mutable(
@@ -319,7 +319,7 @@ impl<T: Table> OptTable for Option<T> {
     ) -> Select<'_, Self::Schema, Self::Select> {
         crate::optional(|row| {
             let val = row.and(val);
-            row.then_select((T::select_mutable(val.clone()), val))
+            row.then_select((T::into_select(val.clone()), val))
         })
     }
 

@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::Infallible, ops::Deref};
 use sea_query::Func;
 
 use crate::{
-    Expr, FromExpr, Table, Transaction,
+    Expr, FromExpr, IntoSelect, Select, Table, Transaction,
     alias::JoinableTable,
     private::{Reader, new_column},
     schema::{self, check_constraint, from_db},
@@ -61,8 +61,21 @@ macro_rules! table {
             type Lazy<'t> = ();
             type Mutable = NoMut;
 
-            fn select_mutable(_val: Expr<'_, Self::Schema, Self>)
-            -> crate::Select<'_, Self::Schema, Self::Mutable> {
+            #[doc(hidden)]
+            type Select = ();
+
+            #[doc(hidden)]
+            fn into_select(_val: Expr<'_, Self::Schema, Self>) -> Select<'_, Self::Schema, Self::Select> {
+                ().into_select()
+            }
+
+            #[doc(hidden)]
+            fn select_mutable(_select: Self::Select) -> Self::Mutable {
+                unreachable!()
+            }
+
+            #[doc(hidden)]
+            fn select_lazy<'t>(_select: Self::Select) -> Self::Lazy<'t> {
                 unreachable!()
             }
 
@@ -82,10 +95,6 @@ macro_rules! table {
                 _val: &Self,
             ) -> Self::Conflict {
                 unreachable!()
-            }
-
-            fn get_lazy<'t>(_txn: &'t Transaction<Self::Schema>, _row: Expr<'static, Self::Schema, Self>) -> Self::Lazy<'t> {
-                ()
             }
 
             const ID: &'static str = "pragma_id";

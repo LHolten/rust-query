@@ -368,7 +368,7 @@ impl<S> Transaction<S> {
         let val = val.into_joinable();
         self.query(|rows| {
             let val = rows.join(val);
-            rows.into_vec((T::select_mutable(val.clone()), val))
+            rows.into_vec((T::into_select(val.clone()), val))
                 .into_iter()
                 .map(T::into_mutable)
                 .collect()

@@ -69,8 +69,10 @@ impl<'transaction, T: Table> Deref for Lazy<'transaction, T> {
     type Target = T::Lazy<'transaction>;
 
     fn deref(&self) -> &Self::Target {
-        self.lazy
-            .get_or_init(|| Box::new(T::get_lazy(self.txn, self.id.into_expr())))
+        self.lazy.get_or_init(|| {
+            let select = self.txn.query_one(T::into_select(self.id.into_expr()));
+            Box::new(T::select_lazy(select))
+        })
     }
 }
 

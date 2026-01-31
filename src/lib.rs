@@ -454,8 +454,16 @@ pub trait Table: 'static {
     fn get_conflict_unchecked(txn: &Transaction<Self::Schema>, val: &Self) -> Self::Conflict;
 
     #[doc(hidden)]
-    fn select_mutable(val: Expr<'_, Self::Schema, Self>)
-    -> Select<'_, Self::Schema, Self::Mutable>;
+    type Select;
+
+    #[doc(hidden)]
+    fn into_select(val: Expr<'_, Self::Schema, Self>) -> Select<'_, Self::Schema, Self::Select>;
+
+    #[doc(hidden)]
+    fn select_mutable(select: Self::Select) -> Self::Mutable;
+
+    #[doc(hidden)]
+    fn select_lazy<'t>(select: Self::Select) -> Self::Lazy<'t>;
 
     #[doc(hidden)]
     fn mutable_as_unique(val: &mut Self::Mutable) -> &mut <Self::Mutable as Deref>::Target;
@@ -467,12 +475,6 @@ pub trait Table: 'static {
 
     #[doc(hidden)]
     fn get_referer_unchecked() -> Self::Referer;
-
-    #[doc(hidden)]
-    fn get_lazy<'t>(
-        txn: &'t Transaction<Self::Schema>,
-        col: Expr<'static, Self::Schema, Self>,
-    ) -> Self::Lazy<'t>;
 
     #[doc(hidden)]
     fn typs(f: &mut TypBuilder<Self::Schema>);
