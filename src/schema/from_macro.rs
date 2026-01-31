@@ -87,7 +87,7 @@ impl<S> TypBuilder<S> {
         self.ast.indices.insert(Index { def, span });
     }
 
-    pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
+    pub fn check_unique_compatible<T: MigrateTyp<ExprTyp: EqTyp>>(&mut self) {}
 }
 
 #[diagnostic::on_unimplemented(

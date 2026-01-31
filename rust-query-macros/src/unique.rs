@@ -82,7 +82,7 @@ pub fn unique_tree(
         let prefix_lt = prefix_lt.then_some(quote! {'inner}).unwrap_or_default();
 
         out.extend(quote! {
-            pub struct #helper_name<'inner>(#prefix<#prefix_lt>, ::rust_query::Expr<'inner, #schema, #col_typ>);
+            pub struct #helper_name<'inner>(#prefix<#prefix_lt>, ::rust_query::Expr<'inner, #schema, <#col_typ as ::rust_query::private::MigrateTyp>::ExprTyp>);
 
             impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #helper_name<'inner> {
                 type Typ = #table;
@@ -95,7 +95,7 @@ pub fn unique_tree(
         if next.is_unique {
             out.extend(quote! {
                 impl<#prefix_lt> #prefix<#prefix_lt> {
-                    pub fn #col<#anti_lt>(self, val: impl ::rust_query::IntoExpr<'inner, #schema, Typ = #col_typ>)
+                    pub fn #col<#anti_lt>(self, val: impl ::rust_query::IntoExpr<'inner, #schema, Typ = <#col_typ as ::rust_query::private::MigrateTyp>::ExprTyp>)
                         -> ::rust_query::Expr<'inner, #schema, Option<#table>>
                     {
                         ::rust_query::private::unique_from_joinable(#helper_name(self, val.into_expr()))
@@ -108,7 +108,7 @@ pub fn unique_tree(
 
             out.extend(quote! {
                 impl<#prefix_lt> #prefix<#prefix_lt> {
-                    pub fn #col<#anti_lt>(self, val: impl ::rust_query::IntoExpr<'inner, #schema, Typ = #col_typ>) -> #helper_name<'inner> {
+                    pub fn #col<#anti_lt>(self, val: impl ::rust_query::IntoExpr<'inner, #schema, Typ = <#col_typ as ::rust_query::private::MigrateTyp>::ExprTyp>) -> #helper_name<'inner> {
                         #helper_name(self, val.into_expr())
                     }
                 }

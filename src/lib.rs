@@ -359,9 +359,6 @@ pub mod migration {
 #[doc(hidden)]
 pub mod private {
 
-    use std::marker::PhantomData;
-
-    use crate::IntoExpr;
     pub use crate::joinable::{IntoJoinable, Joinable};
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
