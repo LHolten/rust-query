@@ -53,12 +53,16 @@ impl<S> Default for TypBuilder<S> {
 }
 
 impl<S> TypBuilder<S> {
-    pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
+    pub fn col<T: SchemaType<S, ExprTyp: MyTyp>>(
+        &mut self,
+        name: &'static str,
+        span: (usize, usize),
+    ) {
         let item = Column {
             def: canonical::Column {
-                typ: <T::Typ as MyTyp>::TYP,
-                nullable: <T::Typ as MyTyp>::NULLABLE,
-                fk: <T::Typ as MyTyp>::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
+                typ: T::ExprTyp::TYP,
+                nullable: T::ExprTyp::NULLABLE,
+                fk: T::ExprTyp::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: {
                     if let Some(check) = T::check(sea_query::Alias::new(name)) {
                         let mut sql = String::new();
@@ -142,13 +146,13 @@ impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {
 }
 
 pub trait MigrateTyp {
-    type ExprTyp: MyTyp;
-    type From;
+    type ExprTyp;
+    type From: MigrateTyp;
     type FromLazy<'x>;
     fn migrate(prev: Self::From) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
     fn out_to_value(self) -> sea_query::Value;
-    type Lazy<'t>;
+    type Lazy<'t>: Sized;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 }
 macro_rules! impl_migrate {
@@ -179,7 +183,7 @@ impl_migrate!(bool);
 impl_migrate!(Vec<u8>);
 impl_migrate!(f64);
 
-impl<T: MigrateTyp<ExprTyp: EqTyp>> MigrateTyp for Option<T> {
+impl<T: MigrateTyp> MigrateTyp for Option<T> {
     type ExprTyp = Option<T::ExprTyp>;
     type From = Option<T::From>;
     type FromLazy<'x> = Option<T::FromLazy<'x>>;

@@ -358,8 +358,8 @@ pub mod migration {
 /// Direct use is unsupported.
 #[doc(hidden)]
 pub mod private {
-    pub type SchemaTypLazy<'x, T> = <T as MigrateTyp>::Lazy<'x>;
-    pub type SchemaTypExpr<'x, S, T> = crate::Expr<'x, S, <T as IntoExpr<'static, S>>::Typ>;
+
+    use std::marker::PhantomData;
 
     use crate::IntoExpr;
     pub use crate::joinable::{IntoJoinable, Joinable};
@@ -373,6 +373,25 @@ pub mod private {
         DynTypedExpr, MyTyp, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };
     pub use crate::writable::Reader;
+
+    // pub trait Apply {
+    //     type Out<T: MigrateTyp>;
+    // }
+
+    // pub struct AsNormal;
+    // impl Apply for AsNormal {
+    //     type Out<T: MigrateTyp> = T;
+    // }
+
+    // struct AsExpr<'x, S>(PhantomData<(&'x (), S)>);
+    // impl<'x, S> Apply for AsExpr<'x, S> {
+    //     type Out<T: MigrateTyp> = crate::Expr<'x, S, T::ExprTyp>;
+    // }
+
+    // struct AsLazy<'x>(PhantomData<&'x ()>);
+    // impl<'x> Apply for AsLazy<'x> {
+    //     type Out<T: MigrateTyp> = T::Lazy<'x>;
+    // }
 
     pub mod doctest {
         use crate::{Database, Transaction, migrate::config::Config, migration};

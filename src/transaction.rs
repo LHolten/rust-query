@@ -14,10 +14,10 @@ use crate::{
     migration::Config,
     mutable::Mutable,
     pool::Pool,
-    private::{IntoJoinable, MigrateTyp, Reader},
+    private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    value::{MyTyp, OptTable, SecretFromSql},
+    value::{OptTable, SecretFromSql},
 };
 
 /// [Database] is a proof that the database has been configured.

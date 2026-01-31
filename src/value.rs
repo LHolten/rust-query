@@ -14,7 +14,7 @@ use crate::{
     db::{TableRow, TableRowInner},
     mutable::Mutable,
     mymap::MyMap,
-    private::{IntoJoinable, MigrateTyp},
+    private::IntoJoinable,
     schema::canonical,
 };
 

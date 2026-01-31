@@ -1,4 +1,4 @@
-use crate::{private::MigrateTyp, value::MyTyp};
+use crate::private::MigrateTyp;
 
 pub struct Reader {
     pub(crate) builder: Vec<(&'static str, sea_query::Expr)>,
