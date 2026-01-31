@@ -5,7 +5,7 @@ use crate::{Expr, IntoExpr, Table};
 /// Row reference that can be used in any query in the same transaction.
 ///
 /// [TableRow] is restricted to a single thread to prevent it from being used in a different transaction.
-pub struct TableRow<T: Table> {
+pub struct TableRow<T: ?Sized + Table> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: TableRowInner<T>,
 }
@@ -36,7 +36,7 @@ impl<T: Table> Ord for TableRow<T> {
     }
 }
 
-pub(crate) struct TableRowInner<T> {
+pub(crate) struct TableRowInner<T: ?Sized> {
     pub(crate) _p: PhantomData<T>,
     pub(crate) idx: i64,
 }

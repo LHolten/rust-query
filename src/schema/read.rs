@@ -84,7 +84,7 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn get_lazy<'t>(_txn: &'t Transaction<Self::Schema>, _row: crate::TableRow<Self>) -> Self::Lazy<'t> {
+            fn get_lazy<'t>(_txn: &'t Transaction<Self::Schema>, _row: Expr<'static, Self::Schema, Self>) -> Self::Lazy<'t> {
                 ()
             }
 

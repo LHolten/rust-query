@@ -259,7 +259,7 @@ impl<Out: SecretFromSql> SelectImpl for ColumnImpl<Out> {
 
 impl<'columns, S, T> IntoSelect<'columns, S> for Expr<'columns, S, T>
 where
-    T: MyTyp,
+    T: MyTyp<Out: SecretFromSql>,
 {
     type Out = T::Out;
 

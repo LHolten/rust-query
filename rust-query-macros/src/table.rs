@@ -326,8 +326,7 @@ fn define_table(
                     #referer_expr
                 }
 
-                fn get_lazy<'t>(txn: &'t ::rust_query::Transaction<Self::Schema>, row: ::rust_query::TableRow<Self>) -> Self::Lazy<'t> {
-                    let col = ::rust_query::IntoExpr::<'_, #schema>::into_expr(row);
+                fn get_lazy<'t>(txn: &'t ::rust_query::Transaction<Self::Schema>, col: ::rust_query::Expr<'static, Self::Schema, Self>) -> Self::Lazy<'t> {
                     let #wrap_ident = txn.query_one(#wrap_parts);
                     Self::Lazy {
                         #(#col_ident: <#col_typ as ::rust_query::private::SchemaType<Self::Schema>>::out_to_lazy(#col_ident),)*

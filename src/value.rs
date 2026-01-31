@@ -338,12 +338,12 @@ impl<T: Table> OptTable for Option<T> {
     }
 }
 
-pub trait MyTyp: Sized + 'static {
+pub trait MyTyp: 'static {
     type Prev;
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
-    type Out: SecretFromSql;
+    type Out;
     type Ext<'t>;
     type Sql: Nullable;
 }
@@ -353,7 +353,7 @@ pub(crate) trait SecretFromSql: Sized {
 }
 
 #[diagnostic::do_not_recommend]
-impl<T: Table> MyTyp for T {
+impl<T: Table + ?Sized> MyTyp for T {
     type Prev = T::MigrateFrom;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
@@ -473,7 +473,7 @@ impl<T: SecretFromSql> SecretFromSql for Option<T> {
 /// - And finally the type paramter `T` specifies the type of the expression.
 ///
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
-pub struct Expr<'column, S, T: MyTyp> {
+pub struct Expr<'column, S, T: MyTyp + ?Sized> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>,
     pub(crate) _p: PhantomData<&'column ()>,
@@ -530,7 +530,7 @@ pub fn unique_from_joinable<'inner, T: Table>(
     })
 }
 
-pub struct AdHoc<F: ?Sized, T> {
+pub struct AdHoc<F: ?Sized, T: ?Sized> {
     maybe_optional: bool,
     _p: PhantomData<T>,
     func: F,

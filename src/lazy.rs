@@ -70,7 +70,7 @@ impl<'transaction, T: Table> Deref for Lazy<'transaction, T> {
 
     fn deref(&self) -> &Self::Target {
         self.lazy
-            .get_or_init(|| Box::new(T::get_lazy(self.txn, self.id)))
+            .get_or_init(|| Box::new(T::get_lazy(self.txn, self.id.into_expr())))
     }
 }
 
