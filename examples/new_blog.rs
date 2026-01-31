@@ -12,7 +12,7 @@ pub mod vN {
         pub duration: i64,
         pub confidence: f64,
         pub timestamp: i64,
-        pub location: Location,
+        pub location: rust_query::TableRow<Location>,
     }
     pub struct Location {
         pub name: String,
@@ -141,7 +141,7 @@ mod delete_example {
             pub name: String,
         }
         pub struct Book {
-            pub author: Author,
+            pub author: rust_query::TableRow<Author>,
         }
     }
 }

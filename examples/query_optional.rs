@@ -12,7 +12,7 @@ pub mod vN {
         pub pub_id: i64,
         pub name: String,
         pub score: i64,
-        pub home: World,
+        pub home: rust_query::TableRow<World>,
     }
     pub struct World {
         pub name: String,

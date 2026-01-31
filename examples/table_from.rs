@@ -10,9 +10,9 @@ pub mod vN {
     pub struct Bar {
         // this will be `Foo` for v0 and `FooNext` for v1
         #[unique]
-        pub evolving: FooNext,
+        pub evolving: rust_query::TableRow<FooNext>,
         // this will be `Foo` in both v0 and v1
-        pub foo: Foo,
+        pub foo: rust_query::TableRow<Foo>,
     }
 }
 

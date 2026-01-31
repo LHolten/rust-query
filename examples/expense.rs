@@ -13,17 +13,17 @@ pub mod vN {
     pub struct Expense {
         #[unique]
         pub expense_id: String,
-        pub paid_by: User,
+        pub paid_by: rust_query::TableRow<User>,
         #[version(0..=0)]
-        pub split_with: User,
+        pub split_with: rust_query::TableRow<User>,
     }
 
     #[version(1..)]
     #[from(Expense)]
     #[unique(expense, user)]
     pub struct ExpensedUser {
-        pub expense: Expense,
-        pub user: User,
+        pub expense: rust_query::TableRow<Expense>,
+        pub user: rust_query::TableRow<User>,
     }
 }
 

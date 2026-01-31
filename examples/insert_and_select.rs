@@ -11,7 +11,7 @@ pub mod vN {
     }
     pub struct Image {
         pub description: String,
-        pub uploaded_by: User,
+        pub uploaded_by: rust_query::TableRow<User>,
     }
 }
 // Bring the latest schema version into scope.

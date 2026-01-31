@@ -13,7 +13,7 @@ pub mod vN {
     pub struct Album {
         pub title: String,
         #[index]
-        pub artist: Artist,
+        pub artist: rust_query::TableRow<Artist>,
     }
     pub struct Artist {
         #[unique]
@@ -35,19 +35,19 @@ pub mod vN {
         pub fax: Option<String>,
         #[unique]
         pub email: String,
-        pub support_rep: Employee,
+        pub support_rep: rust_query::TableRow<Employee>,
     }
     #[version(1..)]
     #[unique(employee, artist)]
     pub struct ListensTo {
-        pub employee: Employee,
-        pub artist: Artist,
+        pub employee: rust_query::TableRow<Employee>,
+        pub artist: rust_query::TableRow<Artist>,
     }
     pub struct Employee {
         pub last_name: String,
         pub first_name: String,
         pub title: Option<String>,
-        pub reports_to: Option<Employee>,
+        pub reports_to: Option<rust_query::TableRow<Employee>>,
         pub birth_date: Option<String>,
         pub hire_date: Option<String>,
         pub address: Option<String>,
@@ -78,7 +78,7 @@ pub mod vN {
     }
     pub struct Invoice {
         #[index]
-        pub customer: Customer,
+        pub customer: rust_query::TableRow<Customer>,
         pub invoice_date: String,
         pub billing_address: Option<String>,
         pub billing_city: Option<String>,
@@ -89,10 +89,10 @@ pub mod vN {
     }
     pub struct InvoiceLine {
         #[version(..2)]
-        pub invoice: Invoice,
+        pub invoice: rust_query::TableRow<Invoice>,
         #[version(2..)]
-        pub invoice_new: Invoice,
-        pub track: Track,
+        pub invoice_new: rust_query::TableRow<Invoice>,
+        pub track: rust_query::TableRow<Track>,
         pub unit_price: f64,
         pub quantity: i64,
     }
@@ -105,23 +105,23 @@ pub mod vN {
     }
     #[unique(playlist, track)]
     pub struct PlaylistTrack {
-        pub playlist: Playlist,
+        pub playlist: rust_query::TableRow<Playlist>,
         #[index]
-        pub track: Track,
+        pub track: rust_query::TableRow<Track>,
     }
     pub struct Track {
         pub name: String,
         #[index]
-        pub album: Album,
+        pub album: rust_query::TableRow<Album>,
         #[version(..2)]
-        pub media_type: MediaType,
+        pub media_type: rust_query::TableRow<MediaType>,
         #[version(2..)]
         pub media_type: String,
         #[index]
-        pub genre: Genre,
+        pub genre: rust_query::TableRow<Genre>,
         pub composer: Option<String>,
         #[version(2..)]
-        pub composer_table: Option<Composer>,
+        pub composer_table: Option<rust_query::TableRow<Composer>>,
         pub milliseconds: i64,
         pub bytes: i64,
         pub unit_price: f64,

@@ -14,14 +14,14 @@ pub mod vN {
         pub email: String,
     }
     pub struct Story {
-        pub author: User,
+        pub author: rust_query::TableRow<User>,
         pub title: String,
         pub content: String,
     }
     #[unique(story, user)]
     pub struct Rating {
-        pub user: User,
-        pub story: Story,
+        pub user: rust_query::TableRow<User>,
+        pub story: rust_query::TableRow<Story>,
         pub stars: i64,
     }
 }

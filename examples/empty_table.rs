@@ -8,7 +8,7 @@ pub mod vN {
     pub struct Empty;
     #[no_reference]
     pub struct Ref {
-        pub empty: Empty,
+        pub empty: rust_query::TableRow<Empty>,
     }
 }
 
