@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::Infallible, ops::Deref};
 use sea_query::Func;
 
 use crate::{
-    Expr, FromExpr, IntoSelect, Select, Table, Transaction,
+    Expr, FromExpr, IntoSelect, Select, Table, TableRow, Transaction,
     alias::JoinableTable,
     private::{Reader, new_column},
     schema::{self, check_constraint, from_db},
@@ -45,7 +45,7 @@ macro_rules! table {
                 val
             }
 
-            fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t> {
+            fn build_ext2<'t>(val: &Expr<'t, Self::Schema, TableRow<Self>>) -> Self::Ext2<'t> {
                 Self::Ext2 {
                     $($field_name: new_column(val, strip_raw(stringify!($field_name))),)*
                 }
@@ -65,7 +65,7 @@ macro_rules! table {
             type Select = ();
 
             #[doc(hidden)]
-            fn into_select(_val: Expr<'_, Self::Schema, Self>) -> Select<'_, Self::Schema, Self::Select> {
+            fn into_select(_val: Expr<'_, Self::Schema, TableRow<Self>>) -> Select<'_, Self::Schema, Self::Select> {
                 ().into_select()
             }
 

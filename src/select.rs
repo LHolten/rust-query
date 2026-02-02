@@ -5,7 +5,7 @@ use sea_query::IntoIden;
 use crate::{
     Expr,
     alias::MyAlias,
-    value::{DbTyp, DynTypedExpr, SecretFromSql},
+    value::{DbTyp, DynTypedExpr},
 };
 
 /// Opaque type used to implement [crate::Select].
@@ -52,7 +52,7 @@ impl<'x> Row<'x> {
         Self { row, fields }
     }
 
-    pub fn get<T: SecretFromSql>(&self, val: Cached<T>) -> T {
+    pub fn get<T: DbTyp>(&self, val: Cached<T>) -> T {
         let field = self.fields[val.idx].into_iden();
         let idx = field.inner();
         T::from_sql(self.row.get_ref_unwrap(&*idx)).unwrap()
@@ -232,7 +232,7 @@ impl<'columns, S> IntoSelect<'columns, S> for () {
     }
 }
 
-impl<T: SecretFromSql> Prepared for Cached<T> {
+impl<T: DbTyp> Prepared for Cached<T> {
     type Out = T;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
@@ -245,7 +245,7 @@ pub struct ColumnImpl<Out> {
     pub(crate) _p: PhantomData<Out>,
 }
 
-impl<Out: SecretFromSql> SelectImpl for ColumnImpl<Out> {
+impl<Out: DbTyp> SelectImpl for ColumnImpl<Out> {
     type Out = Out;
     type Prepared = Cached<Out>;
 
@@ -259,9 +259,9 @@ impl<Out: SecretFromSql> SelectImpl for ColumnImpl<Out> {
 
 impl<'columns, S, T> IntoSelect<'columns, S> for Expr<'columns, S, T>
 where
-    T: DbTyp<Out: SecretFromSql>,
+    T: DbTyp,
 {
-    type Out = T::Out;
+    type Out = T;
 
     fn into_select(self) -> Select<'columns, S, Self::Out> {
         Select::new(ColumnImpl {

@@ -20,7 +20,9 @@ pub trait DbTyp: 'static {
     fn out_to_value(self) -> sea_query::Value;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>;
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>
+    where
+        Self: Sized;
 }
 
 impl<T: Table + ?Sized> DbTyp for TableRow<T> {
@@ -94,8 +96,8 @@ impl<T: EqTyp> DbTyp for Option<T> {
 }
 
 macro_rules! impl_typ {
-    ($typ:ty, $can:expr, $var:pat => $map:expr) => {
-        impl MyTyp for $typ {
+    ($typ:ty, $can:expr, $map:expr) => {
+        impl DbTyp for $typ {
             type Prev = Self;
             const TYP: canonical::ColumnType = $can;
             type Ext<'t> = ();
@@ -116,15 +118,22 @@ macro_rules! impl_typ {
                 self
             }
             fn from_sql(
-                $var: rusqlite::types::ValueRef<'_>,
+                val: rusqlite::types::ValueRef<'_>,
             ) -> rusqlite::types::FromSqlResult<Self> {
-                $map
+                let f: fn(rusqlite::types::ValueRef<'_>) -> _ = $map;
+                f(val)
             }
         }
     };
 }
-impl_typ!(i64, canonical::ColumnType::Integer, x => x.as_i64());
-impl_typ!(String, canonical::ColumnType::Text, x => x.as_str().map(str::to_owned));
-impl_typ!(bool, canonical::ColumnType::Integer, x => x.as_i64().map(|x|x != 0));
-impl_typ!(Vec<u8>, canonical::ColumnType::Blob, x => x.as_blob());
-impl_typ!(f64, canonical::ColumnType::Real, x => x.as_f64());
+impl_typ!(i64, canonical::ColumnType::Integer, |x| x.as_i64());
+impl_typ!(String, canonical::ColumnType::Text, |x| x
+    .as_str()
+    .map(ToOwned::to_owned));
+impl_typ!(bool, canonical::ColumnType::Integer, |x| x
+    .as_i64()
+    .map(|x| x != 0));
+impl_typ!(Vec<u8>, canonical::ColumnType::Blob, |x| x
+    .as_blob()
+    .map(ToOwned::to_owned));
+impl_typ!(f64, canonical::ColumnType::Real, |x| x.as_f64());

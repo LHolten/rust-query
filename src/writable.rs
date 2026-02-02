@@ -1,4 +1,4 @@
-use crate::private::MigrateTyp;
+use crate::value::DbTyp;
 
 pub struct Reader {
     pub(crate) builder: Vec<(&'static str, sea_query::Expr)>,
@@ -13,7 +13,7 @@ impl Default for Reader {
 }
 
 impl Reader {
-    pub fn col<T: MigrateTyp>(&mut self, name: &'static str, val: T) {
+    pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
         self.builder.push((name, T::out_to_value(val).into()));
     }
 }

@@ -9,14 +9,13 @@ use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 use sea_query::{Alias, JoinType, Nullable, SelectStatement};
 
 use crate::{
-    IntoSelect, Lazy, Select, Table, Transaction,
+    IntoSelect, Select, Table,
     alias::{Field, JoinableTable, MyAlias, Scope},
     ast::{MySelect, Source},
-    db::{TableRow, TableRowInner},
+    db::TableRow,
     mutable::Mutable,
     mymap::MyMap,
     private::IntoJoinable,
-    schema::canonical,
 };
 pub use db_typ::DbTyp;
 
@@ -273,23 +272,17 @@ pub trait OptTable: DbTyp {
     type Schema;
     type Select;
     type Mutable<'t>;
-    type Lazy<'t>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select>;
 
     fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t>;
-    fn into_lazy<'t>(
-        txn: &'t Transaction<Self::Schema>,
-        val: Expr<'static, Self::Schema, Self>,
-    ) -> Self::Lazy<'t>;
 }
 
 impl<T: Table> OptTable for TableRow<T> {
     type Schema = T::Schema;
     type Select = (T::Select, TableRow<T>);
     type Mutable<'t> = Mutable<'t, T>;
-    type Lazy<'t> = Lazy<'t, T>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
@@ -299,23 +292,12 @@ impl<T: Table> OptTable for TableRow<T> {
     fn into_mutable<'t>((inner, row_id): Self::Select) -> Self::Mutable<'t> {
         Mutable::new(T::select_mutable(inner), row_id)
     }
-    fn into_lazy<'t>(
-        txn: &'t Transaction<Self::Schema>,
-        val: Expr<'static, Self::Schema, Self>,
-    ) -> Self::Lazy<'t> {
-        Lazy {
-            id: txn.query_one(val),
-            lazy: OnceCell::new(),
-            txn,
-        }
-    }
 }
 
 impl<T: Table> OptTable for Option<TableRow<T>> {
     type Schema = T::Schema;
     type Select = Option<(T::Select, TableRow<T>)>;
     type Mutable<'t> = Option<Mutable<'t, T>>;
-    type Lazy<'t> = Option<Lazy<'t, T>>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
@@ -327,16 +309,6 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
 
     fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t> {
         val.map(TableRow::<T>::into_mutable)
-    }
-    fn into_lazy<'t>(
-        txn: &'t Transaction<Self::Schema>,
-        val: Expr<'static, Self::Schema, Self>,
-    ) -> Self::Lazy<'t> {
-        txn.query_one(val).map(|id| Lazy {
-            id,
-            lazy: OnceCell::new(),
-            txn,
-        })
     }
 }
 

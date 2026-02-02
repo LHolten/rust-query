@@ -7,7 +7,7 @@ use std::{
 use sea_query::{ExprTrait, QueryBuilder};
 
 use crate::{
-    IntoExpr, TableRow, Transaction,
+    IntoExpr, TableRow,
     ast::{CONST_0, CONST_1},
     schema::{canonical, from_db},
     value::{DbTyp, EqTyp},
@@ -90,7 +90,7 @@ impl<S> TypBuilder<S> {
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
-pub trait SchemaType<S>: for<'x> IntoExpr<'x, S, Typ = Self> + MigrateTyp {
+pub trait SchemaType<S>: for<'x> IntoExpr<'x, S, Typ = Self> + DbTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }

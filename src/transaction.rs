@@ -17,7 +17,7 @@ use crate::{
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    value::{OptTable, SecretFromSql},
+    value::{DbTyp, OptTable},
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -327,7 +327,7 @@ impl<S> Transaction<S> {
         &'t self,
         val: impl IntoExpr<'static, S, Typ = T>,
     ) -> T::Lazy<'t> {
-        T::into_lazy(self, val.into_expr())
+        T::out_to_lazy(self.query_one(val.into_expr()))
     }
 
     /// This retrieves an iterator of [crate::Lazy] values.

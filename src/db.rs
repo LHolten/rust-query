@@ -10,7 +10,7 @@ pub struct TableRow<T: ?Sized + Table> {
     pub(crate) inner: TableRowInner<T>,
 }
 
-impl<T: Table> TableRow<T> {
+impl<T: Table + ?Sized> TableRow<T> {
     pub(crate) fn migrate_row(prev: TableRow<T::MigrateFrom>) -> Self {
         Self {
             _local: PhantomData,
