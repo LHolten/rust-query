@@ -124,7 +124,7 @@ fn define_table_migration(
         mod #typs_mod {
             use super::#new_mod::*;
             #(
-                pub type #alter_tmp = <#alter_typ as ::rust_query::private::MigrateTyp>::From;
+                pub type #alter_tmp = <#alter_typ as ::rust_query::private::DbTyp>::Prev;
             )*
         }
 
@@ -143,8 +143,8 @@ fn define_table_migration(
                 prev: ::rust_query::Lazy<'_, Self::From>,
             ) -> Self::To {
                 #new_mod::#table_ident {
-                    #(#old_ident: ::rust_query::private::MigrateTyp::from_lazy(&prev.#old_ident),)*
-                    #(#alter_ident: ::rust_query::private::MigrateTyp::migrate(val.#alter_ident),)*
+                    #(#old_ident: ::rust_query::private::DbTyp::from_lazy(&prev.#old_ident),)*
+                    #(#alter_ident: ::rust_query::private::DbTyp::migrate(val.#alter_ident),)*
                 }
             }
 

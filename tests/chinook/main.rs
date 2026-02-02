@@ -283,7 +283,7 @@ fn top_tracks(db: &Transaction<Schema>) -> Vec<TopTrack> {
 }
 
 fn customer_spending<'t>(
-    customer: impl IntoExpr<'t, Schema, Typ = Customer>,
+    customer: impl IntoExpr<'t, Schema, Typ = TableRow<Customer>>,
 ) -> Expr<'t, Schema, f64> {
     let customer = customer.into_expr();
     aggregate(|rows| {

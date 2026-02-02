@@ -307,7 +307,7 @@ enum CustomerIdent {
 }
 
 impl CustomerIdent {
-    fn lookup_customer<O: FromExpr<Schema, Customer>>(
+    fn lookup_customer<O: FromExpr<Schema, TableRow<Customer>>>(
         self,
         txn: &Transaction<Schema>,
         warehouse: i64,

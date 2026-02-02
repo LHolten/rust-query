@@ -167,7 +167,7 @@ fn define_table(
         } else {
             let next_mod = next_mod.unwrap();
             col_typ_original
-                .push(quote! {<super::#next_mod::#tmp as ::rust_query::private::MigrateTyp>::From});
+                .push(quote! {<super::#next_mod::#tmp as ::rust_query::private::DbTyp>::Prev});
         }
 
         col_typ.push(tmp);
@@ -214,7 +214,7 @@ fn define_table(
         pub const #table_ident: #table_helper = #table_helper(());
 
         impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #table_helper {
-            type Typ = #table_ident;
+            type Typ = ::rust_query::TableRow<#table_ident>;
             fn into_joinable(self) -> ::rust_query::private::Joinable<'inner, #schema, Self::Typ> {
                 ::rust_query::private::Joinable::table()
             }
@@ -228,7 +228,7 @@ fn define_table(
             pub struct #table_lazy<'x> {
                 #(
                     #(#col_doc)*
-                    pub #col_ident: <#col_typ as ::rust_query::private::MigrateTyp>::Lazy<'x>,
+                    pub #col_ident: <#col_typ as ::rust_query::private::DbTyp>::Lazy<'x>,
                 )*
                 #private: ::std::marker::PhantomData<&'x ()>
             }
@@ -236,7 +236,7 @@ fn define_table(
             pub struct #table_expr<'x> {
                 #(
                     #(#col_doc)*
-                    pub #col_ident: ::rust_query::Expr<'x, #schema, <#col_typ as ::rust_query::private::MigrateTyp>::ExprTyp>,
+                    pub #col_ident: ::rust_query::Expr<'x, #schema, #col_typ>,
                 )*
                 #private: ::std::marker::PhantomData<&'x ()>
             }
@@ -267,7 +267,7 @@ fn define_table(
                     val
                 }
 
-                fn build_ext2<'t>(val: &::rust_query::Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t> {
+                fn build_ext2<'t>(val: &::rust_query::Expr<'t, Self::Schema, ::rust_query::TableRow<Self>>) -> Self::Ext2<'t> {
                     Self::Ext2 {
                         #(#col_ident: ::rust_query::private::new_column(val, #col_str),)*
                         #private: ::std::marker::PhantomData,
@@ -292,7 +292,7 @@ fn define_table(
 
                 type Select = #wrap_typs;
 
-                fn into_select(col: ::rust_query::Expr<'_, Self::Schema, Self>) -> ::rust_query::Select<'_, Self::Schema, Self::Select> {
+                fn into_select(col: ::rust_query::Expr<'_, Self::Schema, ::rust_query::TableRow<Self>>) -> ::rust_query::Select<'_, Self::Schema, Self::Select> {
                     ::rust_query::IntoSelect::into_select(#wrap_parts)
                 }
 
@@ -307,7 +307,7 @@ fn define_table(
 
                 fn select_lazy<'t>(#wrap_ident: Self::Select) -> Self::Lazy<'t> {
                     Self::Lazy {
-                        #(#col_ident: <#col_typ as ::rust_query::private::SchemaType<Self::Schema>>::out_to_lazy(#col_ident),)*
+                        #(#col_ident: ::rust_query::private::DbTyp::out_to_lazy(#col_ident),)*
                         #private: ::std::marker::PhantomData,
                     }
                 }
