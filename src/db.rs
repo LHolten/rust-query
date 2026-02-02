@@ -70,7 +70,7 @@ impl<T> Copy for TableRowInner<T> {}
 
 // works for any schema?
 impl<'column, S, T: Table> IntoExpr<'column, S> for TableRow<T> {
-    type Typ = T;
+    type Typ = Self;
     fn into_expr(self) -> Expr<'static, S, Self::Typ> {
         let idx = self.inner.idx;
 

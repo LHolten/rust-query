@@ -53,16 +53,12 @@ impl<S> Default for TypBuilder<S> {
 }
 
 impl<S> TypBuilder<S> {
-    pub fn col<T: SchemaType<S, ExprTyp: MyTyp>>(
-        &mut self,
-        name: &'static str,
-        span: (usize, usize),
-    ) {
+    pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
         let item = Column {
             def: canonical::Column {
-                typ: T::ExprTyp::TYP,
-                nullable: T::ExprTyp::NULLABLE,
-                fk: T::ExprTyp::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
+                typ: T::TYP,
+                nullable: T::NULLABLE,
+                fk: T::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: {
                     if let Some(check) = T::check(sea_query::Alias::new(name)) {
                         let mut sql = String::new();
@@ -87,67 +83,34 @@ impl<S> TypBuilder<S> {
         self.ast.indices.insert(Index { def, span });
     }
 
-    pub fn check_unique_compatible<T: MigrateTyp<ExprTyp: EqTyp>>(&mut self) {}
+    pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
 }
 
 #[diagnostic::on_unimplemented(
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
-pub trait SchemaType<S>: for<'x> IntoExpr<'x, S, Typ = Self::ExprTyp> + MigrateTyp {
+pub trait SchemaType<S>: for<'x> IntoExpr<'x, S, Typ = Self> + MigrateTyp {
     fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         None
     }
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t>;
 }
 
 impl<S> SchemaType<S> for bool {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
     }
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        self
-    }
 }
-impl<S> SchemaType<S> for String {
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        self
-    }
-}
-impl<S> SchemaType<S> for Vec<u8> {
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        self
-    }
-}
-impl<S> SchemaType<S> for i64 {
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        self
-    }
-}
-impl<S> SchemaType<S> for f64 {
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        self
-    }
-}
-impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        todo!()
-    }
-}
+impl<S> SchemaType<S> for String {}
+impl<S> SchemaType<S> for Vec<u8> {}
+impl<S> SchemaType<S> for i64 {}
+impl<S> SchemaType<S> for f64 {}
+impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {}
 // only tables with `Referer = ()` are valid columns
-impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {
-    fn out_to_lazy<'t>(self) -> <Self as MigrateTyp>::Lazy<'t> {
-        crate::Lazy {
-            id: self,
-            lazy: OnceCell::new(),
-            txn: Transaction::new_ref(),
-        }
-    }
-}
+impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {}
 
-pub trait MigrateTyp {
-    type ExprTyp;
-    type From: MigrateTyp;
+pub trait MigrateTyp: MyTyp {
+    type From;
     type FromLazy<'x>;
     fn migrate(prev: Self::From) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
@@ -158,7 +121,6 @@ pub trait MigrateTyp {
 macro_rules! impl_migrate {
     ($typ:ty) => {
         impl MigrateTyp for $typ {
-            type ExprTyp = Self;
             type From = Self;
             type FromLazy<'x> = Self;
             fn migrate(prev: Self) -> Self {
@@ -183,8 +145,7 @@ impl_migrate!(bool);
 impl_migrate!(Vec<u8>);
 impl_migrate!(f64);
 
-impl<T: MigrateTyp> MigrateTyp for Option<T> {
-    type ExprTyp = Option<T::ExprTyp>;
+impl<T: MigrateTyp + EqTyp> MigrateTyp for Option<T> {
     type From = Option<T::From>;
     type FromLazy<'x> = Option<T::FromLazy<'x>>;
     fn migrate(prev: Self::From) -> Self {
@@ -204,9 +165,8 @@ impl<T: MigrateTyp> MigrateTyp for Option<T> {
 }
 
 impl<T: crate::Table> MigrateTyp for TableRow<T> {
-    type ExprTyp = T;
     type From = TableRow<T::MigrateFrom>;
-    type FromLazy<'x> = crate::Lazy<'x, <T as MyTyp>::Prev>;
+    type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
     fn migrate(prev: Self::From) -> Self {
         TableRow::migrate_row(prev)
     }

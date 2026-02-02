@@ -31,9 +31,9 @@ from_expr! {i64}
 from_expr! {f64}
 from_expr! {bool}
 
-impl<T: Table> FromExpr<T::Schema, T> for TableRow<T> {
+impl<T: Table> FromExpr<T::Schema, TableRow<T>> for TableRow<T> {
     fn from_expr<'columns>(
-        col: impl IntoExpr<'columns, T::Schema, Typ = T>,
+        col: impl IntoExpr<'columns, T::Schema, Typ = TableRow<T>>,
     ) -> Select<'columns, T::Schema, Self> {
         col.into_expr().into_select()
     }

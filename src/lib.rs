@@ -427,7 +427,7 @@ pub trait Table: 'static {
     fn covariant_ext<'x, 't>(val: &'x Self::Ext2<'static>) -> &'x Self::Ext2<'t>;
 
     #[doc(hidden)]
-    fn build_ext2<'t>(val: &Expr<'t, Self::Schema, Self>) -> Self::Ext2<'t>;
+    fn build_ext2<'t>(val: &Expr<'t, Self::Schema, TableRow<Self>>) -> Self::Ext2<'t>;
 
     /// The schema that this table is a part of.
     type Schema;
@@ -457,7 +457,9 @@ pub trait Table: 'static {
     type Select;
 
     #[doc(hidden)]
-    fn into_select(val: Expr<'_, Self::Schema, Self>) -> Select<'_, Self::Schema, Self::Select>;
+    fn into_select(
+        val: Expr<'_, Self::Schema, TableRow<Self>>,
+    ) -> Select<'_, Self::Schema, Self::Select>;
 
     #[doc(hidden)]
     fn select_mutable(select: Self::Select) -> Self::Mutable;

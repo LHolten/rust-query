@@ -3,12 +3,12 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::{Alias, ExprTrait, IntoIden};
 
 use crate::{
-    CustomJoin, Expr, Table,
+    CustomJoin, Expr, Table, TableRow,
     alias::{JoinableTable, MyAlias, TmpTable},
     ast::MySelect,
     joinable::IntoJoinable,
     private::Joinable,
-    value::{DynTypedExpr, EqTyp, IntoExpr, MyTableRef},
+    value::{DynTypedExpr, EqTyp, IntoExpr, MyTableRef, MyTyp},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -36,7 +36,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// This table can be filtered by `#[index]`: `rows.join(v0::User.score(100))`.
     ///
     /// See also [Self::filter_some] if you want to join a table that is filtered by `#[unique]`.
-    pub fn join<T: Table>(
+    pub fn join<T: MyTyp>(
         &mut self,
         j: impl IntoJoinable<'inner, S, Typ = T>,
     ) -> Expr<'inner, S, T> {
@@ -71,15 +71,21 @@ impl<'inner, S> Rows<'inner, S> {
     }
 
     #[doc(hidden)]
-    pub fn join_private<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, T> {
+    pub fn join_private<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, TableRow<T>> {
         self.join(Joinable::table())
     }
 
-    pub(crate) fn join_custom<T: CustomJoin<Schema = S>>(&mut self, t: T) -> Expr<'inner, S, T> {
+    pub(crate) fn join_custom<T: CustomJoin<Schema = S>>(
+        &mut self,
+        t: T,
+    ) -> Expr<'inner, S, TableRow<T>> {
         self.join(Joinable::new(t.name()))
     }
 
-    pub(crate) fn join_tmp<T: Table<Schema = S>>(&mut self, tmp: TmpTable) -> Expr<'inner, S, T> {
+    pub(crate) fn join_tmp<T: Table<Schema = S>>(
+        &mut self,
+        tmp: TmpTable,
+    ) -> Expr<'inner, S, TableRow<T>> {
         let tmp_string = tmp.into_iden();
         self.join(Joinable::new(JoinableTable::Normal(tmp_string)))
     }

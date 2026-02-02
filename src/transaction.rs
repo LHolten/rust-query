@@ -335,7 +335,7 @@ impl<S> Transaction<S> {
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     pub fn lazy_iter<'t, T: Table<Schema = S>>(
         &'t self,
-        val: impl IntoJoinable<'static, S, Typ = T>,
+        val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
     ) -> LazyIter<'t, T> {
         let val = val.into_joinable();
         self.query(|rows| {
@@ -363,14 +363,14 @@ impl<S> Transaction<S> {
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
-        val: impl IntoJoinable<'static, S, Typ = T>,
+        val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
     ) -> Vec<Mutable<'t, T>> {
         let val = val.into_joinable();
         self.query(|rows| {
             let val = rows.join(val);
             rows.into_vec((T::into_select(val.clone()), val))
                 .into_iter()
-                .map(T::into_mutable)
+                .map(TableRow::<T>::into_mutable)
                 .collect()
         })
     }

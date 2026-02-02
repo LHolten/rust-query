@@ -172,7 +172,7 @@ impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
 #[diagnostic::do_not_recommend]
-impl<T: Table> EqTyp for T {}
+impl<T: Table> EqTyp for TableRow<T> {}
 
 /// Trait for all values that can be used as expressions in queries.
 ///
@@ -283,7 +283,7 @@ pub trait OptTable: MyTyp {
     ) -> Self::Lazy<'t>;
 }
 
-impl<T: Table> OptTable for T {
+impl<T: Table> OptTable for TableRow<T> {
     type Schema = T::Schema;
     type Select = (T::Select, TableRow<T>);
     type Mutable<'t> = Mutable<'t, T>;
@@ -309,7 +309,7 @@ impl<T: Table> OptTable for T {
     }
 }
 
-impl<T: Table> OptTable for Option<T> {
+impl<T: Table> OptTable for Option<TableRow<T>> {
     type Schema = T::Schema;
     type Select = Option<(T::Select, TableRow<T>)>;
     type Mutable<'t> = Option<Mutable<'t, T>>;
@@ -324,7 +324,7 @@ impl<T: Table> OptTable for Option<T> {
     }
 
     fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t> {
-        val.map(T::into_mutable)
+        val.map(TableRow::<T>::into_mutable)
     }
     fn into_lazy<'t>(
         txn: &'t Transaction<Self::Schema>,
@@ -353,7 +353,7 @@ pub(crate) trait SecretFromSql: Sized {
 }
 
 #[diagnostic::do_not_recommend]
-impl<T: Table + ?Sized> MyTyp for T {
+impl<T: Table + ?Sized> MyTyp for TableRow<T> {
     type Prev = T::MigrateFrom;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
@@ -503,7 +503,7 @@ pub fn adhoc_expr<S, T: MyTyp>(
 }
 
 pub fn new_column<'x, S, C: MyTyp, T: Table>(
-    table: impl IntoExpr<'x, S, Typ = T>,
+    table: impl IntoExpr<'x, S, Typ = TableRow<T>>,
     name: &'static str,
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
@@ -518,8 +518,8 @@ pub fn new_column<'x, S, C: MyTyp, T: Table>(
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(
-    j: impl IntoJoinable<'inner, T::Schema, Typ = T>,
-) -> Expr<'inner, T::Schema, Option<T>> {
+    j: impl IntoJoinable<'inner, T::Schema, Typ = TableRow<T>>,
+) -> Expr<'inner, T::Schema, Option<TableRow<T>>> {
     let list = j.into_joinable().conds;
     ::rust_query::private::adhoc_expr(move |_b| {
         let list = list
@@ -607,7 +607,7 @@ impl<'column, S, T: MyTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
     }
 }
 
-impl<'t, T: Table> Deref for Expr<'t, T::Schema, T> {
+impl<'t, T: Table> Deref for Expr<'t, T::Schema, TableRow<T>> {
     type Target = T::Ext2<'t>;
 
     fn deref(&self) -> &Self::Target {

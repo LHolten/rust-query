@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use sea_query::IntoIden;
 
 use crate::{
-    Expr, Table,
+    Expr, Table, TableRow,
     alias::JoinableTable,
     value::{DynTypedExpr, MyTyp},
 };
@@ -29,11 +29,12 @@ impl<'inner, S, T: MyTyp> Joinable<'inner, S, T> {
     }
 }
 
-impl<'inner, S, T: Table> Joinable<'inner, S, T> {
+impl<'inner, S, T: Table> Joinable<'inner, S, TableRow<T>> {
     pub fn table() -> Self {
         Self::new(JoinableTable::Normal(T::NAME.into_iden()))
     }
-
+}
+impl<'inner, S, T: MyTyp> Joinable<'inner, S, T> {
     pub fn add_cond<C: MyTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
         self.conds.push((col, DynTypedExpr::erase(val)));
         self
