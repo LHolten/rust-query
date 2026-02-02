@@ -5,7 +5,7 @@ use sea_query::IntoIden;
 use crate::{
     Expr,
     alias::MyAlias,
-    value::{DynTypedExpr, MyTyp, SecretFromSql},
+    value::{DbTyp, DynTypedExpr, SecretFromSql},
 };
 
 /// Opaque type used to implement [crate::Select].
@@ -259,7 +259,7 @@ impl<Out: SecretFromSql> SelectImpl for ColumnImpl<Out> {
 
 impl<'columns, S, T> IntoSelect<'columns, S> for Expr<'columns, S, T>
 where
-    T: MyTyp<Out: SecretFromSql>,
+    T: DbTyp<Out: SecretFromSql>,
 {
     type Out = T::Out;
 

@@ -10,7 +10,7 @@ use crate::{
     IntoExpr, TableRow, Transaction,
     ast::{CONST_0, CONST_1},
     schema::{canonical, from_db},
-    value::{EqTyp, MyTyp},
+    value::{DbTyp, EqTyp},
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -108,83 +108,6 @@ impl<S> SchemaType<S> for f64 {}
 impl<S, T: SchemaType<S, Typ: EqTyp>> SchemaType<S> for Option<T> {}
 // only tables with `Referer = ()` are valid columns
 impl<T: crate::Table<Referer = ()>> SchemaType<T::Schema> for TableRow<T> {}
-
-pub trait MigrateTyp: MyTyp {
-    type From;
-    type FromLazy<'x>;
-    fn migrate(prev: Self::From) -> Self;
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
-    fn out_to_value(self) -> sea_query::Value;
-    type Lazy<'t>: Sized;
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
-}
-macro_rules! impl_migrate {
-    ($typ:ty) => {
-        impl MigrateTyp for $typ {
-            type From = Self;
-            type FromLazy<'x> = Self;
-            fn migrate(prev: Self) -> Self {
-                prev
-            }
-            fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-                lazy.clone()
-            }
-            fn out_to_value(self) -> sea_query::Value {
-                self.into()
-            }
-            type Lazy<'t> = Self;
-            fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-                self
-            }
-        }
-    };
-}
-impl_migrate!(i64);
-impl_migrate!(String);
-impl_migrate!(bool);
-impl_migrate!(Vec<u8>);
-impl_migrate!(f64);
-
-impl<T: MigrateTyp + EqTyp> MigrateTyp for Option<T> {
-    type From = Option<T::From>;
-    type FromLazy<'x> = Option<T::FromLazy<'x>>;
-    fn migrate(prev: Self::From) -> Self {
-        prev.map(T::migrate)
-    }
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-        lazy.as_ref().map(T::from_lazy)
-    }
-    fn out_to_value(self) -> sea_query::Value {
-        self.map(T::out_to_value)
-            .unwrap_or(sea_query::Value::Bool(None))
-    }
-    type Lazy<'t> = Option<T::Lazy<'t>>;
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-        self.map(T::out_to_lazy)
-    }
-}
-
-impl<T: crate::Table> MigrateTyp for TableRow<T> {
-    type From = TableRow<T::MigrateFrom>;
-    type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
-    fn migrate(prev: Self::From) -> Self {
-        TableRow::migrate_row(prev)
-    }
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-        TableRow::migrate_row(lazy.table_row())
-    }
-    fn out_to_value(self) -> sea_query::Value {
-        self.inner.idx.into()
-    }
-    type Lazy<'t> = crate::Lazy<'t, T>;
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-        crate::Lazy {
-            id: self,
-            lazy: OnceCell::new(),
-            txn: Transaction::new_ref(),
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -365,9 +365,9 @@ pub mod private {
         migration::{Migration, SchemaBuilder},
     };
     pub use crate::query::get_plan;
-    pub use crate::schema::from_macro::{MigrateTyp, SchemaType, TypBuilder};
+    pub use crate::schema::from_macro::{SchemaType, TypBuilder};
     pub use crate::value::{
-        DynTypedExpr, MyTyp, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
+        DbTyp, DynTypedExpr, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };
     pub use crate::writable::Reader;
 

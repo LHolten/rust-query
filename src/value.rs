@@ -1,4 +1,5 @@
 pub mod aggregate;
+mod db_typ;
 mod operations;
 pub mod optional;
 pub mod trivial;
@@ -17,6 +18,7 @@ use crate::{
     private::IntoJoinable,
     schema::canonical,
 };
+pub use db_typ::DbTyp;
 
 #[derive(Default)]
 pub struct ValueBuilder {
@@ -156,7 +158,7 @@ impl OrdTyp for i64 {}
 impl OrdTyp for f64 {}
 impl OrdTyp for bool {}
 
-pub trait BuffTyp: MyTyp {}
+pub trait BuffTyp: DbTyp {}
 impl BuffTyp for String {}
 impl BuffTyp for Vec<u8> {}
 
@@ -164,7 +166,7 @@ impl BuffTyp for Vec<u8> {}
     message = "Columns with type `{Self}` can not be checked for equality",
     note = "`EqTyp` is also implemented for all table types"
 )]
-pub trait EqTyp: MyTyp {}
+pub trait EqTyp: DbTyp {}
 
 impl EqTyp for String {}
 impl EqTyp for Vec<u8> {}
@@ -191,7 +193,7 @@ impl<T: Table> EqTyp for TableRow<T> {}
 /// Using a reference lets you reuse [Expr] without calling [Clone] explicitly.
 pub trait IntoExpr<'column, S> {
     /// The type of the expression.
-    type Typ: MyTyp;
+    type Typ: DbTyp;
 
     /// Turn this value into an [Expr].
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
@@ -267,7 +269,7 @@ where
     }
 }
 
-pub trait OptTable: MyTyp {
+pub trait OptTable: DbTyp {
     type Schema;
     type Select;
     type Mutable<'t>;
@@ -338,134 +340,6 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
     }
 }
 
-pub trait MyTyp: 'static {
-    type Prev;
-    const NULLABLE: bool = false;
-    const TYP: canonical::ColumnType;
-    const FK: Option<(&'static str, &'static str)> = None;
-    type Out;
-    type Ext<'t>;
-    type Sql: Nullable;
-}
-
-pub(crate) trait SecretFromSql: Sized {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>;
-}
-
-#[diagnostic::do_not_recommend]
-impl<T: Table + ?Sized> MyTyp for TableRow<T> {
-    type Prev = T::MigrateFrom;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
-    const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
-    type Out = TableRow<T>;
-    type Ext<'t> = T::Ext2<'t>;
-    type Sql = i64;
-}
-
-impl<T: Table> SecretFromSql for TableRow<T> {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(TableRow {
-            _local: PhantomData,
-            inner: TableRowInner {
-                _p: PhantomData,
-                idx: value.as_i64()?,
-            },
-        })
-    }
-}
-
-impl MyTyp for i64 {
-    type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
-    type Out = Self;
-    type Ext<'t> = ();
-    type Sql = i64;
-}
-
-impl SecretFromSql for i64 {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        value.as_i64()
-    }
-}
-
-impl MyTyp for f64 {
-    type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Real;
-    type Out = Self;
-    type Ext<'t> = ();
-    type Sql = f64;
-}
-
-impl SecretFromSql for f64 {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        value.as_f64()
-    }
-}
-
-impl MyTyp for bool {
-    type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
-    type Out = Self;
-    type Ext<'t> = ();
-    type Sql = bool;
-}
-
-impl SecretFromSql for bool {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(value.as_i64()? != 0)
-    }
-}
-
-impl MyTyp for String {
-    type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
-    type Out = Self;
-    type Ext<'t> = ();
-    type Sql = String;
-}
-assert_impl_all!(String: Nullable);
-
-impl SecretFromSql for String {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(value.as_str()?.to_owned())
-    }
-}
-
-impl MyTyp for Vec<u8> {
-    type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Blob;
-    type Out = Self;
-    type Ext<'t> = ();
-    type Sql = Vec<u8>;
-}
-assert_impl_all!(Vec<u8>: Nullable);
-
-impl SecretFromSql for Vec<u8> {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(value.as_blob()?.to_owned())
-    }
-}
-
-impl<T: EqTyp> MyTyp for Option<T> {
-    type Prev = Option<T::Prev>;
-    const TYP: canonical::ColumnType = T::TYP;
-    const NULLABLE: bool = true;
-    const FK: Option<(&'static str, &'static str)> = T::FK;
-    type Out = Option<T::Out>;
-    type Ext<'t> = ();
-    type Sql = T::Sql;
-}
-
-impl<T: SecretFromSql> SecretFromSql for Option<T> {
-    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        if value.data_type() == rusqlite::types::Type::Null {
-            Ok(None)
-        } else {
-            Ok(Some(T::from_sql(value)?))
-        }
-    }
-}
-
 /// This is an expression that can be used in queries.
 ///
 /// - The lifetime parameter `'column` specifies which columns need to be in scope.
@@ -473,7 +347,7 @@ impl<T: SecretFromSql> SecretFromSql for Option<T> {
 /// - And finally the type paramter `T` specifies the type of the expression.
 ///
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
-pub struct Expr<'column, S, T: MyTyp + ?Sized> {
+pub struct Expr<'column, S, T: DbTyp + ?Sized> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>,
     pub(crate) _p: PhantomData<&'column ()>,
@@ -481,13 +355,13 @@ pub struct Expr<'column, S, T: MyTyp + ?Sized> {
     pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
 }
 
-impl<S, T: MyTyp> Debug for Expr<'_, S, T> {
+impl<S, T: DbTyp> Debug for Expr<'_, S, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Expr of type {}", std::any::type_name::<T>())
     }
 }
 
-impl<'column, S, T: MyTyp> Expr<'column, S, T> {
+impl<'column, S, T: DbTyp> Expr<'column, S, T> {
     /// Extremely easy to use API. Should only be used by the macro to implement migrations.
     #[doc(hidden)]
     pub fn _migrate<OldS>(prev: impl IntoExpr<'column, OldS>) -> Self {
@@ -496,13 +370,13 @@ impl<'column, S, T: MyTyp> Expr<'column, S, T> {
     }
 }
 
-pub fn adhoc_expr<S, T: MyTyp>(
+pub fn adhoc_expr<S, T: DbTyp>(
     f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
 ) -> Expr<'static, S, T> {
     Expr::adhoc(f)
 }
 
-pub fn new_column<'x, S, C: MyTyp, T: Table>(
+pub fn new_column<'x, S, C: DbTyp, T: Table>(
     table: impl IntoExpr<'x, S, Typ = TableRow<T>>,
     name: &'static str,
 ) -> Expr<'x, S, C> {
@@ -542,7 +416,7 @@ impl<F: ?Sized + Fn(&mut ValueBuilder) -> sea_query::Expr, T> AdHoc<F, T> {
     }
 }
 
-impl<S, T: MyTyp> Expr<'_, S, T> {
+impl<S, T: DbTyp> Expr<'_, S, T> {
     pub(crate) fn adhoc(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
         Self::adhoc_promise(f, true)
     }
@@ -573,7 +447,7 @@ impl<S, T: MyTyp> Expr<'_, S, T> {
     }
 }
 
-impl<S, T: MyTyp> Clone for Expr<'_, S, T> {
+impl<S, T: DbTyp> Clone for Expr<'_, S, T> {
     fn clone(&self) -> Self {
         Self {
             _local: PhantomData,
@@ -600,7 +474,7 @@ impl DynTypedExpr {
     }
 }
 
-impl<'column, S, T: MyTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
+impl<'column, S, T: DbTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
     type Typ = T;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
         self

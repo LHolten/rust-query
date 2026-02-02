@@ -8,7 +8,7 @@ use crate::{
     ast::MySelect,
     joinable::IntoJoinable,
     private::Joinable,
-    value::{DynTypedExpr, EqTyp, IntoExpr, MyTableRef, MyTyp},
+    value::{DbTyp, DynTypedExpr, EqTyp, IntoExpr, MyTableRef},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -36,7 +36,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// This table can be filtered by `#[index]`: `rows.join(v0::User.score(100))`.
     ///
     /// See also [Self::filter_some] if you want to join a table that is filtered by `#[unique]`.
-    pub fn join<T: MyTyp>(
+    pub fn join<T: DbTyp>(
         &mut self,
         j: impl IntoJoinable<'inner, S, Typ = T>,
     ) -> Expr<'inner, S, T> {
