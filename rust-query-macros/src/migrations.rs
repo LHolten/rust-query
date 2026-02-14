@@ -142,6 +142,7 @@ fn define_table_migration(
                 val: Self,
                 prev: ::rust_query::Lazy<'_, Self::From>,
             ) -> Self::To {
+                let prev = ::std::ops::Deref::deref(&prev);
                 #new_mod::#table_ident {
                     #(#old_ident: ::rust_query::private::DbTyp::from_lazy(&prev.#old_ident),)*
                     #(#alter_ident: ::rust_query::private::DbTyp::migrate(val.#alter_ident),)*

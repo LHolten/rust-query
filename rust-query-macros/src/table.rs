@@ -293,6 +293,7 @@ fn define_table(
                 type Select = #wrap_typs;
 
                 fn into_select(col: ::rust_query::Expr<'_, Self::Schema, ::rust_query::TableRow<Self>>) -> ::rust_query::Select<'_, Self::Schema, Self::Select> {
+                    let col = ::std::ops::Deref::deref(&col);
                     ::rust_query::IntoSelect::into_select(#wrap_parts)
                 }
 
