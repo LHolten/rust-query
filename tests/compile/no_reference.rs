@@ -7,7 +7,7 @@ pub mod vN {
         pub data: String,
     }
     pub struct NotAllowed {
-        pub marker: SomeTable,
+        pub marker: rust_query::TableRow<SomeTable>,
     }
 }
 

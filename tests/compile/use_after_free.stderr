@@ -23,7 +23,7 @@ note: required because it appears within the type `PhantomData<*const ()>`
 note: required because it appears within the type `TableRow<v0::MyTable>`
   --> src/db.rs
    |
-   | pub struct TableRow<T: Table> {
+   | pub struct TableRow<T: ?Sized + Table> {
    |            ^^^^^^^^
 note: required because it appears within the type `PhantomData<TableRow<v0::MyTable>>`
   --> $RUST/core/src/marker.rs

@@ -1,0 +1,601 @@
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied
+ --> tests/compile/schema_type2.rs:9:20
+  |
+9 |         pub other: Other,
+  |                    ^^^^^ unsatisfied trait bound
+  |
+help: the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: required for `TableRow<v0::Table>` to implement `DbTyp`
+note: required by a bound in `IntoJoinable::Typ`
+ --> src/joinable.rs
+  |
+  |     type Typ: DbTyp;
+  |               ^^^^^ required by this bound in `IntoJoinable::Typ`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: required for `TableRow<v0::Table>` to implement `DbTyp`
+note: required by a bound in `Joinable`
+ --> src/joinable.rs
+  |
+  | pub struct Joinable<'inner, S, T: DbTyp> {
+  |                                   ^^^^^ required by this bound in `Joinable`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: required for `<v0::Table as rust_query::Table>::MigrateFrom` to implement `rust_query::Table`
+note: required by a bound in `rust_query::Table::MigrateFrom`
+ --> src/lib.rs
+  |
+  |     type MigrateFrom: Table;
+  |                       ^^^^^ required by this bound in `Table::MigrateFrom`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+note: required by a bound in `rust_query::Table`
+ --> src/lib.rs
+  |
+  | / pub trait Table: 'static {
+  | |     #[doc(hidden)]
+  | |     type Ext2<'t>;
+... |
+  | |     const NAME: &'static str;
+  | | }
+  | |_^ required by this bound in `Table`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::_::TableMut`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::_::TableMut`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::_::TableMut`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+note: required by a bound in `rust_query::Table::Mutable`
+ --> src/lib.rs
+  |
+  |     type Mutable: Deref;
+  |     ^^^^^^^^^^^^^^^^^^^^ required by this bound in `Table::Mutable`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: required for `<migrate::Table as Migration>::From` to implement `rust_query::Table`
+note: required by a bound in `Migration::From`
+ --> src/migrate/migration.rs
+  |
+  |     type From: Table<Schema = Self::FromSchema>;
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Migration::From`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+note: required by a bound in `Lazy`
+ --> src/lazy.rs
+  |
+  | pub struct Lazy<'transaction, T: Table + ?Sized> {
+  |                               ^ required by this bound in `Lazy`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+note: required by a bound in `TableRow`
+ --> src/db.rs
+  |
+  | pub struct TableRow<T: ?Sized + Table> {
+  |                     ^ required by this bound in `TableRow`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required by a bound in `Expr`
+ --> src/value.rs
+  |
+  | pub struct Expr<'column, S, T: DbTyp + ?Sized> {
+  |                                ^^^^^ required by this bound in `Expr`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: required for `<v1::Table as rust_query::Table>::MigrateFrom` to implement `rust_query::Table`
+note: required by a bound in `rust_query::Table::MigrateFrom`
+ --> src/lib.rs
+  |
+  |     type MigrateFrom: Table;
+  |                       ^^^^^ required by this bound in `Table::MigrateFrom`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: the return type of a function must have a statically known size
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+note: required by a bound in `Joinable::<'inner, S, TableRow<T>>::table`
+ --> src/joinable.rs
+  |
+  | impl<'inner, S, T: Table> Joinable<'inner, S, TableRow<T>> {
+  |                 ^ required by this bound in `Joinable::<'inner, S, TableRow<T>>::table`
+  |     pub fn table() -> Self {
+  |            ----- required by a bound in this associated function
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+note: required by an implicit `Sized` bound in `TableTypBuilder::<S>::table`
+ --> src/migrate.rs
+  |
+  |     pub fn table<T: Table<Schema = S>>(&mut self) {
+  |                  ^ required by the implicit `Sized` requirement on this type parameter in `TableTypBuilder::<S>::table`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+  = note: required for `Lazy<'_, v0::Table>` to implement `Deref`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required because it appears within the type `v0::Table`
+ --> tests/compile/schema_type2.rs:6:16
+  |
+6 |     pub struct Table {
+  |                ^^^^^
+note: required by an implicit `Sized` bound in `SchemaBuilder::<'t, FromSchema>::drop_table`
+ --> src/migrate/migration.rs
+  |
+  |     pub fn drop_table<T: Table>(&mut self) {
+  |                       ^ required by the implicit `Sized` requirement on this type parameter in `SchemaBuilder::<'t, FromSchema>::drop_table`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Can not use `v1::Other` as a column type in schema `v1::Schema`
+ --> tests/compile/schema_type2.rs:9:20
+  |
+3 | #[schema(Schema)]
+  | ----------------- required by a bound introduced by this call
+...
+9 |         pub other: Other,
+  |                    ^^^^^ unsatisfied trait bound
+  |
+help: the trait `SchemaType<v1::Schema>` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = note: `TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]
+  = help: the following other types implement trait `SchemaType<S>`:
+            `Option<T>` implements `SchemaType<S>`
+            `String` implements `SchemaType<S>`
+            `TableRow<T>` implements `SchemaType<<T as rust_query::Table>::Schema>`
+            `Vec<u8>` implements `SchemaType<S>`
+            `bool` implements `SchemaType<S>`
+            `f64` implements `SchemaType<S>`
+            `i64` implements `SchemaType<S>`
+note: required by a bound in `TypBuilder::<S>::col`
+ --> src/schema/from_macro.rs
+  |
+  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
+  |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied
+ --> tests/compile/schema_type2.rs:9:13
+  |
+3 | #[schema(Schema)]
+  | ----------------- required by a bound introduced by this call
+...
+9 |         pub other: Other,
+  |             ^^^^^ unsatisfied trait bound
+  |
+help: the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied
+ --> tests/compile/schema_type2.rs:9:20
+  |
+3 | #[schema(Schema)]
+  | ----------------- required by a bound introduced by this call
+...
+9 |         pub other: Other,
+  |                    ^^^^^ unsatisfied trait bound
+  |
+help: the trait `DbTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `DbTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+note: required by a bound in `Reader::col`
+ --> src/writable.rs
+  |
+  |     pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
+  |                   ^^^^^ required by this bound in `Reader::col`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: Clone` is not satisfied
+ --> tests/compile/schema_type2.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ the trait `Clone` is not implemented for `v1::Other`
+  |
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider annotating `v1::Other` with `#[derive(Clone)]`
+  |
+3 + #[derive(Clone)]
+4 | #[schema(Schema)]
+  |

@@ -53,7 +53,7 @@ pub use value::{Expr, IntoExpr, optional::optional};
 /// #[rust_query::migration::schema(Schema)]
 /// pub mod vN {
 ///     pub struct Thing {
-///         pub details: Details,
+///         pub details: rust_query::TableRow<Details>,
 ///         pub beta: f64,
 ///         pub seconds: i64,
 ///     }
@@ -112,7 +112,7 @@ pub use rust_query_macros::Select;
 ///     pub struct User {
 ///         pub name: String,
 ///         pub score: i64,
-///         pub best_game: Option<Game>,
+///         pub best_game: Option<rust_query::TableRow<Game>>,
 ///     }
 ///     pub struct Game;
 /// }
@@ -327,7 +327,7 @@ pub mod migration {
     ///         pub name: String,
     ///     }
     ///     pub struct Book {
-    ///         pub author: Author,
+    ///         pub author: rust_query::TableRow<Author>,
     ///     }
     /// }
     /// pub fn migrate() -> Database<v1::Schema> {

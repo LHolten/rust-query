@@ -18,7 +18,7 @@ pub mod vN {
         pub file_name: String,
         // This column has an index and a foreign key constraint to the `User` table.
         #[index]
-        pub uploaded_by: User,
+        pub uploaded_by: rust_query::TableRow<User>,
     }
 }
 // Import the table names from the schema we just created.

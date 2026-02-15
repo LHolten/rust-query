@@ -4,8 +4,8 @@ error[E0271]: type mismatch resolving `<FooNext as Table>::Schema == Schema`
 3 | #[schema(Schema)]
   | ----------------- required by a bound introduced by this call
 ...
-9 |         pub evolving: FooNext,
-  |                       ^^^^^^^ type mismatch resolving `<FooNext as Table>::Schema == Schema`
+9 |         pub evolving: rust_query::TableRow<FooNext>,
+  |                       ^^^^^^^^^^ type mismatch resolving `<FooNext as Table>::Schema == Schema`
   |
 note: expected this to be `v0::Schema`
  --> tests/compile/table_does_not_exist.rs:3:10

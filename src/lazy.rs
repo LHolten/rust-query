@@ -12,7 +12,7 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 /// # #[rust_query::migration::schema(Schema)]
 /// # pub mod vN {
 /// #     pub struct Post {
-/// #         pub author: User,
+/// #         pub author: rust_query::TableRow<User>,
 /// #     }
 /// #     pub struct User {
 /// #         pub name: String,
