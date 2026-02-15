@@ -33,7 +33,7 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 /// - [Copy]/[Clone] the columns that you need from the [Lazy] value before doing inserts and or updates.
 /// - Another option is to use [Lazy::table_row] to retrieve an owned [TableRow].
 /// - If you need many columns in a struct, then consider [derive@crate::FromExpr].
-pub struct Lazy<'transaction, T: Table + ?Sized> {
+pub struct Lazy<'transaction, T: Table> {
     pub(crate) id: TableRow<T>,
     pub(crate) lazy: OnceCell<Box<T::Lazy<'transaction>>>,
     pub(crate) txn: &'transaction Transaction<T::Schema>,

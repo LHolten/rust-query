@@ -17,7 +17,7 @@ use crate::{
     mymap::MyMap,
     private::IntoJoinable,
 };
-pub use db_typ::DbTyp;
+pub use db_typ::{DbTyp, StorableTyp};
 
 #[derive(Default)]
 pub struct ValueBuilder {
@@ -319,7 +319,7 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
 /// - And finally the type paramter `T` specifies the type of the expression.
 ///
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
-pub struct Expr<'column, S, T: DbTyp + ?Sized> {
+pub struct Expr<'column, S, T: DbTyp> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, T>>,
     pub(crate) _p: PhantomData<&'column ()>,

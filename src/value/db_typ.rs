@@ -1,10 +1,18 @@
 use std::{cell::OnceCell, marker::PhantomData};
 
-use sea_query::Nullable;
+use sea_query::{ExprTrait, Nullable};
 
-use crate::{Table, TableRow, Transaction, db::TableRowInner, schema::canonical, value::EqTyp};
+use crate::{
+    Table, TableRow, Transaction,
+    ast::{CONST_0, CONST_1},
+    db::TableRowInner,
+    schema::canonical,
+    value::EqTyp,
+};
 
-pub trait DbTyp: 'static {
+/// The types that can be used inside [crate::Expr].
+/// Some stuff like nested [Option] is not allowed.
+pub trait DbTyp: Sized + 'static {
     type Prev;
     const NULLABLE: bool = false;
     const TYP: canonical::ColumnType;
@@ -23,9 +31,17 @@ pub trait DbTyp: 'static {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>
     where
         Self: Sized;
+
+    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        None
+    }
 }
 
-impl<T: Table + ?Sized> DbTyp for TableRow<T> {
+/// Not all types are allowed to be stored.
+/// Specificially `#[no_reference]` references.
+pub trait StorableTyp: DbTyp {}
+
+impl<T: Table> DbTyp for TableRow<T> {
     type Prev = TableRow<T::MigrateFrom>;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
@@ -62,6 +78,8 @@ impl<T: Table + ?Sized> DbTyp for TableRow<T> {
     }
 }
 
+impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {}
+
 impl<T: EqTyp> DbTyp for Option<T> {
     type Prev = Option<T::Prev>;
     const TYP: canonical::ColumnType = T::TYP;
@@ -95,8 +113,10 @@ impl<T: EqTyp> DbTyp for Option<T> {
     }
 }
 
+impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {}
+
 macro_rules! impl_typ {
-    ($typ:ty, $can:expr, $map:expr) => {
+    ($typ:ty, $can:expr, $map:expr $(, $check:expr)?) => {
         impl DbTyp for $typ {
             type Prev = Self;
             const TYP: canonical::ColumnType = $can;
@@ -123,16 +143,27 @@ macro_rules! impl_typ {
                 let f: fn(rusqlite::types::ValueRef<'_>) -> _ = $map;
                 f(val)
             }
+            $(
+                fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+                    let f: fn(col: sea_query::Alias) -> _ = $check;
+                    f(col)
+                }
+            )?
         }
+
+        impl StorableTyp for $typ {}
     };
 }
 impl_typ!(i64, canonical::ColumnType::Integer, |x| x.as_i64());
 impl_typ!(String, canonical::ColumnType::Text, |x| x
     .as_str()
     .map(ToOwned::to_owned));
-impl_typ!(bool, canonical::ColumnType::Integer, |x| x
-    .as_i64()
-    .map(|x| x != 0));
+impl_typ!(
+    bool,
+    canonical::ColumnType::Integer,
+    |x| x.as_i64().map(|x| x != 0),
+    |col| Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
+);
 impl_typ!(Vec<u8>, canonical::ColumnType::Blob, |x| x
     .as_blob()
     .map(ToOwned::to_owned));
