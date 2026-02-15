@@ -23,6 +23,7 @@ note: `v0::Schema` is defined in module `crate::v0` of the current crate
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^
+  = note: required for `TableRow<FooNext>` to implement `SchemaType<v0::Schema>`
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
   |
