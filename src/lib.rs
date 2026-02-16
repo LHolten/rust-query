@@ -11,6 +11,7 @@ mod alias;
 mod ast;
 mod async_db;
 mod db;
+mod error;
 mod joinable;
 mod lazy;
 mod migrate;
@@ -34,6 +35,7 @@ use std::ops::Deref;
 
 pub use async_db::DatabaseAsync;
 pub use db::TableRow;
+pub use error::Conflict;
 pub use lazy::Lazy;
 pub use mutable::Mutable;
 pub use select::{IntoSelect, Select};
