@@ -63,7 +63,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
     /// three conflict types:
     /// - 0 unique constraints => [std::convert::Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
-    /// - 2+ unique constraints => `()` no further information is provided.
+    /// - 2+ unique constraints => [crate::Conflict]
     ///
     /// If any of the changes made inside the closure conflict with an existing row, then all changes
     /// made inside the closure are reverted.

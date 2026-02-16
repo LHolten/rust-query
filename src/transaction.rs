@@ -400,7 +400,7 @@ impl<S: 'static> Transaction<S> {
     /// The type of conflict information depends on the number of unique constraints on the table:
     /// - 0 unique constraints => [Infallible]
     /// - 1 unique constraint => [TableRow] reference to the conflicting table row.
-    /// - 2+ unique constraints => `()` no further information is provided.
+    /// - 2+ unique constraints => [crate::Conflict].
     ///
     /// ```
     /// # use rust_query::{private::doctest::*, IntoExpr};

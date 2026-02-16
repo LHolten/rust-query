@@ -5,6 +5,11 @@ use sea_query_rusqlite::RusqliteBinder;
 
 use crate::{Table, TableRow, db::TableRowInner};
 
+/// Error type that is used by [crate::Transaction::insert] and [crate::Mutable::unique] when
+/// there are at least two unique constraints.
+///
+/// The source of the error is the message received from sqlite. It contains the column
+/// names that were conflicted.
 pub struct Conflict<T: Table> {
     _p: PhantomData<T>,
     msg: Box<dyn std::error::Error>,
