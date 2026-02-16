@@ -31,6 +31,8 @@ mod stock_level;
 
 #[schema(Schema)]
 pub mod vN {
+    use rust_query::TableRow;
+
     #[unique(number)]
     pub struct Warehouse {
         pub number: i64,
@@ -46,7 +48,7 @@ pub mod vN {
     }
     #[unique(warehouse, number)]
     pub struct District {
-        pub warehouse: rust_query::TableRow<Warehouse>,
+        pub warehouse: TableRow<Warehouse>,
         pub number: i64,
         pub name: String,
         pub street_1: String,
@@ -61,7 +63,7 @@ pub mod vN {
     }
     #[unique(district, number)]
     pub struct Customer {
-        pub district: rust_query::TableRow<District>,
+        pub district: TableRow<District>,
         pub number: i64,
         pub first: String,
         pub middle: String,
@@ -86,8 +88,8 @@ pub mod vN {
         pub data: String,
     }
     pub struct History {
-        pub customer: rust_query::TableRow<Customer>,
-        pub district: rust_query::TableRow<District>,
+        pub customer: TableRow<Customer>,
+        pub district: TableRow<District>,
         pub date: i64,
         // stored multiplied by 100
         pub amount: i64,
@@ -96,11 +98,11 @@ pub mod vN {
     #[no_reference]
     pub struct NewOrder {
         #[unique]
-        pub order: rust_query::TableRow<Order>,
+        pub order: TableRow<Order>,
     }
     #[unique(customer, number)]
     pub struct Order {
-        pub customer: rust_query::TableRow<Customer>,
+        pub customer: TableRow<Customer>,
         pub number: i64,
         pub entry_d: i64,
         pub carrier_id: Option<i64>,
@@ -109,9 +111,9 @@ pub mod vN {
     }
     #[unique(order, number)]
     pub struct OrderLine {
-        pub order: rust_query::TableRow<Order>,
+        pub order: TableRow<Order>,
         pub number: i64,
-        pub stock: rust_query::TableRow<Stock>,
+        pub stock: TableRow<Stock>,
         pub delivery_d: Option<i64>,
         pub quantity: i64,
         // stored multiplied by 100
@@ -129,8 +131,8 @@ pub mod vN {
     }
     #[unique(warehouse, item)]
     pub struct Stock {
-        pub warehouse: rust_query::TableRow<Warehouse>,
-        pub item: rust_query::TableRow<Item>,
+        pub warehouse: TableRow<Warehouse>,
+        pub item: TableRow<Item>,
         pub quantity: i64,
         pub dist_00: String,
         pub dist_01: String,
