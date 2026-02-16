@@ -221,6 +221,7 @@ fn define_table(
         }
 
         #(
+            #[doc(hidden)]
             pub(super) type #col_typ = #col_typ_original;
         )*
 

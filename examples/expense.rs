@@ -5,6 +5,8 @@ use rust_query::{Database, Lazy, Transaction, migration::Config};
 #[rust_query::migration::schema(Mifg)]
 #[version(0..=1)]
 pub mod vN {
+    use rust_query::TableRow;
+
     pub struct User {
         #[unique]
         pub user_id: String,
@@ -13,17 +15,17 @@ pub mod vN {
     pub struct Expense {
         #[unique]
         pub expense_id: String,
-        pub paid_by: rust_query::TableRow<User>,
+        pub paid_by: TableRow<User>,
         #[version(0..=0)]
-        pub split_with: rust_query::TableRow<User>,
+        pub split_with: TableRow<User>,
     }
 
     #[version(1..)]
     #[from(Expense)]
     #[unique(expense, user)]
     pub struct ExpensedUser {
-        pub expense: rust_query::TableRow<Expense>,
-        pub user: rust_query::TableRow<User>,
+        pub expense: TableRow<Expense>,
+        pub user: TableRow<User>,
     }
 }
 

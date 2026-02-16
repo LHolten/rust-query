@@ -85,6 +85,9 @@ fn define_table_migration(
     always_migrate: bool,
     new_mod: &TokenStream,
 ) -> syn::Result<Option<TokenStream>> {
+    let mut table_ident = table.name.clone();
+    table_ident.set_span(Span::call_site());
+
     let mut alter_ident = vec![];
     let mut old_ident = vec![];
     let mut alter_typ = vec![];
@@ -106,7 +109,7 @@ fn define_table_migration(
 
             alter_ident.push(name);
             alter_typ.push(&col.typ);
-            alter_tmp.push(format_ident!("Tmp{i}"))
+            alter_tmp.push(format_ident!("_{table_ident}{i}"))
         }
     }
 
@@ -116,20 +119,9 @@ fn define_table_migration(
         return Ok(None);
     }
 
-    let mut table_ident = table.name.clone();
-    table_ident.set_span(Span::call_site());
-    let typs_mod = format_ident!("_{table_ident}");
-
     let migration = quote! {
-        mod #typs_mod {
-            use super::#new_mod::*;
-            #(
-                pub type #alter_tmp = <#alter_typ as ::rust_query::private::DbTyp>::Prev;
-            )*
-        }
-
         pub struct #table_ident {#(
-            pub #alter_ident: #typs_mod::#alter_tmp,
+            pub #alter_ident: <#new_mod::#alter_tmp as ::rust_query::private::DbTyp>::Prev,
         )*}
 
         impl ::rust_query::private::Migration for #table_ident {
