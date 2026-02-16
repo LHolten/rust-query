@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
 };
@@ -75,7 +76,7 @@ impl<S> TypBuilder<S> {
 
     pub fn index(&mut self, cols: &[&'static str], unique: bool, span: (usize, usize)) {
         let def = from_db::Index {
-            columns: cols.iter().copied().map(str::to_owned).collect(),
+            columns: cols.iter().copied().map(Cow::Borrowed).collect(),
             unique,
         };
         self.ast.indices.insert(Index { def, span });

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use crate::schema::canonical::ColumnType;
 
@@ -13,7 +13,7 @@ pub struct Column {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Index {
     // column order matters for performance
-    pub columns: Vec<String>,
+    pub columns: Vec<Cow<'static, str>>,
     pub unique: bool,
 }
 

@@ -154,7 +154,7 @@ impl Index {
         // Preserve the original order of columns in the unique constraint.
         // This lets users optimize queries by using index prefixes.
         for col in &self.def.columns {
-            index.col(Alias::new(col));
+            index.col(Alias::new(col.clone()));
         }
         index
     }

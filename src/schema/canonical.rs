@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{borrow::Cow, collections::BTreeSet};
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
@@ -32,7 +32,7 @@ impl std::hash::Hash for Column {
 // TODO: remove redundant unique constraints
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Unique {
-    pub columns: BTreeSet<String>,
+    pub columns: BTreeSet<Cow<'static, str>>,
 }
 
 impl std::hash::Hash for Unique {

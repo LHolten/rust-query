@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, ops::Deref};
+use std::{borrow::Cow, collections::HashMap, convert::Infallible, ops::Deref};
 
 use sea_query::Func;
 
@@ -295,7 +295,10 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
             });
             columns.sort_by_key(|x| x.seqno);
 
-            let columns = columns.into_iter().map(|x| x.name).collect();
+            let columns = columns
+                .into_iter()
+                .map(|x| x.name.map(Cow::Owned))
+                .collect();
 
             let Some(columns) = columns else {
                 if index.unique {

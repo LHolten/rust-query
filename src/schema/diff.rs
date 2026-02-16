@@ -177,7 +177,7 @@ impl from_db::Table {
         for (unique, diff) in diff_map(macro_indices, db_indices) {
             match diff {
                 EntryDiff::DbOnly(()) => {
-                    let columns: Vec<_> = unique.columns.iter().map(|s| s.as_str()).collect();
+                    let columns: Vec<_> = unique.columns.iter().map(|s| s.as_ref()).collect();
                     db_only.push(
                         AnnotationKind::Primary
                             .span(span())
