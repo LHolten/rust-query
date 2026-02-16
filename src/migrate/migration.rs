@@ -5,7 +5,7 @@ use std::{
     ops::Deref,
 };
 
-use sea_query::{Alias, IntoTableRef, TableDropStatement};
+use sea_query::{Alias, IntoIden, TableDropStatement};
 
 use crate::{
     Lazy, Table, TableRow, Transaction,
@@ -90,7 +90,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
             if let Some(new) = f(self.lazy(row)) {
                 // TODO: deduplicate this self.lazy call
                 let val = M::prepare(new, self.lazy(row));
-                try_insert_private::<M::To>(new_name.into_table_ref(), Some(row.inner.idx), val)
+                try_insert_private::<M::To>(new_name.into_iden(), Some(row.inner.idx), val)
                     .map_err(|_| M::map_conflict(row))?;
             };
         }

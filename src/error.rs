@@ -42,6 +42,7 @@ impl<T: Table> std::error::Error for TableRow<T> {}
 pub(crate) trait FromConflict {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
+        table: sea_query::DynIden,
         cols: Vec<(&'static str, sea_query::Expr)>,
         msg: String,
     ) -> Self;
@@ -50,6 +51,7 @@ pub(crate) trait FromConflict {
 impl FromConflict for Infallible {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
+        _table: sea_query::DynIden,
         _cols: Vec<(&'static str, sea_query::Expr)>,
         _msg: String,
     ) -> Self {
@@ -60,6 +62,7 @@ impl FromConflict for Infallible {
 impl<T: Table> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
+        _table: sea_query::DynIden,
         _cols: Vec<(&'static str, sea_query::Expr)>,
         msg: String,
     ) -> Self {
@@ -73,6 +76,7 @@ impl<T: Table> FromConflict for Conflict<T> {
 impl<T: Table> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
+        table: sea_query::DynIden,
         mut cols: Vec<(&'static str, sea_query::Expr)>,
         _msg: String,
     ) -> Self {
@@ -88,12 +92,12 @@ impl<T: Table> FromConflict for TableRow<T> {
         assert_eq!(cols.len(), index.def.columns.len());
 
         let mut select = SelectStatement::new()
-            .from(("main", T::NAME))
-            .column((T::NAME, T::ID))
+            .from(("main", table.clone()))
+            .column((table.clone(), T::ID))
             .take();
 
         for (col, val) in cols {
-            select.cond_where(val.equals((T::NAME, col)));
+            select.cond_where(val.equals((table.clone(), col)));
         }
 
         let (query, args) = select.build_rusqlite(SqliteQueryBuilder);

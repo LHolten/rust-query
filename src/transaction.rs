@@ -2,7 +2,7 @@ use std::{cell::RefCell, convert::Infallible, marker::PhantomData, sync::atomic:
 
 use rusqlite::ErrorCode;
 use sea_query::{
-    Alias, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoTableRef, SelectStatement,
+    Alias, DeleteStatement, Expr, ExprTrait, InsertStatement, IntoIden, SelectStatement,
     SqliteQueryBuilder, UpdateStatement,
 };
 use sea_query_rusqlite::RusqliteBinder;
@@ -314,7 +314,10 @@ impl<S> Transaction<S> {
     /// Instead of using [Self::query_one] in a loop, it is better to
     /// call [Self::query] and return all results at once.
     pub fn query_one<O: 'static>(&self, val: impl IntoSelect<'static, S, Out = O>) -> O {
-        self.query(|e| e.into_iter(val.into_select()).next().unwrap())
+        let mut query = self.query(|e| e.into_iter(val.into_select()));
+        let res = query.next().unwrap();
+        debug_assert!(query.next().is_none(), "query should return one row");
+        res
     }
 
     /// Retrieve a [crate::Lazy] value from the database.
@@ -413,7 +416,7 @@ impl<S: 'static> Transaction<S> {
     /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
-        try_insert_private(T::NAME.into_table_ref(), None, val)
+        try_insert_private(T::NAME.into_iden(), None, val)
     }
 
     /// This is a convenience function to make using [Transaction::insert]
@@ -488,7 +491,12 @@ impl<S: 'static> Transaction<S> {
                 // `msg` looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
                 let res = TXN.with_borrow(|txn| {
                     let txn = txn.as_ref().unwrap().get();
-                    <T::Conflict as FromConflict>::from_conflict(txn, reader.builder, msg)
+                    <T::Conflict as FromConflict>::from_conflict(
+                        txn,
+                        T::NAME.into_iden(),
+                        reader.builder,
+                        msg,
+                    )
                 });
                 Err(res)
             }
@@ -608,7 +616,7 @@ impl<S: Schema> TransactionWeak<S> {
 }
 
 pub fn try_insert_private<T: Table>(
-    table: sea_query::TableRef,
+    table: sea_query::DynIden,
     idx: Option<i64>,
     val: T,
 ) -> Result<TableRow<T>, T::Conflict> {
@@ -621,7 +629,7 @@ pub fn try_insert_private<T: Table>(
     let is_empty = col_names.is_empty();
 
     let mut insert = InsertStatement::new();
-    insert.into_table(table);
+    insert.into_table(("main", table.clone()));
     insert.columns(col_names);
     if is_empty {
         // values always has at least one column, so we leave it out when there are no columns
@@ -660,7 +668,7 @@ pub fn try_insert_private<T: Table>(
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
             let res = TXN.with_borrow(|txn| {
                 let txn = txn.as_ref().unwrap().get();
-                <T::Conflict as FromConflict>::from_conflict(txn, reader.builder, msg)
+                <T::Conflict as FromConflict>::from_conflict(txn, table, reader.builder, msg)
             });
             Err(res)
         }
