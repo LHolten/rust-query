@@ -113,7 +113,7 @@ fn define_table(
         unique_typs.push(quote! {f.index(&[#(#col_str),*], #is_unique, #index_span)});
     }
 
-    let (conflict_type, conflict_dummy_insert) = table.conflict();
+    let conflict_type = table.conflict();
 
     let mut def_typs = vec![];
     let mut update_columns_safe = vec![];
@@ -328,13 +328,6 @@ fn define_table(
                     }
                 }
 
-                fn get_conflict_unchecked(
-                    txn: &::rust_query::Transaction<Self::Schema>,
-                    val: &Self
-                ) -> Self::Conflict {
-                    #conflict_dummy_insert
-                }
-
                 type Referer = #referer;
                 fn get_referer_unchecked() -> Self::Referer {
                     #referer_expr
@@ -349,26 +342,17 @@ fn define_table(
 }
 
 impl SingleVersionTable {
-    pub fn conflict(&self) -> (TokenStream, TokenStream) {
-        let unique_indices: Vec<_> = self
+    pub fn conflict(&self) -> TokenStream {
+        let unique_indices = self
             .indices
             .iter()
             .filter(|index| index.kind.unique)
-            .collect();
-        match *unique_indices {
-            [] => (quote! {::std::convert::Infallible}, quote! {unreachable!()}),
-            [unique] => {
-                let table_ident = &self.name;
-
-                let col = &unique.columns;
-                (
-                    quote! {::rust_query::TableRow<#table_ident>},
-                    quote! {
-                        txn.query_one(#table_ident #(.#col(&val.#col))*).unwrap()
-                    },
-                )
-            }
-            _ => (quote! {()}, quote! {()}),
+            .count();
+        let table_ident = &self.name;
+        match unique_indices {
+            0 => quote! {::std::convert::Infallible},
+            1 => quote! {::rust_query::TableRow<#table_ident>},
+            _ => quote! {::rust_query::Conflict<#table_ident>},
         }
     }
 }

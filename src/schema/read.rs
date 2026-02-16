@@ -90,13 +90,6 @@ macro_rules! table {
                 unreachable!()
             }
 
-            fn get_conflict_unchecked(
-                _txn: &crate::Transaction< Self::Schema>,
-                _val: &Self,
-            ) -> Self::Conflict {
-                unreachable!()
-            }
-
             const ID: &'static str = "pragma_id";
             const NAME: &'static str = "";
             const SPAN: (usize, usize) = (0, 0);

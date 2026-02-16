@@ -129,6 +129,8 @@ pub use rust_query_macros::Select;
 /// ```
 pub use rust_query_macros::FromExpr;
 
+use crate::error::FromConflict;
+
 /// Types that are used as closure arguments.
 ///
 /// You generally don't need to import these types.
@@ -440,7 +442,7 @@ pub trait Table: Sized + 'static {
 
     /// The type of conflict that can result from inserting a row in this table.
     /// This is the same type that is used for row updates too.
-    type Conflict;
+    type Conflict: FromConflict;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
 
@@ -451,9 +453,6 @@ pub trait Table: Sized + 'static {
 
     #[doc(hidden)]
     fn read(&self, f: &mut Reader);
-
-    #[doc(hidden)]
-    fn get_conflict_unchecked(txn: &Transaction<Self::Schema>, val: &Self) -> Self::Conflict;
 
     #[doc(hidden)]
     type Select;

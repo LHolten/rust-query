@@ -10,6 +10,7 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
+    error::FromConflict,
     migrate::{Schema, check_schema, schema_version, user_version},
     migration::Config,
     mutable::Mutable,
@@ -467,7 +468,7 @@ impl<S: 'static> Transaction<S> {
 
         let (query, args) = UpdateStatement::new()
             .table(("main", T::NAME))
-            .values(reader.builder)
+            .values(reader.builder.clone())
             .cond_where(Expr::col((T::NAME, T::ID)).eq(row.inner.idx))
             .build_rusqlite(SqliteQueryBuilder);
 
@@ -481,11 +482,15 @@ impl<S: 'static> Transaction<S> {
         match res {
             Ok(1) => Ok(()),
             Ok(n) => panic!("unexpected number of updates: {n}"),
-            Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+            Err(rusqlite::Error::SqliteFailure(kind, Some(msg)))
                 if kind.code == ErrorCode::ConstraintViolation =>
             {
-                // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                Err(T::get_conflict_unchecked(self, &val))
+                // `msg` looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+                let res = TXN.with_borrow(|txn| {
+                    let txn = txn.as_ref().unwrap().get();
+                    <T::Conflict as FromConflict>::from_conflict(txn, reader.builder, msg)
+                });
+                Err(res)
             }
             Err(err) => panic!("{err:?}"),
         }
@@ -612,7 +617,7 @@ pub fn try_insert_private<T: Table>(
     if let Some(idx) = idx {
         reader.col::<i64>(T::ID, idx);
     }
-    let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.into_iter().collect();
+    let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.clone().into_iter().collect();
     let is_empty = col_names.is_empty();
 
     let mut insert = InsertStatement::new();
@@ -649,11 +654,15 @@ pub fn try_insert_private<T: Table>(
             }
             Ok(id)
         }
-        Err(rusqlite::Error::SqliteFailure(kind, Some(_val)))
+        Err(rusqlite::Error::SqliteFailure(kind, Some(msg)))
             if kind.code == ErrorCode::ConstraintViolation =>
         {
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-            Err(T::get_conflict_unchecked(&Transaction::new(), &val))
+            let res = TXN.with_borrow(|txn| {
+                let txn = txn.as_ref().unwrap().get();
+                <T::Conflict as FromConflict>::from_conflict(txn, reader.builder, msg)
+            });
+            Err(res)
         }
         Err(err) => panic!("{err:?}"),
     }
