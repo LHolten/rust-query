@@ -6,6 +6,8 @@ use rust_query::{
 #[schema(Schema)]
 #[version(0..=1)]
 pub mod vN {
+    use rust_query::TableRow;
+
     /// This is a doc comment for the User table!
     pub struct User {
         pub name: String,
@@ -14,14 +16,14 @@ pub mod vN {
         pub email: String,
     }
     pub struct Story {
-        pub author: rust_query::TableRow<User>,
+        pub author: TableRow<User>,
         pub title: String,
         pub content: String,
     }
     #[unique(story, user)]
     pub struct Rating {
-        pub user: rust_query::TableRow<User>,
-        pub story: rust_query::TableRow<Story>,
+        pub user: TableRow<User>,
+        pub story: TableRow<Story>,
         pub stars: i64,
     }
 }

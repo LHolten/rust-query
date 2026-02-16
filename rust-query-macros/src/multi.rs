@@ -19,6 +19,7 @@ pub(crate) struct IndexKind {
 pub(crate) struct VersionedSchema {
     pub versions: std::ops::Range<u32>,
     pub tables: Vec<VersionedTable>,
+    pub use_items: Vec<syn::ItemUse>,
 }
 
 // This is a table fully parsed from the schema, it represents multiple versions

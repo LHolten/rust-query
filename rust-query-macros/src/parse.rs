@@ -152,23 +152,30 @@ impl VersionedSchema {
             ));
         };
 
-        let Some(content) = item.content else {
+        let Some((_brace, content)) = item.content else {
             return Err(syn::Error::new_spanned(item.ident, "module must be inline"));
         };
 
-        let tables = content
-            .1
-            .into_iter()
-            .map(|x| {
-                let Item::Struct(x) = x else {
-                    return Err(syn::Error::new_spanned(x, "only struct items are allowed"));
-                };
+        let mut use_items = Vec::new();
+        let mut tables = Vec::new();
+        for item in content {
+            match item {
+                Item::Use(x) => use_items.push(x),
+                Item::Struct(x) => tables.push(VersionedTable::parse(x, versions.clone())?),
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        item,
+                        "only struct and use items are allowed",
+                    ))
+                }
+            }
+        }
 
-                VersionedTable::parse(x, versions.clone())
-            })
-            .collect::<Result<_, _>>()?;
-
-        Ok(VersionedSchema { versions, tables })
+        Ok(VersionedSchema {
+            versions,
+            tables,
+            use_items,
+        })
     }
 }
 

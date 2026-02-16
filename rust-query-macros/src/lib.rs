@@ -97,8 +97,14 @@ fn generate(schema_name: Ident, item: syn::ItemMod) -> syn::Result<TokenStream> 
             });
         }
 
+        let use_items = &schema.use_items;
+
         output.extend(quote! {
             pub mod #new_mod {
+                #(
+                    #[allow(unused)]
+                    #use_items
+                )*
                 #mod_output
             }
         });
