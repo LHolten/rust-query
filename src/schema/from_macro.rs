@@ -6,7 +6,7 @@ use std::{
 use sea_query::QueryBuilder;
 
 use crate::{
-    FromExpr, IntoExpr,
+    IntoExpr,
     schema::{canonical, from_db},
     value::{DbTyp, EqTyp, StorableTyp},
 };
@@ -88,12 +88,9 @@ impl<S> TypBuilder<S> {
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
-pub trait SchemaType<S>: IntoExpr<'static, S> + FromExpr<S, Self::Typ> {}
+pub trait SchemaType<S>: IntoExpr<'static, S, Typ = Self> + StorableTyp {}
 
-impl<T, S> SchemaType<S> for T where
-    T: IntoExpr<'static, S, Typ: StorableTyp> + FromExpr<S, Self::Typ>
-{
-}
+impl<T, S> SchemaType<S> for T where T: IntoExpr<'static, S, Typ = Self> + StorableTyp {}
 
 #[cfg(test)]
 mod tests {

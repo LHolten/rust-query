@@ -507,21 +507,20 @@ error[E0277]: Can not use `v1::Other` as a column type in schema `v1::Schema`
 9 |         pub other: Other,
   |                    ^^^^^ unsatisfied trait bound
   |
-help: the trait `FromExpr<v1::Schema, _>` is not implemented for `v1::Other`
+help: the trait `rust_query::value::db_typ::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
   = note: `TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]
-  = help: the following other types implement trait `FromExpr<S, From>`:
-            `()` implements `FromExpr<S, From>`
-            `Option<T>` implements `FromExpr<S, Option<From>>`
-            `String` implements `FromExpr<S, String>`
-            `TableRow<T>` implements `FromExpr<<T as rust_query::Table>::Schema, TableRow<T>>`
-            `Vec<u8>` implements `FromExpr<S, Vec<u8>>`
-            `bool` implements `FromExpr<S, bool>`
-            `f64` implements `FromExpr<S, f64>`
-            `i64` implements `FromExpr<S, i64>`
+  = help: the following other types implement trait `rust_query::value::db_typ::StorableTyp`:
+            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
   = note: required for `v1::Other` to implement `SchemaType<v1::Schema>`
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
