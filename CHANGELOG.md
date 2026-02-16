@@ -1,9 +1,15 @@
 # Unreleased
 
-- Removed deprecated methods and types.
-- Change table insert structs to not be generic.
+- Changed table types in schema and `Expr` to be `TableRow<T>` instead of `T`.
+- Made the table insert struct not generic to improve error messages.
+
+- Added support for `use` items in `#[schema]` module.
+- Added `Conflict` type for insert and update with multiple unique constraints.
+- Implemented `Error` for `TableRow<T>` and `Conflict`.
 - Add required feature `base0` to prevent future breakage.
 - Remove `dev` feature from `default`.
+- Removed all deprecated methods and types.
+- Fixed bug where conflicts during migration could panic or return the wrong row.
 
 # 0.6.11
 
