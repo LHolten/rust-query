@@ -69,9 +69,9 @@ impl<T> Clone for TableRowInner<T> {
 impl<T> Copy for TableRowInner<T> {}
 
 // works for any schema?
-impl<'column, S, T: Table> IntoExpr<'column, S> for TableRow<T> {
+impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
     type Typ = Self;
-    fn into_expr(self) -> Expr<'static, S, Self::Typ> {
+    fn into_expr(self) -> Expr<'static, T::Schema, Self::Typ> {
         let idx = self.inner.idx;
 
         Expr::adhoc_promise(
