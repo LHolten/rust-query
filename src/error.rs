@@ -36,13 +36,19 @@ impl<T: Table> std::error::Error for Conflict<T> {
     }
 }
 
-impl<T: Table> std::fmt::Display for TableRow<T> {
+impl<T: Table<Conflict = Self>> std::fmt::Display for TableRow<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Row exists in table `{}`", T::NAME)
+        let unique_columns = get_unique_columns::<T>().join(", ");
+        write!(
+            f,
+            "Row exists in table `{}`, with unique constraint on ({})",
+            T::NAME,
+            unique_columns
+        )
     }
 }
 
-impl<T: Table> std::error::Error for TableRow<T> {}
+impl<T: Table<Conflict = Self>> std::error::Error for TableRow<T> {}
 
 pub(crate) trait FromConflict {
     fn from_conflict(
@@ -64,7 +70,7 @@ impl FromConflict for Infallible {
     }
 }
 
-impl<T: Table> FromConflict for Conflict<T> {
+impl<T: Table<Conflict = Self>> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: sea_query::DynIden,
@@ -78,23 +84,30 @@ impl<T: Table> FromConflict for Conflict<T> {
     }
 }
 
-impl<T: Table> FromConflict for TableRow<T> {
+pub(crate) fn get_unique_columns<T: Table<Conflict = TableRow<T>>>() -> Vec<Cow<'static, str>> {
+    // TODO: optimize to const
+    let schema = crate::schema::from_macro::Table::new::<T>();
+    let [index] = schema
+        .indices
+        .into_iter()
+        .filter(|x| x.def.unique)
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    index.def.columns
+}
+
+impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: sea_query::DynIden,
         mut cols: Vec<(&'static str, sea_query::Expr)>,
         _msg: String,
     ) -> Self {
-        // TODO: optimize to const
-        let schema = crate::schema::from_macro::Table::new::<T>();
-        let [index] = schema
-            .indices
-            .into_iter()
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        cols.retain(|(name, _val)| index.def.columns.contains(&Cow::Borrowed(*name)));
-        assert_eq!(cols.len(), index.def.columns.len());
+        let unique_columns = get_unique_columns::<T>();
+
+        cols.retain(|(name, _val)| unique_columns.contains(&Cow::Borrowed(*name)));
+        assert_eq!(cols.len(), unique_columns.len());
 
         let mut select = SelectStatement::new()
             .from(("main", table.clone()))
