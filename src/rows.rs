@@ -3,12 +3,12 @@ use std::{marker::PhantomData, rc::Rc};
 use sea_query::{Alias, ExprTrait, IntoIden};
 
 use crate::{
-    CustomJoin, Expr, Table, TableRow,
+    CustomJoin, Expr, IntoExpr, Table, TableRow,
     alias::{JoinableTable, MyAlias, TmpTable},
     ast::MySelect,
     joinable::IntoJoinable,
     private::Joinable,
-    value::{DbTyp, DynTypedExpr, EqTyp, IntoExpr, MyTableRef},
+    value::{DbTyp, DynTypedExpr, EqTyp, MyTableRef},
 };
 
 /// [Rows] keeps track of all rows in the current query.

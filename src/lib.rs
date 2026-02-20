@@ -42,7 +42,7 @@ pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 pub use value::aggregate::aggregate;
 pub use value::trivial::FromExpr;
-pub use value::{Expr, IntoExpr, optional::optional};
+pub use value::{Expr, into_expr::IntoExpr, optional::optional};
 
 /// Derive [derive@Select] to create a new `*Select` struct.
 ///

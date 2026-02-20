@@ -1,6 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{Expr, IntoExpr, Table};
+use crate::Table;
 
 /// Row reference that can be used in any query in the same transaction.
 ///
@@ -67,19 +67,6 @@ impl<T> Clone for TableRowInner<T> {
     }
 }
 impl<T> Copy for TableRowInner<T> {}
-
-// works for any schema?
-impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
-    type Typ = Self;
-    fn into_expr(self) -> Expr<'static, T::Schema, Self::Typ> {
-        let idx = self.inner.idx;
-
-        Expr::adhoc_promise(
-            move |_| sea_query::Expr::val(idx),
-            false, // table row is proof of existence
-        )
-    }
-}
 
 /// This makes it possible to use TableRow as a parameter in
 /// rusqlite queries and statements.

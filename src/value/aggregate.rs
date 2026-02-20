@@ -7,9 +7,9 @@ use std::{
 use sea_query::{Asterisk, ExprTrait, Func};
 
 use crate::{
-    Expr,
+    Expr, IntoExpr,
     rows::Rows,
-    value::{AdHoc, EqTyp, IntoExpr, NumTyp, ValueBuilder},
+    value::{AdHoc, EqTyp, NumTyp, ValueBuilder},
 };
 
 use super::DynTypedExpr;

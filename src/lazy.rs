@@ -75,11 +75,3 @@ impl<'transaction, T: Table> Deref for Lazy<'transaction, T> {
         })
     }
 }
-
-impl<'column, T: Table> IntoExpr<'column, T::Schema> for Lazy<'_, T> {
-    type Typ = TableRow<T>;
-
-    fn into_expr(self) -> crate::Expr<'column, T::Schema, Self::Typ> {
-        self.id.into_expr()
-    }
-}
