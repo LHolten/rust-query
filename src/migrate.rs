@@ -308,7 +308,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
     for (&table_name, expected_table) in &expected_schema.tables {
         let table = &schema.tables[table_name];
 
-        if !check_eq(expected_table, &table) {
+        if !check_eq(expected_table, table) {
             // Unique constraints that are part of a table definition
             // can not be dropped, so we assume the worst and just recreate
             // the whole table.
@@ -321,7 +321,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
             let mut columns: Vec<_> = expected_table
                 .columns
                 .keys()
-                .map(|x| Alias::new(x))
+                .map(Alias::new)
                 .collect();
             columns.push(Alias::new("id"));
 

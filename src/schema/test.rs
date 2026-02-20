@@ -33,7 +33,7 @@ fn fix_indices1() {
         }
     }
 
-    static FILE_NAME: &'static str = "index_test1.sqlite";
+    static FILE_NAME: &str = "index_test1.sqlite";
     let _ = std::fs::remove_file(FILE_NAME);
 
     let db = open_db::<without_index::v0::Schema>(FILE_NAME);
@@ -85,7 +85,7 @@ fn fix_indices2() {
         }
     }
 
-    static FILE_NAME: &'static str = "index_test2.sqlite";
+    static FILE_NAME: &str = "index_test2.sqlite";
     let _ = std::fs::remove_file(FILE_NAME);
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
@@ -138,7 +138,7 @@ fn diagnostics() {
         }
     }
 
-    static FILE_NAME: &'static str = "diagnostic_test.sqlite";
+    static FILE_NAME: &str = "diagnostic_test.sqlite";
     let _ = std::fs::remove_file(FILE_NAME);
 
     open_db::<base::v0::Schema>(FILE_NAME);

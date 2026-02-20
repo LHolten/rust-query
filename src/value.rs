@@ -109,7 +109,7 @@ impl ValueBuilder {
 
         let new_alias = || self.scope.new_alias();
         let table = self.extra.get_or_init(source, new_alias);
-        sea_query::Expr::col((*table, Alias::new(T::ID))).into()
+        sea_query::Expr::col((*table, Alias::new(T::ID)))
     }
 
     pub fn get_table(&mut self, table: MyTableRef) -> MyAlias {

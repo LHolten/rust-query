@@ -55,7 +55,7 @@ pub fn populate(txn: &mut Transaction<Schema>, warehouse_range: Range<i64>) {
                 number: number as i64,
                 image_id: rand::random_range(1..=10_000),
                 name: a_string(14, 24),
-                price: rand::random_range(1 * 100..=100 * 100),
+                price: rand::random_range(100..=100 * 100),
                 data: data(),
             })
         })

@@ -156,14 +156,12 @@ use v0::*;
 
 use crate::emulated_user::{Emulate, EmulateWithQueue, print_stats, reset_ok, stop_emulation};
 
-const DB_FILE: &'static str = "tpc.sqlite";
+const DB_FILE: &str = "tpc.sqlite";
 
 fn main() {
     // every warehouse is ~70MB
     let warehouse_cnt = args()
-        .skip(1) // skip binary name
-        .filter(|x| x != "--bench")
-        .next()
+        .skip(1).find(|x| x != "--bench")
         .map(|x| x.parse().unwrap())
         .unwrap_or(50);
 

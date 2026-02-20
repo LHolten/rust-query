@@ -30,7 +30,7 @@ impl Pool {
 
     /// Only return connections that are in original condition.
     pub fn push(&self, val: rusqlite::Connection) {
-        self.push_fast(val).map(drop);
+        if let Some(a) = self.push_fast(val) { drop(a) }
     }
 
     // code optimized to hold lock for shortest time possible

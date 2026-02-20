@@ -62,9 +62,7 @@ pub fn define_all_tables(
 
 fn byte_from(source: &str, line: usize, col: usize) -> usize {
     source
-        .lines()
-        .skip(line - 1)
-        .next()
+        .lines().nth(line - 1)
         .unwrap()
         .as_ptr()
         .addr()

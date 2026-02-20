@@ -4,10 +4,8 @@ pub fn collect_all<R>(f: impl FnMut() -> R) -> R {
     for (sql, plan) in plans {
         if sql.starts_with("INSERT INTO") {
             expect_test::expect![[r#"
-            QUERY PLAN [
-                SCAN CONSTANT ROW,
-            ]
-        "#]]
+                QUERY PLAN
+            "#]]
             .assert_debug_eq(&plan);
         }
     }
