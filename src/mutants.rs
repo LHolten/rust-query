@@ -4,10 +4,10 @@ use crate::{
     Expr, IntoExpr, Table, TableRow,
     alias::{JoinableTable, MyAlias, Scope, TmpTable},
     db::TableRowInner,
-    value::MyTyp,
+    value::DbTyp,
 };
 
-impl<'column, S, T: MyTyp + Default + IntoExpr<'column, S, Typ = T>> Default
+impl<'column, S, T: DbTyp + Default + IntoExpr<'column, S, Typ = T>> Default
     for Expr<'column, S, T>
 {
     #[mutants::skip]
