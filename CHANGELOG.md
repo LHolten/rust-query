@@ -1,9 +1,35 @@
 # Unreleased
 
+# 0.7.0
+
 - Changed table types in schema and `Expr` to be `TableRow<T>` instead of `T`.
+- Added support for `use` items in `#[schema]` module.
+
+One can fix their schema by wrapping all references between tables with `TableRow` like this:
+```rust
+#[schema(MySchema)]
+pub mod vN {
+    use rust_query::TableRow; // imports work!
+    
+    pub struct Foo {
+        pub some_bar: TableRow<Bar>, // <-- here
+    }
+    pub struct Bar {
+        pub name: String,
+        pub foo: Option<TableRow<Foo>> // <-- here
+    }
+}
+```
+
 - Made the table insert struct not generic to improve error messages.
 
-- Added support for `use` items in `#[schema]` module.
+Errors can be fixed by manually converting to the required type:
+```rust
+txn.insert(User {
+    name: "dsafdsf".to_owned(), // insert fields are not generic anymore, so we need manual conversion.
+})
+```
+
 - Added `Conflict` type for insert and update with multiple unique constraints.
 - Implemented `Error` for `TableRow<T>` and `Conflict`.
 - Add required feature `base0` to prevent future breakage.
