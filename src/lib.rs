@@ -41,7 +41,7 @@ pub use mutable::Mutable;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 pub use value::aggregate::aggregate;
-pub use value::trivial::FromExpr;
+pub use value::from_expr::FromExpr;
 pub use value::{Expr, into_expr::IntoExpr, optional::optional};
 
 /// Derive [derive@Select] to create a new `*Select` struct.

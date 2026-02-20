@@ -1,9 +1,9 @@
 pub mod aggregate;
 mod db_typ;
+pub mod from_expr;
 pub mod into_expr;
 mod operations;
 pub mod optional;
-pub mod trivial;
 
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
