@@ -16,7 +16,7 @@ fn unique_constraint_violation() {
                 pub name: String,
                 #[version(1..)]
                 #[unique]
-                pub name: String,
+                pub name_new: String, // different name to catch wrong table use
             }
         }
     }
@@ -39,7 +39,7 @@ fn unique_constraint_violation() {
         .unwrap()
         .migrate(|txn| {
             let res = txn.migrate(|prev: Lazy<v0::Foo>| v0::migrate::Foo {
-                name: prev.name.clone(),
+                name_new: prev.name.clone(),
             });
             assert!(res.is_err(), "the new unique constraint should be caught");
             v0::migrate::Test {
@@ -60,7 +60,7 @@ fn migrations_preserve_index() {
                 #[version(..1)]
                 pub name: String,
                 #[version(1..)]
-                pub name: String,
+                pub name_new: String,
             }
             pub struct Ref {
                 pub foo: rust_query::TableRow<Foo>,
@@ -73,7 +73,7 @@ fn migrations_preserve_index() {
         pub mod vN {
             pub struct Foo {
                 #[index]
-                pub name: String,
+                pub name_new: String,
             }
             pub struct Ref {
                 pub foo: rust_query::TableRow<Foo>,
@@ -108,7 +108,7 @@ fn migrations_preserve_index() {
         .migrate(|txn| v0::migrate::Test {
             foo: txn
                 .migrate(|prev: Lazy<v0::Foo>| v0::migrate::Foo {
-                    name: prev.name.clone(),
+                    name_new: prev.name.clone(),
                 })
                 .unwrap(),
         })
@@ -122,6 +122,6 @@ fn migrations_preserve_index() {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        assert_eq!(item.foo.name, "charlie");
+        assert_eq!(item.foo.name_new, "charlie");
     });
 }
