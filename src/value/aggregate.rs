@@ -227,19 +227,40 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
 
 /// Perform an aggregate that returns a single result for each of the current rows.
 ///
-/// You can filter the rows in the aggregate based on values from the outer query.
-/// That is the only way to get a different aggregate for each outer row.
+/// One can filter the rows in the aggregate based on values from the outer query.
+/// See the documentation for [Aggregate] for more information.
 ///
 /// ```
-/// # use rust_query::aggregate;
-/// # use rust_query::private::doctest::*;
-/// # rust_query::private::doctest::get_txn(|txn| {
-/// let res = txn.query_one(aggregate(|rows| {
-///     let user = rows.join(User);
-///     rows.count_distinct(user)
-/// }));
-/// assert_eq!(res, 1, "there is one user in the database");
-/// # });
+/// # use rust_query::migration::{schema, Config};
+/// # use rust_query::{Database, aggregate};
+/// #[schema(Site)]
+/// pub mod vN {
+///     pub struct Review {
+///         #[index]
+///         pub book: rust_query::TableRow<Book>,
+///         pub rating: f64,
+///     }
+///     pub struct Book {
+///         pub name: String
+///     }
+/// }
+/// use v0::*;
+///
+/// Database::new(Config::open_in_memory()).transaction(|txn| {
+///     let books = txn.query(|rows| {
+///         let book = rows.join(Book);
+///         let rating = aggregate(|aggr| {
+///             let review = aggr.join(Review.book(&book));
+///             // books without reviews will get a rating of 0.0
+///             aggr.avg(&review.rating).unwrap_or(0.0)
+///         });
+///         // top 10 highest rated books
+///         rows.order_by()
+///             .desc(rating)
+///             .into_iter(book)
+///             .take(10)
+///     });
+/// });
 /// ```
 pub fn aggregate<'outer, S, F, R>(f: F) -> R
 where
