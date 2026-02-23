@@ -61,7 +61,27 @@ pub struct Optional<'outer, 'inner, S> {
 impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// Join an optional column to the current row.
     ///
-    /// If the joined column is [None], then the whole [optional] combinator will return [None].
+    /// If the joined column is [None], then the whole row
+    /// will become [None], from that moment forward.
+    ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, optional};
+    /// # get_txn(|txn| {
+    /// let (total1, total2) = txn.query_one(optional(|row| {
+    ///     let val1 = row.and(Some(100));
+    ///     let val2 = row.and(Some(20));
+    ///     let total = val1.add(val2);
+    ///     let total1 = row.then(&total);
+    ///
+    ///     let _ = row.and(None::<i64>);
+    ///     let total2 = row.then(total);
+    ///
+    ///      (total1, total2)
+    /// }));
+    /// assert_eq!(total1, Some(120));
+    /// assert_eq!(total2, None);
+    /// # });
+    /// ```
     #[doc(alias = "join")]
     pub fn and<T: EqTyp>(
         &mut self,
@@ -74,6 +94,20 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Return a [bool] column indicating whether the current row does not exists.
+    ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, optional};
+    /// # get_txn(|txn| {
+    /// let (none1, none2) = txn.query_one(optional(|row| {
+    ///     let none1 = row.is_none();
+    ///     let _ = row.and(None::<i64>);
+    ///     let none2 = row.is_none();
+    ///     (none1, none2)
+    /// }));
+    /// assert_eq!(none1, false);
+    /// assert_eq!(none2, true);
+    /// # });
+    /// ```
     pub fn is_none(&self) -> Expr<'outer, S, bool> {
         let nulls = self.nulls.clone();
         Expr::adhoc(move |b| {
@@ -86,12 +120,39 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Return a [bool] column indicating whether the current row exists.
+    ///
+    /// ```
+    /// # use rust_query::{private::doctest::*, optional};
+    /// # get_txn(|txn| {
+    /// let (some1, some2) = txn.query_one(optional(|row| {
+    ///     let some1 = row.is_some();
+    ///     let _ = row.and(None::<i64>);
+    ///     let some2 = row.is_some();
+    ///     (some1, some2)
+    /// }));
+    /// assert_eq!(some1, true);
+    /// assert_eq!(some2, false);
+    /// # });
+    /// ```
     pub fn is_some(&self) -> Expr<'outer, S, bool> {
         self.is_none().not()
     }
 
     /// This is much like combining [Self::and] with [Self::then], but it
-    /// allows returning an optional value without mutating self.
+    /// allows returning an optional value without mutating the [Optional] row.
+    ///
+    ///  ```
+    /// # use rust_query::{private::doctest::*, optional};
+    /// # get_txn(|txn| {
+    /// let (val1, val2) = txn.query_one(optional(|row| {
+    ///     let val1 = row.and_then(None::<i64>);
+    ///     let val2 = row.and_then(Some(1));
+    ///     (val1, val2)
+    /// }));
+    /// assert_eq!(val1, None);
+    /// assert_eq!(val2, Some(1));
+    /// # });
+    /// ```
     pub fn and_then<T: EqTyp>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
@@ -108,6 +169,19 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
+    ///  ```
+    /// # use rust_query::{private::doctest::*, optional};
+    /// # get_txn(|txn| {
+    /// let (val1, val2) = txn.query_one(optional(|row| {
+    ///     let val1 = row.then(1);
+    ///     let _ = row.and(None::<i64>);
+    ///     let val2 = row.then(1);
+    ///     (val1, val2)
+    /// }));
+    /// assert_eq!(val1, Some(1));
+    /// assert_eq!(val2, None);
+    /// # });
+    /// ```
     pub fn then<T: EqTyp + 'outer>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
@@ -115,7 +189,20 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         self.and_then(Some(col))
     }
 
-    /// Returns a [Select] with optional result.
+    /// Returns a [Select] with optional result. Useful for returning multiple values
+    /// in a single [Option].
+    ///
+    ///  ```
+    /// # use rust_query::{private::doctest::*, optional};
+    /// # get_txn(|txn| {
+    /// let pair = txn.query_one(optional(|row| {
+    ///     let val1 = row.and(Some(1));
+    ///     let val2 = row.and(Some(2));
+    ///     row.then_select((val1, val2))
+    /// }));
+    /// assert_eq!(pair, Some((1, 2)));
+    /// # });
+    /// ```
     pub fn then_select<Out: 'static>(
         &self,
         d: impl IntoSelect<'inner, S, Out = Out>,
