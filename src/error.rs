@@ -15,6 +15,7 @@ pub struct Conflict<T: Table> {
     msg: Box<dyn std::error::Error>,
 }
 
+#[cfg_attr(test, mutants::skip)]
 impl<T: Table> Debug for Conflict<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Conflict")

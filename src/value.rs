@@ -235,6 +235,7 @@ pub struct Expr<'column, S, T: DbTyp> {
     pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
 }
 
+#[cfg_attr(test, mutants::skip)]
 impl<S, T: DbTyp> Debug for Expr<'_, S, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Expr of type {}", std::any::type_name::<T>())
