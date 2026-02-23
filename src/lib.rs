@@ -394,6 +394,23 @@ pub mod private {
     //     type Out<T: MigrateTyp> = T::Lazy<'x>;
     // }
 
+    pub mod doctest_aggregate {
+        #[crate::migration::schema(M)]
+        pub mod vN {
+            pub struct Val {
+                pub x: i64,
+            }
+        }
+        pub use crate::aggregate;
+        pub use v0::*;
+
+        #[cfg_attr(test, mutants::skip)]
+        pub fn get_txn(f: impl Send + FnOnce(&'static mut crate::Transaction<M>)) {
+            crate::Database::new(rust_query::migration::Config::open_in_memory())
+                .transaction_mut_ok(f)
+        }
+    }
+
     pub mod doctest {
         use crate::{Database, Transaction, migrate::config::Config, migration};
 
@@ -406,7 +423,7 @@ pub mod private {
         }
         pub use v0::*;
 
-        #[cfg_attr(test, mutants::skip)] // this function is only used in doc tests
+        #[cfg_attr(test, mutants::skip)]
         pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
             let db = Database::new(Config::open_in_memory());
             db.transaction_mut_ok(|txn| {

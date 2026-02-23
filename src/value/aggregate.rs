@@ -63,23 +63,16 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the average value in a column, this is [None] if there are zero rows.
     ///
     /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Val {
-    /// #         pub x: f64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # use rust_query::aggregate;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
-    /// for x in [1.0, 2.0, 3.0] {
+    /// # use rust_query::private::doctest_aggregate::*;
+    /// # get_txn(|txn| {
+    /// for x in [1, 2, 3] {
     ///     txn.insert_ok(Val { x });
     /// }
     /// let (avg1, avg2) = txn.query_one(aggregate(|rows| {
     ///     let val = rows.join(Val);
-    ///     let avg1 = rows.avg(&val.x);
+    ///     let avg1 = rows.avg(val.x.to_f64());
     ///     rows.filter(false); // remove all rows
-    ///     let avg2 = rows.avg(&val.x);
+    ///     let avg2 = rows.avg(val.x.to_f64());
     ///     (avg1, avg2)
     /// }));
     /// assert_eq!(avg1, Some(2.0));
@@ -94,15 +87,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the maximum value in a column, this is [None] if there are zero rows.
     ///
     /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Val {
-    /// #         pub x: i64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # use rust_query::aggregate;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # use rust_query::private::doctest_aggregate::*;
+    /// # get_txn(|txn| {
     /// for x in [-100, 10, 42] {
     ///     txn.insert_ok(Val { x });
     /// }
@@ -128,15 +114,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the minimum value in a column, this is [None] if there are zero rows.
     ///
     /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Val {
-    /// #         pub x: i64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # use rust_query::aggregate;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # use rust_query::private::doctest_aggregate::*;
+    /// # get_txn(|txn| {
     /// for x in [-100, 10, 42] {
     ///     txn.insert_ok(Val { x });
     /// }
@@ -162,15 +141,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the sum of a column.
     ///
     /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Val {
-    /// #         pub x: i64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # use rust_query::aggregate;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # use rust_query::private::doctest_aggregate::*;
+    /// # get_txn(|txn| {
     /// for x in [-100, 10, 42] {
     ///     txn.insert_ok(Val { x });
     /// }
@@ -200,15 +172,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return the number of distinct values in a column.
     ///
     /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Val {
-    /// #         pub x: i64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # use rust_query::aggregate;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # use rust_query::private::doctest_aggregate::*;
+    /// # get_txn(|txn| {
     /// for x in [-100, 10, 42, 10] {
     ///     txn.insert_ok(Val { x });
     /// }
@@ -238,15 +203,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// Return whether there are any rows.
     ///
     /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Val {
-    /// #         pub x: i64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # use rust_query::aggregate;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # use rust_query::private::doctest_aggregate::*;
+    /// # get_txn(|txn| {
     /// for x in [10, 42, 10] {
     ///     txn.insert_ok(Val { x });
     /// }
