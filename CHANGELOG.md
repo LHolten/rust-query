@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fixed `Aggregate::exists` giving wrong result when used without any query decorrelation.
+
 # 0.7.0
 
 - Changed table types in schema and `Expr` to be `TableRow<T>` instead of `T`.
