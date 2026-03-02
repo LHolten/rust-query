@@ -324,9 +324,37 @@ impl<S> Transaction<S> {
     ///
     /// This is very similar to [Self::query_one], except that it retrieves
     /// [crate::Lazy] instead of [TableRow]. As such it only works with
-    /// table valued [Expr].
+    /// table valued [rust_query::Expr].
     ///
-    /// [Self::lazy] also works for optional rows, so you can write `txn.lazy(User.email(e))`.
+    /// ```
+    /// # #[rust_query::migration::schema(M)]
+    /// # pub mod vN {
+    /// #     pub struct Author {
+    /// #         pub name: String,
+    /// #     }
+    /// #     pub struct Page {
+    /// #         pub content: String,
+    /// #         pub title: String,
+    /// #         pub author: rust_query::TableRow<Author>,
+    /// #     }
+    /// # }
+    /// # use v0::*;
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// let cat = txn.insert_ok(Author {
+    ///     name: "Cat".to_owned()
+    /// });
+    /// let blog_post = txn.insert_ok(Page {
+    ///     content: "Hello world!".to_owned(),
+    ///     title: "Hi".to_owned(),
+    ///     author: cat,
+    /// });
+    /// let lazy_post = txn.lazy(blog_post);
+    ///
+    /// println!("{}:", lazy_post.title);
+    /// println!("{}", lazy_post.content);
+    /// println!("written by: {}", lazy_post.author.name);
+    /// # });
+    /// ```
     pub fn lazy<'t, T: OptTable<Schema = S>>(
         &'t self,
         val: impl IntoExpr<'static, S, Typ = T>,
@@ -337,6 +365,7 @@ impl<S> Transaction<S> {
     /// This retrieves an iterator of [crate::Lazy] values.
     ///
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
+    /// Refer to [Transaction::lazy] for the single row version.
     pub fn lazy_iter<'t, T: Table<Schema = S>>(
         &'t self,
         val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
@@ -354,6 +383,31 @@ impl<S> Transaction<S> {
     /// Retrieves a [Mutable] row from the database.
     ///
     /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.
+    /// It is recommended to keep the lifetime of [Mutable] short, to prevent borrow checker errors.
+    /// See below for some good examples of how to use [Transaction::mutable].
+    ///
+    /// ```
+    /// # #[rust_query::migration::schema(M)]
+    /// # pub mod vN {
+    /// #     pub struct Player {
+    /// #         #[unique]
+    /// #         pub number: i64,
+    /// #         #[unique]
+    /// #         pub name: String,
+    /// #         pub score: i64,
+    /// #     }
+    /// # }
+    /// # use v0::*;
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # txn.insert(Player {number: 5, name: "Floris".to_owned(), score: 0});
+    /// if let Some(mut player) = txn.mutable(Player.number(1)) {
+    ///     player.score += 100;
+    /// }
+    ///
+    /// let floris = txn.query_one(Player.name("Floris")).unwrap();
+    /// txn.mutable(floris).score += 50;
+    /// # });
+    /// ```
     pub fn mutable<'t, T: OptTable<Schema = S>>(
         &'t mut self,
         val: impl IntoExpr<'static, S, Typ = T>,
@@ -362,9 +416,24 @@ impl<S> Transaction<S> {
         T::into_mutable(x)
     }
 
-    /// Retrieve multiple [crate::Mutable] rows from the database.
+    /// Retrieve multiple [Mutable] rows from the database.
     ///
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
+    /// This may be useful when you need mutable access to multiple rows (potentially at the same time).
+    ///
+    /// ```
+    /// # #[rust_query::migration::schema(M)]
+    /// # pub mod vN {
+    /// #     pub struct User { pub age: i64 }
+    /// # }
+    /// # use v0::*;
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # txn.insert_ok(User {age: 30});
+    /// for mut user in txn.mutable_vec(User) {
+    ///     user.age += 1;
+    /// }
+    /// # });
+    /// ```
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
