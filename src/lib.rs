@@ -7,6 +7,9 @@ extern crate self as rust_query;
 #[macro_use]
 extern crate static_assertions;
 
+#[cfg(doc)]
+#[doc = include_str!("_guide.md")]
+pub mod _guide {}
 mod alias;
 mod ast;
 mod async_db;
