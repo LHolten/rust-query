@@ -1,6 +1,9 @@
 # Unreleased
 
+# 0.7.1
+
 - Fixed `Aggregate::exists` giving wrong result when used without any query decorrelation.
+- Added more documentation examples (doctests).
 
 # 0.7.0
 
