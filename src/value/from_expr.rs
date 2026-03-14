@@ -30,6 +30,8 @@ from_expr! {Vec<u8>}
 from_expr! {i64}
 from_expr! {f64}
 from_expr! {bool}
+#[cfg(feature = "jiff-02")]
+from_expr! {jiff::Timestamp}
 
 impl<T: Table> FromExpr<T::Schema, TableRow<T>> for TableRow<T> {
     fn from_expr<'columns>(

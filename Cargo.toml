@@ -64,6 +64,7 @@ slab = "0.4.11"
 annotate-snippets = "0.12.9"
 sqlite3-parser = "0.15.0"
 mutants = { version = "=0.0.3", optional = true }
+jiff = { version = "0.2.22", optional = true }
 
 [dev-dependencies]
 trybuild = "1.0.114"
@@ -79,6 +80,7 @@ mutants = "=0.0.3"
 default = ["base0"]
 bundled = ["rusqlite/bundled"]
 dev = ["dep:k12"]
+jiff-02 = ["dep:jiff"]
 # this feature is required for everything, it allows making
 # anything optional without breaking dependent crates.
 base0 = []

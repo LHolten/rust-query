@@ -41,6 +41,62 @@ pub trait DbTyp: Sized + 'static {
 /// Specificially `#[no_reference]` references.
 pub trait StorableTyp: DbTyp {}
 
+#[cfg(feature = "jiff-02")]
+const DATE_TIME_FMT: &str = "%F %T%.f";
+
+#[cfg(feature = "jiff-02")]
+impl DbTyp for jiff::Timestamp {
+    type Prev = Self;
+    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
+    type Ext<'t> = ();
+    type Sql = String;
+    type FromLazy<'x> = Self;
+    type Lazy<'t> = Self;
+
+    fn migrate(prev: Self::Prev) -> Self {
+        prev
+    }
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+        *lazy
+    }
+    fn out_to_value(self) -> sea_query::Value {
+        // check that year is positive
+        assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
+        sea_query::Value::String(Some(self.strftime(DATE_TIME_FMT).to_string()))
+    }
+
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+        self
+    }
+
+    fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>
+    where
+        Self: Sized,
+    {
+        use rusqlite::types::FromSqlError;
+
+        let res = Self::strptime(DATE_TIME_FMT, value.as_str()?).map_err(FromSqlError::other)?;
+        Ok(res)
+    }
+
+    fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        let datetime = sea_query::Func::cust("datetime").arg(sea_query::Expr::col(col.clone()));
+        let substr = sea_query::Func::cust("substr")
+            .arg(sea_query::Expr::col(col.clone()))
+            .arg(sea_query::Expr::Constant(sea_query::Value::BigInt(Some(
+                20,
+            ))));
+        let rtrim = sea_query::Func::cust("rtrim")
+            .arg(substr)
+            .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                "0".to_owned(),
+            ))));
+        let concat =
+            sea_query::Expr::from(datetime).binary(sea_query::BinOper::Custom("||"), rtrim);
+        Some(sea_query::Expr::col(col).is(concat))
+    }
+}
+
 impl<T: Table> DbTyp for TableRow<T> {
     type Prev = TableRow<T::MigrateFrom>;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;

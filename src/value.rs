@@ -157,6 +157,8 @@ impl OrdTyp for Vec<u8> {}
 impl OrdTyp for i64 {}
 impl OrdTyp for f64 {}
 impl OrdTyp for bool {}
+#[cfg(feature = "jiff-02")]
+impl OrdTyp for jiff::Timestamp {}
 
 pub trait BuffTyp: DbTyp {}
 impl BuffTyp for String {}
@@ -173,6 +175,8 @@ impl EqTyp for Vec<u8> {}
 impl EqTyp for i64 {}
 impl EqTyp for f64 {}
 impl EqTyp for bool {}
+#[cfg(feature = "jiff-02")]
+impl EqTyp for jiff::Timestamp {}
 #[diagnostic::do_not_recommend]
 impl<T: Table> EqTyp for TableRow<T> {}
 

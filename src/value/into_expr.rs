@@ -88,6 +88,19 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
     }
 }
 
+#[cfg(feature = "jiff-02")]
+/// Note that timestamps before `0000-01-01 00:00:00` can not be used in an expression.
+/// The reason is that datetimes are represented in sqlite as strings and for negative
+/// years the sorting order is wrong.
+///
+/// The conversion is lossless, everything up to nanoseconds is preserved.
+impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
+    type Typ = Self;
+    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(move |_| sea_query::Expr::from(self.out_to_value()))
+    }
+}
+
 impl<'column, S, T> IntoExpr<'column, S> for &T
 where
     T: IntoExpr<'column, S> + Clone,
