@@ -17,6 +17,7 @@ help: the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
@@ -38,6 +39,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -70,6 +72,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -102,6 +105,7 @@ help: the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied in `v0::Table`
@@ -123,6 +127,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -154,6 +159,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -185,6 +191,7 @@ help: within `v0::_::TableMut`, the trait `DbTyp` is not implemented for `v1::Ot
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::_::TableMut`
  --> tests/compile/schema_types_row.rs:3:1
   |
@@ -216,6 +223,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -247,6 +255,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -278,6 +287,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -309,6 +319,7 @@ help: the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required by a bound in `Expr`
  --> src/value.rs
   |
@@ -335,6 +346,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -362,6 +374,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -395,6 +408,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -426,6 +440,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -453,6 +468,7 @@ help: within `v0::Table`, the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required because it appears within the type `v0::Table`
  --> tests/compile/schema_types_row.rs:6:16
   |
@@ -521,6 +537,7 @@ help: the trait `rust_query::value::db_typ::StorableTyp` is not implemented for 
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
   = note: required for `v1::Other` to implement `SchemaType<v1::Schema>`
 note: required by a bound in `TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
@@ -551,6 +568,7 @@ help: the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `v1::Other: DbTyp` is not satisfied
@@ -575,6 +593,7 @@ help: the trait `DbTyp` is not implemented for `v1::Other`
             bool
             f64
             i64
+            jiff::timestamp::Timestamp
 note: required by a bound in `Reader::col`
  --> src/writable.rs
   |
