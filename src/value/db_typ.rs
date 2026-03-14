@@ -75,7 +75,11 @@ impl DbTyp for jiff::Timestamp {
     {
         use rusqlite::types::FromSqlError;
 
-        let res = Self::strptime(DATE_TIME_FMT, value.as_str()?).map_err(FromSqlError::other)?;
+        let dt = jiff::civil::DateTime::strptime(DATE_TIME_FMT, value.as_str()?)
+            .map_err(FromSqlError::other)?;
+        let res = jiff::tz::TimeZone::UTC
+            .to_timestamp(dt)
+            .map_err(FromSqlError::other)?;
         Ok(res)
     }
 
