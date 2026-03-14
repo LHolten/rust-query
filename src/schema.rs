@@ -102,7 +102,7 @@ impl Table {
                 def.not_null();
             }
             if let Some(check) = &col.check {
-                def.check(sea_query::Expr::cust(check.clone()));
+                def.check(sea_query::Expr::cust(check.to_string()));
             }
             create.col(&mut def);
             if let Some((table, fk)) = &col.fk {

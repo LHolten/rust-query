@@ -1,13 +1,13 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
-use crate::schema::canonical::ColumnType;
+use crate::schema::{canonical::ColumnType, check_constraint::Parsed};
 
 #[derive(Debug)]
 pub struct Column {
     pub typ: String,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
-    pub check: Option<String>,
+    pub check: Option<Parsed>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]

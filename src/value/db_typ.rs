@@ -97,6 +97,9 @@ impl DbTyp for jiff::Timestamp {
     }
 }
 
+#[cfg(feature = "jiff-02")]
+impl StorableTyp for jiff::Timestamp {}
+
 impl<T: Table> DbTyp for TableRow<T> {
     type Prev = TableRow<T::MigrateFrom>;
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
@@ -224,3 +227,27 @@ impl_typ!(Vec<u8>, canonical::ColumnType::Blob, |x| x
     .as_blob()
     .map(ToOwned::to_owned));
 impl_typ!(f64, canonical::ColumnType::Real, |x| x.as_f64());
+
+#[test]
+#[cfg(feature = "jiff-02")]
+fn jiff_check_constraint() {
+    use crate::{Database, migration::Config};
+
+    #[crate::migration::schema(Schema)]
+    pub mod vN {
+        pub struct Thing {
+            pub created_at: jiff::Timestamp,
+        }
+    }
+    use v0::*;
+
+    let db = Database::<Schema>::new(Config::open_in_memory());
+    let mut conn = db.rusqlite_connection();
+    let txn = conn.transaction().unwrap();
+
+    txn.execute(
+        "INSERT INTO thing (created_at) VALUES ($1)",
+        ["2000-01-01 10:20:30"],
+    )
+    .unwrap();
+}

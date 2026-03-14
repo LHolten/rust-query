@@ -8,7 +8,7 @@ use sea_query::QueryBuilder;
 
 use crate::{
     IntoExpr,
-    schema::{canonical, from_db},
+    schema::{canonical, check_constraint::Parsed, from_db},
     value::{DbTyp, EqTyp, StorableTyp},
 };
 
@@ -62,7 +62,7 @@ impl<S> TypBuilder<S> {
                     if let Some(check) = <T::Typ as DbTyp>::check(sea_query::Alias::new(name)) {
                         let mut sql = String::new();
                         sea_query::SqliteQueryBuilder.prepare_expr(&check, &mut sql);
-                        Some(sql)
+                        Some(Parsed::parse(&sql))
                     } else {
                         None
                     }

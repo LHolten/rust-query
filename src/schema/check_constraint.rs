@@ -3,11 +3,10 @@ use std::fmt::Display;
 use sea_query::{IntoColumnRef, QueryBuilder};
 use sqlite3_parser::lexer::{Scanner, sql::Tokenizer};
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum TokenTree {
     Token(String),
-    // outer vec is separated by commas,
-    // inner vec is separated by spaces
+    // vec is separated by commas,
     Group(Vec<Parsed>),
 }
 impl Display for TokenTree {
@@ -22,8 +21,9 @@ impl Display for TokenTree {
     }
 }
 
-#[derive(PartialEq, Debug)]
-struct Parsed {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Parsed {
+    // vec is separated by spaces
     tokens: Vec<TokenTree>,
 }
 
@@ -31,6 +31,14 @@ impl Display for Parsed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let formatted: Vec<_> = self.tokens.iter().map(|x| x.to_string()).collect();
         write!(f, "{}", formatted.join(" "))
+    }
+}
+
+impl Parsed {
+    pub fn parse(sql: &str) -> Self {
+        Self {
+            tokens: parse_sql_tree(sql),
+        }
     }
 }
 
@@ -76,7 +84,7 @@ fn parse_sql_tree(sql: &str) -> Vec<TokenTree> {
     res
 }
 
-pub fn get_check_constraint(sql: &str, col: &str) -> Option<String> {
+pub fn get_check_constraint(sql: &str, col: &str) -> Option<Parsed> {
     let tokens = parse_sql_tree(sql);
     let mut columns = tokens
         .into_iter()
@@ -112,7 +120,7 @@ pub fn get_check_constraint(sql: &str, col: &str) -> Option<String> {
         panic!("expected group after CHECK")
     };
     let [check] = check.try_into().unwrap();
-    Some(check.to_string())
+    Some(check)
 }
 
 #[cfg(test)]
@@ -123,8 +131,8 @@ mod tests {
     fn parse_some_sql() {
         let sql = r#"CREATE TABLE IF NOT EXISTS "customer" ( "address" text NOT NULL, "city" text NOT NULL, "company" text NULL, "country" text NOT NULL, "email" text NOT NULL, "fax" text NULL, "first_name" text NOT NULL, "last_name" text NOT NULL, "phone" integer NULL, "postal_code" text NULL, "some_bool" integer NOT NULL CHECK ("some_bool" IN (0, 1)), "state" text NULL, "support_rep" integer NOT NULL, "id" integer PRIMARY KEY, FOREIGN KEY ("support_rep") REFERENCES "employee" ("id") ) STRICT;"#;
         assert_eq!(
-            get_check_constraint(sql, "some_bool").as_deref(),
-            Some(r#""some_bool" IN (0, 1)"#)
+            get_check_constraint(sql, "some_bool"),
+            Some(Parsed::parse(r#""some_bool" IN (0, 1)"#))
         )
     }
 

@@ -1,5 +1,7 @@
 use std::{borrow::Cow, collections::BTreeSet};
 
+use crate::schema::check_constraint::Parsed;
+
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnType {
     Integer = 0,
@@ -14,7 +16,7 @@ pub struct Column {
     pub typ: ColumnType,
     pub nullable: bool,
     pub fk: Option<(String, String)>,
-    pub check: Option<String>,
+    pub check: Option<Parsed>,
 }
 
 impl std::hash::Hash for Column {
@@ -23,8 +25,8 @@ impl std::hash::Hash for Column {
         self.nullable.hash(state);
         self.fk.hash(state);
         // for backwards compatibility
-        if self.check.is_some() {
-            self.check.hash(state);
+        if let Some(check) = &self.check {
+            check.to_string().hash(state);
         }
     }
 }
