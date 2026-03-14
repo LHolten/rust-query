@@ -245,9 +245,34 @@ fn jiff_check_constraint() {
     let mut conn = db.rusqlite_connection();
     let txn = conn.transaction().unwrap();
 
-    txn.execute(
-        "INSERT INTO thing (created_at) VALUES ($1)",
-        ["2000-01-01 10:20:30"],
-    )
-    .unwrap();
+    let good = [
+        "2000-01-01 10:20:30",
+        "2000-01-01 10:20:31",
+        "2000-01-01 10:20:31.1",
+        "2000-01-01 10:20:31.00000001",
+    ];
+
+    let bad = [
+        "-2000-01-01 10:20:30",
+        "-2000-01-01 10:20:31",
+        "2000-01-01 10:20:30.",
+        "2000-01-01 10:20:30.0",
+        "2000-01-01 10:20:30.10",
+    ];
+
+    for good in good {
+        txn.execute("INSERT INTO thing (created_at) VALUES ($1)", [good])
+            .unwrap();
+    }
+
+    for bad in bad {
+        println!("{bad}");
+        let err = txn
+            .execute("INSERT INTO thing (created_at) VALUES ($1)", [bad])
+            .unwrap_err();
+        assert_eq!(
+            err.sqlite_error().unwrap().extended_code,
+            rusqlite::ffi::SQLITE_CONSTRAINT_CHECK
+        );
+    }
 }
