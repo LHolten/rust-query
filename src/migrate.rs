@@ -88,6 +88,30 @@ impl<S: Schema> Database<S> {
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
             inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+
+            #[cfg(feature = "bundled")]
+            inner.create_scalar_function(
+                "floor",
+                1,
+                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                move |ctx| {
+                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                    let res = ctx.get::<f64>(0)?.floor();
+                    Ok(res)
+                },
+            )?;
+
+            #[cfg(feature = "bundled")]
+            inner.create_scalar_function(
+                "ceil",
+                1,
+                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                move |ctx| {
+                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                    let res = ctx.get::<f64>(0)?.ceil();
+                    Ok(res)
+                },
+            )?;
             Ok(())
         });
 
@@ -318,11 +342,7 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
 
             txn.execute(&new_table_inner(expected_table, tmp_name));
 
-            let mut columns: Vec<_> = expected_table
-                .columns
-                .keys()
-                .map(Alias::new)
-                .collect();
+            let mut columns: Vec<_> = expected_table.columns.keys().map(Alias::new).collect();
             columns.push(Alias::new("id"));
 
             txn.execute(
