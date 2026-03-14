@@ -90,6 +90,9 @@ impl DbTyp for jiff::Timestamp {
             .arg(sea_query::Expr::col(col.clone()))
             .arg(sea_query::Expr::Constant(sea_query::Value::BigInt(Some(
                 20,
+            ))))
+            .arg(sea_query::Expr::Constant(sea_query::Value::BigInt(Some(
+                10,
             ))));
         let rtrim = sea_query::Func::cust("rtrim")
             .arg(substr)
@@ -253,7 +256,7 @@ fn jiff_check_constraint() {
         "2000-01-01 10:20:30",
         "2000-01-01 10:20:31",
         "2000-01-01 10:20:31.1",
-        "2000-01-01 10:20:31.00000001",
+        "2000-01-01 10:20:31.000000001",
     ];
 
     let bad = [
@@ -262,6 +265,7 @@ fn jiff_check_constraint() {
         "2000-01-01 10:20:30.",
         "2000-01-01 10:20:30.0",
         "2000-01-01 10:20:30.10",
+        "2000-01-01 10:20:31.0000000001", // sub-nanosecond
     ];
 
     for good in good {

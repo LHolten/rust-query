@@ -33,8 +33,9 @@ Sqlite will round results, even with subsec precision and it is inconsistent:
 It looks like the seconds component is never updated.
 We can use that for our check constraint..
 
-`"col" IS ltrim(datetime("col"), '-') || rtrim(substr("col", 20), '0')`
+`"col" IS ltrim(datetime("col"), '-') || rtrim(substr("col", 20, 10), '0')`
 
 This checks the properties that are required for correct sorting and comparisons.
 - no negative years (`-` prefix).
 - no trailing `0` after the `.`.
+- no more than 9 digits after the `.`.
