@@ -81,6 +81,11 @@ impl DbTyp for jiff::Timestamp {
 
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         let datetime = sea_query::Func::cust("datetime").arg(sea_query::Expr::col(col.clone()));
+        let ltrim = sea_query::Func::cust("ltrim")
+            .arg(datetime)
+            .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                "-".to_owned(),
+            ))));
         let substr = sea_query::Func::cust("substr")
             .arg(sea_query::Expr::col(col.clone()))
             .arg(sea_query::Expr::Constant(sea_query::Value::BigInt(Some(
@@ -91,8 +96,7 @@ impl DbTyp for jiff::Timestamp {
             .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
                 "0".to_owned(),
             ))));
-        let concat =
-            sea_query::Expr::from(datetime).binary(sea_query::BinOper::Custom("||"), rtrim);
+        let concat = sea_query::Expr::from(ltrim).binary(sea_query::BinOper::Custom("||"), rtrim);
         Some(sea_query::Expr::col(col).is(concat))
     }
 }
@@ -266,7 +270,6 @@ fn jiff_check_constraint() {
     }
 
     for bad in bad {
-        println!("{bad}");
         let err = txn
             .execute("INSERT INTO thing (created_at) VALUES ($1)", [bad])
             .unwrap_err();

@@ -26,7 +26,7 @@ impl std::hash::Hash for Column {
         self.fk.hash(state);
         // for backwards compatibility
         if let Some(check) = &self.check {
-            check.to_string().hash(state);
+            Some(check.to_string()).hash(state);
         }
     }
 }
