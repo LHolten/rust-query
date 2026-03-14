@@ -39,3 +39,11 @@ This checks the properties that are required for correct sorting and comparisons
 - no negative years (`-` prefix).
 - no trailing `0` after the `.`.
 - no more than 9 digits after the `.`.
+
+Only the range incompatibility sadness remains:
+- jiff -> sqlite: negative years give error
+- sqlite -> jiff: errors from `9999-12-30 22:00:00` until `9999-12-31 23:59:59`
+
+The seconds error kind is simultanously better and worse.
+It is less likely to happen because another program needs to write the value.
+When it happens it is not possible to recover using rust-query alone.
