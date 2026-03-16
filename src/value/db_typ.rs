@@ -60,7 +60,7 @@ impl DbTyp for jiff::Timestamp {
         // check that year is positive
         assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
         // Use space instead of `T` for date and time separator
-        sea_query::Value::String(Some(self.strftime("%F %T%.fZ").to_string()))
+        sea_query::Value::String(Some(self.strftime("%F %T%.f").to_string()))
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -74,11 +74,19 @@ impl DbTyp for jiff::Timestamp {
         use rusqlite::types::FromSqlError;
         use std::str::FromStr;
 
-        jiff::Timestamp::from_str(value.as_str()?).map_err(FromSqlError::other)
+        let dt = jiff::civil::DateTime::from_str(value.as_str()?).map_err(FromSqlError::other)?;
+        jiff::tz::TimeZone::UTC
+            .to_timestamp(dt)
+            .map_err(FromSqlError::other)
     }
 
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-        let datetime = sea_query::Func::cust("datetime").arg(sea_query::Expr::col(col.clone()));
+        const CONCAT: sea_query::BinOper = sea_query::BinOper::Custom("||");
+        let datetime =
+            sea_query::Func::cust("datetime").arg(sea_query::Expr::col(col.clone()).binary(
+                CONCAT,
+                sea_query::Expr::Constant(sea_query::Value::String(Some("Z".to_owned()))),
+            ));
         let ltrim = sea_query::Func::cust("ltrim")
             .arg(datetime)
             .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
@@ -95,14 +103,9 @@ impl DbTyp for jiff::Timestamp {
         let rtrim = sea_query::Func::cust("rtrim")
             .arg(substr)
             .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                "0 Z".to_owned(),
+                "0 ".to_owned(),
             ))));
-        let concat = sea_query::Expr::from(ltrim)
-            .binary(sea_query::BinOper::Custom("||"), rtrim)
-            .binary(
-                sea_query::BinOper::Custom("||"),
-                sea_query::Expr::Constant(sea_query::Value::String(Some("Z".to_owned()))),
-            );
+        let concat = sea_query::Expr::from(ltrim).binary(CONCAT, rtrim);
         Some(sea_query::Expr::col(col).is(concat))
     }
 }
@@ -256,32 +259,30 @@ fn jiff_check_constraint() {
     let txn = conn.transaction().unwrap();
 
     let good = [
-        "2000-01-01 10:20:30Z",
-        "2000-01-01 10:20:31Z",
-        "2000-01-01 10:20:31.1Z",
-        "2000-01-01 10:20:31.000000001Z",
+        "2000-01-01 10:20:30",
+        "2000-01-01 10:20:31",
+        "2000-01-01 10:20:31.1",
+        "2000-01-01 10:20:31.000000001",
     ];
 
     let bad = [
-        "2000-01-01 10:20:30",
-        "2000-01-01 10:20:31",
+        "2000-01-01 10:20:30Z",
+        "2000-01-01 10:20:31Z",
         "2000-01-01 10:20:31+00:01",
-        "2000-01-01 10:20:31+00:01Z",
-        "2000-01-01 10:20:31 Z",
-        "-2000-01-01 10:20:30Z",
-        "-2000-01-01 10:20:31Z",
-        "+2000-01-01 10:20:30Z",
-        "+2000-01-01 10:20:31Z",
-        "2000-01-01 10:20:30.Z",
-        "2000-01-01 10:20:30.0Z",
-        "2000-01-01 10:20:30. 1Z",
-        "2000-01-01 10:20:30.10Z",
-        "2000-01-01 10:20:31.0000000001Z", // sub-nanosecond
+        "2000-01-01 10:20:31+00:00",
+        "2000-01-01 10:20:31 ",
+        "-2000-01-01 10:20:30",
+        "-2000-01-01 10:20:31",
+        "2000-01-01 10:20:30.",
+        "2000-01-01 10:20:30.0",
+        "2000-01-01 10:20:30. 1",
+        "2000-01-01 10:20:30.10",
+        "2000-01-01 10:20:31.0000000001", // sub-nanosecond
     ];
 
     for good in good {
         txn.execute("INSERT INTO thing (created_at) VALUES ($1)", [good])
-            .expect(&format!("{good}"));
+            .expect(&format!("{good}\n"));
 
         let ts =
             jiff::Timestamp::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
