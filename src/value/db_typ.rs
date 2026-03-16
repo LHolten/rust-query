@@ -42,9 +42,6 @@ pub trait DbTyp: Sized + 'static {
 pub trait StorableTyp: DbTyp {}
 
 #[cfg(feature = "jiff-02")]
-const DATE_TIME_FMT: &str = "%F %T%.f";
-
-#[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
     type Prev = Self;
     const TYP: canonical::ColumnType = canonical::ColumnType::Text;
@@ -62,7 +59,8 @@ impl DbTyp for jiff::Timestamp {
     fn out_to_value(self) -> sea_query::Value {
         // check that year is positive
         assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
-        sea_query::Value::String(Some(self.strftime(DATE_TIME_FMT).to_string()))
+        // Use space instead of `T` for date and time separator
+        sea_query::Value::String(Some(self.strftime("%F %T%.fZ").to_string()))
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -74,13 +72,9 @@ impl DbTyp for jiff::Timestamp {
         Self: Sized,
     {
         use rusqlite::types::FromSqlError;
+        use std::str::FromStr;
 
-        let dt = jiff::civil::DateTime::strptime(DATE_TIME_FMT, value.as_str()?)
-            .map_err(FromSqlError::other)?;
-        let res = jiff::tz::TimeZone::UTC
-            .to_timestamp(dt)
-            .map_err(FromSqlError::other)?;
-        Ok(res)
+        jiff::Timestamp::from_str(value.as_str()?).map_err(FromSqlError::other)
     }
 
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
@@ -101,9 +95,14 @@ impl DbTyp for jiff::Timestamp {
         let rtrim = sea_query::Func::cust("rtrim")
             .arg(substr)
             .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                "0".to_owned(),
+                "0 Z".to_owned(),
             ))));
-        let concat = sea_query::Expr::from(ltrim).binary(sea_query::BinOper::Custom("||"), rtrim);
+        let concat = sea_query::Expr::from(ltrim)
+            .binary(sea_query::BinOper::Custom("||"), rtrim)
+            .binary(
+                sea_query::BinOper::Custom("||"),
+                sea_query::Expr::Constant(sea_query::Value::String(Some("Z".to_owned()))),
+            );
         Some(sea_query::Expr::col(col).is(concat))
     }
 }
@@ -257,33 +256,50 @@ fn jiff_check_constraint() {
     let txn = conn.transaction().unwrap();
 
     let good = [
-        "2000-01-01 10:20:30",
-        "2000-01-01 10:20:31",
-        "2000-01-01 10:20:31.1",
-        "2000-01-01 10:20:31.000000001",
+        "2000-01-01 10:20:30Z",
+        "2000-01-01 10:20:31Z",
+        "2000-01-01 10:20:31.1Z",
+        "2000-01-01 10:20:31.000000001Z",
     ];
 
     let bad = [
-        "-2000-01-01 10:20:30",
-        "-2000-01-01 10:20:31",
-        "2000-01-01 10:20:30.",
-        "2000-01-01 10:20:30.0",
-        "2000-01-01 10:20:30.10",
-        "2000-01-01 10:20:31.0000000001", // sub-nanosecond
+        "2000-01-01 10:20:30",
+        "2000-01-01 10:20:31",
+        "2000-01-01 10:20:31+00:01",
+        "2000-01-01 10:20:31+00:01Z",
+        "2000-01-01 10:20:31 Z",
+        "-2000-01-01 10:20:30Z",
+        "-2000-01-01 10:20:31Z",
+        "+2000-01-01 10:20:30Z",
+        "+2000-01-01 10:20:31Z",
+        "2000-01-01 10:20:30.Z",
+        "2000-01-01 10:20:30.0Z",
+        "2000-01-01 10:20:30. 1Z",
+        "2000-01-01 10:20:30.10Z",
+        "2000-01-01 10:20:31.0000000001Z", // sub-nanosecond
     ];
 
     for good in good {
         txn.execute("INSERT INTO thing (created_at) VALUES ($1)", [good])
-            .unwrap();
+            .expect(&format!("{good}"));
+
+        let ts =
+            jiff::Timestamp::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
+        assert_eq!(
+            ts.out_to_value(),
+            sea_query::Value::String(Some(good.to_owned()))
+        )
     }
 
     for bad in bad {
         let err = txn
             .execute("INSERT INTO thing (created_at) VALUES ($1)", [bad])
-            .unwrap_err();
+            .expect_err(&format!("{bad}"));
         assert_eq!(
             err.sqlite_error().unwrap().extended_code,
             rusqlite::ffi::SQLITE_CONSTRAINT_CHECK
         );
     }
+
+    txn.commit().unwrap();
 }
