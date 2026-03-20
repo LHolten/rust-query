@@ -1,6 +1,9 @@
 use sea_query::{Alias, ExprTrait, extension::sqlite::SqliteExpr};
 
-use crate::{ast::CONST_0, value::BuffTyp};
+use crate::{
+    ast::CONST_0,
+    value::{BuffTyp, OrdTyp},
+};
 
 use super::{EqTyp, Expr, IntoExpr, NumTyp};
 
@@ -69,6 +72,44 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
         Expr::adhoc(move |b| lhs.build_expr(b).div(rhs.build_expr(b)))
     }
 
+    /// Get the sign of the expression.
+    ///
+    /// The result is -1, 0 or 1 depending on if the expression is
+    /// negative, zero or positive.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().sign()), 1);
+    /// assert_eq!(txn.query_one((-5.0).into_expr().sign()), -1);
+    /// assert_eq!(txn.query_one((-0.0).into_expr().sign()), 0);
+    /// # });
+    /// ```
+    pub fn sign(&self) -> Expr<'column, S, i64> {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("sign").arg(lhs.build_expr(b)))
+        })
+    }
+
+    /// Get the absolute value of the expression.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// assert_eq!(txn.query_one(2.into_expr().abs()), 2);
+    /// assert_eq!(txn.query_one((-5.0).into_expr().abs()), 5.0);
+    /// # });
+    /// ```
+    pub fn abs(&self) -> Self {
+        let lhs = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Expr::expr(sea_query::Func::cust("abs").arg(lhs.build_expr(b)))
+        })
+    }
+}
+
+impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     /// Compute the less than operator (<) of two expressions.
     ///
     /// ```
@@ -169,42 +210,6 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
                     .arg(lhs.build_expr(b))
                     .arg(rhs.build_expr(b)),
             )
-        })
-    }
-
-    /// Get the sign of the expression.
-    ///
-    /// The result is -1, 0 or 1 depending on if the expression is
-    /// negative, zero or positive.
-    ///
-    /// ```
-    /// # use rust_query::IntoExpr;
-    /// # rust_query::private::doctest::get_txn(|txn| {
-    /// assert_eq!(txn.query_one(2.into_expr().sign()), 1);
-    /// assert_eq!(txn.query_one((-5.0).into_expr().sign()), -1);
-    /// assert_eq!(txn.query_one((-0.0).into_expr().sign()), 0);
-    /// # });
-    /// ```
-    pub fn sign(&self) -> Expr<'column, S, i64> {
-        let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("sign").arg(lhs.build_expr(b)))
-        })
-    }
-
-    /// Get the absolute value of the expression.
-    ///
-    /// ```
-    /// # use rust_query::IntoExpr;
-    /// # rust_query::private::doctest::get_txn(|txn| {
-    /// assert_eq!(txn.query_one(2.into_expr().abs()), 2);
-    /// assert_eq!(txn.query_one((-5.0).into_expr().abs()), 5.0);
-    /// # });
-    /// ```
-    pub fn abs(&self) -> Self {
-        let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("abs").arg(lhs.build_expr(b)))
         })
     }
 
