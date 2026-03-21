@@ -1,5 +1,13 @@
 # Unreleased
 
+# 0.8.0
+
+- Fixed missing check constraint for `Option<bool>` columns.
+  For backwards compatibility, you have to change these columns in your schema to`Option<i64>`.
+  Then you can define a migration to change the column type to `Option<bool>` with check constraint.
+
+- Added support for `jiff::Timestamp` and `jiff::civil::Date` with check constraints.
+
 # 0.7.1
 
 - Fixed `Aggregate::exists` giving wrong result when used without any query decorrelation.
