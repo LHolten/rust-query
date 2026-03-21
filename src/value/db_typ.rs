@@ -36,9 +36,7 @@ pub trait DbTyp: Sized + 'static {
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
 pub trait StorableTyp: DbTyp {
-    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-        None
-    }
+    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr>;
 }
 
 #[cfg(feature = "jiff-02")]
@@ -208,7 +206,11 @@ impl<T: Table> DbTyp for TableRow<T> {
     }
 }
 
-impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {}
+impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
+    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        None
+    }
+}
 
 impl<T: EqTyp> DbTyp for Option<T> {
     type Prev = Option<T::Prev>;
@@ -243,10 +245,17 @@ impl<T: EqTyp> DbTyp for Option<T> {
     }
 }
 
-impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {}
+impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
+    fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        T::check(col)
+    }
+}
 
 macro_rules! impl_typ {
-    ($typ:ty, $can:expr, $map:expr $(, $check:expr)?) => {
+    ($typ:ty, $can:expr, $map:expr) => {
+        impl_typ!($typ, $can, $map, |_col| None);
+    };
+    ($typ:ty, $can:expr, $map:expr, $check:expr) => {
         impl DbTyp for $typ {
             type Prev = Self;
             const TYP: canonical::ColumnType = $can;
@@ -276,12 +285,10 @@ macro_rules! impl_typ {
         }
 
         impl StorableTyp for $typ {
-            $(
-                fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-                    let f: fn(col: sea_query::Alias) -> _ = $check;
-                    f(col)
-                }
-            )?
+            fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+                let f: fn(col: sea_query::Alias) -> _ = $check;
+                return f(col);
+            }
         }
     };
 }
