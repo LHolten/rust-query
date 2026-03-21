@@ -126,7 +126,7 @@ mod tests {
         let res = <jiff::civil::Date as StorableTyp>::check(Alias::new("foo")).unwrap();
         let mut out = String::new();
         SqliteQueryBuilder.prepare_expr(&res, &mut out);
-        expect_test::expect![[r#""foo" IS substr(ltrim(datetime("foo"), '-'), 1, 10)"#]]
+        expect_test::expect![[r#""foo" IS ltrim(strftime('%F', "foo"), '-')"#]]
             .assert_eq(&out);
     }
 }

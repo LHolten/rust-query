@@ -1,3 +1,5 @@
+use sea_query::ExprTrait;
+
 use crate::{Expr, IntoExpr};
 
 impl<'column, S> Expr<'column, S, jiff::Timestamp> {
@@ -36,13 +38,12 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
     pub fn from_second(val: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let this = val.into_expr().inner;
         Expr::adhoc(move |b| {
-            sea_query::Expr::expr(
-                sea_query::Func::cust("datetime")
-                    .arg(this.build_expr(b))
-                    .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                        "unixepoch".to_owned(),
-                    )))),
-            )
+            sea_query::Func::cust("datetime")
+                .arg(this.build_expr(b))
+                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                    "unixepoch".to_owned(),
+                ))))
+                .into()
         })
     }
 
@@ -84,11 +85,81 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
         let this = self.inner.clone();
         let nanos = nanos.into_expr().inner;
         Expr::adhoc(move |b| {
-            sea_query::Expr::expr(
-                sea_query::Func::cust("timestamp_add_nanos")
-                    .arg(this.build_expr(b))
-                    .arg(nanos.build_expr(b)),
-            )
+            sea_query::Func::cust("timestamp_add_nanos")
+                .arg(this.build_expr(b))
+                .arg(nanos.build_expr(b))
+                .into()
         })
+    }
+}
+
+impl<'column, S> Expr<'column, S, jiff::civil::Date> {
+    /// The year in the range `0..=9999`.
+    pub fn year(&self) -> Expr<'column, S, i64> {
+        let this = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("strftime")
+                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                    "%Y".to_owned(),
+                ))))
+                .arg(this.build_expr(b))
+                .cast_as("INTEGER")
+        })
+    }
+
+    /// The month of the year in the range `1..=12`.
+    pub fn month(&self) -> Expr<'column, S, i64> {
+        let this = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("strftime")
+                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                    "%m".to_owned(),
+                ))))
+                .arg(this.build_expr(b))
+                .cast_as("INTEGER")
+        })
+    }
+
+    /// The day of the month in the range `1..=31`.
+    pub fn day(&self) -> Expr<'column, S, i64> {
+        let this = self.inner.clone();
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("strftime")
+                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                    "%d".to_owned(),
+                ))))
+                .arg(this.build_expr(b))
+                .cast_as("INTEGER")
+        })
+    }
+
+    /// Add a number of days to this date.
+    pub fn add_day(&self, days: impl IntoExpr<'column, S, Typ = i64>) -> Self {
+        let this = self.inner.clone();
+        let days = days.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("strftime")
+                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
+                    "%F".to_owned(),
+                ))))
+                .arg(this.build_expr(b))
+                .arg(days.build_expr(b).binary(
+                    sea_query::BinOper::Custom("||"),
+                    sea_query::Expr::Constant(sea_query::Value::String(Some(" day".to_owned()))),
+                ))
+                .into()
+        })
+    }
+
+    pub fn date(
+        year: impl IntoExpr<'column, S, Typ = i64>,
+        month: impl IntoExpr<'column, S, Typ = i64>,
+        day: impl IntoExpr<'column, S, Typ = i64>,
+    ) -> Self {
+        let year = year.into_expr().inner;
+        let month = month.into_expr().inner;
+        let day = day.into_expr().inner;
+
+        todo!()
     }
 }

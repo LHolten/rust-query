@@ -208,7 +208,7 @@ mod tests {
     fn backwards_compat() {
         use rust_query::migration::hash_schema;
 
-        expect!["2041e5483f644db9"].assert_eq(&hash_schema::<v0::Schema>());
-        expect!["b9711f61e2a73b6"].assert_eq(&hash_schema::<v1::Schema>());
+        expect!["86411df34763af47"].assert_eq(&hash_schema::<v0::Schema>());
+        expect!["8513d21b699a915e"].assert_eq(&hash_schema::<v1::Schema>());
     }
 }
