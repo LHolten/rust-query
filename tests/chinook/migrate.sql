@@ -22,7 +22,10 @@ FROM
 INSERT INTO
     employee (id, first_name, last_name, title, reports_to, birth_date, hire_date, address, city, state, country, postal_code, phone, fax, email)
 SELECT
-    EmployeeId, LastName, FirstName, Title, ReportsTo, BirthDate, HireDate, Address, City, State, Country, PostalCode, Phone, Fax, Email
+    EmployeeId, LastName, FirstName, Title, ReportsTo,
+    replace(BirthDate, ' 00:00:00', ''),
+    replace(HireDate, ' 00:00:00', ''),
+    Address, City, State, Country, PostalCode, Phone, Fax, Email
 FROM
     old.Employee;
 
@@ -36,7 +39,9 @@ FROM
 INSERT INTO
     invoice (id, customer, invoice_date, billing_address, billing_city, billing_state, billing_country, billing_postal_code, total)
 SELECT
-    InvoiceId, CustomerId, InvoiceDate, BillingAddress, BillingCity, BillingState, BillingCountry, BillingPostalCode, Total
+    InvoiceId, CustomerId,
+    replace(InvoiceDate, ' 00:00:00', ''),
+    BillingAddress, BillingCity, BillingState, BillingCountry, BillingPostalCode, Total
 FROM
     old.Invoice;
 

@@ -10,6 +10,7 @@ pub use v2::*;
 #[schema(Schema)]
 #[version(0..=2)]
 pub mod vN {
+    use jiff::civil::Date;
     use rust_query::TableRow;
 
     pub struct Album {
@@ -50,8 +51,8 @@ pub mod vN {
         pub first_name: String,
         pub title: Option<String>,
         pub reports_to: Option<TableRow<Employee>>,
-        pub birth_date: Option<String>,
-        pub hire_date: Option<String>,
+        pub birth_date: Date,
+        pub hire_date: Date,
         pub address: Option<String>,
         pub city: Option<String>,
         pub state: Option<String>,
@@ -81,7 +82,7 @@ pub mod vN {
     pub struct Invoice {
         #[index]
         pub customer: TableRow<Customer>,
-        pub invoice_date: String,
+        pub invoice_date: Date,
         pub billing_address: Option<String>,
         pub billing_city: Option<String>,
         pub billing_state: Option<String>,
@@ -207,7 +208,7 @@ mod tests {
     fn backwards_compat() {
         use rust_query::migration::hash_schema;
 
-        expect!["3944d3e8bd2922be"].assert_eq(&hash_schema::<v0::Schema>());
-        expect!["a93ff07cbd480913"].assert_eq(&hash_schema::<v1::Schema>());
+        expect!["2041e5483f644db9"].assert_eq(&hash_schema::<v0::Schema>());
+        expect!["b9711f61e2a73b6"].assert_eq(&hash_schema::<v1::Schema>());
     }
 }

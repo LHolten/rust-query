@@ -54,6 +54,10 @@ test = true
 harness = false
 required-features = ["jiff-02"]
 
+[[test]]
+name = "chinook"
+required-features = ["jiff-02"]
+
 [dependencies]
 sea-query = { version = "=1.0.0-rc.17", default-features = false, features = ["backend-sqlite"] }
 sea-query-rusqlite = "=0.8.0-rc.8"
