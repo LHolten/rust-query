@@ -108,7 +108,6 @@ impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
 impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
     type Typ = Self;
 
-    #[track_caller]
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
         Expr::adhoc(move |_| sea_query::Expr::from(self.out_to_value()))
     }

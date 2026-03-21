@@ -39,7 +39,7 @@ This checks the properties that are required for correct sorting and comparisons
 - no negative years (`-` prefix).
 - no trailing `0` after the `.`.
 - no more than 9 digits after the `.`.
-- no timezone.
+- no timezone (always adding `'Z'` would break sorting when mixing precision).
 
 Only the range incompatibility sadness remains:
 - jiff -> sqlite: negative years give error
@@ -48,3 +48,11 @@ Only the range incompatibility sadness remains:
 The seconds error kind is simultanously better and worse.
 It is less likely to happen because another program needs to write the value.
 When it happens it is not possible to recover using rust-query alone.
+
+# Dates
+Sometimes we only care about the civil time instead of a precise moment.
+Often this happens with dates, which only specify the day.
+
+These can also be encoded with a check constraint.
+
+`"col" IS substr(ltrim(datetime("col"), '-'), 1, 10)`

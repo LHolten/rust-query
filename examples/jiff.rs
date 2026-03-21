@@ -5,12 +5,13 @@ use rust_query::{
 
 #[schema(Log)]
 pub mod vN {
-    use jiff::Timestamp;
+    use jiff::{Timestamp, civil::Date};
 
     pub struct Entry {
         pub text: String,
         #[index]
         pub timestamp: Timestamp,
+        pub date: Date,
     }
 }
 use v0::*;
@@ -22,6 +23,7 @@ fn main() {
         let a = txn.insert_ok(Entry {
             text: "hello world!".to_owned(),
             timestamp: jiff::Timestamp::now(),
+            date: jiff::civil::date(1234, 5, 6),
         });
 
         let [b] = txn.query(|rows| {

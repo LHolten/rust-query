@@ -128,7 +128,6 @@ impl DbTyp for jiff::civil::Date {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
-    #[track_caller]
     fn out_to_value(self) -> sea_query::Value {
         // check that year is positive
         assert!(

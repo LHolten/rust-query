@@ -159,6 +159,8 @@ impl OrdTyp for f64 {}
 impl OrdTyp for bool {}
 #[cfg(feature = "jiff-02")]
 impl OrdTyp for jiff::Timestamp {}
+#[cfg(feature = "jiff-02")]
+impl OrdTyp for jiff::civil::Date {}
 
 pub trait BuffTyp: DbTyp {}
 impl BuffTyp for String {}
@@ -177,6 +179,8 @@ impl EqTyp for f64 {}
 impl EqTyp for bool {}
 #[cfg(feature = "jiff-02")]
 impl EqTyp for jiff::Timestamp {}
+#[cfg(feature = "jiff-02")]
+impl EqTyp for jiff::civil::Date {}
 #[diagnostic::do_not_recommend]
 impl<T: Table> EqTyp for TableRow<T> {}
 
