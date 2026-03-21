@@ -31,15 +31,15 @@ pub trait DbTyp: Sized + 'static {
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>
     where
         Self: Sized;
-
-    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-        None
-    }
 }
 
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
-pub trait StorableTyp: DbTyp {}
+pub trait StorableTyp: DbTyp {
+    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+        None
+    }
+}
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
@@ -79,7 +79,10 @@ impl DbTyp for jiff::Timestamp {
             .to_timestamp(dt)
             .map_err(FromSqlError::other)
     }
+}
 
+#[cfg(feature = "jiff-02")]
+impl StorableTyp for jiff::Timestamp {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         const CONCAT: sea_query::BinOper = sea_query::BinOper::Custom("||");
         let datetime =
@@ -109,9 +112,6 @@ impl DbTyp for jiff::Timestamp {
         Some(sea_query::Expr::col(col).is(concat))
     }
 }
-
-#[cfg(feature = "jiff-02")]
-impl StorableTyp for jiff::Timestamp {}
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::civil::Date {
@@ -151,7 +151,10 @@ impl DbTyp for jiff::civil::Date {
 
         jiff::civil::Date::from_str(value.as_str()?).map_err(FromSqlError::other)
     }
+}
 
+#[cfg(feature = "jiff-02")]
+impl StorableTyp for jiff::civil::Date {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
         let datetime = sea_query::Func::cust("datetime").arg(sea_query::Expr::col(col.clone()));
         let ltrim = sea_query::Func::cust("ltrim")
@@ -168,9 +171,6 @@ impl DbTyp for jiff::civil::Date {
         Some(sea_query::Expr::col(col).is(substr))
     }
 }
-
-#[cfg(feature = "jiff-02")]
-impl StorableTyp for jiff::civil::Date {}
 
 impl<T: Table> DbTyp for TableRow<T> {
     type Prev = TableRow<T::MigrateFrom>;
@@ -274,6 +274,9 @@ macro_rules! impl_typ {
                 let f: fn(rusqlite::types::ValueRef<'_>) -> _ = $map;
                 f(val)
             }
+        }
+
+        impl StorableTyp for $typ {
             $(
                 fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
                     let f: fn(col: sea_query::Alias) -> _ = $check;
@@ -281,8 +284,6 @@ macro_rules! impl_typ {
                 }
             )?
         }
-
-        impl StorableTyp for $typ {}
     };
 }
 impl_typ!(i64, canonical::ColumnType::Integer, |x| x.as_i64());

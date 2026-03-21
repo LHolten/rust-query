@@ -59,7 +59,8 @@ impl<S> TypBuilder<S> {
                 nullable: <T::Typ as DbTyp>::NULLABLE,
                 fk: <T::Typ as DbTyp>::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: {
-                    if let Some(check) = <T::Typ as DbTyp>::check(sea_query::Alias::new(name)) {
+                    if let Some(check) = <T::Typ as StorableTyp>::check(sea_query::Alias::new(name))
+                    {
                         let mut sql = String::new();
                         sea_query::SqliteQueryBuilder.prepare_expr(&check, &mut sql);
                         Some(Parsed::parse(&sql))
@@ -101,9 +102,31 @@ mod tests {
 
     #[test]
     fn test_bool_check() {
-        let res = <bool as DbTyp>::check(Alias::new("foo")).unwrap();
+        let res = <bool as StorableTyp>::check(Alias::new("foo")).unwrap();
         let mut out = String::new();
         SqliteQueryBuilder.prepare_expr(&res, &mut out);
         assert_eq!(out, r#""foo" IN (0, 1)"#);
+    }
+
+    #[test]
+    #[cfg(feature = "jiff-02")]
+    fn test_timestamp_check() {
+        let res = <jiff::Timestamp as StorableTyp>::check(Alias::new("foo")).unwrap();
+        let mut out = String::new();
+        SqliteQueryBuilder.prepare_expr(&res, &mut out);
+        expect_test::expect![[
+            r#""foo" IS (ltrim(datetime("foo" || 'Z'), '-') || rtrim(substr("foo", 20, 10), '0 '))"#
+        ]]
+        .assert_eq(&out);
+    }
+
+    #[test]
+    #[cfg(feature = "jiff-02")]
+    fn test_date_check() {
+        let res = <jiff::civil::Date as StorableTyp>::check(Alias::new("foo")).unwrap();
+        let mut out = String::new();
+        SqliteQueryBuilder.prepare_expr(&res, &mut out);
+        expect_test::expect![[r#""foo" IS substr(ltrim(datetime("foo"), '-'), 1, 10)"#]]
+            .assert_eq(&out);
     }
 }
