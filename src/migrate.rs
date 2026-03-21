@@ -112,6 +112,51 @@ impl<S: Schema> Database<S> {
                     Ok(res)
                 },
             )?;
+
+            #[cfg(feature = "jiff-02")]
+            inner.create_scalar_function(
+                "timestamp_add_nanos",
+                2,
+                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                |ctx| {
+                    use crate::value::DbTyp;
+                    assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
+                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                    let seconds = ctx.get::<i64>(1)?;
+                    let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
+                    let sea_query::Value::String(Some(res)) = jiff::Timestamp::out_to_value(new)
+                    else {
+                        unreachable!("func always returns some string")
+                    };
+                    Ok(res)
+                },
+            )?;
+
+            #[cfg(feature = "jiff-02")]
+            inner.create_scalar_function(
+                "timestamp_subsec_nanosecond",
+                1,
+                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                |ctx| {
+                    use crate::value::DbTyp;
+                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                    Ok(timestamp.subsec_nanosecond())
+                },
+            )?;
+
+            #[cfg(feature = "jiff-02")]
+            inner.create_scalar_function(
+                "timestamp_as_second",
+                1,
+                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                |ctx| {
+                    use crate::value::DbTyp;
+                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                    Ok(timestamp.as_second())
+                },
+            )?;
             Ok(())
         });
 

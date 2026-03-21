@@ -2,6 +2,8 @@ pub mod aggregate;
 mod db_typ;
 pub mod from_expr;
 pub mod into_expr;
+#[cfg(feature = "jiff-02")]
+mod jiff_operations;
 mod operations;
 pub mod optional;
 
