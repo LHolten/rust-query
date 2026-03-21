@@ -101,6 +101,19 @@ impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
     }
 }
 
+#[cfg(feature = "jiff-02")]
+/// Note that dates before `0000-01-01` can not be used in an expression.
+/// The reason is that dates are represented in sqlite as strings and for negative
+/// years the sorting order is wrong.
+impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
+    type Typ = Self;
+
+    #[track_caller]
+    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(move |_| sea_query::Expr::from(self.out_to_value()))
+    }
+}
+
 impl<'column, S, T> IntoExpr<'column, S> for &T
 where
     T: IntoExpr<'column, S> + Clone,

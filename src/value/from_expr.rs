@@ -32,6 +32,8 @@ from_expr! {f64}
 from_expr! {bool}
 #[cfg(feature = "jiff-02")]
 from_expr! {jiff::Timestamp}
+#[cfg(feature = "jiff-02")]
+from_expr! {jiff::civil::Date}
 
 impl<T: Table> FromExpr<T::Schema, TableRow<T>> for TableRow<T> {
     fn from_expr<'columns>(
