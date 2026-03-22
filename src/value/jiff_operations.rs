@@ -95,6 +95,14 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
 
 impl<'column, S> Expr<'column, S, jiff::civil::Date> {
     /// The year in the range `0..=9999`.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::civil::date;
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().year()), 2300);
+    /// # });
+    /// ```
     pub fn year(&self) -> Expr<'column, S, i64> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
@@ -108,6 +116,14 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
     }
 
     /// The month of the year in the range `1..=12`.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::civil::date;
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().month()), 3);
+    /// # });
+    /// ```
     pub fn month(&self) -> Expr<'column, S, i64> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
@@ -121,6 +137,14 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
     }
 
     /// The day of the month in the range `1..=31`.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::civil::date;
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().day()), 6);
+    /// # });
+    /// ```
     pub fn day(&self) -> Expr<'column, S, i64> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
@@ -134,6 +158,14 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
     }
 
     /// Add a number of days to this date.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::civil::date;
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().add_day(30)), date(2300, 4, 5));
+    /// # });
+    /// ```
     pub fn add_day(&self, days: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let this = self.inner.clone();
         let days = days.into_expr().inner;
