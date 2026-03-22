@@ -170,10 +170,7 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
         let this = self.inner.clone();
         let days = days.into_expr().inner;
         Expr::adhoc(move |b| {
-            sea_query::Func::cust("strftime")
-                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                    "%F".to_owned(),
-                ))))
+            sea_query::Func::cust("date")
                 .arg(this.build_expr(b))
                 .arg(days.build_expr(b).binary(
                     sea_query::BinOper::Custom("||"),

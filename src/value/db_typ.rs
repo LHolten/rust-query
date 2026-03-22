@@ -153,11 +153,7 @@ impl DbTyp for jiff::civil::Date {
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::civil::Date {
     fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-        let datetime = sea_query::Func::cust("strftime")
-            .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                "%F".to_owned(),
-            ))))
-            .arg(sea_query::Expr::col(col.clone()));
+        let datetime = sea_query::Func::cust("date").arg(sea_query::Expr::col(col.clone()));
         let ltrim = sea_query::Func::cust("ltrim")
             .arg(datetime)
             .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
