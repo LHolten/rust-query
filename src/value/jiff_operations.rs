@@ -1,3 +1,4 @@
+use jiff::fmt::temporal;
 use sea_query::ExprTrait;
 
 use crate::{Expr, IntoExpr};
@@ -19,11 +20,11 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
     /// # use rust_query::IntoExpr;
     /// # rust_query::private::doctest::get_txn(|txn| {
     /// use jiff::Timestamp;
-    /// assert_eq!(txn.query_one(Timestamp::from_millisecond(123713).unwrap().into_expr().as_second()), 123);
-    /// assert_eq!(txn.query_one(Timestamp::from_millisecond(-123713).unwrap().into_expr().as_second()), -123);
+    /// assert_eq!(txn.query_one(Timestamp::from_millisecond(123713).unwrap().into_expr().to_second()), 123);
+    /// assert_eq!(txn.query_one(Timestamp::from_millisecond(-123713).unwrap().into_expr().to_second()), -123);
     /// # });
     /// ```
-    pub fn as_second(&self) -> Expr<'column, S, i64> {
+    pub fn to_second(&self) -> Expr<'column, S, i64> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Func::cust("timestamp_as_second")
@@ -94,6 +95,33 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
             sea_query::Func::cust("timestamp_add_nanos")
                 .arg(this.build_expr(b))
                 .arg(nanos.build_expr(b))
+                .into()
+        })
+    }
+
+    /// Convert a timestamp to a date using the specified timezone.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # use std::str::FromStr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::Timestamp;
+    /// use jiff::tz::TimeZone;
+    /// use jiff::civil::Date;
+    /// let ts = Timestamp::from_second(123713).unwrap();
+    /// let tz = TimeZone::get("Europe/Amsterdam").unwrap();
+    /// assert_eq!(txn.query_one(ts.into_expr().to_date_in_tz(&tz)), Date::from_str("1970-01-02").unwrap());
+    /// # });
+    /// ```
+    pub fn to_date_in_tz(&self, tz: &jiff::tz::TimeZone) -> Expr<'column, S, jiff::civil::Date> {
+        static PRINTER: temporal::DateTimePrinter = temporal::DateTimePrinter::new();
+        let time_zone = PRINTER.time_zone_to_string(tz).unwrap();
+        let this = self.inner.clone();
+
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("timestamp_to_date")
+                .arg(this.build_expr(b))
+                .arg(time_zone.clone())
                 .into()
         })
     }

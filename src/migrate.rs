@@ -171,6 +171,38 @@ impl<S: Schema> Database<S> {
                     Ok(Some(timestamp.as_second()))
                 },
             )?;
+
+            #[cfg(feature = "jiff-02")]
+            inner.create_scalar_function(
+                "timestamp_to_date",
+                2,
+                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+                |ctx| {
+                    use jiff::fmt::temporal;
+
+                    use crate::value::DbTyp;
+                    assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
+                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null)
+                        || matches!(ctx.get_raw(1), rusqlite::types::ValueRef::Null)
+                    {
+                        return Ok(None);
+                    }
+
+                    static PARSER: temporal::DateTimeParser = temporal::DateTimeParser::new();
+
+                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                    let timezone = PARSER
+                        .parse_time_zone(ctx.get_raw(1).as_str()?)
+                        .expect("time zone was serialized with jiff");
+                    let date = timezone.to_datetime(timestamp).date();
+                    let sea_query::Value::String(Some(res)) = jiff::civil::Date::out_to_value(date)
+                    else {
+                        unreachable!("func always returns some string")
+                    };
+                    Ok(Some(res))
+                },
+            )?;
+
             Ok(())
         });
 
