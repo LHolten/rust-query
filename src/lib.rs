@@ -1,6 +1,7 @@
 #![allow(private_bounds, private_interfaces)]
 #![doc = include_str!("../README.md")]
-#![cfg(feature = "base0")]
+#![cfg_attr(not(docsrs), cfg(feature = "base0"))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate self as rust_query;
 
