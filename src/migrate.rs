@@ -96,7 +96,7 @@ impl<S: Schema> Database<S> {
                 rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
                 move |ctx| {
                     assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
-                    let res = ctx.get::<f64>(0)?.floor();
+                    let res = ctx.get::<Option<f64>>(0)?.map(|x| x.floor());
                     Ok(res)
                 },
             )?;
@@ -108,7 +108,7 @@ impl<S: Schema> Database<S> {
                 rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
                 move |ctx| {
                     assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
-                    let res = ctx.get::<f64>(0)?.ceil();
+                    let res = ctx.get::<Option<f64>>(0)?.map(|x| x.ceil());
                     Ok(res)
                 },
             )?;
@@ -121,6 +121,12 @@ impl<S: Schema> Database<S> {
                 |ctx| {
                     use crate::value::DbTyp;
                     assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
+                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null)
+                        || matches!(ctx.get_raw(1), rusqlite::types::ValueRef::Null)
+                    {
+                        return Ok(None);
+                    }
+
                     let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
                     let seconds = ctx.get::<i64>(1)?;
                     let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
@@ -128,7 +134,7 @@ impl<S: Schema> Database<S> {
                     else {
                         unreachable!("func always returns some string")
                     };
-                    Ok(res)
+                    Ok(Some(res))
                 },
             )?;
 
@@ -140,8 +146,12 @@ impl<S: Schema> Database<S> {
                 |ctx| {
                     use crate::value::DbTyp;
                     assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null) {
+                        return Ok(None);
+                    }
+
                     let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
-                    Ok(timestamp.subsec_nanosecond())
+                    Ok(Some(timestamp.subsec_nanosecond()))
                 },
             )?;
 
@@ -153,8 +163,12 @@ impl<S: Schema> Database<S> {
                 |ctx| {
                     use crate::value::DbTyp;
                     assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null) {
+                        return Ok(None);
+                    }
+
                     let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
-                    Ok(timestamp.as_second())
+                    Ok(Some(timestamp.as_second()))
                 },
             )?;
             Ok(())
