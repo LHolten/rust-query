@@ -2,10 +2,18 @@ use sea_query::ExprTrait;
 
 use crate::{Expr, IntoExpr};
 
+fn const_str(val: &str) -> sea_query::Value {
+    sea_query::Value::String(Some(val.to_owned()))
+}
+fn concat(a: impl Into<sea_query::Expr>, b: impl Into<sea_query::Expr>) -> sea_query::Expr {
+    a.into().binary(sea_query::BinOper::Custom("||"), b)
+}
+
 impl<'column, S> Expr<'column, S, jiff::Timestamp> {
     /// Number of whole seconds since the unix epoch.
     ///
     /// Fractional seconds are truncated (matching jiff behaviour).
+    /// Before 1970 seconds are rounded up and after 1970 seconds are rounded down.
     ///
     /// ```
     /// # use rust_query::IntoExpr;
@@ -40,9 +48,7 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
         Expr::adhoc(move |b| {
             sea_query::Func::cust("datetime")
                 .arg(this.build_expr(b))
-                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                    "unixepoch".to_owned(),
-                ))))
+                .arg(const_str("unixepoch"))
                 .into()
         })
     }
@@ -107,9 +113,7 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Func::cust("strftime")
-                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                    "%Y".to_owned(),
-                ))))
+                .arg(const_str("%Y"))
                 .arg(this.build_expr(b))
                 .cast_as("INTEGER")
         })
@@ -128,9 +132,7 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Func::cust("strftime")
-                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                    "%m".to_owned(),
-                ))))
+                .arg(const_str("%m"))
                 .arg(this.build_expr(b))
                 .cast_as("INTEGER")
         })
@@ -149,9 +151,7 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
             sea_query::Func::cust("strftime")
-                .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                    "%d".to_owned(),
-                ))))
+                .arg(const_str("%d"))
                 .arg(this.build_expr(b))
                 .cast_as("INTEGER")
         })
@@ -172,23 +172,38 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
         Expr::adhoc(move |b| {
             sea_query::Func::cust("date")
                 .arg(this.build_expr(b))
-                .arg(days.build_expr(b).binary(
-                    sea_query::BinOper::Custom("||"),
-                    sea_query::Expr::Constant(sea_query::Value::String(Some(" day".to_owned()))),
-                ))
+                .arg(concat(days.build_expr(b), const_str(" day")))
                 .into()
         })
     }
 
-    pub fn date(
-        year: impl IntoExpr<'column, S, Typ = i64>,
-        month: impl IntoExpr<'column, S, Typ = i64>,
-        day: impl IntoExpr<'column, S, Typ = i64>,
-    ) -> Self {
-        let year = year.into_expr().inner;
-        let month = month.into_expr().inner;
-        let day = day.into_expr().inner;
+    /// Give the first day of the month.
+    ///
+    /// - `idx == 0` the first day of this month.
+    /// - `idx == 1` the first day of next month.
+    /// - `idx == -1` the first day of previous month.
+    /// - etc.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::civil::date;
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().first_of_month(0)), date(2300, 3, 1));
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().first_of_month(1)), date(2300, 4, 1));
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().first_of_month(12)), date(2301, 3, 1));
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().first_of_month(-1)), date(2300, 2, 1));
+    /// # });
+    /// ```
+    pub fn first_of_month(&self, idx: impl IntoExpr<'column, S, Typ = i64>) -> Self {
+        let this = self.inner.clone();
+        let idx = idx.into_expr().inner;
 
-        todo!()
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("date")
+                .arg(this.build_expr(b))
+                .arg(const_str("start of month"))
+                .arg(concat(idx.build_expr(b), const_str(" month")))
+                .into()
+        })
     }
 }
