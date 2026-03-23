@@ -10,6 +10,7 @@
 - Added methods `Expr::to_second`, `Expr::subsec_nanosecond`, `Expr::from_second`,
   `Expr::add_nanosecond`, `Expr::to_date_in_tz`, `Expr::year`, `Expr::month`, `Expr::day`,
   `Expr::first_of_month`, `Expr::add_day`.
+- Deprecated `Expr::unix_epoch`, create timestamps outside of rust-query instead.
 
 # 0.7.1
 

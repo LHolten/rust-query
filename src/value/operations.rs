@@ -414,11 +414,6 @@ impl<'column, S> Expr<'column, S, i64> {
         let rhs = rhs.into_expr().inner;
         Expr::adhoc(move |b| lhs.build_expr(b).modulo(rhs.build_expr(b)))
     }
-
-    /// Get the current timestamp as milliseconds since unix epoch.
-    pub fn unix_epoch() -> Self {
-        Expr::adhoc(|_| sea_query::Expr::cust("unixepoch('now')"))
-    }
 }
 
 impl<'column, S> Expr<'column, S, f64> {
