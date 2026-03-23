@@ -7,6 +7,9 @@
   Then you can define a migration to change the column type to `Option<bool>` with check constraint.
 
 - Added support for `jiff::Timestamp` and `jiff::civil::Date` with check constraints.
+- Added methods `Expr::to_second`, `Expr::subsec_nanosecond`, `Expr::from_second`,
+  `Expr::add_nanosecond`, `Expr::to_date_in_tz`, `Expr::year`, `Expr::month`, `Expr::day`,
+  `Expr::first_of_month`, `Expr::add_day`.
 
 # 0.7.1
 

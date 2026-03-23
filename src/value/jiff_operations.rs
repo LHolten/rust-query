@@ -33,27 +33,6 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
         })
     }
 
-    /// New timestamp from seconds since the unix epoch.
-    ///
-    /// ```
-    /// # use rust_query::IntoExpr;
-    /// # rust_query::private::doctest::get_txn(|txn| {
-    /// use jiff::Timestamp;
-    /// use rust_query::Expr;
-    /// assert_eq!(txn.query_one(Expr::from_second(4322)), Timestamp::from_second(4322).unwrap());
-    /// assert_eq!(txn.query_one(Expr::from_second(-4322)), Timestamp::from_second(-4322).unwrap());
-    /// # });
-    /// ```
-    pub fn from_second(val: impl IntoExpr<'column, S, Typ = i64>) -> Self {
-        let this = val.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::cust("datetime")
-                .arg(this.build_expr(b))
-                .arg(const_str("unixepoch"))
-                .into()
-        })
-    }
-
     /// The fractional component of the timestamp in seconds.
     ///
     /// Negative for timestamps before 1970 (matching jiff behaviour).
@@ -71,6 +50,27 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
         Expr::adhoc(move |b| {
             sea_query::Func::cust("timestamp_subsec_nanosecond")
                 .arg(this.build_expr(b))
+                .into()
+        })
+    }
+
+    /// New timestamp from seconds since the unix epoch.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::Timestamp;
+    /// use rust_query::Expr;
+    /// assert_eq!(txn.query_one(Expr::from_second(4322)), Timestamp::from_second(4322).unwrap());
+    /// assert_eq!(txn.query_one(Expr::from_second(-4322)), Timestamp::from_second(-4322).unwrap());
+    /// # });
+    /// ```
+    pub fn from_second(val: impl IntoExpr<'column, S, Typ = i64>) -> Self {
+        let this = val.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("datetime")
+                .arg(this.build_expr(b))
+                .arg(const_str("unixepoch"))
                 .into()
         })
     }
@@ -185,26 +185,6 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
         })
     }
 
-    /// Add a number of days to this date.
-    ///
-    /// ```
-    /// # use rust_query::IntoExpr;
-    /// # rust_query::private::doctest::get_txn(|txn| {
-    /// use jiff::civil::date;
-    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().add_day(30)), date(2300, 4, 5));
-    /// # });
-    /// ```
-    pub fn add_day(&self, days: impl IntoExpr<'column, S, Typ = i64>) -> Self {
-        let this = self.inner.clone();
-        let days = days.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::cust("date")
-                .arg(this.build_expr(b))
-                .arg(concat(days.build_expr(b), const_str(" day")))
-                .into()
-        })
-    }
-
     /// Give the first day of the month.
     ///
     /// - `idx == 0` the first day of this month.
@@ -231,6 +211,26 @@ impl<'column, S> Expr<'column, S, jiff::civil::Date> {
                 .arg(this.build_expr(b))
                 .arg(const_str("start of month"))
                 .arg(concat(idx.build_expr(b), const_str(" month")))
+                .into()
+        })
+    }
+
+    /// Add a number of days to this date.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// use jiff::civil::date;
+    /// assert_eq!(txn.query_one(date(2300, 3, 6).into_expr().add_day(30)), date(2300, 4, 5));
+    /// # });
+    /// ```
+    pub fn add_day(&self, days: impl IntoExpr<'column, S, Typ = i64>) -> Self {
+        let this = self.inner.clone();
+        let days = days.into_expr().inner;
+        Expr::adhoc(move |b| {
+            sea_query::Func::cust("date")
+                .arg(this.build_expr(b))
+                .arg(concat(days.build_expr(b), const_str(" day")))
                 .into()
         })
     }
