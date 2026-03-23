@@ -2,15 +2,51 @@
 
 # 0.8.0
 
-- Fixed missing check constraint for `Option<bool>` columns.
-  For backwards compatibility, you have to change these columns in your schema to`Option<i64>`.
-  Then you can define a migration to change the column type to `Option<bool>` with check constraint.
-
 - Added support for `jiff::Timestamp` and `jiff::civil::Date` with check constraints.
 - Added methods `Expr::to_second`, `Expr::subsec_nanosecond`, `Expr::from_second`,
   `Expr::add_nanosecond`, `Expr::to_date_in_tz`, `Expr::year`, `Expr::month`, `Expr::day`,
   `Expr::first_of_month`, `Expr::add_day`.
-- Deprecated `Expr::unix_epoch`, create timestamps outside of rust-query instead.
+
+## Breaking
+
+- Deprecated `Expr::unix_epoch`. Create timestamps outside of rust-query instead.
+- Fixed missing check constraint for `Option<bool>` columns.
+  For backwards compatibility, you have to change these columns in your schema to`Option<i64>`.
+  Then you can define a migration to change the column type to `Option<bool>` with check constraint.
+
+Make sure to use `rust_query::migration::hash_schema` to check that you migrated correctly.
+```rust
+// this code uses rust-query 0.7.1
+#[rust_query::migration::schema(Schema)]
+pub mod vN {
+    pub struct Foo {
+        pub some_col: Option<bool>,
+    }
+}
+
+#[test]
+fn schema_hash() {
+    use rust_query::migration::hash_schema;
+    expect_test::expect!["b5feac749e55f5bf"].assert_eq(&hash_schema::<v0::Schema>());
+}
+```
+
+After migrating, the hash should be the same:
+```rust
+// this code uses rust-query 0.8.0
+#[rust_query::migration::schema(Schema)]
+pub mod vN {
+    pub struct Foo {
+        pub some_col: Option<i64>, // <-- type was changed
+    }
+}
+
+#[test]
+fn schema_hash() {
+    use rust_query::migration::hash_schema;
+    expect_test::expect!["b5feac749e55f5bf"].assert_eq(&hash_schema::<v0::Schema>());
+}
+```
 
 # 0.7.1
 
