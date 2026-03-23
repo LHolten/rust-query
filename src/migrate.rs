@@ -94,7 +94,7 @@ impl<S: Schema> Database<S> {
                 "floor",
                 1,
                 rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                move |ctx| {
+                |ctx| {
                     assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
                     let res = ctx.get::<Option<f64>>(0)?.map(|x| x.floor());
                     Ok(res)
@@ -106,7 +106,7 @@ impl<S: Schema> Database<S> {
                 "ceil",
                 1,
                 rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                move |ctx| {
+                |ctx| {
                     assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
                     let res = ctx.get::<Option<f64>>(0)?.map(|x| x.ceil());
                     Ok(res)
@@ -115,7 +115,7 @@ impl<S: Schema> Database<S> {
 
             #[cfg(feature = "jiff-02")]
             inner.create_scalar_function(
-                "timestamp_add_nanos",
+                "timestamp_add_nanosecond",
                 2,
                 rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
                 |ctx| {
@@ -157,7 +157,7 @@ impl<S: Schema> Database<S> {
 
             #[cfg(feature = "jiff-02")]
             inner.create_scalar_function(
-                "timestamp_as_second",
+                "timestamp_to_second",
                 1,
                 rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
                 |ctx| {

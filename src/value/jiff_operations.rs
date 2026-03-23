@@ -27,7 +27,7 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
     pub fn to_second(&self) -> Expr<'column, S, i64> {
         let this = self.inner.clone();
         Expr::adhoc(move |b| {
-            sea_query::Func::cust("timestamp_as_second")
+            sea_query::Func::cust("timestamp_to_second")
                 .arg(this.build_expr(b))
                 .into()
         })
@@ -92,7 +92,7 @@ impl<'column, S> Expr<'column, S, jiff::Timestamp> {
         let this = self.inner.clone();
         let nanos = nanos.into_expr().inner;
         Expr::adhoc(move |b| {
-            sea_query::Func::cust("timestamp_add_nanos")
+            sea_query::Func::cust("timestamp_add_nanosecond")
                 .arg(this.build_expr(b))
                 .arg(nanos.build_expr(b))
                 .into()
