@@ -1,5 +1,9 @@
 # Unreleased
 
+# 0.8.1
+
+- Fix `rust-query` not compiling when using the `jiff-02` feature without the `bundled` feature.
+
 # 0.8.0
 
 - Added support for `jiff::Timestamp` and `jiff::civil::Date` with check constraints.
