@@ -172,7 +172,7 @@ fn getToken(pz: &mut &[u8]) -> Token {
             break;
         }
     }
-    if (t == TK_ID || t == TK_STRING || t == TK_JOIN_KW || t == TK_WINDOW || t == TK_OVER) {
+    if t == TK_ID || t == TK_STRING || t == TK_JOIN_KW || t == TK_WINDOW || t == TK_OVER {
         t = TK_ID;
     }
     *pz = z;
@@ -211,7 +211,7 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                 }
                 tokenType = TK_COMMENT;
                 return (i, tokenType);
-            } else if (z[1] == b'>') {
+            } else if z[1] == b'>' {
                 tokenType = TK_PTR;
                 return (2 + (z[2] == b'>') as usize, tokenType);
             }
@@ -239,19 +239,17 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
             return (1, tokenType);
         }
         CC_SLASH => {
-            if (z[1] != b'*' || z[2] == 0) {
+            if z[1] != b'*' || z[2] == 0 {
                 tokenType = TK_SLASH;
                 return (1, tokenType);
             }
             i = 3;
             let mut c = z[2];
-            while (c != b'*' || z[i] != b'/') && {
+            while (c != b'*' || z[i] != b'/') && z[i] != 0 {
                 c = z[i];
-                c != 0
-            } {
                 i += 1;
             }
-            if (c != 0) {
+            if c != 0 {
                 i += 1
             };
             tokenType = TK_COMMENT;
@@ -265,51 +263,54 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
             tokenType = TK_EQ;
             return (1 + (z[1] == b'=') as usize, tokenType);
         }
-        CC_LT => {
-            let c = z[1];
-            if (c == b'=') {
+        CC_LT => match z[i] {
+            b'=' => {
                 tokenType = TK_LE;
                 return (2, tokenType);
-            } else if (c == b'>') {
+            }
+            b'>' => {
                 tokenType = TK_NE;
                 return (2, tokenType);
-            } else if (c == b'<') {
+            }
+            b'<' => {
                 tokenType = TK_LSHIFT;
                 return (2, tokenType);
-            } else {
+            }
+            _ => {
                 tokenType = TK_LT;
                 return (1, tokenType);
             }
-        }
-        CC_GT => {
-            let c = z[1];
-            if (c == b'=') {
+        },
+        CC_GT => match z[1] {
+            b'=' => {
                 tokenType = TK_GE;
                 return (2, tokenType);
-            } else if (c == b'>') {
+            }
+            b'>' => {
                 tokenType = TK_RSHIFT;
                 return (2, tokenType);
-            } else {
+            }
+            _ => {
                 tokenType = TK_GT;
                 return (1, tokenType);
             }
-        }
+        },
         CC_BANG => {
-            if (z[1] != b'=') {
-                tokenType = TK_ILLEGAL;
-                return (1, tokenType);
-            } else {
+            if z[1] == b'=' {
                 tokenType = TK_NE;
                 return (2, tokenType);
+            } else {
+                tokenType = TK_ILLEGAL;
+                return (1, tokenType);
             }
         }
         CC_PIPE => {
-            if (z[1] != b'|') {
-                tokenType = TK_BITOR;
-                return (1, tokenType);
-            } else {
+            if z[1] == b'|' {
                 tokenType = TK_CONCAT;
                 return (2, tokenType);
+            } else {
+                tokenType = TK_BITOR;
+                return (1, tokenType);
             }
         }
         CC_COMMA => {
@@ -327,23 +328,20 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
         CC_QUOTE => {
             let delim = z[0];
             i = 1;
-            let mut c = z[i];
-            while c != 0 {
-                if (c == delim) {
-                    if (z[i + 1] == delim) {
+            while z[i] != 0 {
+                if z[i] == delim {
+                    if z[i + 1] == delim {
                         i += 1;
                     } else {
                         break;
                     }
                 }
-
                 i += 1;
-                c = z[i];
             }
-            if (c == b'\'') {
+            if z[i] == b'\'' {
                 tokenType = TK_STRING;
                 return (i + 1, tokenType);
-            } else if (c != 0) {
+            } else if z[i] != 0 {
                 tokenType = TK_ID;
                 return (i + 1, tokenType);
             } else {
@@ -351,22 +349,18 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                 return (i, tokenType);
             }
         }
-        CC_DOT => {
-            if (!sqlite3Isdigit(z[1])) {
+        class @ (CC_DOT | CC_DIGIT) => {
+            if class == CC_DOT && !sqlite3Isdigit(z[1]) {
                 tokenType = TK_DOT;
                 return (1, tokenType);
             }
-            /* If the next character is a digit, this is a floating point
-             ** number that begins with ".".  Fall thru into the next case */
-            // /* no break */ deliberate_fall_through
-        }
-        CC_DIGIT => {
+
             tokenType = TK_INTEGER;
-            if (z[0] == b'0' && (z[1] == b'x' || z[1] == b'X') && sqlite3Isxdigit(z[2])) {
+            if z[0] == b'0' && (z[1] == b'x' || z[1] == b'X') && sqlite3Isxdigit(z[2]) {
                 i = 3;
                 loop {
-                    if (!sqlite3Isxdigit(z[i])) {
-                        if (z[i] == SQLITE_DIGIT_SEPARATOR) {
+                    if !sqlite3Isxdigit(z[i]) {
+                        if z[i] == SQLITE_DIGIT_SEPARATOR {
                             tokenType = TK_QNUMBER;
                         } else {
                             break;
@@ -377,8 +371,8 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
             } else {
                 i = 0;
                 loop {
-                    if (!sqlite3Isdigit(z[i])) {
-                        if (z[i] == SQLITE_DIGIT_SEPARATOR) {
+                    if !sqlite3Isdigit(z[i]) {
+                        if z[i] == SQLITE_DIGIT_SEPARATOR {
                             tokenType = TK_QNUMBER;
                         } else {
                             break;
@@ -386,14 +380,14 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                     }
                     i += 1;
                 }
-                if (z[i] == b'.') {
-                    if (tokenType == TK_INTEGER) {
+                if z[i] == b'.' {
+                    if tokenType == TK_INTEGER {
                         tokenType = TK_FLOAT
                     };
                     i += 1;
                     loop {
-                        if (!sqlite3Isdigit(z[i])) {
-                            if (z[i] == SQLITE_DIGIT_SEPARATOR) {
+                        if !sqlite3Isdigit(z[i]) {
+                            if z[i] == SQLITE_DIGIT_SEPARATOR {
                                 tokenType = TK_QNUMBER;
                             } else {
                                 break;
@@ -402,17 +396,17 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                         i += 1;
                     }
                 }
-                if ((z[i] == b'e' || z[i] == b'E')
+                if (z[i] == b'e' || z[i] == b'E')
                     && (sqlite3Isdigit(z[i + 1])
-                        || ((z[i + 1] == b'+' || z[i + 1] == b'-') && sqlite3Isdigit(z[i + 2]))))
+                        || ((z[i + 1] == b'+' || z[i + 1] == b'-') && sqlite3Isdigit(z[i + 2])))
                 {
-                    if (tokenType == TK_INTEGER) {
+                    if tokenType == TK_INTEGER {
                         tokenType = TK_FLOAT
                     };
                     i += 2;
                     loop {
-                        if (!sqlite3Isdigit(z[i])) {
-                            if (z[i] == SQLITE_DIGIT_SEPARATOR) {
+                        if !sqlite3Isdigit(z[i]) {
+                            if z[i] == SQLITE_DIGIT_SEPARATOR {
                                 tokenType = TK_QNUMBER;
                             } else {
                                 break;
@@ -422,7 +416,7 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                     }
                 }
             }
-            while (IdChar(z[i])) {
+            while IdChar(z[i]) {
                 tokenType = TK_ILLEGAL;
                 i += 1;
             }
@@ -457,9 +451,9 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                 c = z[i];
                 c != 0
             } {
-                if (IdChar(c)) {
+                if IdChar(c) {
                     n += 1;
-                } else if (c == b'(' && n > 0) {
+                } else if c == b'(' && n > 0 {
                     i += 1;
                     while {
                         c = z[i];
@@ -469,40 +463,40 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                     {
                         i += 1;
                     }
-                    if (c == b')') {
+                    if c == b')' {
                         i += 1;
                     } else {
                         tokenType = TK_ILLEGAL;
                     }
                     break;
-                } else if (c == b':' && z[i + 1] == b':') {
+                } else if c == b':' && z[i + 1] == b':' {
                     i += 1;
                 } else {
                     break;
                 }
                 i += 1;
             }
-            if (n == 0) {
+            if n == 0 {
                 tokenType = TK_ILLEGAL
             };
             return (i, tokenType);
         }
         CC_KYWD0 => {
-            if (aiClass[z[1] as usize] > CC_KYWD) {
+            if aiClass[z[1] as usize] > CC_KYWD {
                 i = 1;
             } else {
                 i = 2;
                 while aiClass[z[i] as usize] <= CC_KYWD {
                     i += 1
                 }
-                if (IdChar(z[i])) {
+                if IdChar(z[i]) {
                     /* This token started out using characters that can appear in keywords,
                      ** but z[i] is a character not allowed within keywords, so this must
                      ** be an identifier instead */
                     i += 1;
                 } else {
                     tokenType = TK_ID;
-                    return (keywordCode(z, i, tokenType), tokenType);
+                    return (keywordCode(z, i, &mut tokenType), tokenType);
                 }
             }
         }
@@ -513,13 +507,13 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
                 while sqlite3Isxdigit(z[i]) {
                     i += 1
                 }
-                if (z[i] != b'\'' || i % 2 != 0) {
+                if z[i] != b'\'' || i % 2 != 0 {
                     tokenType = TK_ILLEGAL;
-                    while (z[i] != 0 && z[i] != b'\'') {
+                    while z[i] != 0 && z[i] != b'\'' {
                         i += 1;
                     }
                 }
-                if (z[i] != 0) {
+                if z[i] != 0 {
                     i += 1
                 };
                 return (i, tokenType);
@@ -545,7 +539,7 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
             return (1, tokenType);
         }
     }
-    while (IdChar(z[i])) {
+    while IdChar(z[i]) {
         i += 1;
     }
     tokenType = TK_ID;
