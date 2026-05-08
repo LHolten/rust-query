@@ -188,112 +188,68 @@ fn sqlite3Isspace(c: u8) -> bool {
 ** Store the token type in *tokenType before returning.
 */
 // z must be 0 terminated
-fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
+fn sqlite3GetToken(z: ZeroTerminated) -> (usize, Token) {
+    let Some((v, mut z)) = z.next() else {
+        return (z.1, TK_ILLEGAL);
+    };
+
     let tokenType;
     let i;
-    match aiClass[z[0] as usize] {
+    match aiClass[v as usize] {
         /* Switch on the character-class of the first byte
          ** of the token. See the comment on the CC_ defines
          ** above. */
         CC_SPACE => {
-            i = 1;
-            while z[i].is_ascii_whitespace() {
-                i += 1;
+            z.take_while(|v| v.is_ascii_whitespace());
+            return (z.1, TK_SPACE);
+        }
+        CC_MINUS => match z.next() {
+            Some((b'-', z)) => {
+                z.take_while(|v| v != b'\n');
+                return (z.1, TK_COMMENT);
             }
-            tokenType = TK_SPACE;
-            return (i, tokenType);
-        }
-        CC_MINUS => {
-            if z[1] == b'-' {
-                i = 2;
-                while z[i] != 0 && z[i] != b'\n' {
-                    i += 1
-                }
-                tokenType = TK_COMMENT;
-                return (i, tokenType);
-            } else if z[1] == b'>' {
-                tokenType = TK_PTR;
-                return (2 + (z[2] == b'>') as usize, tokenType);
+            Some((b'>', mut z)) => {
+                z.take_if(|v| v == b'>');
+                return (z.1, TK_PTR);
             }
-            tokenType = TK_MINUS;
-            return (1, tokenType);
-        }
-        CC_LP => {
-            tokenType = TK_LP;
-            return (1, tokenType);
-        }
-        CC_RP => {
-            tokenType = TK_RP;
-            return (1, tokenType);
-        }
-        CC_SEMI => {
-            tokenType = TK_SEMI;
-            return (1, tokenType);
-        }
-        CC_PLUS => {
-            tokenType = TK_PLUS;
-            return (1, tokenType);
-        }
-        CC_STAR => {
-            tokenType = TK_STAR;
-            return (1, tokenType);
-        }
-        CC_SLASH => {
-            if z[1] != b'*' || z[2] == 0 {
-                tokenType = TK_SLASH;
-                return (1, tokenType);
-            }
-            i = 3;
-            let mut c = z[2];
-            while (c != b'*' || z[i] != b'/') && z[i] != 0 {
-                c = z[i];
-                i += 1;
-            }
-            if c != 0 {
-                i += 1
-            };
-            tokenType = TK_COMMENT;
-            return (i, tokenType);
-        }
-        CC_PERCENT => {
-            tokenType = TK_REM;
-            return (1, tokenType);
-        }
-        CC_EQ => {
-            tokenType = TK_EQ;
-            return (1 + (z[1] == b'=') as usize, tokenType);
-        }
-        CC_LT => match z[i] {
-            b'=' => {
-                tokenType = TK_LE;
-                return (2, tokenType);
-            }
-            b'>' => {
-                tokenType = TK_NE;
-                return (2, tokenType);
-            }
-            b'<' => {
-                tokenType = TK_LSHIFT;
-                return (2, tokenType);
-            }
-            _ => {
-                tokenType = TK_LT;
-                return (1, tokenType);
-            }
+            _ => return (z.1, TK_MINUS),
         },
-        CC_GT => match z[1] {
-            b'=' => {
-                tokenType = TK_GE;
-                return (2, tokenType);
+        CC_LP => return (z.1, TK_LP),
+        CC_RP => return (z.1, TK_RP),
+        CC_SEMI => return (z.1, TK_SEMI),
+        CC_PLUS => return (z.1, TK_PLUS),
+        CC_STAR => return (z.1, TK_STAR),
+        CC_SLASH => {
+            if let Some((b'*', z)) = z.next()
+                && let Some((mut prev, mut z)) = z.next()
+            {
+                z.take_while(|v| {
+                    let take = prev != b'*' || v != b'/';
+                    prev = v;
+                    take
+                });
+                z.take_if(|_| true);
+
+                return (z.1, TK_COMMENT);
+            } else {
+                return (z.1, TK_SLASH);
             }
-            b'>' => {
-                tokenType = TK_RSHIFT;
-                return (2, tokenType);
-            }
-            _ => {
-                tokenType = TK_GT;
-                return (1, tokenType);
-            }
+        }
+        CC_PERCENT => return (z.1, TK_REM),
+        CC_EQ => {
+            z.take_if(|v| v == b'=');
+            return (z.1, TK_EQ);
+        }
+        CC_LT => match z.next() {
+            Some((b'=', z)) => return (z.1, TK_LE),
+            Some((b'>', z)) => return (z.1, TK_NE),
+            Some((b'<', z)) => return (z.1, TK_LSHIFT),
+            _ => return (z.1, TK_LT),
+        },
+        CC_GT => match z.next() {
+            Some((b'=', z)) => return (2, TK_GE),
+            Some((b'>', z)) => return (2, TK_RSHIFT),
+            _ => return (1, TK_GT),
         },
         CC_BANG => {
             if z[1] == b'=' {
@@ -325,20 +281,20 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
             tokenType = TK_BITNOT;
             return (1, tokenType);
         }
-        CC_QUOTE => {
-            let delim = z[0];
-            i = 1;
-            while z[i] != 0 {
-                if z[i] == delim {
-                    if z[i + 1] == delim {
-                        i += 1;
+        delim @ CC_QUOTE => {
+            while let Some((v, new)) = z.next() {
+                z = new;
+                if v == delim {
+                    if let Some((v, new)) = new.next()
+                        && v == delim
+                    {
+                        z = new
                     } else {
                         break;
                     }
                 }
-                i += 1;
             }
-            if z[i] == b'\'' {
+            if delim == b'\'' {
                 tokenType = TK_STRING;
                 return (i + 1, tokenType);
             } else if z[i] != 0 {
@@ -530,10 +486,7 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
             }
             i = 1;
         }
-        CC_NUL => {
-            tokenType = TK_ILLEGAL;
-            return (0, tokenType);
-        }
+        CC_NUL => {}
         _ => {
             tokenType = TK_ILLEGAL;
             return (1, tokenType);
@@ -544,4 +497,38 @@ fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
     }
     tokenType = TK_ID;
     return (i, tokenType);
+}
+
+#[derive(Clone, Copy)]
+struct ZeroTerminated<'x>(&'x [u8], pub usize);
+
+impl<'x> ZeroTerminated<'x> {
+    fn new(slice: &'x [u8]) -> Self {
+        assert!(slice[slice.len() - 1] == 0);
+        Self(slice, 0)
+    }
+
+    fn next(self) -> Option<(u8, Self)> {
+        let v = unsafe { *self.0.get_unchecked(self.1) };
+        if v == 0 {
+            return None;
+        }
+        Some((v, Self(self.0, self.1 + 1)))
+    }
+
+    fn take_while(&mut self, f: impl Fn(u8) -> bool) {
+        while let Some((v, new)) = self.next()
+            && f(v)
+        {
+            *self = new;
+        }
+    }
+
+    fn take_if(&mut self, f: impl FnOnce(u8) -> bool) {
+        if let Some((v, new)) = self.next()
+            && f(v)
+        {
+            *self = new;
+        }
+    }
 }
