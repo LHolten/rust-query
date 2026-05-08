@@ -165,18 +165,14 @@ fn getToken(pz: &mut &[u8]) -> Token {
     let mut t: Token;
     let mut z = *pz;
     loop {
-        z = &z[sqlite3GetToken(z, &mut t)..];
+        let (new_id, new_t) = sqlite3GetToken(z);
+        z = &z[..new_id];
+        t = new_t;
         if !(t == TK_SPACE || t == TK_COMMENT) {
             break;
         }
     }
-    if (t == TK_ID
-        || t == TK_STRING
-        || t == TK_JOIN_KW
-        || t == TK_WINDOW
-        || t == TK_OVER
-        || sqlite3ParserFallback(t) == TK_ID)
-    {
+    if (t == TK_ID || t == TK_STRING || t == TK_JOIN_KW || t == TK_WINDOW || t == TK_OVER) {
         t = TK_ID;
     }
     *pz = z;
@@ -192,7 +188,8 @@ fn sqlite3Isspace(c: u8) -> bool {
 ** Store the token type in *tokenType before returning.
 */
 // z must be 0 terminated
-fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
+fn sqlite3GetToken(z: &[u8]) -> (usize, Token) {
+    let tokenType;
     let i;
     match aiClass[z[0] as usize] {
         /* Switch on the character-class of the first byte
@@ -203,8 +200,8 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
             while z[i].is_ascii_whitespace() {
                 i += 1;
             }
-            *tokenType = TK_SPACE;
-            return i;
+            tokenType = TK_SPACE;
+            return (i, tokenType);
         }
         CC_MINUS => {
             if z[1] == b'-' {
@@ -212,39 +209,39 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                 while z[i] != 0 && z[i] != b'\n' {
                     i += 1
                 }
-                *tokenType = TK_COMMENT;
-                return i;
+                tokenType = TK_COMMENT;
+                return (i, tokenType);
             } else if (z[1] == b'>') {
-                *tokenType = TK_PTR;
-                return 2 + (z[2] == b'>') as usize;
+                tokenType = TK_PTR;
+                return (2 + (z[2] == b'>') as usize, tokenType);
             }
-            *tokenType = TK_MINUS;
-            return 1;
+            tokenType = TK_MINUS;
+            return (1, tokenType);
         }
         CC_LP => {
-            *tokenType = TK_LP;
-            return 1;
+            tokenType = TK_LP;
+            return (1, tokenType);
         }
         CC_RP => {
-            *tokenType = TK_RP;
-            return 1;
+            tokenType = TK_RP;
+            return (1, tokenType);
         }
         CC_SEMI => {
-            *tokenType = TK_SEMI;
-            return 1;
+            tokenType = TK_SEMI;
+            return (1, tokenType);
         }
         CC_PLUS => {
-            *tokenType = TK_PLUS;
-            return 1;
+            tokenType = TK_PLUS;
+            return (1, tokenType);
         }
         CC_STAR => {
-            *tokenType = TK_STAR;
-            return 1;
+            tokenType = TK_STAR;
+            return (1, tokenType);
         }
         CC_SLASH => {
             if (z[1] != b'*' || z[2] == 0) {
-                *tokenType = TK_SLASH;
-                return 1;
+                tokenType = TK_SLASH;
+                return (1, tokenType);
             }
             i = 3;
             let mut c = z[2];
@@ -257,75 +254,75 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
             if (c != 0) {
                 i += 1
             };
-            *tokenType = TK_COMMENT;
-            return i;
+            tokenType = TK_COMMENT;
+            return (i, tokenType);
         }
         CC_PERCENT => {
-            *tokenType = TK_REM;
-            return 1;
+            tokenType = TK_REM;
+            return (1, tokenType);
         }
         CC_EQ => {
-            *tokenType = TK_EQ;
-            return 1 + (z[1] == b'=') as usize;
+            tokenType = TK_EQ;
+            return (1 + (z[1] == b'=') as usize, tokenType);
         }
         CC_LT => {
             let c = z[1];
             if (c == b'=') {
-                *tokenType = TK_LE;
-                return 2;
+                tokenType = TK_LE;
+                return (2, tokenType);
             } else if (c == b'>') {
-                *tokenType = TK_NE;
-                return 2;
+                tokenType = TK_NE;
+                return (2, tokenType);
             } else if (c == b'<') {
-                *tokenType = TK_LSHIFT;
-                return 2;
+                tokenType = TK_LSHIFT;
+                return (2, tokenType);
             } else {
-                *tokenType = TK_LT;
-                return 1;
+                tokenType = TK_LT;
+                return (1, tokenType);
             }
         }
         CC_GT => {
             let c = z[1];
             if (c == b'=') {
-                *tokenType = TK_GE;
-                return 2;
+                tokenType = TK_GE;
+                return (2, tokenType);
             } else if (c == b'>') {
-                *tokenType = TK_RSHIFT;
-                return 2;
+                tokenType = TK_RSHIFT;
+                return (2, tokenType);
             } else {
-                *tokenType = TK_GT;
-                return 1;
+                tokenType = TK_GT;
+                return (1, tokenType);
             }
         }
         CC_BANG => {
             if (z[1] != b'=') {
-                *tokenType = TK_ILLEGAL;
-                return 1;
+                tokenType = TK_ILLEGAL;
+                return (1, tokenType);
             } else {
-                *tokenType = TK_NE;
-                return 2;
+                tokenType = TK_NE;
+                return (2, tokenType);
             }
         }
         CC_PIPE => {
             if (z[1] != b'|') {
-                *tokenType = TK_BITOR;
-                return 1;
+                tokenType = TK_BITOR;
+                return (1, tokenType);
             } else {
-                *tokenType = TK_CONCAT;
-                return 2;
+                tokenType = TK_CONCAT;
+                return (2, tokenType);
             }
         }
         CC_COMMA => {
-            *tokenType = TK_COMMA;
-            return 1;
+            tokenType = TK_COMMA;
+            return (1, tokenType);
         }
         CC_AND => {
-            *tokenType = TK_BITAND;
-            return 1;
+            tokenType = TK_BITAND;
+            return (1, tokenType);
         }
         CC_TILDA => {
-            *tokenType = TK_BITNOT;
-            return 1;
+            tokenType = TK_BITNOT;
+            return (1, tokenType);
         }
         CC_QUOTE => {
             let delim = z[0];
@@ -344,33 +341,33 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                 c = z[i];
             }
             if (c == b'\'') {
-                *tokenType = TK_STRING;
-                return i + 1;
+                tokenType = TK_STRING;
+                return (i + 1, tokenType);
             } else if (c != 0) {
-                *tokenType = TK_ID;
-                return i + 1;
+                tokenType = TK_ID;
+                return (i + 1, tokenType);
             } else {
-                *tokenType = TK_ILLEGAL;
-                return i;
+                tokenType = TK_ILLEGAL;
+                return (i, tokenType);
             }
         }
         CC_DOT => {
             if (!sqlite3Isdigit(z[1])) {
-                *tokenType = TK_DOT;
-                return 1;
+                tokenType = TK_DOT;
+                return (1, tokenType);
             }
             /* If the next character is a digit, this is a floating point
              ** number that begins with ".".  Fall thru into the next case */
             // /* no break */ deliberate_fall_through
         }
         CC_DIGIT => {
-            *tokenType = TK_INTEGER;
+            tokenType = TK_INTEGER;
             if (z[0] == b'0' && (z[1] == b'x' || z[1] == b'X') && sqlite3Isxdigit(z[2])) {
                 i = 3;
                 loop {
                     if (!sqlite3Isxdigit(z[i])) {
                         if (z[i] == SQLITE_DIGIT_SEPARATOR) {
-                            *tokenType = TK_QNUMBER;
+                            tokenType = TK_QNUMBER;
                         } else {
                             break;
                         }
@@ -382,7 +379,7 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                 loop {
                     if (!sqlite3Isdigit(z[i])) {
                         if (z[i] == SQLITE_DIGIT_SEPARATOR) {
-                            *tokenType = TK_QNUMBER;
+                            tokenType = TK_QNUMBER;
                         } else {
                             break;
                         }
@@ -390,14 +387,14 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                     i += 1;
                 }
                 if (z[i] == b'.') {
-                    if (*tokenType == TK_INTEGER) {
-                        *tokenType = TK_FLOAT
+                    if (tokenType == TK_INTEGER) {
+                        tokenType = TK_FLOAT
                     };
                     i += 1;
                     loop {
                         if (!sqlite3Isdigit(z[i])) {
                             if (z[i] == SQLITE_DIGIT_SEPARATOR) {
-                                *tokenType = TK_QNUMBER;
+                                tokenType = TK_QNUMBER;
                             } else {
                                 break;
                             }
@@ -409,14 +406,14 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                     && (sqlite3Isdigit(z[i + 1])
                         || ((z[i + 1] == b'+' || z[i + 1] == b'-') && sqlite3Isdigit(z[i + 2]))))
                 {
-                    if (*tokenType == TK_INTEGER) {
-                        *tokenType = TK_FLOAT
+                    if (tokenType == TK_INTEGER) {
+                        tokenType = TK_FLOAT
                     };
                     i += 2;
                     loop {
                         if (!sqlite3Isdigit(z[i])) {
                             if (z[i] == SQLITE_DIGIT_SEPARATOR) {
-                                *tokenType = TK_QNUMBER;
+                                tokenType = TK_QNUMBER;
                             } else {
                                 break;
                             }
@@ -426,10 +423,10 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                 }
             }
             while (IdChar(z[i])) {
-                *tokenType = TK_ILLEGAL;
+                tokenType = TK_ILLEGAL;
                 i += 1;
             }
-            return i;
+            return (i, tokenType);
         }
         CC_QUOTE2 => {
             i = 1;
@@ -440,20 +437,20 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
             } {
                 i += 1
             }
-            *tokenType = if c == b']' { TK_ID } else { TK_ILLEGAL };
-            return i;
+            tokenType = if c == b']' { TK_ID } else { TK_ILLEGAL };
+            return (i, tokenType);
         }
         CC_VARNUM => {
-            *tokenType = TK_VARIABLE;
+            tokenType = TK_VARIABLE;
             i = 1;
             while sqlite3Isdigit(z[i]) {
                 i += 1
             }
-            return i;
+            return (i, tokenType);
         }
         CC_DOLLAR | CC_VARALPHA => {
             let mut n = 0i64;
-            *tokenType = TK_VARIABLE;
+            tokenType = TK_VARIABLE;
             i = 1;
             let mut c;
             while {
@@ -475,7 +472,7 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                     if (c == b')') {
                         i += 1;
                     } else {
-                        *tokenType = TK_ILLEGAL;
+                        tokenType = TK_ILLEGAL;
                     }
                     break;
                 } else if (c == b':' && z[i + 1] == b':') {
@@ -486,9 +483,9 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                 i += 1;
             }
             if (n == 0) {
-                *tokenType = TK_ILLEGAL
+                tokenType = TK_ILLEGAL
             };
-            return i;
+            return (i, tokenType);
         }
         CC_KYWD0 => {
             if (aiClass[z[1] as usize] > CC_KYWD) {
@@ -504,20 +501,20 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                      ** be an identifier instead */
                     i += 1;
                 } else {
-                    *tokenType = TK_ID;
-                    return keywordCode(z, i, tokenType);
+                    tokenType = TK_ID;
+                    return (keywordCode(z, i, tokenType), tokenType);
                 }
             }
         }
         CC_X => {
             if z[1] == b'\'' {
-                *tokenType = TK_BLOB;
+                tokenType = TK_BLOB;
                 let mut i = 2;
                 while sqlite3Isxdigit(z[i]) {
                     i += 1
                 }
                 if (z[i] != b'\'' || i % 2 != 0) {
-                    *tokenType = TK_ILLEGAL;
+                    tokenType = TK_ILLEGAL;
                     while (z[i] != 0 && z[i] != b'\'') {
                         i += 1;
                     }
@@ -525,7 +522,7 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
                 if (z[i] != 0) {
                     i += 1
                 };
-                return i;
+                return (i, tokenType);
             }
             i = 1;
         }
@@ -534,23 +531,23 @@ fn sqlite3GetToken(z: &[u8], tokenType: &mut Token) -> usize {
         }
         CC_BOM => {
             if z[1] == 0xbb && z[2] == 0xbf {
-                *tokenType = TK_SPACE;
-                return 3;
+                tokenType = TK_SPACE;
+                return (3, tokenType);
             }
             i = 1;
         }
         CC_NUL => {
-            *tokenType = TK_ILLEGAL;
-            return 0;
+            tokenType = TK_ILLEGAL;
+            return (0, tokenType);
         }
         _ => {
-            *tokenType = TK_ILLEGAL;
-            return 1;
+            tokenType = TK_ILLEGAL;
+            return (1, tokenType);
         }
     }
     while (IdChar(z[i])) {
         i += 1;
     }
-    *tokenType = TK_ID;
-    return i;
+    tokenType = TK_ID;
+    return (i, tokenType);
 }
