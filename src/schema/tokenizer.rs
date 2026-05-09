@@ -1,77 +1,3 @@
-/* Character classes for tokenizing
-**
-** In the sqlite3GetToken() function, a switch() on aiClass[c] is implemented
-** using a lookup table, whereas a switch() directly on c uses a binary search.
-** The lookup table is much faster.  To maximize speed, and to ensure that
-** a lookup table is used, all of the classes need to be small integers and
-** all of them need to be used within the switch.
-*/
-const CC_X: u8 = 0; /* The letter 'x', or start of BLOB literal */
-const CC_KYWD0: u8 = 1; /* First letter of a keyword */
-const CC_KYWD: u8 = 2; /* Alphabetics or '_'.  Usable in a keyword */
-const CC_DIGIT: u8 = 3; /* Digits */
-const CC_DOLLAR: u8 = 4; /* '$' */
-const CC_VARALPHA: u8 = 5; /* '@', '#', ':'.  Alphabetic SQL variables */
-const CC_VARNUM: u8 = 6; /* '?'.  Numeric SQL variables */
-const CC_SPACE: u8 = 7; /* Space characters */
-const CC_QUOTE: u8 = 8; /* '"', '\'', or '`'.  String literals, quoted ids */
-const CC_QUOTE2: u8 = 9; /* '['.   [...] style quoted ids */
-const CC_PIPE: u8 = 10; /* '|'.   Bitwise OR or concatenate */
-const CC_MINUS: u8 = 11; /* '-'.  Minus or SQL-style comment */
-const CC_LT: u8 = 12; /* '<'.  Part of < or <= or <> */
-const CC_GT: u8 = 13; /* '>'.  Part of > or >= */
-const CC_EQ: u8 = 14; /* '='.  Part of = or == */
-const CC_BANG: u8 = 15; /* '!'.  Part of != */
-const CC_SLASH: u8 = 16; /* '/'.  / or c-style comment */
-const CC_LP: u8 = 17; /* '(' */
-const CC_RP: u8 = 18; /* ')' */
-const CC_SEMI: u8 = 19; /* ';' */
-const CC_PLUS: u8 = 20; /* '+' */
-const CC_STAR: u8 = 21; /* '*' */
-const CC_PERCENT: u8 = 22; /* '%' */
-const CC_COMMA: u8 = 23; /* ',' */
-const CC_AND: u8 = 24; /* '&' */
-const CC_TILDA: u8 = 25; /* '~' */
-const CC_DOT: u8 = 26; /* '.' */
-const CC_ID: u8 = 27; /* unicode characters usable in IDs */
-const CC_ILLEGAL: u8 = 28; /* Illegal character */
-const CC_NUL: u8 = 29; /* 0x00 */
-const CC_BOM: u8 = 30; /* First byte of UTF8 BOM:  0xEF 0xBB 0xBF */
-
-#[rustfmt::skip]
-static  aiClass: &[u8] = &[
-/*         x0  x1  x2  x3  x4  x5  x6  x7  x8  x9  xa  xb  xc  xd  xe  xf */
-/* 0x */   29, 28, 28, 28, 28, 28, 28, 28, 28,  7,  7, 28,  7,  7, 28, 28,
-/* 1x */   28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,
-/* 2x */    7, 15,  8,  5,  4, 22, 24,  8, 17, 18, 21, 20, 23, 11, 26, 16,
-/* 3x */    3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  5, 19, 12, 14, 13,  6,
-/* 4x */    5,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
-/* 5x */    1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  2,  9, 28, 28, 28,  2,
-/* 6x */    8,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,
-/* 7x */    1,  1,  1,  1,  1,  1,  1,  1,  0,  2,  2, 28, 10, 28, 25, 28,
-/* 8x */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-/* 9x */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-/* Ax */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-/* Bx */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-/* Cx */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-/* Dx */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-/* Ex */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 30,
-/* Fx */   27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
-];
-
-/*
-** The charMap() macro maps alphabetic characters (only) into their
-** lower-case ASCII equivalent.  On ASCII machines, this is just
-** an upper-to-lower case map.  On EBCDIC machines we also need
-** to adjust the encoding.  The mapping is only valid for alphabetics
-** which are the only characters for which this feature is used.
-**
-** Used by keywordhash.h
-*/
-fn charMap(x: u8) -> u8 {
-    x.to_ascii_lowercase()
-}
-
 /*
 ** The sqlite3KeywordCode function looks up an identifier to determine if
 ** it is a keyword.  If it is a keyword, the token code of that keyword is
@@ -125,6 +51,7 @@ enum Token {
     TK_VARIABLE,
     TK_WINDOW,
 }
+
 use Token::*;
 
 const SQLITE_DIGIT_SEPARATOR: u8 = b'_';
@@ -135,6 +62,10 @@ fn sqlite3Isxdigit(byte: u8) -> bool {
 
 fn sqlite3Isdigit(byte: u8) -> bool {
     byte.is_ascii_digit()
+}
+
+fn sqlite3Isspace(c: u8) -> bool {
+    c.is_ascii_whitespace()
 }
 
 /*
@@ -165,8 +96,8 @@ fn getToken(pz: &mut &[u8]) -> Token {
     let mut t: Token;
     let mut z = *pz;
     loop {
-        let (new_id, new_t) = sqlite3GetToken(z);
-        z = &z[..new_id];
+        let (new_z, new_t) = sqlite3GetToken(ZeroTerminated::new(z));
+        z = &z[new_z.1..];
         t = new_t;
         if !(t == TK_SPACE || t == TK_COMMENT) {
             break;
@@ -179,91 +110,84 @@ fn getToken(pz: &mut &[u8]) -> Token {
     return t;
 }
 
-fn sqlite3Isspace(c: u8) -> bool {
-    c.is_ascii_whitespace()
-}
-
 /*
 ** Return the length (in bytes) of the token that begins at z[0].
 ** Store the token type in *tokenType before returning.
 */
-// z must be 0 terminated
-fn sqlite3GetToken(z0: ZeroTerminated) -> (usize, Token) {
+fn sqlite3GetToken(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
     let Some((v, mut z)) = z0.next() else {
-        return (z0.1, TK_ILLEGAL);
+        return (z0, TK_ILLEGAL);
     };
+    if sqlite3Isspace(v) {
+        z.take_while(sqlite3Isspace);
+        return (z, TK_SPACE);
+    }
 
-    let tokenType;
-    let i;
-    match aiClass[v as usize] {
-        /* Switch on the character-class of the first byte
-         ** of the token. See the comment on the CC_ defines
-         ** above. */
-        CC_SPACE => {
-            z.take_while(|v| v.is_ascii_whitespace());
-            return (z.1, TK_SPACE);
-        }
-        CC_MINUS => match z.next() {
-            Some((b'-', z)) => {
+    let token = match v {
+        b'-' => match z.next() {
+            Some((b'-', new)) => {
+                z = new;
                 z.take_while(|v| v != b'\n');
-                return (z.1, TK_COMMENT);
+                TK_COMMENT
             }
-            Some((b'>', mut z)) => {
+            Some((b'>', new)) => {
+                z = new;
                 z.take_if(|v| v == b'>');
-                return (z.1, TK_PTR);
+                TK_PTR
             }
-            _ => return (z.1, TK_MINUS),
+            _ => TK_MINUS,
         },
-        CC_LP => return (z.1, TK_LP),
-        CC_RP => return (z.1, TK_RP),
-        CC_SEMI => return (z.1, TK_SEMI),
-        CC_PLUS => return (z.1, TK_PLUS),
-        CC_STAR => return (z.1, TK_STAR),
-        CC_SLASH => {
-            if let Some((b'*', z)) = z.next()
-                && let Some((mut prev, mut z)) = z.next()
+        b'(' => TK_LP,
+        b')' => TK_RP,
+        b';' => TK_SEMI,
+        b'+' => TK_PLUS,
+        b'*' => TK_STAR,
+        b'/' => {
+            if let Some((b'*', new)) = z.next()
+                && let Some((mut prev, new)) = new.next()
             {
+                z = new;
                 z.take_until_and_including(|v| {
                     let found = prev == b'*' && v == b'/';
                     prev = v;
                     found
                 });
-                return (z.1, TK_COMMENT);
+                TK_COMMENT
             } else {
-                return (z.1, TK_SLASH);
+                TK_SLASH
             }
         }
-        CC_PERCENT => return (z.1, TK_REM),
-        CC_EQ => {
+        b'%' => TK_REM,
+        b'=' => {
             z.take_if(|v| v == b'=');
-            return (z.1, TK_EQ);
+            TK_EQ
         }
-        CC_LT => match z.next() {
-            Some((b'=', z)) => return (z.1, TK_LE),
-            Some((b'>', z)) => return (z.1, TK_NE),
-            Some((b'<', z)) => return (z.1, TK_LSHIFT),
-            _ => return (z.1, TK_LT),
+        b'<' => match z.next() {
+            Some((b'=', new)) => return (new, TK_LE),
+            Some((b'>', new)) => return (new, TK_NE),
+            Some((b'<', new)) => return (new, TK_LSHIFT),
+            _ => TK_LT,
         },
-        CC_GT => match z.next() {
-            Some((b'=', z)) => return (z.1, TK_GE),
-            Some((b'>', z)) => return (z.1, TK_RSHIFT),
-            _ => return (z.1, TK_GT),
+        b'>' => match z.next() {
+            Some((b'=', new)) => return (new, TK_GE),
+            Some((b'>', new)) => return (new, TK_RSHIFT),
+            _ => TK_GT,
         },
-        CC_BANG => match z.next() {
-            Some((b'=', z)) => return (z.1, TK_NE),
-            _ => return (z.1, TK_ILLEGAL),
+        b'!' => match z.next() {
+            Some((b'=', new)) => return (new, TK_NE),
+            _ => TK_ILLEGAL,
         },
-        CC_PIPE => match z.next() {
-            Some((b'|', z)) => return (z.1, TK_CONCAT),
-            _ => return (z.1, TK_BITOR),
+        b'|' => match z.next() {
+            Some((b'|', new)) => return (new, TK_CONCAT),
+            _ => TK_BITOR,
         },
-        CC_COMMA => return (z.1, TK_COMMA),
-        CC_AND => return (z.1, TK_BITAND),
-        CC_TILDA => return (z.1, TK_BITNOT),
-        delim @ CC_QUOTE => {
+        b',' => TK_COMMA,
+        b'&' => TK_BITAND,
+        b'~' => TK_BITNOT,
+        delim @ (b'\'' | b'"' | b'`') => {
             loop {
-                let Some(_) = z.take_until_and_including(|x| x == delim) else {
-                    return (z.1, TK_ILLEGAL);
+                let true = z.take_until_and_including(|x| x == delim) else {
+                    return (z, TK_ILLEGAL);
                 };
                 if let Some((v, new)) = z.next()
                     && v == delim
@@ -273,21 +197,14 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (usize, Token) {
                     break;
                 }
             }
-            if delim == b'\'' {
-                return (z.1, TK_STRING);
-            } else {
-                return (z.1, TK_ID);
-            }
+            if delim == b'\'' { TK_STRING } else { TK_ID }
         }
-        first @ (CC_DOT | CC_DIGIT) => {
-            if first == CC_DOT && !z.peek(sqlite3Isdigit) {
-                return (z.1, TK_DOT);
-            }
-
-            tokenType = TK_INTEGER;
+        b'.' if !z.peek(sqlite3Isdigit) => TK_DOT,
+        first @ (b'.' | b'0'..=b'9') => {
+            let mut token = TK_INTEGER;
             macro_rules! assign {
                 ($typ:expr) => {{
-                    tokenType = $typ;
+                    token = $typ;
                     true
                 }};
             }
@@ -308,8 +225,8 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (usize, Token) {
                 });
                 if let Some((b'.', new)) = z.next() {
                     z = new;
-                    if tokenType == TK_INTEGER {
-                        tokenType = TK_FLOAT
+                    if token == TK_INTEGER {
+                        token = TK_FLOAT
                     };
                     z.take_while(|v| {
                         sqlite3Isdigit(v) || v == SQLITE_DIGIT_SEPARATOR && assign!(TK_QNUMBER)
@@ -320,8 +237,8 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (usize, Token) {
                     && (sqlite3Isdigit(v) || ((v == b'+' || v == b'-') && new.peek(sqlite3Isdigit)))
                 {
                     z = new;
-                    if tokenType == TK_INTEGER {
-                        tokenType = TK_FLOAT
+                    if token == TK_INTEGER {
+                        token = TK_FLOAT
                     };
                     z.take_while(|v| {
                         sqlite3Isdigit(v) || v == SQLITE_DIGIT_SEPARATOR && assign!(TK_QNUMBER)
@@ -329,90 +246,68 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (usize, Token) {
                 }
             }
             z.take_while(|v| IdChar(v) && assign!(TK_ILLEGAL));
-            return (z.1, tokenType);
+            token
         }
-        CC_QUOTE2 => {
-            let found = z.take_until_and_including(|v| v == b']').is_some();
-            tokenType = if found { TK_ID } else { TK_ILLEGAL };
-            return (z.1, tokenType);
+        b'[' => {
+            let found = z.take_until_and_including(|v| v == b']');
+            if found { TK_ID } else { TK_ILLEGAL }
         }
-        CC_VARNUM => {
+        b'?' => {
             z.take_while(sqlite3Isdigit);
-            return (z.1, TK_VARIABLE);
+            TK_VARIABLE
         }
-        CC_DOLLAR | CC_VARALPHA => {
+        b'$' | b'@' | b'#' | b':' => {
             let mut n = 0i64;
-            tokenType = TK_VARIABLE;
-            while let Some((c, mut new)) = z.next() {
-                if IdChar(c) {
-                    z = new;
-                    n += 1;
-                } else if c == b'(' && n > 0 {
-                    z = new;
-                    z.take_while(|v| !sqlite3Isspace(c) && c != b')');
-                    if let Some((b')', new)) = z.next() {
+            loop {
+                match z.next() {
+                    Some((c, new)) if IdChar(c) => {
                         z = new;
-                    } else {
-                        tokenType = TK_ILLEGAL
+                        n += 1;
                     }
-                    break;
-                } else if c == b':'
-                    && let Some((b':', new)) = new.next()
-                {
-                    z = new;
-                } else {
-                    break;
+                    Some((b'(', new)) if n > 0 => {
+                        z = new;
+                        z.take_while(|v| !sqlite3Isspace(v) && v != b')');
+                        if let Some((b')', new)) = z.next() {
+                            z = new;
+                        } else {
+                            return (z, TK_ILLEGAL);
+                        }
+                        break;
+                    }
+                    Some((b':', new)) if let Some((b':', new)) = new.next() => {
+                        z = new;
+                    }
+                    _ => break,
                 }
             }
-
-            if n == 0 {
-                tokenType = TK_ILLEGAL
-            };
-            return (i, tokenType);
+            if n == 0 { TK_ILLEGAL } else { TK_VARIABLE }
         }
-        CC_X => {
-            if z[1] == b'\'' {
-                tokenType = TK_BLOB;
-                let mut i = 2;
-                while sqlite3Isxdigit(z[i]) {
-                    i += 1
-                }
-                if z[i] != b'\'' || i % 2 != 0 {
-                    tokenType = TK_ILLEGAL;
-                    while z[i] != 0 && z[i] != b'\'' {
-                        i += 1;
-                    }
-                }
-                if z[i] != 0 {
-                    i += 1
-                };
-                return (i, tokenType);
-            }
-            i = 1;
-        }
-        CC_KYWD0 | CC_KYWD | CC_ID => {
-            i = 1;
-        }
-        CC_BOM => {
-            if let Some((0xbb, new)) = z.next()
-                && let Some((0xbf, new)) = new.next()
+        b'x' if let Some((b'\'', new)) = z.next() => {
+            z = new;
+            let count = z.take_while(sqlite3Isxdigit);
+            if let Some((b'\'', new)) = z.next()
+                && count % 2 == 0
             {
                 z = new;
-                return (z.1, TK_SPACE);
+                TK_BLOB
+            } else {
+                z.take_until_and_including(|v| v == b'\'');
+                TK_ILLEGAL
             }
-            i = 1;
         }
-        CC_NUL => {}
-        _ => {
-            tokenType = TK_ILLEGAL;
-            return (1, tokenType);
+        0xef if let Some((0xbb, new)) = z.next()
+            && let Some((0xbf, new)) = new.next() =>
+        {
+            z = new;
+            TK_SPACE
         }
-    }
-    while IdChar(z[i]) {
-        i += 1;
-    }
-    tokenType = TK_ID;
-    return (i, tokenType);
+        v if IdChar(v) => {
+            z.take_while(IdChar);
+            TK_ID
+        }
+        _ => TK_ILLEGAL,
+    };
+    (z, token)
 }
 
 struct ZeroTerminated<'x>(&'x [u8], pub usize);
@@ -431,24 +326,25 @@ impl<'x> ZeroTerminated<'x> {
         Some((v, Self(self.0, self.1 + 1)))
     }
 
-    fn next_if(&self, f: impl FnOnce(u8) -> bool) -> Option<Self> {
-        self.next().and_then(|(v, new)| f(v).then_some(new))
-    }
-
-    fn take_while(&mut self, f: impl Fn(u8) -> bool) {
+    fn take_while(&mut self, mut f: impl FnMut(u8) -> bool) -> usize {
+        let mut count = 0;
         while let Some((v, new)) = self.next()
             && f(v)
         {
             *self = new;
+            count += 1;
         }
+        count
     }
 
-    fn take_until_and_including(&mut self, f: impl Fn(u8) -> bool) -> Option<u8> {
+    fn take_until_and_including(&mut self, mut f: impl FnMut(u8) -> bool) -> bool {
         loop {
-            let (v, new) = self.next()?;
+            let Some((v, new)) = self.next() else {
+                return false;
+            };
             *self = new;
             if f(v) {
-                return Some(v);
+                return true;
             }
         }
     }
