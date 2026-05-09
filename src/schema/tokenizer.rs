@@ -188,9 +188,9 @@ fn sqlite3Isspace(c: u8) -> bool {
 ** Store the token type in *tokenType before returning.
 */
 // z must be 0 terminated
-fn sqlite3GetToken(z: ZeroTerminated) -> (usize, Token) {
-    let Some((v, mut z)) = z.next() else {
-        return (z.1, TK_ILLEGAL);
+fn sqlite3GetToken(z0: ZeroTerminated) -> (usize, Token) {
+    let Some((v, mut z)) = z0.next() else {
+        return (z0.1, TK_ILLEGAL);
     };
 
     let tokenType;
@@ -223,13 +223,11 @@ fn sqlite3GetToken(z: ZeroTerminated) -> (usize, Token) {
             if let Some((b'*', z)) = z.next()
                 && let Some((mut prev, mut z)) = z.next()
             {
-                z.take_while(|v| {
-                    let take = prev != b'*' || v != b'/';
+                z.take_until_and_including(|v| {
+                    let found = prev == b'*' && v == b'/';
                     prev = v;
-                    take
+                    found
                 });
-                z.take_if(|_| true);
-
                 return (z.1, TK_COMMENT);
             } else {
                 return (z.1, TK_SLASH);
@@ -247,214 +245,130 @@ fn sqlite3GetToken(z: ZeroTerminated) -> (usize, Token) {
             _ => return (z.1, TK_LT),
         },
         CC_GT => match z.next() {
-            Some((b'=', z)) => return (2, TK_GE),
-            Some((b'>', z)) => return (2, TK_RSHIFT),
-            _ => return (1, TK_GT),
+            Some((b'=', z)) => return (z.1, TK_GE),
+            Some((b'>', z)) => return (z.1, TK_RSHIFT),
+            _ => return (z.1, TK_GT),
         },
-        CC_BANG => {
-            if z[1] == b'=' {
-                tokenType = TK_NE;
-                return (2, tokenType);
-            } else {
-                tokenType = TK_ILLEGAL;
-                return (1, tokenType);
-            }
-        }
-        CC_PIPE => {
-            if z[1] == b'|' {
-                tokenType = TK_CONCAT;
-                return (2, tokenType);
-            } else {
-                tokenType = TK_BITOR;
-                return (1, tokenType);
-            }
-        }
-        CC_COMMA => {
-            tokenType = TK_COMMA;
-            return (1, tokenType);
-        }
-        CC_AND => {
-            tokenType = TK_BITAND;
-            return (1, tokenType);
-        }
-        CC_TILDA => {
-            tokenType = TK_BITNOT;
-            return (1, tokenType);
-        }
+        CC_BANG => match z.next() {
+            Some((b'=', z)) => return (z.1, TK_NE),
+            _ => return (z.1, TK_ILLEGAL),
+        },
+        CC_PIPE => match z.next() {
+            Some((b'|', z)) => return (z.1, TK_CONCAT),
+            _ => return (z.1, TK_BITOR),
+        },
+        CC_COMMA => return (z.1, TK_COMMA),
+        CC_AND => return (z.1, TK_BITAND),
+        CC_TILDA => return (z.1, TK_BITNOT),
         delim @ CC_QUOTE => {
-            while let Some((v, new)) = z.next() {
-                z = new;
-                if v == delim {
-                    if let Some((v, new)) = new.next()
-                        && v == delim
-                    {
-                        z = new
-                    } else {
-                        break;
-                    }
+            loop {
+                let Some(_) = z.take_until_and_including(|x| x == delim) else {
+                    return (z.1, TK_ILLEGAL);
+                };
+                if let Some((v, new)) = z.next()
+                    && v == delim
+                {
+                    z = new;
+                } else {
+                    break;
                 }
             }
             if delim == b'\'' {
-                tokenType = TK_STRING;
-                return (i + 1, tokenType);
-            } else if z[i] != 0 {
-                tokenType = TK_ID;
-                return (i + 1, tokenType);
+                return (z.1, TK_STRING);
             } else {
-                tokenType = TK_ILLEGAL;
-                return (i, tokenType);
+                return (z.1, TK_ID);
             }
         }
-        class @ (CC_DOT | CC_DIGIT) => {
-            if class == CC_DOT && !sqlite3Isdigit(z[1]) {
-                tokenType = TK_DOT;
-                return (1, tokenType);
+        first @ (CC_DOT | CC_DIGIT) => {
+            if first == CC_DOT && !z.peek(sqlite3Isdigit) {
+                return (z.1, TK_DOT);
             }
 
             tokenType = TK_INTEGER;
-            if z[0] == b'0' && (z[1] == b'x' || z[1] == b'X') && sqlite3Isxdigit(z[2]) {
-                i = 3;
-                loop {
-                    if !sqlite3Isxdigit(z[i]) {
-                        if z[i] == SQLITE_DIGIT_SEPARATOR {
-                            tokenType = TK_QNUMBER;
-                        } else {
-                            break;
-                        }
-                    }
-                    i += 1;
-                }
+            macro_rules! assign {
+                ($typ:expr) => {{
+                    tokenType = $typ;
+                    true
+                }};
+            }
+
+            if first == b'0'
+                && let Some((b'x' | b'X', new)) = z.next()
+                && let Some((v, new)) = new.next()
+                && sqlite3Isxdigit(v)
+            {
+                z = new;
+                z.take_while(|v| {
+                    sqlite3Isxdigit(v) || v == SQLITE_DIGIT_SEPARATOR && assign!(TK_QNUMBER)
+                });
             } else {
-                i = 0;
-                loop {
-                    if !sqlite3Isdigit(z[i]) {
-                        if z[i] == SQLITE_DIGIT_SEPARATOR {
-                            tokenType = TK_QNUMBER;
-                        } else {
-                            break;
-                        }
-                    }
-                    i += 1;
-                }
-                if z[i] == b'.' {
+                z = z0; // reset to before the first character
+                z.take_while(|v| {
+                    sqlite3Isdigit(v) || v == SQLITE_DIGIT_SEPARATOR && assign!(TK_QNUMBER)
+                });
+                if let Some((b'.', new)) = z.next() {
+                    z = new;
                     if tokenType == TK_INTEGER {
                         tokenType = TK_FLOAT
                     };
-                    i += 1;
-                    loop {
-                        if !sqlite3Isdigit(z[i]) {
-                            if z[i] == SQLITE_DIGIT_SEPARATOR {
-                                tokenType = TK_QNUMBER;
-                            } else {
-                                break;
-                            }
-                        }
-                        i += 1;
-                    }
+                    z.take_while(|v| {
+                        sqlite3Isdigit(v) || v == SQLITE_DIGIT_SEPARATOR && assign!(TK_QNUMBER)
+                    });
                 }
-                if (z[i] == b'e' || z[i] == b'E')
-                    && (sqlite3Isdigit(z[i + 1])
-                        || ((z[i + 1] == b'+' || z[i + 1] == b'-') && sqlite3Isdigit(z[i + 2])))
+                if let Some((b'e' | b'E', new)) = z.next()
+                    && let Some((v, new)) = new.next()
+                    && (sqlite3Isdigit(v) || ((v == b'+' || v == b'-') && new.peek(sqlite3Isdigit)))
                 {
+                    z = new;
                     if tokenType == TK_INTEGER {
                         tokenType = TK_FLOAT
                     };
-                    i += 2;
-                    loop {
-                        if !sqlite3Isdigit(z[i]) {
-                            if z[i] == SQLITE_DIGIT_SEPARATOR {
-                                tokenType = TK_QNUMBER;
-                            } else {
-                                break;
-                            }
-                        }
-                        i += 1
-                    }
+                    z.take_while(|v| {
+                        sqlite3Isdigit(v) || v == SQLITE_DIGIT_SEPARATOR && assign!(TK_QNUMBER)
+                    });
                 }
             }
-            while IdChar(z[i]) {
-                tokenType = TK_ILLEGAL;
-                i += 1;
-            }
-            return (i, tokenType);
+            z.take_while(|v| IdChar(v) && assign!(TK_ILLEGAL));
+            return (z.1, tokenType);
         }
         CC_QUOTE2 => {
-            i = 1;
-            let mut c = z[0];
-            while c != b']' && {
-                c = z[i];
-                c != 0
-            } {
-                i += 1
-            }
-            tokenType = if c == b']' { TK_ID } else { TK_ILLEGAL };
-            return (i, tokenType);
+            let found = z.take_until_and_including(|v| v == b']').is_some();
+            tokenType = if found { TK_ID } else { TK_ILLEGAL };
+            return (z.1, tokenType);
         }
         CC_VARNUM => {
-            tokenType = TK_VARIABLE;
-            i = 1;
-            while sqlite3Isdigit(z[i]) {
-                i += 1
-            }
-            return (i, tokenType);
+            z.take_while(sqlite3Isdigit);
+            return (z.1, TK_VARIABLE);
         }
         CC_DOLLAR | CC_VARALPHA => {
             let mut n = 0i64;
             tokenType = TK_VARIABLE;
-            i = 1;
-            let mut c;
-            while {
-                c = z[i];
-                c != 0
-            } {
+            while let Some((c, mut new)) = z.next() {
                 if IdChar(c) {
+                    z = new;
                     n += 1;
                 } else if c == b'(' && n > 0 {
-                    i += 1;
-                    while {
-                        c = z[i];
-                        c != 0
-                    } && !sqlite3Isspace(c)
-                        && c != b')'
-                    {
-                        i += 1;
-                    }
-                    if c == b')' {
-                        i += 1;
+                    z = new;
+                    z.take_while(|v| !sqlite3Isspace(c) && c != b')');
+                    if let Some((b')', new)) = z.next() {
+                        z = new;
                     } else {
-                        tokenType = TK_ILLEGAL;
+                        tokenType = TK_ILLEGAL
                     }
                     break;
-                } else if c == b':' && z[i + 1] == b':' {
-                    i += 1;
+                } else if c == b':'
+                    && let Some((b':', new)) = new.next()
+                {
+                    z = new;
                 } else {
                     break;
                 }
-                i += 1;
             }
+
             if n == 0 {
                 tokenType = TK_ILLEGAL
             };
             return (i, tokenType);
-        }
-        CC_KYWD0 => {
-            if aiClass[z[1] as usize] > CC_KYWD {
-                i = 1;
-            } else {
-                i = 2;
-                while aiClass[z[i] as usize] <= CC_KYWD {
-                    i += 1
-                }
-                if IdChar(z[i]) {
-                    /* This token started out using characters that can appear in keywords,
-                     ** but z[i] is a character not allowed within keywords, so this must
-                     ** be an identifier instead */
-                    i += 1;
-                } else {
-                    tokenType = TK_ID;
-                    return (keywordCode(z, i, &mut tokenType), tokenType);
-                }
-            }
         }
         CC_X => {
             if z[1] == b'\'' {
@@ -476,13 +390,15 @@ fn sqlite3GetToken(z: ZeroTerminated) -> (usize, Token) {
             }
             i = 1;
         }
-        CC_KYWD | CC_ID => {
+        CC_KYWD0 | CC_KYWD | CC_ID => {
             i = 1;
         }
         CC_BOM => {
-            if z[1] == 0xbb && z[2] == 0xbf {
-                tokenType = TK_SPACE;
-                return (3, tokenType);
+            if let Some((0xbb, new)) = z.next()
+                && let Some((0xbf, new)) = new.next()
+            {
+                z = new;
+                return (z.1, TK_SPACE);
             }
             i = 1;
         }
@@ -499,7 +415,6 @@ fn sqlite3GetToken(z: ZeroTerminated) -> (usize, Token) {
     return (i, tokenType);
 }
 
-#[derive(Clone, Copy)]
 struct ZeroTerminated<'x>(&'x [u8], pub usize);
 
 impl<'x> ZeroTerminated<'x> {
@@ -508,12 +423,16 @@ impl<'x> ZeroTerminated<'x> {
         Self(slice, 0)
     }
 
-    fn next(self) -> Option<(u8, Self)> {
+    fn next(&self) -> Option<(u8, Self)> {
         let v = unsafe { *self.0.get_unchecked(self.1) };
         if v == 0 {
             return None;
         }
         Some((v, Self(self.0, self.1 + 1)))
+    }
+
+    fn next_if(&self, f: impl FnOnce(u8) -> bool) -> Option<Self> {
+        self.next().and_then(|(v, new)| f(v).then_some(new))
     }
 
     fn take_while(&mut self, f: impl Fn(u8) -> bool) {
@@ -524,11 +443,31 @@ impl<'x> ZeroTerminated<'x> {
         }
     }
 
+    fn take_until_and_including(&mut self, f: impl Fn(u8) -> bool) -> Option<u8> {
+        loop {
+            let (v, new) = self.next()?;
+            *self = new;
+            if f(v) {
+                return Some(v);
+            }
+        }
+    }
+
     fn take_if(&mut self, f: impl FnOnce(u8) -> bool) {
         if let Some((v, new)) = self.next()
             && f(v)
         {
             *self = new;
+        }
+    }
+
+    fn peek(&self, f: impl FnOnce(u8) -> bool) -> bool {
+        if let Some((v, _)) = self.next()
+            && f(v)
+        {
+            true
+        } else {
+            false
         }
     }
 }
