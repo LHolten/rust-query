@@ -396,6 +396,7 @@ fn compare(bytes: &[u8]) {
                     v.1,
                     res2.1
                 );
+                assert_ne!(res2.1, TK_ILLEGAL);
             }
             None => {
                 assert_eq!(res2, None)
@@ -404,7 +405,13 @@ fn compare(bytes: &[u8]) {
         Err(e) => {
             println!("{}", String::from_utf8_lossy(bytes));
             println!("{e}");
-            assert_eq!(Token::TK_ILLEGAL, res2.unwrap().1,)
+            let token = res2.unwrap().1;
+            if token == TK_QNUMBER {
+                // sqlite_parser gives an error if `_` does not have a decimal before and after.
+                // this is not in sqlite source, so we ignore this case.
+                return;
+            }
+            assert_eq!(Token::TK_ILLEGAL, token)
         }
     }
 }
