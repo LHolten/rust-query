@@ -12,7 +12,7 @@
 // #include "keywordhash.h"
 
 #[expect(non_camel_case_types)]
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 enum Token {
     TK_BITAND,
     TK_BITNOT,
@@ -29,14 +29,12 @@ enum Token {
     TK_ID,
     TK_ILLEGAL,
     TK_INTEGER,
-    TK_JOIN_KW,
     TK_LE,
     TK_LP,
     TK_LSHIFT,
     TK_LT,
     TK_MINUS,
     TK_NE,
-    TK_OVER,
     TK_PLUS,
     TK_PTR,
     TK_QNUMBER,
@@ -49,7 +47,6 @@ enum Token {
     TK_STAR,
     TK_STRING,
     TK_VARIABLE,
-    TK_WINDOW,
 }
 
 use Token::*;
@@ -92,22 +89,26 @@ fn IdChar(c: u8) -> bool {
 ** Return the id of the next token in string (*pz). Before returning, set
 ** (*pz) to point to the byte following the parsed token.
 */
-fn getToken(pz: &mut &[u8]) -> Token {
-    let mut t: Token;
-    let mut z = *pz;
+fn getToken(pz: &[u8]) -> Option<(usize, Token, usize)> {
+    let mut start = 0;
+    let (mut t, end);
     loop {
-        let (new_z, new_t) = sqlite3GetToken(ZeroTerminated::new(z));
-        z = &z[new_z.1..];
-        t = new_t;
-        if !(t == TK_SPACE || t == TK_COMMENT) {
+        let (z, token) = sqlite3GetToken(ZeroTerminated::new(&pz[start..]));
+
+        if !(token == TK_SPACE || token == TK_COMMENT) {
+            t = token;
+            end = start + z.1;
+            if z.1 == 0 {
+                return None;
+            }
             break;
         }
+        start = z.1;
     }
-    if t == TK_ID || t == TK_STRING || t == TK_JOIN_KW || t == TK_WINDOW || t == TK_OVER {
+    if t == TK_ID || t == TK_STRING {
         t = TK_ID;
     }
-    *pz = z;
-    return t;
+    Some((start, t, end))
 }
 
 /*
@@ -314,15 +315,11 @@ struct ZeroTerminated<'x>(&'x [u8], pub usize);
 
 impl<'x> ZeroTerminated<'x> {
     fn new(slice: &'x [u8]) -> Self {
-        assert!(slice[slice.len() - 1] == 0);
         Self(slice, 0)
     }
 
     fn next(&self) -> Option<(u8, Self)> {
-        let v = unsafe { *self.0.get_unchecked(self.1) };
-        if v == 0 {
-            return None;
-        }
+        let v = *self.0.get(self.1)?;
         Some((v, Self(self.0, self.1 + 1)))
     }
 
@@ -365,5 +362,38 @@ impl<'x> ZeroTerminated<'x> {
         } else {
             false
         }
+    }
+}
+
+#[cfg(fuzzing)]
+pub fn fuzz_tokenizer() {
+    loop {
+        honggfuzz::fuzz(compare);
+    }
+}
+
+fn compare(bytes: &[u8]) {
+    let mut f = sqlite3_parser::lexer::Scanner::new(sqlite3_parser::lexer::sql::Tokenizer::new());
+    let res = f.scan(bytes);
+    let res2 = getToken(bytes);
+    match res {
+        Ok((start, v, end)) => match v {
+            Some(v) => {
+                let res2 = res2.unwrap();
+                assert_eq!(start, res2.0);
+                assert_eq!(
+                    end,
+                    res2.2,
+                    "{bytes:#?}, {}, {:?}, {:?}",
+                    String::from_utf8_lossy(bytes),
+                    v.1,
+                    res2.1
+                );
+            }
+            None => {
+                assert_eq!(res2, None)
+            }
+        },
+        Err(_e) => assert!(res2.unwrap().1 == Token::TK_ILLEGAL),
     }
 }

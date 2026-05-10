@@ -10,7 +10,7 @@ pub mod from_macro;
 pub mod read;
 #[cfg(test)]
 mod test;
-mod tokenizer;
+pub mod tokenizer;
 
 use sea_query::{Alias, IndexCreateStatement, IntoIden, SqliteQueryBuilder, TableCreateStatement};
 
