@@ -82,7 +82,7 @@ fn sqlite3Isspace(c: u8) -> bool {
 ** But the feature is undocumented.
 */
 fn IdChar(c: u8) -> bool {
-    c.is_ascii_alphanumeric() || !c.is_ascii()
+    c.is_ascii_alphanumeric() || !c.is_ascii() || c == b'_' || c == b'$'
 }
 
 /*
@@ -95,15 +95,15 @@ fn getToken(pz: &[u8]) -> Option<(usize, Token, usize)> {
     loop {
         let (z, token) = sqlite3GetToken(ZeroTerminated::new(&pz[start..]));
 
+        if z.1 == 0 {
+            return None;
+        }
         if !(token == TK_SPACE || token == TK_COMMENT) {
             t = token;
             end = start + z.1;
-            if z.1 == 0 {
-                return None;
-            }
             break;
         }
-        start = z.1;
+        start += z.1;
     }
     if t == TK_ID || t == TK_STRING {
         t = TK_ID;
@@ -265,25 +265,25 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
                         z = new;
                         n += 1;
                     }
-                    Some((b'(', new)) if n > 0 => {
-                        z = new;
-                        z.take_while(|v| !sqlite3Isspace(v) && v != b')');
-                        if let Some((b')', new)) = z.next() {
-                            z = new;
-                        } else {
-                            return (z, TK_ILLEGAL);
-                        }
-                        break;
-                    }
-                    Some((b':', new)) if let Some((b':', new)) = new.next() => {
-                        z = new;
-                    }
+                    // Some((b'(', new)) if n > 0 => {
+                    //     z = new;
+                    //     z.take_while(|v| !sqlite3Isspace(v) && v != b')');
+                    //     if let Some((b')', new)) = z.next() {
+                    //         z = new;
+                    //     } else {
+                    //         return (z, TK_ILLEGAL);
+                    //     }
+                    //     break;
+                    // }
+                    // Some((b':', new)) if let Some((b':', new)) = new.next() => {
+                    //     z = new;
+                    // }
                     _ => break,
                 }
             }
             if n == 0 { TK_ILLEGAL } else { TK_VARIABLE }
         }
-        b'x' if let Some((b'\'', new)) = z.next() => {
+        b'x' | b'X' if let Some((b'\'', new)) = z.next() => {
             z = new;
             let count = z.take_while(sqlite3Isxdigit);
             if let Some((b'\'', new)) = z.next()
@@ -296,12 +296,12 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
                 TK_ILLEGAL
             }
         }
-        0xef if let Some((0xbb, new)) = z.next()
-            && let Some((0xbf, new)) = new.next() =>
-        {
-            z = new;
-            TK_SPACE
-        }
+        // 0xef if let Some((0xbb, new)) = z.next()
+        //     && let Some((0xbf, new)) = new.next() =>
+        // {
+        //     z = new;
+        //     TK_SPACE
+        // }
         v if IdChar(v) => {
             z.take_while(IdChar);
             TK_ID
@@ -380,7 +380,14 @@ fn compare(bytes: &[u8]) {
         Ok((start, v, end)) => match v {
             Some(v) => {
                 let res2 = res2.unwrap();
-                assert_eq!(start, res2.0);
+                assert_eq!(
+                    start,
+                    res2.0,
+                    "{bytes:#?}, {:?}, {:?}, {:?}",
+                    String::from_utf8_lossy(bytes),
+                    v.1,
+                    res2.1
+                );
                 assert_eq!(
                     end,
                     res2.2,
@@ -394,6 +401,10 @@ fn compare(bytes: &[u8]) {
                 assert_eq!(res2, None)
             }
         },
-        Err(_e) => assert!(res2.unwrap().1 == Token::TK_ILLEGAL),
+        Err(e) => {
+            println!("{}", String::from_utf8_lossy(bytes));
+            println!("{e}");
+            assert_eq!(Token::TK_ILLEGAL, res2.unwrap().1,)
+        }
     }
 }
