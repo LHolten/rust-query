@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use sea_query::{IntoColumnRef, QueryBuilder};
-use sqlite3_parser::lexer::{Scanner, sql::Tokenizer};
+
+use crate::private::{Token, get_token};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum TokenTree {
@@ -42,45 +43,43 @@ impl Parsed {
     }
 }
 
-fn parse_sql_subtree(tokenizer: &mut Scanner<Tokenizer>, sql: &str) -> Vec<TokenTree> {
-    use sqlite3_parser::dialect::TokenType;
+fn parse_sql_subtree(sql: &mut &str) -> Vec<TokenTree> {
     let mut items = Vec::new();
     loop {
-        tokenizer.mark();
-        match tokenizer.scan(sql.as_bytes()).unwrap() {
-            (_, None, _) => break,
-            (start, Some((_, token_type)), end) => match token_type {
-                TokenType::TK_LP => {
+        match get_token(sql.as_bytes()) {
+            None | Some((_, Token::TK_COMMA | Token::TK_RP, _)) => break,
+            Some((start, token_type, end)) => {
+                let text = &sql[start..end];
+                *sql = &sql[end..];
+
+                if token_type == Token::TK_LP {
                     let mut inner_items = vec![];
                     loop {
-                        let tokens = parse_sql_subtree(tokenizer, sql);
-                        let next_token = tokenizer.scan(sql.as_bytes()).unwrap().1.unwrap().1;
+                        let tokens = parse_sql_subtree(sql);
                         inner_items.push(Parsed { tokens });
 
-                        if next_token == TokenType::TK_RP {
+                        let (_, next_token, end) = get_token(sql.as_bytes()).unwrap();
+                        *sql = &sql[end..];
+
+                        if next_token == Token::TK_RP {
                             break;
+                        } else {
+                            assert_eq!(next_token, Token::TK_COMMA);
                         }
-                        assert!(!sql.is_empty())
                     }
                     items.push(TokenTree::Group(inner_items));
-                }
-                TokenType::TK_COMMA | TokenType::TK_RP => {
-                    tokenizer.reset_to_mark();
-                    break;
-                }
-                _ => {
-                    items.push(TokenTree::Token(sql[start..end].to_owned()));
-                }
-            },
+                } else {
+                    items.push(TokenTree::Token(text.to_owned()));
+                };
+            }
         }
     }
     items
 }
 
-fn parse_sql_tree(sql: &str) -> Vec<TokenTree> {
-    let mut f = sqlite3_parser::lexer::Scanner::new(sqlite3_parser::lexer::sql::Tokenizer::new());
-    let res = parse_sql_subtree(&mut f, sql);
-    assert!(f.scan(sql.as_bytes()).unwrap().1.is_none());
+fn parse_sql_tree(mut sql: &str) -> Vec<TokenTree> {
+    let res = parse_sql_subtree(&mut sql);
+    assert!(sql.is_empty());
     res
 }
 
