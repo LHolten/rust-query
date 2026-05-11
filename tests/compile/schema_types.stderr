@@ -13,7 +13,7 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `DbTyp`
+  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: Columns with type `Option<i64>` can not be checked for equality
@@ -31,7 +31,7 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `DbTyp`
+  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
 note: required by a bound in `Expr`
  --> src/value.rs
   |
@@ -57,9 +57,9 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `IntoExpr<'static, v0::Schema>`
-  = note: required for `Option<Option<i64>>` to implement `SchemaType<v0::Schema>`
-note: required by a bound in `TypBuilder::<S>::col`
+  = note: required for `Option<Option<i64>>` to implement `IntoExpr<'static, Schema>`
+  = note: required for `Option<Option<i64>>` to implement `rust_query::private::SchemaType<Schema>`
+note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
   |
   |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
@@ -83,7 +83,7 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-note: required by a bound in `TypBuilder::<S>::check_unique_compatible`
+note: required by a bound in `rust_query::private::TypBuilder::<S>::check_unique_compatible`
  --> src/schema/from_macro.rs
   |
   |     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
@@ -107,7 +107,7 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `DbTyp`
+  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
 
 error[E0277]: Columns with type `Option<i64>` can not be checked for equality
  --> tests/compile/schema_types.rs:8:21
@@ -127,8 +127,8 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `DbTyp`
-note: required by a bound in `Reader::col`
+  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
+note: required by a bound in `rust_query::private::Reader::col`
  --> src/writable.rs
   |
   |     pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
