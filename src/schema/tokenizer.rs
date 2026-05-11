@@ -258,29 +258,7 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
             TK_VARIABLE
         }
         b'$' | b'@' | b'#' | b':' => {
-            let mut n = 0i64;
-            loop {
-                match z.next() {
-                    Some((c, new)) if IdChar(c) => {
-                        z = new;
-                        n += 1;
-                    }
-                    // Some((b'(', new)) if n > 0 => {
-                    //     z = new;
-                    //     z.take_while(|v| !sqlite3Isspace(v) && v != b')');
-                    //     if let Some((b')', new)) = z.next() {
-                    //         z = new;
-                    //     } else {
-                    //         return (z, TK_ILLEGAL);
-                    //     }
-                    //     break;
-                    // }
-                    // Some((b':', new)) if let Some((b':', new)) = new.next() => {
-                    //     z = new;
-                    // }
-                    _ => break,
-                }
-            }
+            let n = z.take_while(IdChar);
             if n == 0 { TK_ILLEGAL } else { TK_VARIABLE }
         }
         b'x' | b'X' if let Some((b'\'', new)) = z.next() => {
@@ -296,12 +274,12 @@ fn sqlite3GetToken(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
                 TK_ILLEGAL
             }
         }
-        // 0xef if let Some((0xbb, new)) = z.next()
-        //     && let Some((0xbf, new)) = new.next() =>
-        // {
-        //     z = new;
-        //     TK_SPACE
-        // }
+        0xef if let Some((0xbb, new)) = z.next()
+            && let Some((0xbf, new)) = new.next() =>
+        {
+            z = new;
+            TK_SPACE
+        }
         v if IdChar(v) => {
             z.take_while(IdChar);
             TK_ID
