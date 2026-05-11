@@ -1,5 +1,8 @@
 # Unreleased
 
+- Removed dependency on sqlite3-parser
+- Updated rust-version to `1.95`
+
 # 0.8.1
 
 - Fix `rust-query` not compiling when using the `jiff-02` feature without the `bundled` feature.

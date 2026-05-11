@@ -9,7 +9,7 @@ description = "A query builder using rust concepts."
 categories = ["database"]
 repository = "https://github.com/LHolten/rust-query/"
 license = "MIT OR Apache-2.0"
-rust-version = "1.85"
+rust-version = "1.95"
 
 [[bench]]
 name = "tpc-c"
