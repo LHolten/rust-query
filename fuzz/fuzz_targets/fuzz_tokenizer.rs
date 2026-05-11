@@ -1,12 +1,12 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use rust_query::private::{getToken, Token};
+use rust_query::private::{get_token, Token};
 
 fuzz_target!(|bytes: &[u8]| {
     let mut f = sqlite3_parser::lexer::Scanner::new(sqlite3_parser::lexer::sql::Tokenizer::new());
     let res = f.scan(bytes);
-    let res2 = getToken(bytes);
+    let res2 = get_token(bytes);
     let context = || {
         format!(
             "input: {}
