@@ -1,5 +1,5 @@
 [workspace]
-members = ["rust-query-macros"]
+members = ["rust-query-macros", "fuzz"]
 
 [package]
 name = "rust-query"
@@ -74,7 +74,6 @@ annotate-snippets = "0.12.9"
 sqlite3-parser = "0.15.0"
 mutants = { version = "=0.0.3", optional = true }
 jiff = { version = "0.2.22", optional = true }
-honggfuzz = "0.5"
 
 [dev-dependencies]
 trybuild = "1.0.114"

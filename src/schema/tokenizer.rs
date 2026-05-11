@@ -13,7 +13,7 @@
 
 #[expect(non_camel_case_types)]
 #[derive(PartialEq, Debug)]
-enum Token {
+pub enum Token {
     TK_BITAND,
     TK_BITNOT,
     TK_BITOR,
@@ -89,7 +89,7 @@ fn IdChar(c: u8) -> bool {
 ** Return the id of the next token in string (*pz). Before returning, set
 ** (*pz) to point to the byte following the parsed token.
 */
-fn getToken(pz: &[u8]) -> Option<(usize, Token, usize)> {
+pub fn getToken(pz: &[u8]) -> Option<(usize, Token, usize)> {
     let mut start = 0;
     let (mut t, end);
     loop {
@@ -361,57 +361,6 @@ impl<'x> ZeroTerminated<'x> {
             true
         } else {
             false
-        }
-    }
-}
-
-#[cfg(fuzzing)]
-pub fn fuzz_tokenizer() {
-    loop {
-        honggfuzz::fuzz(compare);
-    }
-}
-
-fn compare(bytes: &[u8]) {
-    let mut f = sqlite3_parser::lexer::Scanner::new(sqlite3_parser::lexer::sql::Tokenizer::new());
-    let res = f.scan(bytes);
-    let res2 = getToken(bytes);
-    match res {
-        Ok((start, v, end)) => match v {
-            Some(v) => {
-                let res2 = res2.unwrap();
-                assert_eq!(
-                    start,
-                    res2.0,
-                    "{bytes:#?}, {:?}, {:?}, {:?}",
-                    String::from_utf8_lossy(bytes),
-                    v.1,
-                    res2.1
-                );
-                assert_eq!(
-                    end,
-                    res2.2,
-                    "{bytes:#?}, {}, {:?}, {:?}",
-                    String::from_utf8_lossy(bytes),
-                    v.1,
-                    res2.1
-                );
-                assert_ne!(res2.1, TK_ILLEGAL);
-            }
-            None => {
-                assert_eq!(res2, None)
-            }
-        },
-        Err(e) => {
-            println!("{}", String::from_utf8_lossy(bytes));
-            println!("{e}");
-            let token = res2.unwrap().1;
-            if token == TK_QNUMBER {
-                // sqlite_parser gives an error if `_` does not have a decimal before and after.
-                // this is not in sqlite source, so we ignore this case.
-                return;
-            }
-            assert_eq!(Token::TK_ILLEGAL, token)
         }
     }
 }

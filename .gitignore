@@ -12,5 +12,3 @@ TODO.md
 /.vscode
 /mutants.out
 /mutants.out.old
-/hfuzz_target
-/hfuzz_workspace

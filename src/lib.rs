@@ -42,8 +42,6 @@ pub use db::TableRow;
 pub use error::Conflict;
 pub use lazy::Lazy;
 pub use mutable::Mutable;
-#[cfg(fuzzing)]
-pub use schema::tokenizer::fuzz_tokenizer;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 pub use value::aggregate::aggregate;
@@ -376,6 +374,7 @@ pub mod private {
     };
     pub use crate::query::get_plan;
     pub use crate::schema::from_macro::{SchemaType, TypBuilder};
+    pub use crate::schema::tokenizer::{Token, getToken};
     pub use crate::value::{
         DbTyp, DynTypedExpr, ValueBuilder, adhoc_expr, new_column, unique_from_joinable,
     };

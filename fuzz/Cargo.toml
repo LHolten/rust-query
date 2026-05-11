@@ -1,0 +1,22 @@
+[package]
+name = "rust-query-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+sqlite3-parser = "0.15.0"
+
+[dependencies.rust-query]
+path = ".."
+
+[[bin]]
+name = "fuzz_tokenizer"
+path = "fuzz_targets/fuzz_tokenizer.rs"
+test = false
+doc = false
+bench = false
