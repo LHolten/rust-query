@@ -64,7 +64,7 @@ pub fn get_token(pz: &[u8]) -> Option<(usize, Token, usize)> {
     let mut start = 0;
     let (mut t, end);
     loop {
-        let (z, token) = get_token_internal(ZeroTerminated::new(&pz[start..]));
+        let (z, token) = get_token_internal(Input::new(&pz[start..]));
 
         if z.1 == 0 {
             return None;
@@ -86,7 +86,7 @@ pub fn get_token(pz: &[u8]) -> Option<(usize, Token, usize)> {
 ** Return the length (in bytes) of the token that begins at z[0].
 ** Store the token type in *tokenType before returning.
 */
-fn get_token_internal(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
+fn get_token_internal(z0: Input) -> (Input, Token) {
     let Some((v, mut z)) = z0.next() else {
         return (z0, TK_ILLEGAL);
     };
@@ -256,9 +256,9 @@ fn get_token_internal(z0: ZeroTerminated) -> (ZeroTerminated, Token) {
     (z, token)
 }
 
-struct ZeroTerminated<'x>(&'x [u8], pub usize);
+struct Input<'x>(&'x [u8], pub usize);
 
-impl<'x> ZeroTerminated<'x> {
+impl<'x> Input<'x> {
     fn new(slice: &'x [u8]) -> Self {
         Self(slice, 0)
     }
