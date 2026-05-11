@@ -1,8 +1,7 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
-    Expr, Table, TableRow,
-    alias::JoinableTable,
+    Expr, Table, TableRow, lower,
     value::{DbTyp, DynTypedExpr},
 };
 
@@ -13,12 +12,12 @@ pub trait IntoJoinable<'inner, S> {
 
 pub struct Joinable<'inner, S, T: DbTyp> {
     _p: PhantomData<Expr<'inner, S, T>>,
-    pub(crate) table: JoinableTable,
-    pub(crate) conds: Vec<(&'static str, DynTypedExpr)>,
+    pub(crate) table: lower::JoinableTable,
+    pub(crate) conds: Vec<(&'static str, Rc<lower::Expr>)>,
 }
 
 impl<'inner, S, T: DbTyp> Joinable<'inner, S, T> {
-    pub fn new(j: JoinableTable) -> Self {
+    pub fn new(j: lower::JoinableTable) -> Self {
         Self {
             _p: PhantomData,
             table: j,
@@ -29,7 +28,7 @@ impl<'inner, S, T: DbTyp> Joinable<'inner, S, T> {
 
 impl<'inner, S, T: Table> Joinable<'inner, S, TableRow<T>> {
     pub fn table() -> Self {
-        Self::new(JoinableTable::Normal(T::NAME.into_iden()))
+        Self::new(lower::JoinableTable::Table(T::NAME))
     }
 }
 impl<'inner, S, T: DbTyp> Joinable<'inner, S, T> {

@@ -2,9 +2,8 @@ use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
     CustomJoin, Expr, IntoExpr, Table, TableRow,
-    alias::{JoinableTable, MyAlias, TmpTable},
-    ast::MySelect,
     joinable::IntoJoinable,
+    lower,
     private::Joinable,
     value::{DbTyp, DynTypedExpr, EqTyp, MyTableRef},
 };
@@ -20,7 +19,7 @@ pub struct Rows<'inner, S> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
     pub(crate) _p: PhantomData<S>,
-    pub(crate) ast: Rc<MySelect>,
+    pub(crate) ast: Rc<lower::Select>,
 }
 
 impl<'inner, S> Rows<'inner, S> {
@@ -41,14 +40,11 @@ impl<'inner, S> Rows<'inner, S> {
         let joinable = j.into_joinable();
 
         let table_idx = self.ast.tables.len();
-        Rc::make_mut(&mut self.ast)
-            .tables
-            .push(joinable.table.clone());
+        let join = self.ast.join(joinable.table);
         for (name, val) in joinable.conds {
-            self.filter(Expr::adhoc(move |b| {
-                // it is fine to directly use the alias here because the filter is in the same scope as the join
-                sea_query::Expr::col((MyAlias::new(table_idx), name)).eq((val.func)(b))
-            }));
+            // it is fine to directly use the alias here because the filter is in the same scope as the join
+            let expr = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), name));
+            self.filter(Expr::adhoc(lower::Expr::Infix(expr, "=", val)));
         }
 
         let table_idx = MyTableRef {
@@ -57,12 +53,10 @@ impl<'inner, S> Rows<'inner, S> {
             table_name: joinable.table,
         };
 
-        Expr::adhoc(move |b| {
-            sea_query::Expr::col((
-                b.get_table(table_idx.clone()),
-                Alias::new(table_idx.table_name.main_column()),
-            ))
-        })
+        Expr::adhoc(lower::Expr::RowIndex(
+            lower::RowLike::Join(join),
+            joinable.table.main_column(),
+        ))
     }
 
     #[doc(hidden)]
@@ -79,10 +73,9 @@ impl<'inner, S> Rows<'inner, S> {
 
     pub(crate) fn join_tmp<T: Table<Schema = S>>(
         &mut self,
-        tmp: TmpTable,
+        tmp: lower::TmpTable,
     ) -> Expr<'inner, S, TableRow<T>> {
-        let tmp_string = tmp.into_iden();
-        self.join(Joinable::new(JoinableTable::Normal(tmp_string)))
+        self.join(Joinable::new(lower::JoinableTable::Tmp(tmp)))
     }
 
     /// Filter rows based on an expression.
@@ -99,11 +92,9 @@ impl<'inner, S> Rows<'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
         let val = val.into_expr();
-        Rc::make_mut(&mut self.ast)
-            .filters
-            .push(DynTypedExpr::erase(val.is_some()));
+        self.ast.filter(val.inner.clone());
 
         // we already removed all rows with null, so this is ok.
-        Expr::adhoc(move |b| val.inner.build_expr(b))
+        Expr::new(val.inner)
     }
 }

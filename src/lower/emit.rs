@@ -157,6 +157,7 @@ impl SelectInfoVecs {
     pub fn emit_joinable(&self, w: &mut Stmt, joinable: &JoinableTable) -> fmt::Result {
         match joinable {
             JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
+            JoinableTable::Tmp(tmp) => write!(w, "main._tmp{}", tmp.name),
             JoinableTable::Pragma(func, params) => {
                 write!(w, "{func}(")?;
                 let mut list = ListWriter::new(w, ", ");
@@ -192,7 +193,7 @@ impl SelectInfoVecs {
                     .unwrap();
                 write!(w, "a{aggr_idx}.s{select_idx}")
             }
-            Expr::RowIndex(row_like, col) => match row_like.as_ref() {
+            Expr::RowIndex(row_like, col) => match row_like {
                 RowLike::Join(join) => {
                     self.emit_join(w, join)?;
                     write!(w, ".{}", Alias(col))
@@ -255,14 +256,14 @@ impl SelectInfo {
                     .or_insert_with(|| Self::new(aggr_rows))
                     .add_select(aggr_rows, expr);
             }
-            Expr::RowIndex(row_like, _col) => match row_like.as_ref() {
+            Expr::RowIndex(row_like, _col) => match row_like {
                 RowLike::Join(join) => {
                     if !rows.from.contains(join) {
                         self.forwarded.insert(join.clone());
                     }
                 }
                 RowLike::Unique(unique) => {
-                    self.unique.insert(unique.clone());
+                    self.unique.insert(unique.as_ref().clone());
                 }
             },
             Expr::Prefix(_prefix, expr) => self.analyze(rows, expr),

@@ -2,6 +2,7 @@ mod emit;
 pub(crate) mod list_writer;
 pub(crate) mod ord_rc;
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{collections::BTreeSet, rc::Rc};
 
 use ord_rc::OrdRc;
@@ -9,6 +10,7 @@ use ord_rc::OrdRc;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
     Table(&'static str),
+    Tmp(TmpTable),
     Pragma(&'static str, Vec<OrdRc<dyn rusqlite::ToSql>>),
     // Vec(OrdRc<Vec<rusqlite::types::Value>>),
 }
@@ -23,10 +25,10 @@ struct Unique {
     conds: Vec<(&'static str, Rc<Expr>)>,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum RowLike {
     Join(Join),
-    Unique(Unique),
+    Unique(Rc<Unique>),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -34,7 +36,7 @@ pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<dyn rusqlite::ToSql>),
     AggrIndex(Rc<SelectVec>, Rc<Expr>),
-    RowIndex(Rc<RowLike>, &'static str),
+    RowIndex(RowLike, &'static str),
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
     Func(&'static str, Rc<[Expr]>),
@@ -52,7 +54,7 @@ impl Expr {
             table,
             conds: vec![("id", self.clone())],
         };
-        let row = Rc::new(RowLike::Unique(unique));
+        let row = RowLike::Unique(Rc::new(unique));
         Rc::new(Expr::RowIndex(row, col))
     }
 }
@@ -91,4 +93,38 @@ impl Select {
             filter: self.filter,
         }
     }
+}
+
+impl JoinableTable {
+    pub fn main_column(&self) -> &'static str {
+        match self {
+            JoinableTable::Normal(_) => "id",
+            JoinableTable::Pragma(_, _) => "pragma_id", // should always be replaced
+            #[cfg(false)]
+            JoinableTable::Vec(_) => "value",
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct Scope {
+    iden_num: AtomicUsize,
+}
+
+impl Scope {
+    pub fn tmp_table(&self) -> TmpTable {
+        let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
+        TmpTable { name: next }
+    }
+
+    pub fn create(num_tables: usize, num_filter_on: usize) -> Self {
+        Self {
+            iden_num: AtomicUsize::new(num_tables.max(num_filter_on)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) struct TmpTable {
+    name: usize,
 }

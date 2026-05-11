@@ -1,9 +1,6 @@
 use std::{borrow::Cow, convert::Infallible, fmt::Debug, marker::PhantomData};
 
-use sea_query::{ExprTrait, SelectStatement, SqliteQueryBuilder};
-use sea_query_rusqlite::RusqliteBinder;
-
-use crate::{Table, TableRow, db::TableRowInner};
+use crate::{Table, TableRow, db::TableRowInner, lower};
 
 /// Error type that is used by [crate::Transaction::insert] and [crate::Mutable::unique] when
 /// there are at least two unique constraints.
@@ -54,8 +51,8 @@ impl<T: Table<Conflict = Self>> std::error::Error for TableRow<T> {}
 pub(crate) trait FromConflict {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
-        table: sea_query::DynIden,
-        cols: Vec<(&'static str, sea_query::Expr)>,
+        table: &'static str,
+        cols: Vec<(&'static str, lower::Expr)>,
         msg: String,
     ) -> Self;
 }
@@ -63,8 +60,8 @@ pub(crate) trait FromConflict {
 impl FromConflict for Infallible {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
-        _table: sea_query::DynIden,
-        _cols: Vec<(&'static str, sea_query::Expr)>,
+        _table: &'static str,
+        _cols: Vec<(&'static str, lower::Expr)>,
         _msg: String,
     ) -> Self {
         unreachable!()
@@ -74,8 +71,8 @@ impl FromConflict for Infallible {
 impl<T: Table<Conflict = Self>> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
-        _table: sea_query::DynIden,
-        _cols: Vec<(&'static str, sea_query::Expr)>,
+        _table: &'static str,
+        _cols: Vec<(&'static str, lower::Expr)>,
         msg: String,
     ) -> Self {
         Self {
@@ -101,8 +98,8 @@ pub(crate) fn get_unique_columns<T: Table<Conflict = TableRow<T>>>() -> Vec<Cow<
 impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
-        table: sea_query::DynIden,
-        mut cols: Vec<(&'static str, sea_query::Expr)>,
+        table: &'static str,
+        mut cols: Vec<(&'static str, lower::Expr)>,
         _msg: String,
     ) -> Self {
         let unique_columns = get_unique_columns::<T>();

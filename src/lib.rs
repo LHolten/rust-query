@@ -513,7 +513,7 @@ pub trait Table: Sized + 'static {
 }
 
 trait CustomJoin: Table {
-    fn name(&self) -> JoinableTable;
+    fn name(&self) -> lower::JoinableTable;
 }
 
 #[test]
