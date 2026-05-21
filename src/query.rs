@@ -11,7 +11,6 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr,
-    alias::MyAlias,
     rows::Rows,
     select::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     transaction::TXN,

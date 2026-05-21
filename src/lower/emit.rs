@@ -56,9 +56,10 @@ struct SelectInfoVecs {
 }
 
 impl SelectInfo {
-    pub fn into_vecs(self, from: Rc<SelectVec>) -> SelectInfoVecs {
+    /// rows provided should be the same as those that self was created with.
+    pub fn into_vecs(self, rows: Rc<SelectVec>) -> SelectInfoVecs {
         SelectInfoVecs {
-            rows: from,
+            rows,
             forwarded: self.forwarded.into_iter().collect(),
             aggregate: self
                 .aggregate
@@ -227,6 +228,7 @@ impl SelectInfoVecs {
 }
 
 impl SelectInfo {
+    /// create info associated with rows.
     pub fn new(rows: &SelectVec) -> Self {
         let mut out = Self {
             forwarded: BTreeSet::new(),
@@ -240,12 +242,14 @@ impl SelectInfo {
         out
     }
 
+    /// rows provided should be the same as those that self was created with.
     pub fn add_select(&mut self, rows: &SelectVec, expr: &Rc<Expr>) {
         if self.select.insert(expr.clone()) {
             self.analyze(rows, expr);
         }
     }
 
+    /// rows provided should be the same as those that self was created with.
     fn analyze(&mut self, rows: &SelectVec, expr: &Expr) {
         match expr {
             Expr::Constant(_const) => {}
