@@ -35,7 +35,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// otherwise there is a chance that there are multiple rows.
     fn select_func(&self, agg_func: &'static str, val: Rc<lower::Expr>) -> Rc<lower::Expr> {
         let expr = Rc::new(lower::Expr::Func(agg_func, Box::new([val])));
-        Rc::new(lower::Expr::AggrIndex(self.ast.clone(), expr))
+        Rc::new(lower::Expr::AggrIndex(self.ast.clone().frozen(), expr))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.

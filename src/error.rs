@@ -119,12 +119,12 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
             select.filter(Rc::new(lower::Expr::Infix(val, "=", table_val)));
         }
 
-        let select = select.into_vecs();
+        let select = select.frozen();
         let mut info = emit::Select::new(&select);
 
         let id = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), T::ID));
         info.add_select(&select, &id);
-        let info = info.into_vecs(select);
+        let info = info.frozen(select);
 
         let mut stmt = emit::Stmt::default();
         info.emit(&mut stmt, false).unwrap();

@@ -59,14 +59,14 @@ struct SelectFrozen {
 
 impl Select {
     /// rows provided should be the same as those that self was created with.
-    pub fn into_vecs(self, rows: RowsFrozen) -> SelectFrozen {
+    pub fn frozen(self, rows: RowsFrozen) -> SelectFrozen {
         SelectFrozen {
             rows,
             forwarded: self.forwarded.into_iter().collect(),
             aggregate: self
                 .aggregate
                 .into_iter()
-                .map(|(k, v)| v.into_vecs(k))
+                .map(|(k, v)| v.frozen(k))
                 .collect(),
             unique: self.unique.into_iter().collect(),
             select: self.select.into_iter().collect(),

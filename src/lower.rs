@@ -40,7 +40,7 @@ pub enum RowLike {
 pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<dyn rusqlite::ToSql>),
-    AggrIndex(Rc<Rows>, Rc<Expr>),
+    AggrIndex(RowsFrozen, Rc<Expr>),
     RowIndex(RowLike, &'static str),
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
@@ -92,7 +92,7 @@ impl Rows {
         this.filter.insert(expr);
     }
 
-    pub fn into_vecs(self) -> RowsFrozen {
+    pub fn frozen(self) -> RowsFrozen {
         RowsFrozen {
             from: self.from.into_iter().collect(),
             filter: self.filter,
