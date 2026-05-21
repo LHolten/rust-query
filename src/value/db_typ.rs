@@ -1,7 +1,11 @@
 use std::{cell::OnceCell, marker::PhantomData, rc::Rc};
 
 use crate::{
-    Table, TableRow, Transaction, db::TableRowInner, lower, schema::canonical, value::EqTyp,
+    Table, TableRow, Transaction,
+    db::TableRowInner,
+    lower::{self, CONST_0, CONST_1},
+    schema::canonical,
+    value::EqTyp,
 };
 
 /// The types that can be used inside [crate::Expr].
@@ -140,13 +144,11 @@ impl DbTyp for jiff::civil::Date {
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::civil::Date {
     fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
-        let datetime = sea_query::Func::cust("date").arg(sea_query::Expr::col(col.clone()));
-        let ltrim = sea_query::Func::cust("ltrim")
-            .arg(datetime)
-            .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                "-".to_owned(),
-            ))));
-        Some(sea_query::Expr::col(col).is(ltrim))
+        let minus = Rc::new(lower::Expr::Constant("'-'"));
+
+        let datetime = Rc::new(lower::Expr::Func("date", Box::new([col.clone()])));
+        let ltrim = Rc::new(lower::Expr::Func("ltrim", Box::new([datetime, minus])));
+        Some(Rc::new(lower::Expr::Infix(col, "IS", ltrim)))
     }
 }
 
@@ -281,7 +283,10 @@ impl_typ!(
     bool,
     canonical::ColumnType::Integer,
     |x| x.as_i64().map(|x| x != 0),
-    |col| Some(sea_query::Expr::col(col).is_in([CONST_0, CONST_1]))
+    |col| Some(Rc::new(lower::Expr::In(
+        col,
+        Box::new([Rc::new(CONST_0), Rc::new(CONST_1)])
+    )))
 );
 impl_typ!(Vec<u8>, canonical::ColumnType::Blob, |x| x
     .as_blob()
