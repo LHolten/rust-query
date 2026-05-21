@@ -42,21 +42,17 @@ impl Cacher {
 #[derive(Clone, Copy)]
 pub(crate) struct Row<'x> {
     pub(crate) row: &'x rusqlite::Row<'x>,
-    pub(crate) fields: &'x [OrdRc<rusqlite::types::Value>],
+    pub(crate) fields: &'x [String],
 }
 
 impl<'x> Row<'x> {
-    pub(crate) fn new(
-        row: &'x rusqlite::Row<'x>,
-        fields: &'x [OrdRc<rusqlite::types::Value>],
-    ) -> Self {
+    pub(crate) fn new(row: &'x rusqlite::Row<'x>, fields: &'x [String]) -> Self {
         Self { row, fields }
     }
 
     pub fn get<T: DbTyp>(&self, val: Cached<T>) -> T {
-        let field = self.fields[val.idx].into_iden();
-        let idx = field.inner();
-        T::from_sql(self.row.get_ref_unwrap(&*idx)).unwrap()
+        let idx = &self.fields[val.idx];
+        T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
     }
 }
 

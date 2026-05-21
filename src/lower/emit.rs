@@ -34,7 +34,6 @@ impl Stmt {
     }
 }
 
-#[derive(Default)]
 pub struct Select {
     /// These are the tables that are grouped by
     /// These are joined distinct to not influence the aggregate
@@ -173,11 +172,8 @@ impl SelectFrozen {
                     .aggregate
                     .binary_search_by_key(&select_vec.as_ref(), |v| &v.rows)
                     .unwrap();
-                let select_idx = self.aggregate[aggr_idx]
-                    .select
-                    .binary_search(&expr)
-                    .unwrap();
-                write!(w, "a{aggr_idx}.s{select_idx}")
+                let alias = self.aggregate[aggr_idx].get_select_alias(expr);
+                write!(w, "a{aggr_idx}.{alias}")
             }
             Expr::RowIndex(row_like, col) => match row_like {
                 RowLike::Join(join) => {
@@ -218,6 +214,11 @@ impl SelectFrozen {
                 write!(w, ")")
             }
         }
+    }
+
+    pub fn get_select_alias(&self, expr: &Rc<Expr>) -> String {
+        let idx = self.select.binary_search(expr).unwrap();
+        format!("s{idx}")
     }
 }
 

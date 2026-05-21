@@ -555,7 +555,7 @@ impl<S: 'static> Transaction<S> {
         list.default(&format!("{0}.{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
 
         write!(&mut stmt, " WHERE {}.{} = ", Alias(T::NAME), Alias(T::ID)).unwrap();
-        stmt.write_param(&OrdRc(Rc::new(row.inner.idx)));
+        stmt.write_param(&OrdRc(Rc::new(row.inner.idx.into())));
 
         let res = TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
@@ -627,7 +627,8 @@ impl<S: Schema> TransactionWeak<S> {
             }) {
                 let mut stmt = emit::Stmt::default();
                 write!(&mut stmt, "SELECT ").unwrap();
-                stmt.write_param(&OrdRc(Rc::new(val.inner.idx))).unwrap();
+                stmt.write_param(&OrdRc(Rc::new(val.inner.idx.into())))
+                    .unwrap();
                 write!(
                     &mut stmt,
                     " IN (SELECT {0}.{1} FROM {0})",
@@ -647,7 +648,8 @@ impl<S: Schema> TransactionWeak<S> {
             Alias(T::ID)
         )
         .unwrap();
-        stmt.write_param(&OrdRc(Rc::new(val.inner.idx))).unwrap();
+        stmt.write_param(&OrdRc(Rc::new(val.inner.idx.into())))
+            .unwrap();
 
         TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();

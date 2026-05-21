@@ -11,7 +11,8 @@ use rusqlite::Connection;
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{
-    IntoExpr, lower,
+    IntoExpr,
+    lower::{self, emit, ord_rc::OrdRc},
     rows::Rows,
     select::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     transaction::TXN,
@@ -60,7 +61,7 @@ pub struct Iter<'inner, O> {
     inner: usize,
 
     prepared: DynPrepared<O>,
-    cached: Vec<MyAlias>,
+    cached: Vec<String>,
 }
 
 impl<O> Iterator for Iter<'_, O> {
@@ -129,27 +130,30 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
     }
 }
 
+enum Order {
+    Asc,
+    Desc,
+}
+
 /// This is the result of calling [Query::order_by].
 ///
 /// Use [Self::asc] and [Self::desc] to refine the order of the returned rows.
 #[derive(Clone)]
 pub struct OrderBy<'q, 't, 'inner, S> {
     query: &'q Query<'t, 'inner, S>,
-    order: Vec<(Rc<lower::Expr>, sea_query::Order)>,
+    order: Vec<(Rc<lower::Expr>, Order)>,
 }
 
 impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
     /// Add an additional value to sort on in ascending order.
     pub fn asc<'q, T: OrdTyp>(mut self, key: impl IntoExpr<'inner, S, Typ = T>) -> Self {
-        self.order
-            .push((key.into_expr().inner, sea_query::Order::Asc));
+        self.order.push((key.into_expr().inner, Order::Asc));
         self
     }
 
     /// Add an additional value to sort on in descending order.
     pub fn desc<'q, T: OrdTyp>(mut self, key: impl IntoExpr<'inner, S, Typ = T>) -> Self {
-        self.order
-            .push((key.into_expr().inner, sea_query::Order::Desc));
+        self.order.push((key.into_expr().inner, Order::Desc));
         self
     }
 
@@ -162,37 +166,49 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
     pub fn into_iter<O>(&self, select: impl IntoSelect<'inner, S, Out = O>) -> Iter<'t, O> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
-        let (select, cached) = self
-            .query
-            .ast
-            .clone()
-            .full()
-            .simple_ordered(cacher.columns, self.order.clone());
-        let (sql, values) = select.build_rusqlite(SqliteQueryBuilder);
+
+        let rows = self.query.ast.frozen();
+        let mut select = emit::Select::new(&rows);
+        for col in cacher.columns {
+            select.add_select(&rows, &col);
+        }
+        let select = select.frozen(rows);
+        let mut stmt = emit::Stmt::default();
+        select.emit(&mut stmt, false);
+
+        let cached_aliases = cacher
+            .columns
+            .iter()
+            .map(|expr| select.get_select_alias(expr))
+            .collect();
 
         TXN.with_borrow_mut(|txn| {
             let combi = txn.as_mut().unwrap();
 
             combi.with_dependent_mut(|conn, rows_store| {
-                track_stmt(conn.get(), &sql, &values);
-                let statement = MutBorrow::new(conn.get().prepare_cached(&sql).unwrap());
+                track_stmt(conn.get(), &stmt.sql, &stmt.params);
+                let cached = MutBorrow::new(conn.get().prepare_cached(&stmt.sql).unwrap());
 
-                let idx = rows_store.insert(OwnedRows::new(statement, |stmt| {
-                    stmt.borrow_mut().query(&*values.as_params()).unwrap()
+                let idx = rows_store.insert(OwnedRows::new(cached, |cached| {
+                    cached.borrow_mut().query(&stmt.params).unwrap()
                 }));
 
                 Iter {
                     inner: idx,
                     inner_phantom: PhantomData,
                     prepared,
-                    cached,
+                    cached: cached_aliases,
                 }
             })
         })
     }
 }
 
-pub(crate) fn track_stmt(conn: &Connection, sql: &String, values: &RusqliteValues) {
+pub(crate) fn track_stmt(
+    conn: &Connection,
+    sql: &String,
+    values: &[OrdRc<rusqlite::types::Value>],
+) {
     if COLLECT.get() {
         SQL_AND_PLAN.with_borrow_mut(|map| {
             map.entry(sql.clone())
@@ -214,7 +230,7 @@ pub fn get_plan<R>(f: impl FnOnce() -> R) -> (R, BTreeMap<String, Node>) {
     (res, SQL_AND_PLAN.take())
 }
 
-fn get_node(conn: &Connection, values: &RusqliteValues, sql: &str) -> Node {
+fn get_node(conn: &Connection, values: &[OrdRc<rusqlite::types::Value>], sql: &str) -> Node {
     let mut prepared = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
     let rows = prepared
         .query_map(&*values.as_params(), |row| {
