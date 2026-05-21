@@ -625,41 +625,44 @@ impl<S: Schema> TransactionWeak<S> {
                     .is_some_and(|(t, c)| t == T::NAME && c == T::ID)
                     .then_some(col_name)
             }) {
-                let stmt = SelectStatement::new()
-                    .expr(
-                        val.inner.idx.in_subquery(
-                            SelectStatement::new()
-                                .from(table_name)
-                                .column(Alias::new(col))
-                                .take(),
-                        ),
-                    )
-                    .take();
-                checks.push(stmt.build_rusqlite(SqliteQueryBuilder));
+                let mut stmt = emit::Stmt::default();
+                write!(&mut stmt, "SELECT ").unwrap();
+                stmt.write_param(&OrdRc(Rc::new(val.inner.idx))).unwrap();
+                write!(
+                    &mut stmt,
+                    " IN (SELECT {0}.{1} FROM {0})",
+                    Alias(table_name),
+                    Alias(col)
+                )
+                .unwrap();
+                checks.push(stmt);
             }
         }
 
-        let stmt = DeleteStatement::new()
-            .from_table(("main", T::NAME))
-            .cond_where(Expr::col(("main", T::NAME, T::ID)).eq(val.inner.idx))
-            .take();
-
-        let (query, args) = stmt.build_rusqlite(SqliteQueryBuilder);
+        let mut stmt = emit::Stmt::default();
+        write!(
+            &mut stmt,
+            "DELETE FROM {0} WHERE {0}.{1} = ",
+            Alias(T::NAME),
+            Alias(T::ID)
+        )
+        .unwrap();
+        stmt.write_param(&OrdRc(Rc::new(val.inner.idx))).unwrap();
 
         TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
 
-            for (query, args) in checks {
-                let mut stmt = txn.prepare_cached(&query).unwrap();
-                match stmt.query_one(&*args.as_params(), |r| r.get(0)) {
+            for stmt in checks {
+                let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
+                match cached.query_one(&stmt.params, |r| r.get(0)) {
                     Ok(true) => return Err(T::get_referer_unchecked()),
                     Ok(false) => {}
                     Err(err) => panic!("{err:?}"),
                 }
             }
 
-            let mut stmt = txn.prepare_cached(&query).unwrap();
-            match stmt.execute(&*args.as_params()) {
+            let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
+            match stmt.execute(&stmt.params) {
                 Ok(0) => Ok(false),
                 Ok(1) => Ok(true),
                 Ok(n) => {
