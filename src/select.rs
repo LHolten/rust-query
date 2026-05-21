@@ -42,13 +42,13 @@ impl Cacher {
 #[derive(Clone, Copy)]
 pub(crate) struct Row<'x> {
     pub(crate) row: &'x rusqlite::Row<'x>,
-    pub(crate) fields: &'x [OrdRc<dyn rusqlite::ToSql>],
+    pub(crate) fields: &'x [OrdRc<rusqlite::types::Value>],
 }
 
 impl<'x> Row<'x> {
     pub(crate) fn new(
         row: &'x rusqlite::Row<'x>,
-        fields: &'x [OrdRc<dyn rusqlite::ToSql>],
+        fields: &'x [OrdRc<rusqlite::types::Value>],
     ) -> Self {
         Self { row, fields }
     }

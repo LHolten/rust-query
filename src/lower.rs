@@ -16,7 +16,7 @@ pub const CONST_NULL: Expr = Expr::Constant("NULL");
 pub enum JoinableTable {
     Table(&'static str),
     Tmp(TmpTable),
-    Pragma(&'static str, Vec<OrdRc<dyn rusqlite::ToSql>>),
+    Pragma(&'static str, Vec<OrdRc<rusqlite::types::Value>>),
     // Vec(OrdRc<Vec<rusqlite::types::Value>>),
 }
 
@@ -39,7 +39,7 @@ pub enum RowLike {
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Expr {
     Constant(&'static str),
-    Parameter(OrdRc<dyn rusqlite::ToSql>),
+    Parameter(OrdRc<rusqlite::types::Value>),
     AggrIndex(RowsFrozen, Rc<Expr>),
     RowIndex(RowLike, &'static str),
     Prefix(&'static str, Rc<Expr>),

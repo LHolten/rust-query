@@ -2,7 +2,7 @@ use crate::{lower::ord_rc::OrdRc, value::DbTyp};
 
 #[derive(Default)]
 pub struct Reader {
-    pub(crate) builder: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
+    pub(crate) builder: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
 }
 
 impl Reader {

@@ -4,8 +4,6 @@ use std::{
     rc::Rc,
 };
 
-use rusqlite::ToSql;
-
 use crate::lower::{
     Expr, Join, JoinableTable, RowLike, RowsFrozen, Unique,
     list_writer::{Alias, ListWriter},
@@ -15,7 +13,7 @@ use crate::lower::{
 #[derive(Default)]
 pub struct Stmt {
     pub sql: String,
-    pub params: Vec<OrdRc<dyn ToSql>>,
+    pub params: Vec<OrdRc<rusqlite::types::Value>>,
 }
 
 impl Write for Stmt {
@@ -25,7 +23,7 @@ impl Write for Stmt {
 }
 
 impl Stmt {
-    pub fn write_param(&mut self, param: &OrdRc<dyn ToSql>) -> fmt::Result {
+    pub fn write_param(&mut self, param: &OrdRc<rusqlite::types::Value>) -> fmt::Result {
         let position = self.params.iter().position(|x| x == param);
         let pos = position.unwrap_or_else(|| {
             let pos = self.params.len();
@@ -210,6 +208,15 @@ impl SelectFrozen {
                 }
                 write!(w, ")")
             }
+            Expr::In(val, list) => {
+                self.emit_expr(w, val)?;
+                write!(w, " IN (")?;
+                let mut list = ListWriter::new(w, ", ");
+                for expr in list {
+                    self.emit_expr(list.item()?, expr)?;
+                }
+                write!(w, ")")
+            }
         }
     }
 }
@@ -281,6 +288,12 @@ impl Select {
             }
             Expr::Func(_func, exprs) => {
                 for expr in exprs.as_ref() {
+                    self.analyze(rows, expr);
+                }
+            }
+            Expr::In(val, list) => {
+                self.analyze(rows, val);
+                for expr in list {
                     self.analyze(rows, expr);
                 }
             }

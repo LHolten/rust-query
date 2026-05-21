@@ -23,7 +23,7 @@ pub trait DbTyp: Sized + 'static {
 
     fn migrate(prev: Self::Prev) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
-    fn out_to_value(self) -> Rc<dyn rusqlite::ToSql>;
+    fn out_to_value(self) -> Rc<rusqlite::types::Value>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>
@@ -52,11 +52,11 @@ impl DbTyp for jiff::Timestamp {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
-    fn out_to_value(self) -> sea_query::Value {
+    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
         // check that year is positive
         assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
         // Use space instead of `T` for date and time separator
-        sea_query::Value::String(Some(self.strftime("%F %T%.f").to_string()))
+        rusqlite::types::Value::String(Some(self.strftime("%F %T%.f").to_string()))
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -117,13 +117,13 @@ impl DbTyp for jiff::civil::Date {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
-    fn out_to_value(self) -> sea_query::Value {
+    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
         // check that year is positive
         assert!(
             self.year() >= 0,
             "only dates with a year that is greater than or equal to zero can be used"
         );
-        sea_query::Value::String(Some(self.to_string()))
+        rusqlite::types::Value::String(Some(self.to_string()))
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -166,7 +166,7 @@ impl<T: Table> DbTyp for TableRow<T> {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         TableRow::migrate_row(lazy.table_row())
     }
-    fn out_to_value(self) -> sea_query::Value {
+    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
         self.inner.idx.into()
     }
     type Lazy<'t> = crate::Lazy<'t, T>;
@@ -210,9 +210,9 @@ impl<T: EqTyp> DbTyp for Option<T> {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         lazy.as_ref().map(T::from_lazy)
     }
-    fn out_to_value(self) -> sea_query::Value {
+    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
         self.map(T::out_to_value)
-            .unwrap_or(sea_query::Value::Bool(None))
+            .unwrap_or(rusqlite::types::Value::Bool(None))
     }
     type Lazy<'t> = Option<T::Lazy<'t>>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -252,7 +252,7 @@ macro_rules! impl_typ {
             fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
                 lazy.clone()
             }
-            fn out_to_value(self) -> sea_query::Value {
+            fn out_to_value(self) -> Rc<rusqlite::types::Value> {
                 self.into()
             }
             type Lazy<'t> = Self;
@@ -340,7 +340,7 @@ fn jiff_check_constraint() {
             jiff::Timestamp::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
         assert_eq!(
             ts.out_to_value(),
-            sea_query::Value::String(Some(good.to_owned()))
+            rusqlite::types::Value::String(good.to_owned())
         )
     }
 
@@ -393,7 +393,7 @@ fn jiff_check_constraint_date() {
             jiff::civil::Date::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
         assert_eq!(
             ts.out_to_value(),
-            sea_query::Value::String(Some(good.to_owned()))
+            rusqlite::types::Value::String(good.to_owned())
         )
     }
 

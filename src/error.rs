@@ -56,7 +56,7 @@ pub(crate) trait FromConflict {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: &'static str,
-        cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
+        cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         msg: String,
     ) -> Self;
 }
@@ -65,7 +65,7 @@ impl FromConflict for Infallible {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: &'static str,
-        _cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
+        _cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         _msg: String,
     ) -> Self {
         unreachable!()
@@ -76,7 +76,7 @@ impl<T: Table<Conflict = Self>> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: &'static str,
-        _cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
+        _cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         msg: String,
     ) -> Self {
         Self {
@@ -103,7 +103,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: &'static str,
-        mut cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
+        mut cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         _msg: String,
     ) -> Self {
         let unique_columns = get_unique_columns::<T>();

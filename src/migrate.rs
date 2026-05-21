@@ -129,7 +129,7 @@ impl<S: Schema> Database<S> {
                     let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
                     let seconds = ctx.get::<i64>(1)?;
                     let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
-                    let sea_query::Value::String(Some(res)) = jiff::Timestamp::out_to_value(new)
+                    let rusqlite::types::Value::String(res) = jiff::Timestamp::out_to_value(new)
                     else {
                         unreachable!("func always returns some string")
                     };
@@ -194,7 +194,7 @@ impl<S: Schema> Database<S> {
                         .parse_time_zone(ctx.get_raw(1).as_str()?)
                         .expect("time zone was serialized with jiff");
                     let date = timezone.to_datetime(timestamp).date();
-                    let sea_query::Value::String(Some(res)) = jiff::civil::Date::out_to_value(date)
+                    let rusqlite::types::Value::String(res) = jiff::civil::Date::out_to_value(date)
                     else {
                         unreachable!("func always returns some string")
                     };
