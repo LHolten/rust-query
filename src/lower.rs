@@ -9,6 +9,8 @@ use ord_rc::OrdRc;
 
 pub const CONST_1: Expr = Expr::Constant("1");
 pub const CONST_0: Expr = Expr::Constant("0");
+pub const CONST_FALSE: Expr = Expr::Constant("false");
+pub const CONST_NULL: Expr = Expr::Constant("NULL");
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {

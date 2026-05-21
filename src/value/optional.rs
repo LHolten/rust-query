@@ -1,7 +1,8 @@
 use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
-    IntoSelect, lower,
+    IntoSelect,
+    lower::{self, CONST_NULL},
     select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
     value::EqTyp,
 };
@@ -108,13 +109,12 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// ```
     pub fn is_none(&self) -> Expr<'outer, S, bool> {
         let nulls = self.nulls.clone();
-        Expr::adhoc(move |b| {
+        Expr::new(
             nulls
-                .iter()
-                .map(|x| (x.func)(b))
-                .reduce(|a, b| a.or(b))
-                .unwrap_or(false.into())
-        })
+                .into_iter()
+                .reduce(|a, b| Rc::new(lower::Expr::Infix(a, "OR", b)))
+                .unwrap_or(Rc::new(lower::CONST_FALSE)),
+        )
     }
 
     /// Return a [bool] column indicating whether the current row exists.
@@ -155,15 +155,12 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         &self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'outer, S, Option<T>> {
-        const NULL: sea_query::Expr = sea_query::Expr::Keyword(sea_query::Keyword::Null);
-
         let col = col.into_expr().inner;
         let is_none = self.is_none().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Expr::case(is_none.build_expr(b), NULL)
-                .finally(col.build_expr(b))
-                .into()
-        })
+        Expr::adhoc(lower::Expr::Func(
+            "iif",
+            Box::new([is_none, Rc::new(CONST_NULL), col]),
+        ))
     }
 
     /// Return [Some] column if the current row exists and [None] column otherwise.
