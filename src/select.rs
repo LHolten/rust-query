@@ -1,10 +1,6 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use crate::{
-    Expr,
-    lower::{self, ord_rc::OrdRc},
-    value::DbTyp,
-};
+use crate::{Expr, lower, value::DbTyp};
 
 /// Opaque type used to implement [crate::Select].
 pub(crate) struct Cacher {

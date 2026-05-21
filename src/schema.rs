@@ -18,13 +18,13 @@ use crate::schema::{
 };
 
 impl ColumnType {
-    pub fn sea_type(&self) -> sea_query::ColumnType {
+    pub fn rusqlite_type(&self) -> &'static str {
         match self {
-            ColumnType::Integer => T::Integer,
-            ColumnType::Real => T::custom("REAL"),
-            ColumnType::Text => T::Text,
-            ColumnType::Blob => T::Blob,
-            ColumnType::Any => T::custom("ANY"),
+            ColumnType::Integer => "INTEGER",
+            ColumnType::Real => "REAL",
+            ColumnType::Text => "TEXT",
+            ColumnType::Blob => "BLOB",
+            ColumnType::Any => "ANY",
         }
     }
 }
@@ -92,7 +92,7 @@ impl Table {
         for (name, col) in &self.columns {
             let col = &col.def;
             let name = Alias::new(name);
-            let mut def = ColumnDef::new_with_type(name.clone(), col.typ.sea_type());
+            let mut def = ColumnDef::new_with_type(name.clone(), col.typ.rusqlite_type());
             if col.nullable {
                 def.null();
             } else {

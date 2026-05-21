@@ -10,10 +10,7 @@ pub mod optional;
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
 use crate::{
-    IntoExpr, IntoSelect, Select, Table,
-    db::TableRow,
-    lower::{self, ord_rc::OrdRc},
-    mutable::Mutable,
+    IntoExpr, IntoSelect, Select, Table, db::TableRow, lower, mutable::Mutable,
     private::IntoJoinable,
 };
 pub use db_typ::{DbTyp, StorableTyp};
@@ -165,23 +162,22 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
     let possible_null = table.maybe_optional;
-    Expr::adhoc(move |b| {
-        let main_column = table.build_expr(b);
-        b.get_join::<T>(main_column, table.maybe_optional, name)
-    })
+    let unique = Rc::new(lower::Unique {
+        table: lower::JoinableTable::Table(T::NAME),
+        conds: vec![(T::ID, table)],
+    });
+    Expr::adhoc(lower::Expr::RowIndex(lower::RowLike::Unique(unique), name))
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(
     j: impl IntoJoinable<'inner, T::Schema, Typ = TableRow<T>>,
 ) -> Expr<'inner, T::Schema, Option<TableRow<T>>> {
-    let list = j.into_joinable().conds;
-    ::rust_query::private::adhoc_expr(move |_b| {
-        let list = list
-            .iter()
-            .map(|(name, col)| (*name, (col.func)(_b)))
-            .collect();
-        _b.get_unique::<T>(list)
-    })
+    let joinable = j.into_joinable();
+    let unique = Rc::new(lower::Unique {
+        table: joinable.table,
+        conds: joinable.conds,
+    });
+    Expr::adhoc(lower::Expr::RowIndex(lower::RowLike::Unique(unique), T::ID))
 }
 
 pub struct AdHoc<F: ?Sized, T: ?Sized> {

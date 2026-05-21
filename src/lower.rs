@@ -25,9 +25,9 @@ pub enum JoinableTable {
 struct Join(OrdRc<JoinableTable>);
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Unique {
-    table: JoinableTable,
-    conds: Vec<(&'static str, Rc<Expr>)>,
+pub struct Unique {
+    pub table: JoinableTable,
+    pub conds: Vec<(&'static str, Rc<Expr>)>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
