@@ -1,4 +1,4 @@
-mod emit;
+pub(crate) mod emit;
 pub(crate) mod list_writer;
 pub(crate) mod ord_rc;
 
@@ -65,7 +65,7 @@ impl Expr {
 }
 
 /// Select can have multiple results.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Select {
     /// There is at most one result for every combinator of rows in the `from` tables.
     /// BTreeSet is used for easier lookup.

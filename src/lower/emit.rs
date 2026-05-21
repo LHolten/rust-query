@@ -12,9 +12,10 @@ use crate::lower::{
     ord_rc::OrdRc,
 };
 
-struct Stmt {
-    sql: String,
-    params: Vec<OrdRc<dyn ToSql>>,
+#[derive(Default)]
+pub struct Stmt {
+    pub sql: String,
+    pub params: Vec<OrdRc<dyn ToSql>>,
 }
 
 impl Write for Stmt {
@@ -35,12 +36,13 @@ impl Stmt {
     }
 }
 
-struct SelectInfo {
+#[derive(Default)]
+pub struct SelectInfo {
     /// These are the tables that are grouped by
     /// These are joined distinct to not influence the aggregate
     forwarded: BTreeSet<Join>,
     // unique and aggregate are similar, they don't change number of rows
-    aggregate: BTreeMap<Rc<SelectVec>, SelectInfo>,
+    aggregate: BTreeMap<SelectVec, SelectInfo>,
     unique: BTreeSet<Unique>,
     // The results returned from the aggregate or select
     select: BTreeSet<Rc<Expr>>,
@@ -48,7 +50,7 @@ struct SelectInfo {
 
 // All the information required to write sql
 struct SelectInfoVecs {
-    rows: Rc<SelectVec>,
+    rows: SelectVec,
     forwarded: Vec<Join>,
     aggregate: Vec<SelectInfoVecs>,
     unique: Vec<Unique>,
@@ -57,7 +59,7 @@ struct SelectInfoVecs {
 
 impl SelectInfo {
     /// rows provided should be the same as those that self was created with.
-    pub fn into_vecs(self, rows: Rc<SelectVec>) -> SelectInfoVecs {
+    pub fn into_vecs(self, rows: SelectVec) -> SelectInfoVecs {
         SelectInfoVecs {
             rows,
             forwarded: self.forwarded.into_iter().collect(),
@@ -155,7 +157,7 @@ impl SelectInfoVecs {
         Ok(())
     }
 
-    pub fn emit_joinable(&self, w: &mut Stmt, joinable: &JoinableTable) -> fmt::Result {
+    fn emit_joinable(&self, w: &mut Stmt, joinable: &JoinableTable) -> fmt::Result {
         match joinable {
             JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
             JoinableTable::Tmp(tmp) => write!(w, "main._tmp{}", tmp.name),
@@ -170,7 +172,7 @@ impl SelectInfoVecs {
         }
     }
 
-    pub fn emit_join(&self, w: &mut Stmt, join: &Join) -> fmt::Result {
+    fn emit_join(&self, w: &mut Stmt, join: &Join) -> fmt::Result {
         if let Ok(idx) = self.rows.from.binary_search(join) {
             write!(w, "j{idx}")
         } else {
@@ -179,7 +181,7 @@ impl SelectInfoVecs {
         }
     }
 
-    pub fn emit_expr(&self, w: &mut Stmt, expr: &Expr) -> fmt::Result {
+    fn emit_expr(&self, w: &mut Stmt, expr: &Expr) -> fmt::Result {
         match expr {
             Expr::Constant(c) => write!(w, "{c}"),
             Expr::Parameter(param) => w.write_param(param),

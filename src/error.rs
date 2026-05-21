@@ -1,6 +1,10 @@
-use std::{borrow::Cow, convert::Infallible, fmt::Debug, marker::PhantomData};
+use std::{borrow::Cow, convert::Infallible, fmt::Debug, marker::PhantomData, rc::Rc};
 
-use crate::{Table, TableRow, db::TableRowInner, lower};
+use crate::{
+    Table, TableRow,
+    db::TableRowInner,
+    lower::{self, emit},
+};
 
 /// Error type that is used by [crate::Transaction::insert] and [crate::Mutable::unique] when
 /// there are at least two unique constraints.
@@ -52,7 +56,7 @@ pub(crate) trait FromConflict {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: &'static str,
-        cols: Vec<(&'static str, lower::Expr)>,
+        cols: Vec<(&'static str, Rc<lower::Expr>)>,
         msg: String,
     ) -> Self;
 }
@@ -61,7 +65,7 @@ impl FromConflict for Infallible {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: &'static str,
-        _cols: Vec<(&'static str, lower::Expr)>,
+        _cols: Vec<(&'static str, Rc<lower::Expr>)>,
         _msg: String,
     ) -> Self {
         unreachable!()
@@ -72,7 +76,7 @@ impl<T: Table<Conflict = Self>> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: &'static str,
-        _cols: Vec<(&'static str, lower::Expr)>,
+        _cols: Vec<(&'static str, Rc<lower::Expr>)>,
         msg: String,
     ) -> Self {
         Self {
@@ -99,7 +103,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: &'static str,
-        mut cols: Vec<(&'static str, lower::Expr)>,
+        mut cols: Vec<(&'static str, Rc<lower::Expr>)>,
         _msg: String,
     ) -> Self {
         let unique_columns = get_unique_columns::<T>();
@@ -107,27 +111,35 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         cols.retain(|(name, _val)| unique_columns.contains(&Cow::Borrowed(*name)));
         assert_eq!(cols.len(), unique_columns.len());
 
-        let mut select = SelectStatement::new()
-            .from(("main", table.clone()))
-            .column((table.clone(), T::ID))
-            .take();
+        let mut select = Rc::new(lower::Select::default());
+        let join = select.join(lower::JoinableTable::Table(table));
 
         for (col, val) in cols {
-            select.cond_where(val.equals((table.clone(), col)));
+            let table_val = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), col));
+            select.filter(Rc::new(lower::Expr::Infix(val, "=", table_val)));
         }
 
-        let (query, args) = select.build_rusqlite(SqliteQueryBuilder);
+        let select = select.into_vecs();
+        let mut info = emit::SelectInfo::new(&select);
 
-        let mut stmt = txn.prepare_cached(&query).unwrap();
-        stmt.query_one(&*args.as_params(), |row| {
-            Ok(Self {
-                _local: PhantomData,
-                inner: TableRowInner {
-                    _p: PhantomData,
-                    idx: row.get(0)?,
-                },
+        let id = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), T::ID));
+        info.add_select(&select, &id);
+        let info = info.into_vecs(select);
+
+        let mut stmt = emit::Stmt::default();
+        info.emit(&mut stmt, false).unwrap();
+
+        let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
+        cached
+            .query_one(&stmt.params, |row| {
+                Ok(Self {
+                    _local: PhantomData,
+                    inner: TableRowInner {
+                        _p: PhantomData,
+                        idx: row.get(0)?,
+                    },
+                })
             })
-        })
-        .unwrap()
+            .unwrap()
     }
 }
