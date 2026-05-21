@@ -1,4 +1,6 @@
-use std::{cell::RefCell, convert::Infallible, marker::PhantomData, sync::atomic::AtomicI64};
+use std::{
+    cell::RefCell, convert::Infallible, marker::PhantomData, rc::Rc, sync::atomic::AtomicI64,
+};
 
 use rusqlite::ErrorCode;
 use self_cell::{MutBorrow, self_cell};
@@ -6,6 +8,11 @@ use self_cell::{MutBorrow, self_cell};
 use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
     error::FromConflict,
+    lower::{
+        self, emit,
+        list_writer::{Alias, ListWriter},
+        ord_rc::OrdRc,
+    },
     migrate::{Schema, check_schema, schema_version, user_version},
     migration::Config,
     mutable::Mutable,
@@ -533,17 +540,28 @@ impl<S: 'static> Transaction<S> {
         let mut reader = Reader::default();
         T::read(&val, &mut reader);
 
-        let (query, args) = UpdateStatement::new()
-            .table(("main", T::NAME))
-            .values(reader.builder.clone())
-            .cond_where(Expr::col((T::NAME, T::ID)).eq(row.inner.idx))
-            .build_rusqlite(SqliteQueryBuilder);
+        let mut stmt = emit::Stmt::default();
+        write!(&mut stmt, "UPDATE ").unwrap();
+        lower::JoinableTable::Table(T::NAME)
+            .emit(&mut stmt)
+            .unwrap();
+
+        write!(&mut stmt, " SET ").unwrap();
+        let mut list = ListWriter::new(&mut stmt, ", ");
+        for (key, val) in reader.builder {
+            write!(&mut list, "{}.{} = ", Alias(T::NAME), Alias(key)).unwrap();
+            list.write_param(val).unwrap();
+        }
+        list.default(&format!("{0}.{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
+
+        write!(&mut stmt, " WHERE {}.{} = ", Alias(T::NAME), Alias(T::ID)).unwrap();
+        stmt.write_param(&OrdRc(Rc::new(row.inner.idx)));
 
         let res = TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
 
-            let mut stmt = txn.prepare_cached(&query).unwrap();
-            stmt.execute(&*args.as_params())
+            let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
+            cached.execute(&stmt.params)
         });
 
         match res {

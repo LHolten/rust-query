@@ -3,7 +3,7 @@ use std::{borrow::Cow, convert::Infallible, fmt::Debug, marker::PhantomData, rc:
 use crate::{
     Table, TableRow,
     db::TableRowInner,
-    lower::{self, emit},
+    lower::{self, emit, ord_rc::OrdRc},
 };
 
 /// Error type that is used by [crate::Transaction::insert] and [crate::Mutable::unique] when
@@ -56,7 +56,7 @@ pub(crate) trait FromConflict {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: &'static str,
-        cols: Vec<(&'static str, Rc<lower::Expr>)>,
+        cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
         msg: String,
     ) -> Self;
 }
@@ -65,7 +65,7 @@ impl FromConflict for Infallible {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: &'static str,
-        _cols: Vec<(&'static str, Rc<lower::Expr>)>,
+        _cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
         _msg: String,
     ) -> Self {
         unreachable!()
@@ -76,7 +76,7 @@ impl<T: Table<Conflict = Self>> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
         _table: &'static str,
-        _cols: Vec<(&'static str, Rc<lower::Expr>)>,
+        _cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
         msg: String,
     ) -> Self {
         Self {
@@ -103,7 +103,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
         table: &'static str,
-        mut cols: Vec<(&'static str, Rc<lower::Expr>)>,
+        mut cols: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
         _msg: String,
     ) -> Self {
         let unique_columns = get_unique_columns::<T>();
@@ -116,6 +116,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
 
         for (col, val) in cols {
             let table_val = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), col));
+            let val = Rc::new(lower::Expr::Parameter(val));
             select.filter(Rc::new(lower::Expr::Infix(val, "=", table_val)));
         }
 

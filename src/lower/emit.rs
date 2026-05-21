@@ -25,7 +25,7 @@ impl Write for Stmt {
 }
 
 impl Stmt {
-    fn write_param(&mut self, param: &OrdRc<dyn ToSql>) -> fmt::Result {
+    pub fn write_param(&mut self, param: &OrdRc<dyn ToSql>) -> fmt::Result {
         let position = self.params.iter().position(|x| x == param);
         let pos = position.unwrap_or_else(|| {
             let pos = self.params.len();
@@ -97,19 +97,19 @@ impl SelectFrozen {
             let mut list = ListWriter::new(w, ", ");
             for (join_idx, join) in self.rows.from.iter().enumerate() {
                 let list_item = list.item()?;
-                self.emit_joinable(list_item, &join.0)?;
+                join.0.emit(list_item)?;
                 write!(list_item, " AS j{join_idx}")?;
             }
             for (forwarded_idx, forwarded) in self.forwarded.iter().enumerate() {
                 let list_item = list.item()?;
-                self.emit_joinable(list_item, &forwarded.0)?;
+                forwarded.0.emit(list_item)?;
                 write!(list_item, " AS f{forwarded_idx}")?;
             }
             list.default("(SELECT 1)")?;
 
             for (unique_idx, unique) in self.unique.iter().enumerate() {
                 write!(w, " JOIN ")?;
-                self.emit_joinable(w, &unique.table)?;
+                unique.table.emit(w)?;
                 write!(w, " AS u{unique_idx}")?;
                 if !unique.conds.is_empty() {
                     write!(w, " ON ")?;
@@ -155,21 +155,6 @@ impl SelectFrozen {
         }
 
         Ok(())
-    }
-
-    fn emit_joinable(&self, w: &mut Stmt, joinable: &JoinableTable) -> fmt::Result {
-        match joinable {
-            JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
-            JoinableTable::Tmp(tmp) => write!(w, "main._tmp{}", tmp.name),
-            JoinableTable::Pragma(func, params) => {
-                write!(w, "{func}(")?;
-                let mut list = ListWriter::new(w, ", ");
-                for param in params {
-                    list.item()?.write_param(param)?;
-                }
-                write!(w, ")")
-            }
-        }
     }
 
     fn emit_join(&self, w: &mut Stmt, join: &Join) -> fmt::Result {
@@ -222,6 +207,23 @@ impl SelectFrozen {
                 let mut list = ListWriter::new(w, ", ");
                 for expr in exprs.as_ref() {
                     self.emit_expr(list.item()?, expr)?;
+                }
+                write!(w, ")")
+            }
+        }
+    }
+}
+
+impl JoinableTable {
+    pub fn emit(&self, w: &mut Stmt) -> fmt::Result {
+        match self {
+            JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
+            JoinableTable::Tmp(tmp) => write!(w, "main._tmp{}", tmp.name),
+            JoinableTable::Pragma(func, params) => {
+                write!(w, "{func}(")?;
+                let mut list = ListWriter::new(w, ", ");
+                for param in params {
+                    list.item()?.write_param(param)?;
                 }
                 write!(w, ")")
             }

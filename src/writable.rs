@@ -1,10 +1,9 @@
-use crate::value::DbTyp;
+use crate::{lower::ord_rc::OrdRc, value::DbTyp};
 
 #[derive(Default)]
 pub struct Reader {
-    pub(crate) builder: Vec<(&'static str, sea_query::Expr)>,
+    pub(crate) builder: Vec<(&'static str, OrdRc<dyn rusqlite::ToSql>)>,
 }
-
 
 impl Reader {
     pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {

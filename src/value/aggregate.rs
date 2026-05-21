@@ -35,6 +35,9 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// otherwise there is a chance that there are multiple rows.
     fn select_func(&self, agg_func: &'static str, val: Rc<lower::Expr>) -> Rc<lower::Expr> {
         let expr = Rc::new(lower::Expr::Func(agg_func, Box::new([val])));
+        // freezing the same rows multiple times should result in the same frozen rows
+        // which are later deduplicated because frozen rows are used as a key.
+        // TODO: maybe this can be made more efficient.
         Rc::new(lower::Expr::AggrIndex(self.ast.clone().frozen(), expr))
     }
 
