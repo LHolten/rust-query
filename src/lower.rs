@@ -46,6 +46,7 @@ pub enum Expr {
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
     Func(&'static str, Box<[Rc<Expr>]>),
     In(Rc<Expr>, Box<[Rc<Expr>]>),
+    Cast(Rc<Expr>, &'static str),
 }
 
 impl Expr {
