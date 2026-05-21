@@ -5,11 +5,9 @@ use std::{
 };
 
 use crate::{
-    Expr, IntoExpr,
-    ast::CONST_0,
-    lower,
+    Expr, IntoExpr, lower,
     rows::Rows,
-    value::{AdHoc, EqTyp, NumTyp, ValueBuilder},
+    value::{EqTyp, NumTyp},
 };
 
 /// This is the argument type used for [aggregate].
@@ -35,25 +33,9 @@ impl<S> DerefMut for Aggregate<'_, '_, S> {
 impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// This must be used with an aggregating expression.
     /// otherwise there is a chance that there are multiple rows.
-    fn select<T: EqTyp>(
-        &self,
-        expr: Rc<lower::Expr>,
-    ) -> Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, Option<T>>> {
-        let mut builder = self.query.ast.clone().full();
-        let (select, mut fields) = builder.build_select(vec![expr], Vec::new());
-
-        let conds: Vec<_> = builder.forwarded.into_iter().map(|(x, _)| x).collect();
-
-        let select = Rc::new(select);
-        let field = {
-            debug_assert_eq!(fields.len(), 1);
-            fields.swap_remove(0)
-        };
-
-        Expr::<S, _>::adhoc(move |b| {
-            sea_query::Expr::col((b.get_aggr(select.clone(), conds.clone()), field))
-        })
-        .inner
+    fn select_func(&self, agg_func: &'static str, val: Rc<lower::Expr>) -> Rc<lower::Expr> {
+        let expr = Rc::new(lower::Expr::Func(agg_func, Box::new([val])));
+        Rc::new(lower::Expr::AggrIndex(self.ast.clone(), expr))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.
@@ -77,7 +59,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// ```
     pub fn avg(&self, val: impl IntoExpr<'inner, S, Typ = f64>) -> Expr<'outer, S, Option<f64>> {
         let val = val.into_expr().inner;
-        Expr::new(self.select(move |b| Func::avg(val.build_expr(b)).into()))
+        Expr::new(self.select_func("avg", val))
     }
 
     /// Return the maximum value in a column, this is [None] if there are zero rows.
@@ -104,7 +86,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: EqTyp,
     {
         let val = val.into_expr().inner;
-        Expr::new(self.select(move |b| Func::max(val.build_expr(b)).into()))
+        Expr::new(self.select_func("max", val))
     }
 
     /// Return the minimum value in a column, this is [None] if there are zero rows.
@@ -131,7 +113,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: EqTyp,
     {
         let val = val.into_expr().inner;
-        Expr::new(self.select(move |b| Func::min(val.build_expr(b)).into()))
+        Expr::new(self.select_func("min", val))
     }
 
     /// Return the sum of a column.
@@ -158,11 +140,12 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         T: NumTyp,
     {
         let val = val.into_expr().inner;
-        let val = self.select::<T>(move |b| Func::sum(val.build_expr(b)).into());
+        let val = self.select_func("sum", val);
 
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(val.build_expr(b)).if_null(sea_query::Expr::Constant(T::ZERO))
-        })
+        Expr::adhoc(lower::Expr::Func(
+            "IFNULL",
+            Box::new([val, Rc::new(lower::Expr::Constant(T::ZERO))]),
+        ))
     }
 
     /// Return the number of distinct values in a column.
@@ -189,11 +172,12 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, i64> {
         let val = val.into_expr().inner;
-        let val = self.select::<i64>(move |b| Func::count_distinct(val.build_expr(b)).into());
-        Expr::adhoc(move |b| {
-            // technically the `if_null` here is only required for correlated sub queries
-            sea_query::Expr::expr(val.build_expr(b)).if_null(sea_query::Expr::Constant(0i64.into()))
-        })
+        let val = self.select_func("COUNT", val);
+        // technically the `if_null` here is only required for correlated sub queries
+        Expr::adhoc(lower::Expr::Func(
+            "IFNULL",
+            Box::new([val, Rc::new(lower::Expr::Constant(i64::ZERO))]),
+        ))
     }
 
     /// Return whether there are any rows.
@@ -216,7 +200,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// # });
     /// ```
     pub fn exists(&self) -> Expr<'outer, S, bool> {
-        let zero_expr = Expr::<_, i64>::adhoc(|_| CONST_0);
+        let zero_expr = Expr::<_, i64>::adhoc(lower::CONST_0);
         self.count_distinct(zero_expr.clone()).neq(zero_expr)
     }
 }

@@ -7,6 +7,9 @@ use std::{collections::BTreeSet, rc::Rc};
 
 use ord_rc::OrdRc;
 
+pub const CONST_1: Expr = Expr::Constant("1");
+pub const CONST_0: Expr = Expr::Constant("0");
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
     Table(&'static str),
@@ -35,11 +38,11 @@ pub enum RowLike {
 pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<dyn rusqlite::ToSql>),
-    AggrIndex(Rc<SelectVec>, Rc<Expr>),
+    AggrIndex(Rc<Select>, Rc<Expr>),
     RowIndex(RowLike, &'static str),
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
-    Func(&'static str, Rc<[Expr]>),
+    Func(&'static str, Box<[Rc<Expr>]>),
 }
 
 impl Expr {
