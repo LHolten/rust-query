@@ -15,24 +15,6 @@ use crate::{
 };
 pub use db_typ::{DbTyp, StorableTyp};
 
-/// This references a particular user specified join,
-/// so not any of the forwarded joins.
-/// We use this to know if the current scope has the original join or needs to forward it.
-#[derive(Clone)]
-pub struct MyTableRef {
-    // one Rc exists for each scope, so we can check if we have the right
-    // scope by comparing the Rc ptr.
-    pub(crate) scope_rc: Rc<()>,
-    pub(crate) idx: usize,
-    pub(crate) table_name: JoinableTable,
-}
-
-impl PartialEq for MyTableRef {
-    fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.scope_rc, &other.scope_rc) && self.idx == other.idx
-    }
-}
-
 pub trait NumTyp: OrdTyp + Clone + Copy {
     const ZERO: &str;
 }

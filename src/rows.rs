@@ -5,7 +5,7 @@ use crate::{
     joinable::IntoJoinable,
     lower,
     private::Joinable,
-    value::{DbTyp, EqTyp, MyTableRef},
+    value::{DbTyp, EqTyp},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -46,12 +46,6 @@ impl<'inner, S> Rows<'inner, S> {
             let expr = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), name));
             self.filter(Expr::adhoc(lower::Expr::Infix(expr, "=", val)));
         }
-
-        let table_idx = MyTableRef {
-            scope_rc: self.ast.scope_rc.clone(),
-            idx: table_idx,
-            table_name: joinable.table,
-        };
 
         Expr::adhoc(lower::Expr::RowIndex(
             lower::RowLike::Join(join),
