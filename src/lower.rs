@@ -40,7 +40,7 @@ pub enum RowLike {
 pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<dyn rusqlite::ToSql>),
-    AggrIndex(Rc<Select>, Rc<Expr>),
+    AggrIndex(Rc<Rows>, Rc<Expr>),
     RowIndex(RowLike, &'static str),
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
@@ -66,7 +66,7 @@ impl Expr {
 
 /// Select can have multiple results.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct Select {
+pub struct Rows {
     /// There is at most one result for every combinator of rows in the `from` tables.
     /// BTreeSet is used for easier lookup.
     from: BTreeSet<Join>,
@@ -74,12 +74,12 @@ pub struct Select {
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SelectVec {
+pub struct RowsFrozen {
     from: Vec<Join>,
     filter: BTreeSet<Rc<Expr>>,
 }
 
-impl Select {
+impl Rows {
     pub fn join(self: &mut Rc<Self>, table: JoinableTable) -> Join {
         let join = Join(OrdRc(Rc::new(table)));
         let this = Rc::make_mut(self);
@@ -92,8 +92,8 @@ impl Select {
         this.filter.insert(expr);
     }
 
-    pub fn into_vecs(self) -> SelectVec {
-        SelectVec {
+    pub fn into_vecs(self) -> RowsFrozen {
+        RowsFrozen {
             from: self.from.into_iter().collect(),
             filter: self.filter,
         }

@@ -7,7 +7,7 @@ use std::{
 use rusqlite::ToSql;
 
 use crate::lower::{
-    Expr, Join, JoinableTable, RowLike, SelectVec, Unique,
+    Expr, Join, JoinableTable, RowLike, RowsFrozen, Unique,
     list_writer::{Alias, ListWriter},
     ord_rc::OrdRc,
 };
@@ -37,30 +37,30 @@ impl Stmt {
 }
 
 #[derive(Default)]
-pub struct SelectInfo {
+pub struct Select {
     /// These are the tables that are grouped by
     /// These are joined distinct to not influence the aggregate
     forwarded: BTreeSet<Join>,
     // unique and aggregate are similar, they don't change number of rows
-    aggregate: BTreeMap<SelectVec, SelectInfo>,
+    aggregate: BTreeMap<RowsFrozen, Select>,
     unique: BTreeSet<Unique>,
     // The results returned from the aggregate or select
     select: BTreeSet<Rc<Expr>>,
 }
 
 // All the information required to write sql
-struct SelectInfoVecs {
-    rows: SelectVec,
+struct SelectFrozen {
+    rows: RowsFrozen,
     forwarded: Vec<Join>,
-    aggregate: Vec<SelectInfoVecs>,
+    aggregate: Vec<SelectFrozen>,
     unique: Vec<Unique>,
     select: Vec<Rc<Expr>>,
 }
 
-impl SelectInfo {
+impl Select {
     /// rows provided should be the same as those that self was created with.
-    pub fn into_vecs(self, rows: SelectVec) -> SelectInfoVecs {
-        SelectInfoVecs {
+    pub fn into_vecs(self, rows: RowsFrozen) -> SelectFrozen {
+        SelectFrozen {
             rows,
             forwarded: self.forwarded.into_iter().collect(),
             aggregate: self
@@ -74,7 +74,7 @@ impl SelectInfo {
     }
 }
 
-impl SelectInfoVecs {
+impl SelectFrozen {
     pub fn emit(&self, w: &mut Stmt, is_aggregate: bool) -> fmt::Result {
         write!(w, "SELECT ")?;
         let mut list = ListWriter::new(w, ", ");
@@ -229,9 +229,9 @@ impl SelectInfoVecs {
     }
 }
 
-impl SelectInfo {
+impl Select {
     /// create info associated with rows.
-    pub fn new(rows: &SelectVec) -> Self {
+    pub fn new(rows: &RowsFrozen) -> Self {
         let mut out = Self {
             forwarded: BTreeSet::new(),
             aggregate: BTreeMap::new(),
@@ -245,14 +245,14 @@ impl SelectInfo {
     }
 
     /// rows provided should be the same as those that self was created with.
-    pub fn add_select(&mut self, rows: &SelectVec, expr: &Rc<Expr>) {
+    pub fn add_select(&mut self, rows: &RowsFrozen, expr: &Rc<Expr>) {
         if self.select.insert(expr.clone()) {
             self.analyze(rows, expr);
         }
     }
 
     /// rows provided should be the same as those that self was created with.
-    fn analyze(&mut self, rows: &SelectVec, expr: &Expr) {
+    fn analyze(&mut self, rows: &RowsFrozen, expr: &Expr) {
         match expr {
             Expr::Constant(_const) => {}
             Expr::Parameter(_ord_rc) => {}

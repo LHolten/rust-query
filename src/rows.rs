@@ -19,7 +19,7 @@ pub struct Rows<'inner, S> {
     // we might store 'inner
     pub(crate) phantom: PhantomData<fn(&'inner ()) -> &'inner ()>,
     pub(crate) _p: PhantomData<S>,
-    pub(crate) ast: Rc<lower::Select>,
+    pub(crate) ast: Rc<lower::Rows>,
 }
 
 impl<'inner, S> Rows<'inner, S> {

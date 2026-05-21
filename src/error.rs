@@ -111,7 +111,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         cols.retain(|(name, _val)| unique_columns.contains(&Cow::Borrowed(*name)));
         assert_eq!(cols.len(), unique_columns.len());
 
-        let mut select = Rc::new(lower::Select::default());
+        let mut select = Rc::new(lower::Rows::default());
         let join = select.join(lower::JoinableTable::Table(table));
 
         for (col, val) in cols {
@@ -120,7 +120,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         }
 
         let select = select.into_vecs();
-        let mut info = emit::SelectInfo::new(&select);
+        let mut info = emit::Select::new(&select);
 
         let id = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), T::ID));
         info.add_select(&select, &id);
