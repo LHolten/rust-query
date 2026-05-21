@@ -1,13 +1,7 @@
 use std::{cell::OnceCell, marker::PhantomData, rc::Rc};
 
-use sea_query::{ExprTrait, Nullable};
-
 use crate::{
-    Table, TableRow, Transaction,
-    ast::{CONST_0, CONST_1},
-    db::TableRowInner,
-    schema::canonical,
-    value::EqTyp,
+    Table, TableRow, Transaction, db::TableRowInner, lower, schema::canonical, value::EqTyp,
 };
 
 /// The types that can be used inside [crate::Expr].
@@ -36,7 +30,7 @@ pub trait DbTyp: Sized + 'static {
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
 pub trait StorableTyp: DbTyp {
-    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr>;
+    fn check(_col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>>;
 }
 
 #[cfg(feature = "jiff-02")]
@@ -81,33 +75,26 @@ impl DbTyp for jiff::Timestamp {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::Timestamp {
-    fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-        const CONCAT: sea_query::BinOper = sea_query::BinOper::Custom("||");
-        let datetime =
-            sea_query::Func::cust("datetime").arg(sea_query::Expr::col(col.clone()).binary(
-                CONCAT,
-                sea_query::Expr::Constant(sea_query::Value::String(Some("Z".to_owned()))),
-            ));
-        let ltrim = sea_query::Func::cust("ltrim")
-            .arg(datetime)
-            .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                "-".to_owned(),
-            ))));
-        let substr = sea_query::Func::cust("substr")
-            .arg(sea_query::Expr::col(col.clone()))
-            .arg(sea_query::Expr::Constant(sea_query::Value::BigInt(Some(
-                20,
-            ))))
-            .arg(sea_query::Expr::Constant(sea_query::Value::BigInt(Some(
-                10,
-            ))));
-        let rtrim = sea_query::Func::cust("rtrim")
-            .arg(substr)
-            .arg(sea_query::Expr::Constant(sea_query::Value::String(Some(
-                "0 ".to_owned(),
-            ))));
-        let concat = sea_query::Expr::from(ltrim).binary(CONCAT, rtrim);
-        Some(sea_query::Expr::col(col).is(concat))
+    fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
+        let z = Rc::new(lower::Expr::Constant("'Z'"));
+        let minus = Rc::new(lower::Expr::Constant("'-'"));
+        let twenty = Rc::new(lower::Expr::Constant("20"));
+        let ten = Rc::new(lower::Expr::Constant("10"));
+        let zero_space = Rc::new(lower::Expr::Constant("'0 '"));
+
+        let datetime = Rc::new(lower::Expr::Func(
+            "datetime",
+            Box::new([Rc::new(lower::Expr::Infix(col.clone(), "||", z))]),
+        ));
+        let ltrim = Rc::new(lower::Expr::Func("ltrim", Box::new([datetime, minus])));
+        let substr = Rc::new(lower::Expr::Func(
+            "substr",
+            Box::new([col.clone(), twenty, ten]),
+        ));
+        let rtrim = Rc::new(lower::Expr::Func("rtrim", Box::new([substr, zero_space])));
+
+        let concat = Rc::new(lower::Expr::Infix(ltrim, "||", rtrim));
+        Some(Rc::new(lower::Expr::Infix(col, "IS", concat)))
     }
 }
 
@@ -152,7 +139,7 @@ impl DbTyp for jiff::civil::Date {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::civil::Date {
-    fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+    fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
         let datetime = sea_query::Func::cust("date").arg(sea_query::Expr::col(col.clone()));
         let ltrim = sea_query::Func::cust("ltrim")
             .arg(datetime)
@@ -201,7 +188,7 @@ impl<T: Table> DbTyp for TableRow<T> {
 }
 
 impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
-    fn check(_col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+    fn check(_col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
         None
     }
 }
@@ -240,7 +227,7 @@ impl<T: EqTyp> DbTyp for Option<T> {
 }
 
 impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
-    fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
+    fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
         T::check(col)
     }
 }
@@ -279,8 +266,8 @@ macro_rules! impl_typ {
         }
 
         impl StorableTyp for $typ {
-            fn check(col: sea_query::Alias) -> Option<sea_query::SimpleExpr> {
-                let f: fn(col: sea_query::Alias) -> _ = $check;
+            fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
+                let f: fn(col: Rc<lower::Expr>) -> _ = $check;
                 return f(col);
             }
         }
