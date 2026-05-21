@@ -5,7 +5,7 @@ use crate::{
     joinable::IntoJoinable,
     lower,
     private::Joinable,
-    value::{DbTyp, DynTypedExpr, EqTyp, MyTableRef},
+    value::{DbTyp, EqTyp, MyTableRef},
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -80,8 +80,7 @@ impl<'inner, S> Rows<'inner, S> {
 
     /// Filter rows based on an expression.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
-        let prop = DynTypedExpr::erase(prop);
-        Rc::make_mut(&mut self.ast).filters.push(prop);
+        Rc::make_mut(&mut self.ast).filter(prop.into_expr().inner);
     }
 
     /// Filter out rows where this expression is [None].

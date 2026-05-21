@@ -7,11 +7,10 @@ use std::{
 use crate::{
     Expr, IntoExpr,
     ast::CONST_0,
+    lower,
     rows::Rows,
     value::{AdHoc, EqTyp, NumTyp, ValueBuilder},
 };
-
-use super::DynTypedExpr;
 
 /// This is the argument type used for [aggregate].
 pub struct Aggregate<'outer, 'inner, S> {
@@ -38,9 +37,8 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// otherwise there is a chance that there are multiple rows.
     fn select<T: EqTyp>(
         &self,
-        expr: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr,
+        expr: Rc<lower::Expr>,
     ) -> Rc<AdHoc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr, Option<T>>> {
-        let expr = DynTypedExpr::new(expr);
         let mut builder = self.query.ast.clone().full();
         let (select, mut fields) = builder.build_select(vec![expr], Vec::new());
 

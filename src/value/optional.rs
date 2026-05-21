@@ -1,9 +1,9 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
-    IntoSelect,
+    IntoSelect, lower,
     select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
-    value::{DynTypedExpr, EqTyp},
+    value::EqTyp,
 };
 
 use super::{Expr, IntoExpr};
@@ -51,7 +51,7 @@ pub fn optional<'outer, S, R>(
 /// Joining more optional columns can be done with the [Optional::and] method.
 /// Finally it is possible to return expressions or selections using [Optional::then] and [Optional::then_select].
 pub struct Optional<'outer, 'inner, S> {
-    nulls: Vec<DynTypedExpr>,
+    nulls: Vec<Rc<lower::Expr>>,
     _p: PhantomData<fn(&'inner ()) -> &'inner &'outer ()>,
     _p2: PhantomData<S>,
 }
@@ -86,9 +86,9 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
         let column = col.into_expr();
-        self.nulls.push(DynTypedExpr::erase(column.is_none()));
+        self.nulls.push(column.is_none().inner);
         // `Expr::adhoc` is used here to reset `maybe_optional` to `true`.
-        Expr::adhoc(move |b| column.inner.build_expr(b))
+        Expr::new(column.inner)
     }
 
     /// Return a [bool] column indicating whether the current row does not exists.
@@ -208,7 +208,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
         Select::new(OptionalImpl {
             inner: d.into_select().inner,
             is_some: ColumnImpl {
-                expr: DynTypedExpr::erase(self.is_some()),
+                expr: self.is_some().inner,
                 _p: PhantomData,
             },
         })

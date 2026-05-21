@@ -4,17 +4,18 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 use rusqlite::Connection;
 use self_cell::{MutBorrow, self_cell};
 
 use crate::{
-    IntoExpr,
+    IntoExpr, lower,
     rows::Rows,
     select::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     transaction::TXN,
-    value::{DynTypedExpr, OrdTyp},
+    value::OrdTyp,
 };
 
 /// This is the type used by the [crate::Transaction::query] method.
@@ -134,21 +135,21 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
 #[derive(Clone)]
 pub struct OrderBy<'q, 't, 'inner, S> {
     query: &'q Query<'t, 'inner, S>,
-    order: Vec<(DynTypedExpr, sea_query::Order)>,
+    order: Vec<(Rc<lower::Expr>, sea_query::Order)>,
 }
 
 impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
     /// Add an additional value to sort on in ascending order.
     pub fn asc<'q, T: OrdTyp>(mut self, key: impl IntoExpr<'inner, S, Typ = T>) -> Self {
         self.order
-            .push((DynTypedExpr::erase(key), sea_query::Order::Asc));
+            .push((key.into_expr().inner, sea_query::Order::Asc));
         self
     }
 
     /// Add an additional value to sort on in descending order.
     pub fn desc<'q, T: OrdTyp>(mut self, key: impl IntoExpr<'inner, S, Typ = T>) -> Self {
         self.order
-            .push((DynTypedExpr::erase(key), sea_query::Order::Desc));
+            .push((key.into_expr().inner, sea_query::Order::Desc));
         self
     }
 

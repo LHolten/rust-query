@@ -320,21 +320,6 @@ impl<S, T: DbTyp> Clone for Expr<'_, S, T> {
     }
 }
 
-#[derive(Clone)]
-pub struct DynTypedExpr {
-    pub func: Rc<dyn Fn(&mut ValueBuilder) -> sea_query::Expr>,
-}
-
-impl DynTypedExpr {
-    pub fn new(f: impl 'static + Fn(&mut ValueBuilder) -> sea_query::Expr) -> Self {
-        Self { func: Rc::new(f) }
-    }
-    pub fn erase<'x, S>(expr: impl IntoExpr<'x, S>) -> Self {
-        let typed = expr.into_expr().inner;
-        Self::new(move |b| typed.build_expr(b))
-    }
-}
-
 impl<'t, T: Table> Deref for Expr<'t, T::Schema, TableRow<T>> {
     type Target = T::Ext2<'t>;
 

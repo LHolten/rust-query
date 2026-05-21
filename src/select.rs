@@ -1,14 +1,14 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
     Expr,
-    alias::MyAlias,
-    value::{DbTyp, DynTypedExpr},
+    lower::{self, ord_rc::OrdRc},
+    value::DbTyp,
 };
 
 /// Opaque type used to implement [crate::Select].
 pub(crate) struct Cacher {
-    pub(crate) columns: Vec<DynTypedExpr>,
+    pub(crate) columns: Vec<Rc<lower::Expr>>,
 }
 
 impl Cacher {
@@ -32,7 +32,7 @@ impl<T> Clone for Cached<T> {
 impl<T> Copy for Cached<T> {}
 
 impl Cacher {
-    pub(crate) fn cache_erased(&mut self, val: DynTypedExpr) -> usize {
+    pub(crate) fn cache_erased(&mut self, val: Rc<lower::Expr>) -> usize {
         let idx = self.columns.len();
         self.columns.push(val);
         idx
@@ -42,11 +42,14 @@ impl Cacher {
 #[derive(Clone, Copy)]
 pub(crate) struct Row<'x> {
     pub(crate) row: &'x rusqlite::Row<'x>,
-    pub(crate) fields: &'x [MyAlias],
+    pub(crate) fields: &'x [OrdRc<dyn rusqlite::ToSql>],
 }
 
 impl<'x> Row<'x> {
-    pub(crate) fn new(row: &'x rusqlite::Row<'x>, fields: &'x [MyAlias]) -> Self {
+    pub(crate) fn new(
+        row: &'x rusqlite::Row<'x>,
+        fields: &'x [OrdRc<dyn rusqlite::ToSql>],
+    ) -> Self {
         Self { row, fields }
     }
 
@@ -239,7 +242,7 @@ impl<T: DbTyp> Prepared for Cached<T> {
 }
 
 pub struct ColumnImpl<Out> {
-    pub(crate) expr: DynTypedExpr,
+    pub(crate) expr: Rc<lower::Expr>,
     pub(crate) _p: PhantomData<Out>,
 }
 
@@ -263,7 +266,7 @@ where
 
     fn into_select(self) -> Select<'columns, S, Self::Out> {
         Select::new(ColumnImpl {
-            expr: DynTypedExpr::erase(self),
+            expr: self.inner,
             _p: PhantomData,
         })
     }
