@@ -55,7 +55,7 @@ impl<T: Table<Conflict = Self>> std::error::Error for TableRow<T> {}
 pub(crate) trait FromConflict {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
-        table: &'static str,
+        table: lower::JoinableTable,
         cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         msg: String,
     ) -> Self;
@@ -64,7 +64,7 @@ pub(crate) trait FromConflict {
 impl FromConflict for Infallible {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
-        _table: &'static str,
+        _table: lower::JoinableTable,
         _cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         _msg: String,
     ) -> Self {
@@ -75,7 +75,7 @@ impl FromConflict for Infallible {
 impl<T: Table<Conflict = Self>> FromConflict for Conflict<T> {
     fn from_conflict(
         _txn: &rusqlite::Transaction<'_>,
-        _table: &'static str,
+        _table: lower::JoinableTable,
         _cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         msg: String,
     ) -> Self {
@@ -102,7 +102,7 @@ pub(crate) fn get_unique_columns<T: Table<Conflict = TableRow<T>>>() -> Vec<Cow<
 impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
     fn from_conflict(
         txn: &rusqlite::Transaction<'_>,
-        table: &'static str,
+        table: lower::JoinableTable,
         mut cols: Vec<(&'static str, OrdRc<rusqlite::types::Value>)>,
         _msg: String,
     ) -> Self {
@@ -112,7 +112,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         assert_eq!(cols.len(), unique_columns.len());
 
         let mut select = Rc::new(lower::Rows::default());
-        let join = select.join(lower::JoinableTable::Table(table));
+        let join = select.join(table);
 
         for (col, val) in cols {
             let table_val = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), col));

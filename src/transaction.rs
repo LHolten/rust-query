@@ -703,7 +703,7 @@ impl<S: Schema> TransactionWeak<S> {
 }
 
 pub fn try_insert_private<T: Table>(
-    table: sea_query::DynIden,
+    table: lower::JoinableTable,
     idx: Option<i64>,
     val: T,
 ) -> Result<TableRow<T>, T::Conflict> {
@@ -712,29 +712,38 @@ pub fn try_insert_private<T: Table>(
     if let Some(idx) = idx {
         reader.col::<i64>(T::ID, idx);
     }
-    let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.clone().into_iter().collect();
-    let is_empty = col_names.is_empty();
 
-    let mut insert = InsertStatement::new();
-    insert.into_table(("main", table.clone()));
-    insert.columns(col_names);
-    if is_empty {
+    let mut stmt = emit::Stmt::default();
+    write!(&mut stmt, "INSERT INTO ").unwrap();
+    table.emit(&mut stmt).unwrap();
+
+    if reader.builder.is_empty() {
         // values always has at least one column, so we leave it out when there are no columns
-        insert.or_default_values();
+        write!(&mut stmt, " DEFAULT VALUES").unwrap();
     } else {
-        insert.values(col_exprs).unwrap();
-    }
-    insert.returning_col(T::ID);
+        let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.clone().into_iter().collect();
 
-    let (sql, values) = insert.build_rusqlite(SqliteQueryBuilder);
+        write!(&mut stmt, " (").unwrap();
+        let list = ListWriter::new(&mut stmt, ", ");
+        for col in col_names {
+            write!(list.item().unwrap(), "{}", Alias(col)).unwrap();
+        }
+        write!(&mut stmt, ") VALUES (").unwrap();
+        let list = ListWriter::new(&mut stmt, ", ");
+        for val in col_exprs {
+            list.item().unwrap().write_param(&val).unwrap()
+        }
+        write!(&mut stmt, ")").unwrap();
+    }
+    write!(&mut stmt, " RETURNING {}", T::ID).unwrap();
 
     let res = TXN.with_borrow(|txn| {
         let txn = txn.as_ref().unwrap().get();
-        track_stmt(txn, &sql, &values);
+        track_stmt(txn, &stmt.sql, &stmt.params);
 
-        let mut statement = txn.prepare_cached(&sql).unwrap();
+        let mut statement = txn.prepare_cached(&stmt.sql).unwrap();
         let mut res = statement
-            .query_map(&*values.as_params(), |row| {
+            .query_map(&stmt.params, |row| {
                 Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?)?)
             })
             .unwrap();
