@@ -1,5 +1,7 @@
+use std::rc::Rc;
+
 use crate::{
-    ast::CONST_0,
+    lower::{self, CONST_0, CONST_NULL},
     value::{BuffTyp, OrdTyp},
 };
 
@@ -18,7 +20,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     pub fn add(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).add(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "+", rhs))
     }
 
     /// Subtract one expression from another.
@@ -33,7 +35,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     pub fn sub(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).sub(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "-", rhs))
     }
 
     /// Multiply two expressions together.
@@ -48,7 +50,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     pub fn mul(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).mul(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "*", rhs))
     }
 
     /// Divide one expression by another.
@@ -67,7 +69,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     pub fn div(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).div(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "/", rhs))
     }
 
     /// Get the sign of the expression.
@@ -85,9 +87,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     pub fn sign(&self) -> Expr<'column, S, i64> {
         let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("sign").arg(lhs.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("sign", Box::new([lhs])))
     }
 
     /// Get the absolute value of the expression.
@@ -101,9 +101,7 @@ impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// ```
     pub fn abs(&self) -> Self {
         let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("abs").arg(lhs.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("abs", Box::new([lhs])))
     }
 }
 
@@ -121,7 +119,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     pub fn lt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).lt(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "<", rhs))
     }
 
     /// Compute the less than or equal operator (<=) of two expressions.
@@ -136,7 +134,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     pub fn lte(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).lte(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "<=", rhs))
     }
 
     /// Compute the greater than operator (>) of two expressions.
@@ -151,7 +149,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     pub fn gt(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).gt(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, ">", rhs))
     }
 
     /// Compute the greater than or equal (>=) operator of two expressions.
@@ -166,7 +164,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     pub fn gte(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).gte(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, ">=", rhs))
     }
 
     /// Get the maximum of two values.
@@ -181,13 +179,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     pub fn max(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(
-                sea_query::Func::cust("max")
-                    .arg(lhs.build_expr(b))
-                    .arg(rhs.build_expr(b)),
-            )
-        })
+        Expr::adhoc(lower::Expr::Func("max", Box::new([lhs, rhs])))
     }
 
     /// Get the minimum of two values.
@@ -202,13 +194,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     pub fn min(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(
-                sea_query::Func::cust("min")
-                    .arg(lhs.build_expr(b))
-                    .arg(rhs.build_expr(b)),
-            )
-        })
+        Expr::adhoc(lower::Expr::Func("min", Box::new([lhs, rhs])))
     }
 
     /// Check if a value is between two other values.
@@ -232,10 +218,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
         let lhs = self.inner.clone();
         let low = low.into_expr().inner;
         let high = high.into_expr().inner;
-        Expr::adhoc(move |b| {
-            lhs.build_expr(b)
-                .between(low.build_expr(b), high.build_expr(b))
-        })
+        Expr::adhoc(lower::Expr::Between(lhs, low, high))
     }
 }
 
@@ -257,7 +240,7 @@ impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     pub fn eq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).is(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "IS", rhs))
     }
 
     /// Check whether two expressions are not equal.
@@ -277,7 +260,7 @@ impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
     pub fn neq(&self, rhs: impl IntoExpr<'column, S, Typ = T>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).is_not(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "IS NOT", rhs))
     }
 }
 
@@ -293,7 +276,7 @@ impl<'column, S> Expr<'column, S, bool> {
     /// ```
     pub fn not(&self) -> Self {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| val.build_expr(b).not())
+        Expr::adhoc(lower::Expr::Prefix("~", val))
     }
 
     /// Check if two expressions are both true.
@@ -309,7 +292,7 @@ impl<'column, S> Expr<'column, S, bool> {
     pub fn and(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).and(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "AND", rhs))
     }
 
     /// Check if one of two expressions is true.
@@ -325,7 +308,7 @@ impl<'column, S> Expr<'column, S, bool> {
     pub fn or(&self, rhs: impl IntoExpr<'column, S, Typ = bool>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).or(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "OR", rhs))
     }
 }
 
@@ -342,8 +325,7 @@ impl<'column, S, Typ: EqTyp> Expr<'column, S, Option<Typ>> {
     pub fn unwrap_or(&self, rhs: impl IntoExpr<'column, S, Typ = Typ>) -> Expr<'column, S, Typ> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        let maybe_optional = rhs.maybe_optional;
-        Expr::adhoc(move |b| sea_query::Expr::expr(lhs.build_expr(b)).if_null(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Func("ifnull", Box::new([lhs, rhs])))
     }
 
     /// Check that the expression is [Some].
@@ -357,7 +339,7 @@ impl<'column, S, Typ: EqTyp> Expr<'column, S, Option<Typ>> {
     /// ```
     pub fn is_some(&self) -> Expr<'column, S, bool> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| val.build_expr(b).is_not_null())
+        Expr::adhoc(lower::Expr::Infix(val, "IS NOT", Rc::new(CONST_NULL)))
     }
 
     /// Check that the expression is [None].
@@ -371,7 +353,7 @@ impl<'column, S, Typ: EqTyp> Expr<'column, S, Option<Typ>> {
     /// ```
     pub fn is_none(&self) -> Expr<'column, S, bool> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| val.build_expr(b).is_null())
+        Expr::adhoc(lower::Expr::Infix(val, "IS", Rc::new(CONST_NULL)))
     }
 }
 
@@ -388,7 +370,7 @@ impl<'column, S> Expr<'column, S, i64> {
     /// ```
     pub fn to_f64(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("REAL")))
+        Expr::adhoc(lower::Expr::Cast(val, "REAL"))
     }
 
     /// Calculate the remainder for integer division.
@@ -407,7 +389,7 @@ impl<'column, S> Expr<'column, S, i64> {
     pub fn modulo(&self, rhs: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| lhs.build_expr(b).modulo(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Infix(lhs, "%", rhs))
     }
 }
 
@@ -431,7 +413,7 @@ impl<'column, S> Expr<'column, S, f64> {
     /// ```
     pub fn to_i64(&self) -> Expr<'column, S, i64> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| val.build_expr(b).cast_as(Alias::new("INTEGER")))
+        Expr::adhoc(lower::Expr::Cast(val, "INTEGER"))
     }
 
     /// Round the [f64] expression down.
@@ -447,7 +429,7 @@ impl<'column, S> Expr<'column, S, f64> {
     /// ```
     pub fn floor(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| sea_query::Func::cust("floor").arg(val.build_expr(b)).into())
+        Expr::adhoc(lower::Expr::Func("floor", Box::new([val])))
     }
 
     /// Round the [f64] expression up.
@@ -463,7 +445,7 @@ impl<'column, S> Expr<'column, S, f64> {
     /// ```
     pub fn ceil(&self) -> Expr<'column, S, f64> {
         let val = self.inner.clone();
-        Expr::adhoc(move |b| sea_query::Func::cust("ceil").arg(val.build_expr(b)).into())
+        Expr::adhoc(lower::Expr::Func("ceil", Box::new([val])))
     }
 
     /// Round the [f64] expression to the specified precision.
@@ -485,9 +467,7 @@ impl<'column, S> Expr<'column, S, f64> {
     pub fn round_with_precision(&self, precision: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let val = self.inner.clone();
         let precision = precision.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::round_with_precision(val.build_expr(b), precision.build_expr(b)).into()
-        })
+        Expr::adhoc(lower::Expr::Func("round", Box::new([val, precision])))
     }
 }
 
@@ -537,14 +517,11 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn contains(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(
-                sea_query::Func::cust("instr")
-                    .arg(lhs.build_expr(b))
-                    .arg(rhs.build_expr(b)),
-            )
-            .is_not(CONST_0)
-        })
+        Expr::adhoc(lower::Expr::Infix(
+            Rc::new(lower::Expr::Func("instr", Box::new([lhs, rhs]))),
+            "IS NOT",
+            Rc::new(CONST_0),
+        ))
     }
 
     /// Replace all occurences of a string with another string.
@@ -564,11 +541,7 @@ impl<'column, S> Expr<'column, S, String> {
         let lhs = self.inner.clone();
         let pat = pattern.into_expr().inner;
         let new = new.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::cust("replace")
-                .args([lhs.build_expr(b), pat.build_expr(b), new.build_expr(b)])
-                .into()
-        })
+        Expr::adhoc(lower::Expr::Func("replace", Box::new([lhs, pat, new])))
     }
 
     /// Removes all characters from a set from the start of a string.
@@ -582,11 +555,7 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn ltrim(&self, char_set: impl IntoExpr<'column, S, Typ = String>) -> Self {
         let lhs = self.inner.clone();
         let char_set = char_set.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::cust("ltrim")
-                .args([lhs.build_expr(b), char_set.build_expr(b)])
-                .into()
-        })
+        Expr::adhoc(lower::Expr::Func("ltrim", Box::new([lhs, char_set])))
     }
 
     /// Removes all characters from a set from the end of a string.
@@ -600,11 +569,7 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn rtrim(&self, char_set: impl IntoExpr<'column, S, Typ = String>) -> Self {
         let lhs = self.inner.clone();
         let char_set = char_set.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::cust("rtrim")
-                .args([lhs.build_expr(b), char_set.build_expr(b)])
-                .into()
-        })
+        Expr::adhoc(lower::Expr::Func("rtrim", Box::new([lhs, char_set])))
     }
 
     /// Removes all characters from a set from both the start and end of a string.
@@ -618,11 +583,7 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn trim(&self, char_set: impl IntoExpr<'column, S, Typ = String>) -> Self {
         let lhs = self.inner.clone();
         let char_set = char_set.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Func::cust("trim")
-                .args([lhs.build_expr(b), char_set.build_expr(b)])
-                .into()
-        })
+        Expr::adhoc(lower::Expr::Func("trim", Box::new([lhs, char_set])))
     }
 
     /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
@@ -641,7 +602,7 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn glob(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| sea_query::Expr::expr(lhs.build_expr(b)).glob(rhs.build_expr(b)))
+        Expr::adhoc(lower::Expr::Func("glob", Box::new([lhs, rhs])))
     }
 
     /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
@@ -659,11 +620,12 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     pub fn like(&self, pattern: impl Into<String>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
-        let rhs = pattern.into();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(lhs.build_expr(b))
-                .like(sea_query::LikeExpr::new(&rhs).escape('\\'))
-        })
+        let rhs: Expr<S, _> = pattern.into().into_expr();
+        let rhs = rhs.inner;
+        Expr::adhoc(lower::Expr::Func(
+            "like",
+            Box::new([rhs, lhs, Rc::new(lower::Expr::Constant("'\\'"))]),
+        ))
     }
 
     /// Concatenate two strings.
@@ -677,13 +639,7 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn concat(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Self {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(
-                sea_query::Func::cust("concat")
-                    .arg(lhs.build_expr(b))
-                    .arg(rhs.build_expr(b)),
-            )
-        })
+        Expr::adhoc(lower::Expr::Infix(lhs, "||", rhs))
     }
 
     /// Convert ascii to lowercase.
@@ -697,9 +653,7 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     pub fn lower(&self) -> Self {
         let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("lower").arg(lhs.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("lower", Box::new([lhs])))
     }
 
     /// Convert ascii to uppercase.
@@ -713,9 +667,7 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     pub fn upper(&self) -> Self {
         let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("upper").arg(lhs.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("upper", Box::new([lhs])))
     }
 
     /// The number of unicode code points in the string.
@@ -729,9 +681,7 @@ impl<'column, S> Expr<'column, S, String> {
     /// ```
     pub fn char_len(&self) -> Expr<'column, S, i64> {
         let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("length").arg(lhs.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("length", Box::new([lhs])))
     }
 }
 
@@ -750,9 +700,7 @@ impl<'column, S, T: BuffTyp> Expr<'column, S, T> {
     /// ```
     pub fn byte_len(&self) -> Expr<'column, S, i64> {
         let lhs = self.inner.clone();
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("octet_length").arg(lhs.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("octet_length", Box::new([lhs])))
     }
 }
 
@@ -767,9 +715,7 @@ impl<'column, S> Expr<'column, S, Vec<u8>> {
     /// ```
     pub fn zero_blob(len: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let len = len.into_expr().inner;
-        Expr::adhoc(move |b| {
-            sea_query::Expr::expr(sea_query::Func::cust("zeroblob").arg(len.build_expr(b)))
-        })
+        Expr::adhoc(lower::Expr::Func("zeroblov", Box::new([len])))
     }
 }
 
