@@ -219,6 +219,15 @@ impl SelectFrozen {
                 self.emit_expr(w, expr);
                 w.write(format_args!(" AS {ty})"));
             }
+            Expr::Between(x, lower, upper) => {
+                w.write("(");
+                self.emit_expr(w, x);
+                w.write(format_args!(" BETWEEN "));
+                self.emit_expr(w, lower);
+                w.write(format_args!(" AND "));
+                self.emit_expr(w, upper);
+                w.write(")");
+            }
         }
     }
 
@@ -310,6 +319,11 @@ impl Select {
             }
             Expr::Cast(expr, _ty) => {
                 self.analyze(rows, expr);
+            }
+            Expr::Between(x, lower, upper) => {
+                self.analyze(rows, x);
+                self.analyze(rows, lower);
+                self.analyze(rows, upper);
             }
         }
     }
