@@ -548,14 +548,10 @@ impl<S: 'static> Transaction<S> {
         let mut list = ListWriter::new(&mut stmt, ", ");
         for (key, val) in &reader.builder {
             list.item()
-                .write(format_args!("{}.{} = ", Alias(T::NAME), Alias(key)))
+                .write(format_args!("{} = ", Alias(key)))
                 .write_param(&val);
         }
-        list.default(format_args!(
-            "{0}.{1} = {0}.{1}",
-            Alias(T::NAME),
-            Alias(T::ID)
-        ));
+        list.default(format_args!("{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
 
         stmt.write(format_args!(
             " WHERE {}.{} = ",
