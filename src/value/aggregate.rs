@@ -178,7 +178,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, i64> {
         let val = val.into_expr().inner;
-        let val = self.select_func("COUNT", val);
+        let val = self.select_func("COUNT", Rc::new(lower::Expr::Prefix("DISTINCT ", val)));
         // technically the `if_null` here is only required for correlated sub queries
         Expr::adhoc(lower::Expr::Func(
             "IFNULL",

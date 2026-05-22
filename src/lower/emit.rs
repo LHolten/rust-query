@@ -75,7 +75,9 @@ impl SelectFrozen {
         w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in self.forwarded.iter().enumerate() {
-            list.item().write(format_args!("f{forward_idx}.id"));
+            // TODO: double check that this forward is correct
+            list.item()
+                .write(format_args!("f{forward_idx}.id AS f{forward_idx}"));
         }
         for (select_idx, expr) in self.select.iter().enumerate() {
             let list_item = list.item();
@@ -104,7 +106,7 @@ impl SelectFrozen {
             list.default("(SELECT 1)");
 
             for (unique_idx, unique) in self.unique.iter().enumerate() {
-                w.write(" JOIN ");
+                w.write(" LEFT JOIN ");
                 unique.table.emit(w);
                 w.write(format_args!(" AS u{unique_idx}"));
                 if !unique.conds.is_empty() {
@@ -119,7 +121,7 @@ impl SelectFrozen {
             }
 
             for (aggr_idx, aggr) in self.aggregate.iter().enumerate() {
-                w.write(" JOIN (");
+                w.write(" LEFT JOIN (");
                 aggr.emit(w, true);
                 w.write(format_args!(") AS a{aggr_idx}"));
                 if !aggr.forwarded.is_empty() {
@@ -129,6 +131,7 @@ impl SelectFrozen {
                         let list_item = list.item();
                         list_item.write(format_args!("a{aggr_idx}.f{forward_idx} = "));
                         self.emit_join(list_item, join);
+                        list_item.write(".id"); // TODO use real primary key
                     }
                 }
             }
