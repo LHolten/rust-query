@@ -67,7 +67,7 @@ impl Expr {
 }
 
 /// Select can have multiple results.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Clone, Default)]
 pub struct Rows {
     /// There is at most one result for every combinator of rows in the `from` tables.
     /// BTreeSet is used for easier lookup.

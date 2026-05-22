@@ -1,10 +1,7 @@
 use std::{cell::OnceCell, marker::PhantomData, rc::Rc};
 
 use crate::{
-    Table, TableRow, Transaction,
-    db::TableRowInner,
-    lower::{self, CONST_0, CONST_1},
-    schema::canonical,
+    Table, TableRow, Transaction, db::TableRowInner, lower::list_writer::Alias, schema::canonical,
     value::EqTyp,
 };
 
@@ -34,7 +31,7 @@ pub trait DbTyp: Sized + 'static {
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
 pub trait StorableTyp: DbTyp {
-    fn check(_col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>>;
+    fn check(_col: &str) -> Option<String>;
 }
 
 #[cfg(feature = "jiff-02")]
@@ -79,26 +76,11 @@ impl DbTyp for jiff::Timestamp {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::Timestamp {
-    fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
-        let z = Rc::new(lower::Expr::Constant("'Z'"));
-        let minus = Rc::new(lower::Expr::Constant("'-'"));
-        let twenty = Rc::new(lower::Expr::Constant("20"));
-        let ten = Rc::new(lower::Expr::Constant("10"));
-        let zero_space = Rc::new(lower::Expr::Constant("'0 '"));
-
-        let datetime = Rc::new(lower::Expr::Func(
-            "datetime",
-            Box::new([Rc::new(lower::Expr::Infix(col.clone(), "||", z))]),
-        ));
-        let ltrim = Rc::new(lower::Expr::Func("ltrim", Box::new([datetime, minus])));
-        let substr = Rc::new(lower::Expr::Func(
-            "substr",
-            Box::new([col.clone(), twenty, ten]),
-        ));
-        let rtrim = Rc::new(lower::Expr::Func("rtrim", Box::new([substr, zero_space])));
-
-        let concat = Rc::new(lower::Expr::Infix(ltrim, "||", rtrim));
-        Some(Rc::new(lower::Expr::Infix(col, "IS", concat)))
+    fn check(col: &str) -> Option<String> {
+        Some(format!(
+            "{0} IS (ltrim(datetime({0} || 'Z'), '-') || rtrim(substr({0}, 20, 10), '0 '))",
+            Alias(col)
+        ))
     }
 }
 
@@ -143,12 +125,8 @@ impl DbTyp for jiff::civil::Date {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::civil::Date {
-    fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
-        let minus = Rc::new(lower::Expr::Constant("'-'"));
-
-        let datetime = Rc::new(lower::Expr::Func("date", Box::new([col.clone()])));
-        let ltrim = Rc::new(lower::Expr::Func("ltrim", Box::new([datetime, minus])));
-        Some(Rc::new(lower::Expr::Infix(col, "IS", ltrim)))
+    fn check(col: &str) -> Option<String> {
+        Some(format!("{0} IS ltrim(date({0}), '-')", Alias(col)))
     }
 }
 
@@ -190,7 +168,7 @@ impl<T: Table> DbTyp for TableRow<T> {
 }
 
 impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
-    fn check(_col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
+    fn check(_col: &str) -> Option<String> {
         None
     }
 }
@@ -229,7 +207,7 @@ impl<T: EqTyp> DbTyp for Option<T> {
 }
 
 impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
-    fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
+    fn check(col: &str) -> Option<String> {
         T::check(col)
     }
 }
@@ -268,8 +246,8 @@ macro_rules! impl_typ {
         }
 
         impl StorableTyp for $typ {
-            fn check(col: Rc<lower::Expr>) -> Option<Rc<lower::Expr>> {
-                let f: fn(col: Rc<lower::Expr>) -> _ = $check;
+            fn check(col: &str) -> Option<String> {
+                let f: fn(col: &str) -> _ = $check;
                 return f(col);
             }
         }
@@ -283,10 +261,7 @@ impl_typ!(
     bool,
     canonical::ColumnType::Integer,
     |x| x.as_i64().map(|x| x != 0),
-    |col| Some(Rc::new(lower::Expr::In(
-        col,
-        Box::new([Rc::new(CONST_0), Rc::new(CONST_1)])
-    )))
+    |col| Some(format!("{} IN (0, 1)", Alias(col)))
 );
 impl_typ!(Vec<u8>, canonical::ColumnType::Blob, |x| x
     .as_blob()
