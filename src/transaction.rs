@@ -487,7 +487,7 @@ impl<S: 'static> Transaction<S> {
     /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
-        try_insert_private(T::NAME.into_iden(), None, val)
+        try_insert_private(lower::JoinableTable::Table(T::NAME), None, val)
     }
 
     /// This is a convenience function to make using [Transaction::insert]
@@ -542,15 +542,14 @@ impl<S: 'static> Transaction<S> {
 
         let mut stmt = emit::Stmt::default();
         stmt.write("UPDATE ");
-        lower::JoinableTable::Table(T::NAME)
-            .emit(&mut stmt)
-            .unwrap();
+        lower::JoinableTable::Table(T::NAME).emit(&mut stmt);
 
         stmt.write(" SET ");
         let mut list = ListWriter::new(&mut stmt, ", ");
         for (key, val) in reader.builder {
-            write!(&mut list, "{}.{} = ", Alias(T::NAME), Alias(key)).unwrap();
-            list.write_param(val).unwrap();
+            list.item()
+                .write(format_args!("{}.{} = ", Alias(T::NAME), Alias(key)))
+                .write_param(&val);
         }
         list.default(format_args!(
             "{0}.{1} = {0}.{1}",
@@ -569,7 +568,7 @@ impl<S: 'static> Transaction<S> {
             let txn = txn.as_ref().unwrap().get();
 
             let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
-            cached.execute(&stmt.params)
+            cached.execute(rusqlite::params_from_iter(stmt.params))
         });
 
         match res {
@@ -583,7 +582,7 @@ impl<S: 'static> Transaction<S> {
                     let txn = txn.as_ref().unwrap().get();
                     <T::Conflict as FromConflict>::from_conflict(
                         txn,
-                        T::NAME.into_iden(),
+                        lower::JoinableTable::Table(T::NAME),
                         reader.builder,
                         msg,
                     )
@@ -635,8 +634,7 @@ impl<S: Schema> TransactionWeak<S> {
             }) {
                 let mut stmt = emit::Stmt::default();
                 stmt.write("SELECT ");
-                stmt.write_param(&OrdRc(Rc::new(val.inner.idx.into())))
-                    .unwrap();
+                stmt.write_param(&OrdRc(Rc::new(val.inner.idx.into())));
                 stmt.write(format_args!(
                     " IN (SELECT {0}.{1} FROM {0})",
                     Alias(table_name),
@@ -647,22 +645,19 @@ impl<S: Schema> TransactionWeak<S> {
         }
 
         let mut stmt = emit::Stmt::default();
-        write!(
-            &mut stmt,
+        stmt.write(format_args!(
             "DELETE FROM {0} WHERE {0}.{1} = ",
             Alias(T::NAME),
             Alias(T::ID)
-        )
-        .unwrap();
-        stmt.write_param(&OrdRc(Rc::new(val.inner.idx.into())))
-            .unwrap();
+        ));
+        stmt.write_param(&OrdRc::new(val.inner.idx));
 
         TXN.with_borrow(|txn| {
             let txn = txn.as_ref().unwrap().get();
 
             for stmt in checks {
                 let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
-                match cached.query_one(&stmt.params, |r| r.get(0)) {
+                match cached.query_one(rusqlite::params_from_iter(stmt.params), |r| r.get(0)) {
                     Ok(true) => return Err(T::get_referer_unchecked()),
                     Ok(false) => {}
                     Err(err) => panic!("{err:?}"),
@@ -670,7 +665,7 @@ impl<S: Schema> TransactionWeak<S> {
             }
 
             let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
-            match stmt.execute(&stmt.params) {
+            match cached.execute(rusqlite::params_from_iter(stmt.params)) {
                 Ok(0) => Ok(false),
                 Ok(1) => Ok(true),
                 Ok(n) => {
@@ -721,7 +716,7 @@ pub fn try_insert_private<T: Table>(
 
     let mut stmt = emit::Stmt::default();
     stmt.write("INSERT INTO ");
-    table.emit(&mut stmt).unwrap();
+    table.emit(&mut stmt);
 
     if reader.builder.is_empty() {
         // values always has at least one column, so we leave it out when there are no columns
@@ -730,12 +725,12 @@ pub fn try_insert_private<T: Table>(
         let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.clone().into_iter().collect();
 
         stmt.write(" (");
-        let list = ListWriter::new(&mut stmt, ", ");
+        let mut list = ListWriter::new(&mut stmt, ", ");
         for col in col_names {
             list.item().write(Alias(col));
         }
         stmt.write(") VALUES (");
-        let list = ListWriter::new(&mut stmt, ", ");
+        let mut list = ListWriter::new(&mut stmt, ", ");
         for val in col_exprs {
             list.item().write_param(&val);
         }
@@ -749,7 +744,7 @@ pub fn try_insert_private<T: Table>(
 
         let mut statement = txn.prepare_cached(&stmt.sql).unwrap();
         let mut res = statement
-            .query_map(&stmt.params, |row| {
+            .query_map(rusqlite::params_from_iter(stmt.params), |row| {
                 Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?)?)
             })
             .unwrap();

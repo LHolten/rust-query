@@ -132,7 +132,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
 
         let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
         cached
-            .query_one(&stmt.params, |row| {
+            .query_one(rusqlite::params_from_iter(stmt.params), |row| {
                 Ok(Self {
                     _local: PhantomData,
                     inner: TableRowInner {
