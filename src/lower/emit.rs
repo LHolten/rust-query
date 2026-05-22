@@ -204,14 +204,19 @@ impl SelectFrozen {
                 }
                 write!(w, ")")
             }
-            Expr::In(val, list) => {
-                self.emit_expr(w, val)?;
+            Expr::In(expr, list) => {
+                self.emit_expr(w, expr)?;
                 write!(w, " IN (")?;
                 let mut list = ListWriter::new(w, ", ");
                 for expr in list {
                     self.emit_expr(list.item()?, expr)?;
                 }
                 write!(w, ")")
+            }
+            Expr::Cast(expr, ty) => {
+                write!(w, "CAST(")?;
+                self.emit_expr(w, expr)?;
+                write!(w, " AS {ty})")
             }
         }
     }
@@ -292,11 +297,14 @@ impl Select {
                     self.analyze(rows, expr);
                 }
             }
-            Expr::In(val, list) => {
-                self.analyze(rows, val);
+            Expr::In(expr, list) => {
+                self.analyze(rows, expr);
                 for expr in list {
                     self.analyze(rows, expr);
                 }
+            }
+            Expr::Cast(expr, ty) => {
+                self.analyze(rows, expr);
             }
         }
     }
