@@ -131,7 +131,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         let info = info.frozen(select);
 
         let mut stmt = emit::Stmt::default();
-        info.emit(&mut stmt, false).unwrap();
+        info.emit(&mut stmt, false);
 
         let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
         cached

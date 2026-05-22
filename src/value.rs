@@ -161,12 +161,6 @@ pub fn unique_from_joinable<'inner, T: Table>(
     Expr::adhoc(lower::Expr::RowIndex(lower::RowLike::Unique(unique), T::ID))
 }
 
-pub struct AdHoc<F: ?Sized, T: ?Sized> {
-    maybe_optional: bool,
-    _p: PhantomData<T>,
-    func: F,
-}
-
 impl<S, T: DbTyp> Expr<'_, S, T> {
     pub(crate) fn adhoc(e: lower::Expr) -> Self {
         Self::new(Rc::new(e))

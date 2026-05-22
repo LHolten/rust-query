@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt::{self, Display, Write},
+    fmt::{Display, Write},
     rc::Rc,
 };
 
@@ -45,7 +45,7 @@ pub struct Select {
 }
 
 // All the information required to write sql
-struct SelectFrozen {
+pub struct SelectFrozen {
     rows: RowsFrozen,
     forwarded: Vec<Join>,
     aggregate: Vec<SelectFrozen>,
@@ -71,7 +71,7 @@ impl Select {
 }
 
 impl SelectFrozen {
-    pub fn emit(&self, w: &mut Stmt, is_aggregate: bool) -> fmt::Result {
+    pub fn emit(&self, w: &mut Stmt, is_aggregate: bool) {
         w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in self.forwarded.iter().enumerate() {
@@ -149,8 +149,6 @@ impl SelectFrozen {
                 list.item().write(forward_idx + 1);
             }
         }
-
-        Ok(())
     }
 
     fn emit_join(&self, w: &mut Stmt, join: &Join) {

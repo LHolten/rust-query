@@ -8,7 +8,6 @@ use std::{collections::BTreeSet, rc::Rc};
 
 use ord_rc::OrdRc;
 
-pub const CONST_1: Expr = Expr::Constant("1");
 pub const CONST_0: Expr = Expr::Constant("0");
 pub const CONST_FALSE: Expr = Expr::Constant("false");
 pub const CONST_NULL: Expr = Expr::Constant("NULL");
@@ -23,7 +22,7 @@ pub enum JoinableTable {
 
 /// Specific join of a table
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Join(OrdRc<JoinableTable>);
+pub struct Join(OrdRc<JoinableTable>);
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Unique {
@@ -111,12 +110,6 @@ impl Scope {
     pub fn tmp_table(&self) -> TmpTable {
         let next = self.iden_num.fetch_add(1, Ordering::Relaxed);
         TmpTable { name: next }
-    }
-
-    pub fn create(num_tables: usize, num_filter_on: usize) -> Self {
-        Self {
-            iden_num: AtomicUsize::new(num_tables.max(num_filter_on)),
-        }
     }
 }
 
