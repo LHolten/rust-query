@@ -42,7 +42,7 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: EqTyp> IntoExpr<'column, S
 impl<'column, S> IntoExpr<'column, S> for String {
     type Typ = String;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
     }
 }
 
@@ -56,7 +56,7 @@ impl<'column, S> IntoExpr<'column, S> for &str {
 impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     type Typ = Vec<u8>;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
     }
 }
 
@@ -70,20 +70,20 @@ impl<'column, S> IntoExpr<'column, S> for &[u8] {
 impl<'column, S> IntoExpr<'column, S> for bool {
     type Typ = bool;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
     }
 }
 impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(self))))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
     }
 }
 
@@ -127,7 +127,7 @@ impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
     fn into_expr(self) -> Expr<'static, T::Schema, Self::Typ> {
         let idx = self.inner.idx;
 
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(Rc::new(idx))))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(idx)))
     }
 }
 
