@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, marker::PhantomData, rc::Rc};
+use std::{cell::OnceCell, marker::PhantomData};
 
 use crate::{
     Table, TableRow, Transaction, db::TableRowInner, lower::list_writer::Alias, schema::canonical,
@@ -20,7 +20,7 @@ pub trait DbTyp: Sized + 'static {
 
     fn migrate(prev: Self::Prev) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
-    fn out_to_value(self) -> Rc<rusqlite::types::Value>;
+    fn out_to_value(self) -> rusqlite::types::Value;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 
     fn from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>
@@ -49,13 +49,11 @@ impl DbTyp for jiff::Timestamp {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
-    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
+    fn out_to_value(self) -> rusqlite::types::Value {
         // check that year is positive
         assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
         // Use space instead of `T` for date and time separator
-        Rc::new(rusqlite::types::Value::Text(
-            self.strftime("%F %T%.f").to_string(),
-        ))
+        rusqlite::types::Value::Text(self.strftime("%F %T%.f").to_string())
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -101,13 +99,13 @@ impl DbTyp for jiff::civil::Date {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
-    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
+    fn out_to_value(self) -> rusqlite::types::Value {
         // check that year is positive
         assert!(
             self.year() >= 0,
             "only dates with a year that is greater than or equal to zero can be used"
         );
-        Rc::new(rusqlite::types::Value::Text(self.to_string()))
+        rusqlite::types::Value::Text(self.to_string())
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -146,8 +144,8 @@ impl<T: Table> DbTyp for TableRow<T> {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         TableRow::migrate_row(lazy.table_row())
     }
-    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
-        Rc::new(rusqlite::types::Value::Integer(self.inner.idx))
+    fn out_to_value(self) -> rusqlite::types::Value {
+        rusqlite::types::Value::Integer(self.inner.idx)
     }
     type Lazy<'t> = crate::Lazy<'t, T>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -190,9 +188,9 @@ impl<T: EqTyp> DbTyp for Option<T> {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         lazy.as_ref().map(T::from_lazy)
     }
-    fn out_to_value(self) -> Rc<rusqlite::types::Value> {
+    fn out_to_value(self) -> rusqlite::types::Value {
         self.map(T::out_to_value)
-            .unwrap_or_else(|| Rc::new(rusqlite::types::Value::Null))
+            .unwrap_or(rusqlite::types::Value::Null)
     }
     type Lazy<'t> = Option<T::Lazy<'t>>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -232,8 +230,8 @@ macro_rules! impl_typ {
             fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
                 lazy.clone()
             }
-            fn out_to_value(self) -> Rc<rusqlite::types::Value> {
-                Rc::new(self.into())
+            fn out_to_value(self) -> rusqlite::types::Value {
+                self.into()
             }
             type Lazy<'t> = Self;
             fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -317,7 +315,7 @@ fn jiff_check_constraint() {
             jiff::Timestamp::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
         assert_eq!(
             ts.out_to_value(),
-            Rc::new(rusqlite::types::Value::Text(good.to_owned()))
+            rusqlite::types::Value::Text(good.to_owned())
         )
     }
 
@@ -370,7 +368,7 @@ fn jiff_check_constraint_date() {
             jiff::civil::Date::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
         assert_eq!(
             ts.out_to_value(),
-            Rc::new(rusqlite::types::Value::Text(good.to_owned()))
+            rusqlite::types::Value::Text(good.to_owned())
         )
     }
 

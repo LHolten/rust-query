@@ -143,7 +143,6 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
     name: &'static str,
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
-    let possible_null = table.maybe_optional;
     let unique = Rc::new(lower::Unique {
         table: lower::JoinableTable::Table(T::NAME),
         conds: vec![(T::ID, table)],

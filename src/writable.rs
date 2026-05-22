@@ -7,6 +7,6 @@ pub struct Reader {
 
 impl Reader {
     pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
-        self.builder.push((name, T::out_to_value(val).into()));
+        self.builder.push((name, OrdRc::new(T::out_to_value(val))));
     }
 }

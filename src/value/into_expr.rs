@@ -96,7 +96,7 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
 impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
     type Typ = Self;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(self.out_to_value())))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.out_to_value())))
     }
 }
 
@@ -108,7 +108,7 @@ impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
     type Typ = Self;
 
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc(self.out_to_value())))
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.out_to_value())))
     }
 }
 
