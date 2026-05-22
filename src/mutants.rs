@@ -1,8 +1,7 @@
-
 use crate::{
     Expr, IntoExpr, Table, TableRow,
-    alias::{JoinableTable, MyAlias, Scope, TmpTable},
     db::TableRowInner,
+    lower::{JoinableTable, Scope, TmpTable},
     value::DbTyp,
 };
 
@@ -18,7 +17,7 @@ impl<'column, S, T: DbTyp + Default + IntoExpr<'column, S, Typ = T>> Default
 impl Default for JoinableTable {
     #[mutants::skip]
     fn default() -> Self {
-        JoinableTable::Normal("foo".into_iden())
+        JoinableTable::Table("foo", "id")
     }
 }
 
@@ -26,13 +25,6 @@ impl Default for TmpTable {
     #[mutants::skip]
     fn default() -> Self {
         Scope::default().tmp_table()
-    }
-}
-
-impl Default for MyAlias {
-    #[mutants::skip]
-    fn default() -> Self {
-        Scope::default().new_alias()
     }
 }
 

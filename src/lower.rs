@@ -14,8 +14,9 @@ pub const CONST_NULL: Expr = Expr::Constant("NULL");
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
-    Table(&'static str),
-    Tmp(TmpTable),
+    // table name and primary key
+    Table(&'static str, &'static str),
+    Tmp(TmpTable, &'static str),
     Pragma(&'static str, Vec<OrdRc<rusqlite::types::Value>>),
     // Vec(OrdRc<Vec<rusqlite::types::Value>>),
 }
@@ -105,8 +106,9 @@ impl Rows {
 impl JoinableTable {
     pub fn main_column(&self) -> &'static str {
         match self {
-            JoinableTable::Normal(_) => "id",
+            JoinableTable::Table(_, primary) => primary,
             JoinableTable::Pragma(_, _) => "pragma_id", // should always be replaced
+            JoinableTable::Tmp(_, primary) => primary,
             #[cfg(false)]
             JoinableTable::Vec(_) => "value",
         }

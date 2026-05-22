@@ -130,6 +130,7 @@ impl<'t, 'inner, S> Query<'t, 'inner, S> {
     }
 }
 
+#[derive(Clone)]
 enum Order {
     Asc,
     Desc,
@@ -190,7 +191,10 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
                 let cached = MutBorrow::new(conn.get().prepare_cached(&stmt.sql).unwrap());
 
                 let idx = rows_store.insert(OwnedRows::new(cached, |cached| {
-                    cached.borrow_mut().query(&stmt.params).unwrap()
+                    cached
+                        .borrow_mut()
+                        .query(rusqlite::params_from_iter(stmt.params))
+                        .unwrap()
                 }));
 
                 Iter {
@@ -233,7 +237,7 @@ pub fn get_plan<R>(f: impl FnOnce() -> R) -> (R, BTreeMap<String, Node>) {
 fn get_node(conn: &Connection, values: &[OrdRc<rusqlite::types::Value>], sql: &str) -> Node {
     let mut prepared = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
     let rows = prepared
-        .query_map(&*values.as_params(), |row| {
+        .query_map(rusqlite::params_from_iter(values), |row| {
             Ok((
                 row.get_unwrap("parent"),
                 Node {

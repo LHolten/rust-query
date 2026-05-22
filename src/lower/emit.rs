@@ -231,10 +231,10 @@ impl SelectFrozen {
 impl JoinableTable {
     pub fn emit(&self, w: &mut Stmt) {
         match self {
-            JoinableTable::Table(name) => {
+            JoinableTable::Table(name, _) => {
                 w.write(format_args!("main.{}", Alias(name)));
             }
-            JoinableTable::Tmp(tmp) => {
+            JoinableTable::Tmp(tmp, _) => {
                 w.write(format_args!("main._tmp{}", tmp.name));
             }
             JoinableTable::Pragma(func, params) => {

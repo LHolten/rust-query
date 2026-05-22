@@ -144,7 +144,7 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
     let unique = Rc::new(lower::Unique {
-        table: lower::JoinableTable::Table(T::NAME),
+        table: lower::JoinableTable::Table(T::NAME, T::ID),
         conds: vec![(T::ID, table)],
     });
     Expr::adhoc(lower::Expr::RowIndex(lower::RowLike::Unique(unique), name))

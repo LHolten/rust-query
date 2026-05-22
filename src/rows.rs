@@ -39,11 +39,13 @@ impl<'inner, S> Rows<'inner, S> {
     ) -> Expr<'inner, S, T> {
         let joinable = j.into_joinable();
 
-        let table_idx = self.ast.tables.len();
-        let join = self.ast.join(joinable.table);
+        let join = self.ast.join(joinable.table.clone());
         for (name, val) in joinable.conds {
             // it is fine to directly use the alias here because the filter is in the same scope as the join
-            let expr = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), name));
+            let expr = Rc::new(lower::Expr::RowIndex(
+                lower::RowLike::Join(join.clone()),
+                name,
+            ));
             self.filter(Expr::adhoc(lower::Expr::Infix(expr, "=", val)));
         }
 
@@ -69,7 +71,7 @@ impl<'inner, S> Rows<'inner, S> {
         &mut self,
         tmp: lower::TmpTable,
     ) -> Expr<'inner, S, TableRow<T>> {
-        self.join(Joinable::new(lower::JoinableTable::Tmp(tmp)))
+        self.join(Joinable::new(lower::JoinableTable::Tmp(tmp, T::ID)))
     }
 
     /// Filter rows based on an expression.

@@ -25,7 +25,7 @@ impl<'inner, S, T: DbTyp> Joinable<'inner, S, T> {
 
 impl<'inner, S, T: Table> Joinable<'inner, S, TableRow<T>> {
     pub fn table() -> Self {
-        Self::new(lower::JoinableTable::Table(T::NAME))
+        Self::new(lower::JoinableTable::Table(T::NAME, T::ID))
     }
 }
 impl<'inner, S, T: DbTyp> Joinable<'inner, S, T> {
