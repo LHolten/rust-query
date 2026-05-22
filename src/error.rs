@@ -111,11 +111,14 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         cols.retain(|(name, _val)| unique_columns.contains(&Cow::Borrowed(*name)));
         assert_eq!(cols.len(), unique_columns.len());
 
-        let mut select = Rc::new(lower::Rows::default());
+        let mut select = lower::Rows::default();
         let join = select.join(table);
 
         for (col, val) in cols {
-            let table_val = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), col));
+            let table_val = Rc::new(lower::Expr::RowIndex(
+                lower::RowLike::Join(join.clone()),
+                col,
+            ));
             let val = Rc::new(lower::Expr::Parameter(val));
             select.filter(Rc::new(lower::Expr::Infix(val, "=", table_val)));
         }

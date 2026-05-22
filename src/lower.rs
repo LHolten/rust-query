@@ -83,16 +83,14 @@ pub struct RowsFrozen {
 }
 
 impl Rows {
-    pub fn join(self: &mut Rc<Self>, table: JoinableTable) -> Join {
+    pub fn join(&mut self, table: JoinableTable) -> Join {
         let join = Join(OrdRc(Rc::new(table)));
-        let this = Rc::make_mut(self);
-        assert!(this.from.insert(join.clone()));
+        assert!(self.from.insert(join.clone()));
         join
     }
 
-    pub fn filter(self: &mut Rc<Self>, expr: Rc<Expr>) {
-        let this = Rc::make_mut(self);
-        this.filter.insert(expr);
+    pub fn filter(&mut self, expr: Rc<Expr>) {
+        self.filter.insert(expr);
     }
 
     pub fn frozen(self) -> RowsFrozen {

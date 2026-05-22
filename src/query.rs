@@ -168,10 +168,10 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
 
-        let rows = self.query.ast.frozen();
+        let rows = self.query.ast.as_ref().clone().frozen();
         let mut select = emit::Select::new(&rows);
-        for col in cacher.columns {
-            select.add_select(&rows, &col);
+        for col in &cacher.columns {
+            select.add_select(&rows, col);
         }
         let select = select.frozen(rows);
         let mut stmt = emit::Stmt::default();

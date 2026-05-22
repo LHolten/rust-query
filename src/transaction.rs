@@ -546,7 +546,7 @@ impl<S: 'static> Transaction<S> {
 
         stmt.write(" SET ");
         let mut list = ListWriter::new(&mut stmt, ", ");
-        for (key, val) in reader.builder {
+        for (key, val) in &reader.builder {
             list.item()
                 .write(format_args!("{}.{} = ", Alias(T::NAME), Alias(key)))
                 .write_param(&val);

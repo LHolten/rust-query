@@ -39,7 +39,7 @@ impl<'inner, S> Rows<'inner, S> {
     ) -> Expr<'inner, S, T> {
         let joinable = j.into_joinable();
 
-        let join = self.ast.join(joinable.table.clone());
+        let join = Rc::make_mut(&mut self.ast).join(joinable.table.clone());
         for (name, val) in joinable.conds {
             // it is fine to directly use the alias here because the filter is in the same scope as the join
             let expr = Rc::new(lower::Expr::RowIndex(
@@ -87,7 +87,7 @@ impl<'inner, S> Rows<'inner, S> {
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
         let val = val.into_expr();
-        self.ast.filter(val.inner.clone());
+        Rc::make_mut(&mut self.ast).filter(val.inner.clone());
 
         // we already removed all rows with null, so this is ok.
         Expr::new(val.inner)
