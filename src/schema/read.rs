@@ -101,7 +101,7 @@ pub struct Pragma;
 struct TableList;
 
 table! {
-    TableList, _ => JoinableTable::Normal("pragma_table_list".into()), TableList,
+    TableList, _ => JoinableTable::Table("pragma_table_list"), TableList,
     TableListSelect {
         schema: String,
         name: String,
@@ -115,7 +115,7 @@ table! {
 struct TableInfo(pub String);
 
 table! {
-    TableInfo, val => JoinableTable::Pragma("pragma_table_info", vec![OrdRc::new(val.0), OrdRc::new("main")]),
+    TableInfo, val => JoinableTable::Pragma("pragma_table_info", vec![OrdRc::new(val.0.to_owned()), OrdRc::new("main".to_owned())]),
     TableInfo(String::new()),
     TableInfoSelect {
         name: String,
@@ -128,7 +128,7 @@ table! {
 struct ForeignKeyList(pub String);
 
 table! {
-    ForeignKeyList, val => JoinableTable::Pragma("pragma_foreign_key_list", vec![OrdRc::new(val.0), OrdRc::new("main")]),
+    ForeignKeyList, val => JoinableTable::Pragma("pragma_foreign_key_list", vec![OrdRc::new(val.0.to_owned()), OrdRc::new("main".to_owned())]),
     ForeignKeyList(String::new()),
     ForeignKeyListSelect {
         table: String,
@@ -140,7 +140,7 @@ table! {
 struct IndexList(String);
 
 table! {
-    IndexList, val => JoinableTable::Pragma("pragma_index_list", vec![OrdRc::new(val.0), OrdRc::new("main")]),
+    IndexList, val => JoinableTable::Pragma("pragma_index_list", vec![OrdRc::new(val.0.to_owned()), OrdRc::new("main".to_owned())]),
     IndexList(String::new()),
     IndexListSelect {
         name: String,
@@ -151,7 +151,7 @@ table! {
 
 struct IndexInfo(String);
 
-table! {IndexInfo, val => JoinableTable::Pragma("pragma_index_info", vec![OrdRc::new(val.0), OrdRc::new("main")]),
+table! {IndexInfo, val => JoinableTable::Pragma("pragma_index_info", vec![OrdRc::new(val.0.to_owned()), OrdRc::new("main".to_owned())]),
     IndexInfo(String::new()),
     IndexInfoSelect {
         seqno: i64,
@@ -161,7 +161,7 @@ table! {IndexInfo, val => JoinableTable::Pragma("pragma_index_info", vec![OrdRc:
 
 struct SqliteSchema;
 
-table! {SqliteSchema, _ => JoinableTable::Normal("sqlite_schema".into()),
+table! {SqliteSchema, _ => JoinableTable::Table("sqlite_schema"),
     SqliteSchema,
     SqliteSchemaSelect {
         r#type: String,

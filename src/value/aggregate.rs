@@ -38,7 +38,10 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
         // freezing the same rows multiple times should result in the same frozen rows
         // which are later deduplicated because frozen rows are used as a key.
         // TODO: maybe this can be made more efficient.
-        Rc::new(lower::Expr::AggrIndex(self.ast.clone().frozen(), expr))
+        Rc::new(lower::Expr::AggrIndex(
+            self.ast.as_ref().clone().frozen(),
+            expr,
+        ))
     }
 
     /// Return the average value in a column, this is [None] if there are zero rows.

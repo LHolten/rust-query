@@ -48,7 +48,7 @@ impl<'x> Row<'x> {
 
     pub fn get<T: DbTyp>(&self, val: Cached<T>) -> T {
         let idx = &self.fields[val.idx];
-        T::from_sql(self.row.get_ref_unwrap(idx)).unwrap()
+        T::from_sql(self.row.get_ref_unwrap(idx.as_str())).unwrap()
     }
 }
 

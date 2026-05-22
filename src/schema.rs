@@ -111,7 +111,7 @@ impl Table {
             if let Some(check) = &col.check {
                 item.write(format!(" CHECK ({check})"));
             }
-            if let Some((table, fk)) = &col.def.fk {
+            if let Some((table, fk)) = &col.fk {
                 item.write(format!(" REFERENCES {} ({})", Alias(table), Alias(fk)));
             }
         }
@@ -122,7 +122,7 @@ impl Table {
             if index.def.unique {
                 let item = list.item().write("UNIQUE (");
                 // Write columns in original order to allow user to control it for optimization.
-                let unique_list = ListWriter::new(item, ", ");
+                let mut unique_list = ListWriter::new(item, ", ");
                 for col in &index.def.columns {
                     unique_list.item().write(Alias(col));
                 }
@@ -139,12 +139,11 @@ impl Table {
     /// These are named, so we delay creating them until after the old indices
     /// are deleted.
     pub fn delayed_indices(&self, table_name: &'static str) -> impl Iterator<Item = String> {
-        let table_name = table_name.into_iden();
         self.indices
             .iter()
             .filter(|x| !x.def.unique)
             .enumerate()
-            .map(move |(index_num, mut index)| {
+            .map(move |(index_num, index)| {
                 let stmt =
                     index.create_not_unique(&format!("{table_name}_index_{index_num}"), table_name);
                 assert!(stmt.params.is_empty());
