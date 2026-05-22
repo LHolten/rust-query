@@ -602,7 +602,7 @@ impl<'column, S> Expr<'column, S, String> {
     pub fn glob(&self, rhs: impl IntoExpr<'column, S, Typ = String>) -> Expr<'column, S, bool> {
         let lhs = self.inner.clone();
         let rhs = rhs.into_expr().inner;
-        Expr::adhoc(lower::Expr::Func("glob", Box::new([lhs, rhs])))
+        Expr::adhoc(lower::Expr::Func("glob", Box::new([rhs, lhs])))
     }
 
     /// Check if the expression matches the pattern [sqlite docs](https://www.sqlite.org/lang_expr.html#like).
@@ -715,7 +715,7 @@ impl<'column, S> Expr<'column, S, Vec<u8>> {
     /// ```
     pub fn zero_blob(len: impl IntoExpr<'column, S, Typ = i64>) -> Self {
         let len = len.into_expr().inner;
-        Expr::adhoc(lower::Expr::Func("zeroblov", Box::new([len])))
+        Expr::adhoc(lower::Expr::Func("zeroblob", Box::new([len])))
     }
 }
 
