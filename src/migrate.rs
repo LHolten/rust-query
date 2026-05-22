@@ -14,7 +14,8 @@ use rusqlite::config::DbConfig;
 use self_cell::MutBorrow;
 
 use crate::{
-    Table, Transaction, lower,
+    Table, Transaction,
+    lower::{self, list_writer::Alias},
     migrate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
@@ -213,7 +214,7 @@ impl<S: Schema> Database<S> {
             let schema = crate::schema::from_macro::Schema::new::<S>();
 
             for (&table_name, table) in &schema.tables {
-                let create = table.create(lower::JoinableTable::Table(table_name), primary);
+                let create = table.create(lower::JoinableTable::Table(table_name), "id");
                 txn.get().execute(&create, []).unwrap();
                 for stmt in table.delayed_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();
@@ -316,12 +317,10 @@ impl<S: Schema> Migrator<S> {
                 let transaction = TXN.take().unwrap();
 
                 for drop in builder.drop {
-                    let sql = drop.to_string(SqliteQueryBuilder);
-                    transaction.get().execute(&sql, []).unwrap();
+                    transaction.get().execute(&drop, []).unwrap();
                 }
                 for (to, tmp) in builder.inner.rename_map {
-                    let rename = sea_query::Table::rename().table(tmp, Alias::new(to)).take();
-                    let sql = rename.to_string(SqliteQueryBuilder);
+                    let sql = format!("ALTER TABLE main.{tmp} RENAME TO {}", Alias(to));
                     transaction.get().execute(&sql, []).unwrap();
                 }
                 #[allow(
@@ -417,37 +416,31 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
             let scope = lower::Scope::default();
             let tmp_name = scope.tmp_table();
 
-            txn.execute(&expected_table.create(lower::JoinableTable::Tmp(tmp_name), primary));
+            txn.execute(&expected_table.create(lower::JoinableTable::Tmp(tmp_name), "id"));
 
-            let mut columns: Vec<_> = expected_table.columns.keys().map(Alias::new).collect();
-            columns.push(Alias::new("id"));
+            let mut columns: Vec<_> = expected_table
+                .columns
+                .keys()
+                .map(|x| Alias(x.as_str()))
+                .collect();
+            columns.push(Alias("id"));
+            let columns = columns
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
 
-            txn.execute(
-                &sea_query::InsertStatement::new()
-                    .into_table(tmp_name)
-                    .columns(columns.clone())
-                    .select_from(
-                        sea_query::SelectStatement::new()
-                            .from(table_name)
-                            .columns(columns)
-                            .take(),
-                    )
-                    .unwrap()
-                    .build(SqliteQueryBuilder)
-                    .0,
-            );
+            txn.execute(&format!(
+                "INSERT INTO main.{tmp_name} ({columns}) SELECT {columns} FROM main.{}",
+                Alias(table_name)
+            ));
 
-            txn.execute(
-                &sea_query::TableDropStatement::new()
-                    .table(table_name)
-                    .build(SqliteQueryBuilder),
-            );
+            txn.execute(&format!("DROP TABLE main.{}", Alias(table_name)));
 
-            txn.execute(
-                &sea_query::TableRenameStatement::new()
-                    .table(tmp_name, table_name)
-                    .build(SqliteQueryBuilder),
-            );
+            txn.execute(&format!(
+                "ALTER TABLE main.{tmp_name} RENAME TO {}",
+                Alias(table_name)
+            ));
             // Add the new non-unique indices
             for sql in expected_table.delayed_indices(table_name) {
                 txn.execute(&sql);

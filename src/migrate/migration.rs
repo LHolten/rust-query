@@ -5,7 +5,11 @@ use std::{
     ops::Deref,
 };
 
-use crate::{Lazy, Table, TableRow, Transaction, lower, transaction::try_insert_private};
+use crate::{
+    Lazy, Table, TableRow, Transaction,
+    lower::{self, list_writer::Alias},
+    transaction::try_insert_private,
+};
 
 pub trait Migration {
     type FromSchema: 'static;
@@ -84,8 +88,12 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
             if let Some(new) = f(self.lazy(row)) {
                 // TODO: deduplicate this self.lazy call
                 let val = M::prepare(new, self.lazy(row));
-                try_insert_private::<M::To>(new_name.into_iden(), Some(row.inner.idx), val)
-                    .map_err(|_| M::map_conflict(row))?;
+                try_insert_private::<M::To>(
+                    lower::JoinableTable::Tmp(new_name),
+                    Some(row.inner.idx),
+                    val,
+                )
+                .map_err(|_| M::map_conflict(row))?;
             };
         }
         Ok(())
@@ -151,7 +159,7 @@ impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
 
 pub struct SchemaBuilder<'t, FromSchema> {
     pub(super) inner: TransactionMigrate<FromSchema>,
-    pub(super) drop: Vec<TableDropStatement>,
+    pub(super) drop: Vec<String>,
     pub(super) foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
 }
 
@@ -167,8 +175,6 @@ impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
     }
 
     pub fn drop_table<T: Table>(&mut self) {
-        let name = Alias::new(T::NAME);
-        let step = sea_query::Table::drop().table(name).take();
-        self.drop.push(step);
+        self.drop.push(format!("DROP TABLE {}", Alias(T::NAME)));
     }
 }

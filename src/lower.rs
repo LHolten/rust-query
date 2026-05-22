@@ -2,6 +2,7 @@ pub(crate) mod emit;
 pub(crate) mod list_writer;
 pub(crate) mod ord_rc;
 
+use std::fmt::Display;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -121,4 +122,10 @@ impl Scope {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct TmpTable {
     name: usize,
+}
+
+impl Display for TmpTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("_tmp{}", self.name))
+    }
 }

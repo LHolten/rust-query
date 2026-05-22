@@ -235,7 +235,7 @@ impl JoinableTable {
                 w.write(format_args!("main.{}", Alias(name)));
             }
             JoinableTable::Tmp(tmp) => {
-                w.write(format_args!("main._tmp{}", tmp.name));
+                w.write(format_args!("main.{}", tmp));
             }
             JoinableTable::Pragma(func, params) => {
                 w.write(format_args!("{func}("));
