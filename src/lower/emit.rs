@@ -75,33 +75,33 @@ impl SelectFrozen {
         w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in self.forwarded.iter().enumerate() {
-            write!(list.item()?, "f{forward_idx}.id")?;
+            list.item().write(format_args!("f{forward_idx}.id"));
         }
         for (select_idx, expr) in self.select.iter().enumerate() {
-            let list_item = list.item()?;
-            self.emit_expr(list_item, expr)?;
-            write!(list_item, " AS s{select_idx}")?;
+            let list_item = list.item();
+            self.emit_expr(list_item, expr);
+            list_item.write(format_args!(" AS s{select_idx}"));
         }
         if is_aggregate && self.forwarded.is_empty() {
             // force aggregation even without group by
-            write!(list.item()?, "count(*)")?;
+            list.item().write("count(*)");
         }
-        list.default("1")?;
+        list.default("1");
 
         if !self.rows.from.is_empty() || !self.unique.is_empty() || !self.aggregate.is_empty() {
             w.write(" FROM ");
             let mut list = ListWriter::new(w, ", ");
             for (join_idx, join) in self.rows.from.iter().enumerate() {
-                let list_item = list.item()?;
-                join.0.emit(list_item)?;
-                write!(list_item, " AS j{join_idx}")?;
+                let list_item = list.item();
+                join.0.emit(list_item);
+                list_item.write(format_args!(" AS j{join_idx}"));
             }
             for (forwarded_idx, forwarded) in self.forwarded.iter().enumerate() {
-                let list_item = list.item()?;
-                forwarded.0.emit(list_item)?;
-                write!(list_item, " AS f{forwarded_idx}")?;
+                let list_item = list.item();
+                forwarded.0.emit(list_item);
+                list_item.write(format_args!(" AS f{forwarded_idx}"));
             }
-            list.default("(SELECT 1)")?;
+            list.default("(SELECT 1)");
 
             for (unique_idx, unique) in self.unique.iter().enumerate() {
                 w.write(" JOIN ");
@@ -111,9 +111,9 @@ impl SelectFrozen {
                     w.write(" ON ");
                     let mut list = ListWriter::new(w, " AND ");
                     for (col, expr) in &unique.conds {
-                        let list_item = list.item()?;
-                        write!(list_item, "u{unique_idx}.{} = ", Alias(col))?;
-                        self.emit_expr(list_item, expr)?;
+                        let list_item = list.item();
+                        list_item.write(format_args!("u{unique_idx}.{} = ", Alias(col)));
+                        self.emit_expr(list_item, expr);
                     }
                 }
             }
@@ -126,9 +126,9 @@ impl SelectFrozen {
                     w.write(" ON ");
                     let mut list = ListWriter::new(w, " AND ");
                     for (forward_idx, join) in aggr.forwarded.iter().enumerate() {
-                        let list_item = list.item()?;
-                        write!(list_item, "a{aggr_idx}.f{forward_idx} = ")?;
-                        self.emit_join(list_item, join)?;
+                        let list_item = list.item();
+                        list_item.write(format_args!("a{aggr_idx}.f{forward_idx} = "));
+                        self.emit_join(list_item, join);
                     }
                 }
             }
@@ -138,7 +138,7 @@ impl SelectFrozen {
             w.write(" WHERE ");
             let mut list = ListWriter::new(w, " AND ");
             for expr in &self.rows.filter {
-                self.emit_expr(list.item()?, expr)?;
+                self.emit_expr(list.item(), expr);
             }
         }
 
@@ -146,7 +146,7 @@ impl SelectFrozen {
             w.write(" GROUP BY ");
             let mut list = ListWriter::new(w, ", ");
             for (forward_idx, _) in self.forwarded.iter().enumerate() {
-                write!(list.item()?, "{}", forward_idx + 1)?;
+                list.item().write(forward_idx + 1);
             }
         }
 
@@ -208,9 +208,9 @@ impl SelectFrozen {
             Expr::In(expr, list) => {
                 self.emit_expr(w, expr);
                 w.write(" IN (");
-                let mut list = ListWriter::new(w, ", ");
+                let mut list_writer = ListWriter::new(w, ", ");
                 for expr in list {
-                    self.emit_expr(list.item(), expr);
+                    self.emit_expr(list_writer.item(), expr);
                 }
                 w.write(")");
             }
@@ -308,7 +308,7 @@ impl Select {
                     self.analyze(rows, expr);
                 }
             }
-            Expr::Cast(expr, ty) => {
+            Expr::Cast(expr, _ty) => {
                 self.analyze(rows, expr);
             }
         }

@@ -11,6 +11,12 @@ impl OrdRc<rusqlite::types::Value> {
     }
 }
 
+impl rusqlite::ToSql for OrdRc<rusqlite::types::Value> {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.as_ref().to_sql()
+    }
+}
+
 impl<T: ?Sized> Clone for OrdRc<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())

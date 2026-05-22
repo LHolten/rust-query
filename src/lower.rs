@@ -131,7 +131,7 @@ impl Scope {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct TmpTable {
     name: usize,
 }

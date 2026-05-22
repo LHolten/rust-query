@@ -15,7 +15,6 @@ use self_cell::MutBorrow;
 
 use crate::{
     Table, Transaction,
-    alias::Scope,
     migrate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
@@ -55,7 +54,7 @@ pub trait Schema: Sized + 'static {
     fn typs(b: &mut TableTypBuilder<Self>);
 }
 
-fn new_table_inner(table: &crate::schema::from_macro::Table, alias: impl IntoIden) -> String {
+fn new_table_inner(table: &crate::schema::from_macro::Table, alias: TmpTable) -> String {
     let alias = alias.into_iden();
     let mut create = table.create();
     create

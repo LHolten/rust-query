@@ -130,7 +130,7 @@ impl Table {
                 // TODO: check what happens if there are no columns in the unique constraint.
             }
         }
-        stmt.write(")");
+        stmt.write(") STRICT");
         stmt
     }
 

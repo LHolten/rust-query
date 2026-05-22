@@ -24,7 +24,7 @@ impl<'a> ListWriter<'a> {
         }
         &mut self.writer
     }
-    pub fn default(mut self, val: impl Display) {
+    pub fn default(self, val: impl Display) {
         if !self.any_items {
             self.writer.write(val);
         }
