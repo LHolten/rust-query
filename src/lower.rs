@@ -2,7 +2,7 @@ pub(crate) mod emit;
 pub(crate) mod list_writer;
 pub(crate) mod ord_rc;
 
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{collections::BTreeSet, rc::Rc};
 
@@ -52,15 +52,22 @@ pub enum Expr {
 
 impl Expr {
     /// Only use this on expressions that represent the id of a table
-    pub fn col(self: &Rc<Self>, table: JoinableTable, col: &'static str) -> Rc<Expr> {
-        if let Expr::RowIndex(table, "id") = Rc::as_ref(self) {
+    pub fn col(
+        self: &Rc<Self>,
+        table: JoinableTable,
+        col: &'static str,
+        main_col: &'static str,
+    ) -> Rc<Expr> {
+        if let Expr::RowIndex(table, old) = Rc::as_ref(self)
+            && *old == main_col
+        {
             // if this is already a join then we can just change the column
             return Rc::new(Expr::RowIndex(table.clone(), col));
         }
 
         let unique = Unique {
             table,
-            conds: vec![("id", self.clone())],
+            conds: vec![(main_col, self.clone())],
         };
         let row = RowLike::Unique(Rc::new(unique));
         Rc::new(Expr::RowIndex(row, col))

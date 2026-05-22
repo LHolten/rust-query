@@ -10,7 +10,10 @@ pub mod optional;
 use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
 use crate::{
-    IntoExpr, IntoSelect, Select, Table, db::TableRow, lower, mutable::Mutable,
+    IntoExpr, IntoSelect, Select, Table,
+    db::TableRow,
+    lower::{self, JoinableTable},
+    mutable::Mutable,
     private::IntoJoinable,
 };
 pub use db_typ::{DbTyp, StorableTyp};
@@ -143,11 +146,7 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
     name: &'static str,
 ) -> Expr<'x, S, C> {
     let table = table.into_expr().inner;
-    let unique = Rc::new(lower::Unique {
-        table: lower::JoinableTable::Table(T::NAME),
-        conds: vec![(T::ID, table)],
-    });
-    Expr::adhoc(lower::Expr::RowIndex(lower::RowLike::Unique(unique), name))
+    Expr::new(table.col(JoinableTable::Table(T::NAME), name, T::ID))
 }
 
 pub fn unique_from_joinable<'inner, T: Table>(

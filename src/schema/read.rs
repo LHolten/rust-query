@@ -93,7 +93,7 @@ macro_rules! table {
             }
 
             const ID: &'static str = "pragma_id";
-            const NAME: &'static str = "";
+            const NAME: &'static str = "pragma_name";
             const SPAN: (usize, usize) = (0, 0);
         }
     };
