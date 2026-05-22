@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::HashMap, convert::Infallible, ops::Deref};
 
 use crate::{
     Expr, FromExpr, IntoSelect, Select, Table, TableRow, Transaction,
-    alias::JoinableTable,
+    lower::{JoinableTable, ord_rc::OrdRc},
     private::{Reader, new_column},
     schema::{self, check_constraint, from_db},
 };
@@ -115,7 +115,7 @@ table! {
 struct TableInfo(pub String);
 
 table! {
-    TableInfo, val => JoinableTable::Pragma(Func::cust("pragma_table_info").arg(&val.0).arg("main")),
+    TableInfo, val => JoinableTable::Pragma("pragma_table_info", vec![OrdRc::new(val.0), OrdRc::new("main")]),
     TableInfo(String::new()),
     TableInfoSelect {
         name: String,
@@ -128,7 +128,7 @@ table! {
 struct ForeignKeyList(pub String);
 
 table! {
-    ForeignKeyList, val => JoinableTable::Pragma(Func::cust("pragma_foreign_key_list").arg(&val.0).arg("main")),
+    ForeignKeyList, val => JoinableTable::Pragma("pragma_foreign_key_list", vec![OrdRc::new(val.0), OrdRc::new("main")]),
     ForeignKeyList(String::new()),
     ForeignKeyListSelect {
         table: String,
@@ -140,7 +140,7 @@ table! {
 struct IndexList(String);
 
 table! {
-    IndexList, val => JoinableTable::Pragma(Func::cust("pragma_index_list").arg(&val.0).arg("main")),
+    IndexList, val => JoinableTable::Pragma("pragma_index_list", vec![OrdRc::new(val.0), OrdRc::new("main")]),
     IndexList(String::new()),
     IndexListSelect {
         name: String,
@@ -151,7 +151,7 @@ table! {
 
 struct IndexInfo(String);
 
-table! {IndexInfo, val => JoinableTable::Pragma(Func::cust("pragma_index_info").arg(&val.0).arg("main")),
+table! {IndexInfo, val => JoinableTable::Pragma("pragma_index_info", vec![OrdRc::new(val.0), OrdRc::new("main")]),
     IndexInfo(String::new()),
     IndexInfoSelect {
         seqno: i64,

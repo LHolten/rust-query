@@ -5,6 +5,12 @@ use std::{
 
 pub struct OrdRc<T: ?Sized>(pub Rc<T>);
 
+impl OrdRc<rusqlite::types::Value> {
+    pub fn new<T: Into<rusqlite::types::Value>>(val: T) -> Self {
+        Self(Rc::new(val.into()))
+    }
+}
+
 impl<T: ?Sized> Clone for OrdRc<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
