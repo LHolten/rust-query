@@ -12,9 +12,15 @@ pub mod read;
 mod test;
 pub mod tokenizer;
 
-use crate::schema::{
-    canonical::ColumnType,
-    from_macro::{Index, Schema, Table},
+use crate::{
+    lower::{
+        self, emit,
+        list_writer::{Alias, ListWriter},
+    },
+    schema::{
+        canonical::ColumnType,
+        from_macro::{Index, Schema, Table},
+    },
 };
 
 impl ColumnType {
@@ -87,39 +93,45 @@ impl Schema {
 }
 
 impl Table {
-    pub fn create(&self) -> TableCreateStatement {
-        let mut create = Table::create();
+    pub fn create(&self, table: lower::JoinableTable) -> emit::Stmt {
+        let mut stmt = emit::Stmt::default();
+
+        stmt.write("CREATE TABLE ");
+        table.emit(&mut stmt);
+
+        stmt.write(" (");
+        let mut list = ListWriter::new(&mut stmt, ", ");
         for (name, col) in &self.columns {
             let col = &col.def;
-            let name = Alias::new(name);
-            let mut def = ColumnDef::new_with_type(name.clone(), col.typ.rusqlite_type());
-            if col.nullable {
-                def.null();
-            } else {
-                def.not_null();
+            let item = list.item().write(Alias(&name));
+            item.write(" ").write(col.typ.rusqlite_type());
+            if !col.nullable {
+                item.write(" NOT NULL");
             }
             if let Some(check) = &col.check {
-                def.check(sea_query::Expr::cust(check.to_string()));
+                item.write(format!(" CHECK ({check})"));
             }
-            create.col(&mut def);
-            if let Some((table, fk)) = &col.fk {
-                create.foreign_key(
-                    ForeignKey::create()
-                        .to(Alias::new(table), Alias::new(fk))
-                        .from_col(name),
-                );
+            if let Some((table, fk)) = &col.def.fk {
+                item.write(format!(" REFERENCES {} ({})", Alias(table), Alias(fk)));
             }
         }
         for index in &self.indices {
-            let mut index = index.create();
             // only unique indexes are allows on table definitions.
             // by making these part of the table, we don't need to rename them
             // after the migration
-            if index.is_unique_key() {
-                create.index(&mut index);
+            if index.def.unique {
+                let item = list.item().write("UNIQUE (");
+                // Write columns in original order to allow user to control it for optimization.
+                let unique_list = ListWriter::new(item, ", ");
+                for col in &index.def.columns {
+                    unique_list.item().write(Alias(col));
+                }
+                item.write(")");
+                // TODO: check what happens if there are no columns in the unique constraint.
             }
         }
-        create
+        stmt.write(")");
+        stmt
     }
 
     /// This gives the sql to create the remaining non unique indices
@@ -130,30 +142,36 @@ impl Table {
         let table_name = table_name.into_iden();
         self.indices
             .iter()
-            .map(|x| x.create())
-            .filter(|x| !x.is_unique_key())
+            .filter(|x| !x.def.unique)
             .enumerate()
             .map(move |(index_num, mut index)| {
-                index
-                    .table(table_name.clone())
-                    .name(format!("{table_name}_index_{index_num}"))
-                    .to_string(SqliteQueryBuilder)
+                let stmt =
+                    index.create_not_unique(&format!("{table_name}_index_{index_num}"), table_name);
+                assert!(stmt.params.is_empty());
+                stmt.sql
             })
     }
 }
 
 impl Index {
-    pub fn create(&self) -> IndexCreateStatement {
-        let mut index = sea_query::Index::create();
-        if self.def.unique {
-            index.unique();
-        }
+    pub fn create_not_unique(&self, index_name: &str, table_name: &str) -> emit::Stmt {
+        assert!(!self.def.unique);
+
+        let mut stmt = emit::Stmt::default();
+        stmt.write("CREATE INDEX ")
+            .write(Alias(index_name))
+            .write(" ON ")
+            .write(Alias(table_name))
+            .write(" (");
         // Preserve the original order of columns in the unique constraint.
         // This lets users optimize queries by using index prefixes.
+        let mut list = ListWriter::new(&mut stmt, ", ");
         for col in &self.def.columns {
-            index.col(Alias::new(col.clone()));
+            list.item().write(col);
         }
-        index
+        stmt.write(")");
+        // TODO: check what happens if there are no columns in the index
+        stmt
     }
 }
 
