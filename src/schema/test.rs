@@ -39,25 +39,25 @@ fn fix_indices1() {
     let db = open_db::<without_index::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema without index
     db.check_schema(expect_test::expect![[
-        r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
+        r#"CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "bar" TEXT NOT NULL) STRICT"#
     ]]);
 
     let db_with_index = open_db::<with_index::v0::Schema>(FILE_NAME);
     // The database is updated without a new schema version.
     // Adding an index is allowed because it does not change database validity.
     db_with_index.check_schema(expect_test::expect![[r#"
-            CREATE INDEX "foo_index_0" ON "foo" ("bar")
-            CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+        CREATE INDEX "foo_index_0" ON "foo" ("bar")
+        CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "bar" TEXT NOT NULL) STRICT"#]]);
 
     // Using the old database connection will still work, because the new schema is compatible.
     db.check_schema(expect_test::expect![[r#"
-            CREATE INDEX "foo_index_0" ON "foo" ("bar")
-            CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#]]);
+        CREATE INDEX "foo_index_0" ON "foo" ("bar")
+        CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "bar" TEXT NOT NULL) STRICT"#]]);
 
     let db = open_db::<without_index::v0::Schema>(FILE_NAME);
     // Opening the database with the old schema again removes the index.
     db.check_schema(expect_test::expect![[
-        r#"CREATE TABLE "foo" ( "bar" text NOT NULL, "id" integer PRIMARY KEY ) STRICT"#
+        r#"CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "bar" TEXT NOT NULL) STRICT"#
     ]]);
 }
 
@@ -90,19 +90,19 @@ fn fix_indices2() {
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
     // The first database is opened with a schema with original index
-    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("field1", "baz") ) STRICT"#]]);
+    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "baz" TEXT NOT NULL, "field1" TEXT NOT NULL, UNIQUE ("field1", "baz")) STRICT"#]]);
 
     let db_with_reversed = open_db::<reversed::v0::Schema>(FILE_NAME);
     // The database is updated without a new schema version.
     // Changing the index column order is allowed because it does not change database validity.
-    db_with_reversed.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("baz", "field1") ) STRICT"#]]);
+    db_with_reversed.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "baz" TEXT NOT NULL, "field1" TEXT NOT NULL, UNIQUE ("baz", "field1")) STRICT"#]]);
 
     // Using the old database connection will still work, because the new schema is compatible.
-    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("baz", "field1") ) STRICT"#]]);
+    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "baz" TEXT NOT NULL, "field1" TEXT NOT NULL, UNIQUE ("baz", "field1")) STRICT"#]]);
 
     let db = open_db::<normal::v0::Schema>(FILE_NAME);
     // Opening the database with the old schema again changes the index back.
-    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ( "baz" text NOT NULL, "field1" text NOT NULL, "id" integer PRIMARY KEY, UNIQUE ("field1", "baz") ) STRICT"#]]);
+    db.check_schema(expect_test::expect![[r#"CREATE TABLE "foo" ("id" INTEGER PRIMARY KEY, "baz" TEXT NOT NULL, "field1" TEXT NOT NULL, UNIQUE ("field1", "baz")) STRICT"#]]);
 }
 
 #[test]

@@ -170,7 +170,7 @@ impl Index {
         // This lets users optimize queries by using index prefixes.
         let mut list = ListWriter::new(&mut stmt, ", ");
         for col in &self.def.columns {
-            list.item().write(col);
+            list.item().write(Alias(col));
         }
         stmt.write(")");
         // TODO: check what happens if there are no columns in the index
