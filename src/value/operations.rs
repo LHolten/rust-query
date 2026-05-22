@@ -276,7 +276,7 @@ impl<'column, S> Expr<'column, S, bool> {
     /// ```
     pub fn not(&self) -> Self {
         let val = self.inner.clone();
-        Expr::adhoc(lower::Expr::Prefix("~", val))
+        Expr::adhoc(lower::Expr::Prefix("NOT ", val))
     }
 
     /// Check if two expressions are both true.
