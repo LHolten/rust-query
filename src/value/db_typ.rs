@@ -53,7 +53,9 @@ impl DbTyp for jiff::Timestamp {
         // check that year is positive
         assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
         // Use space instead of `T` for date and time separator
-        rusqlite::types::Value::String(Some(self.strftime("%F %T%.f").to_string()))
+        Rc::new(rusqlite::types::Value::Text(
+            self.strftime("%F %T%.f").to_string(),
+        ))
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -105,7 +107,7 @@ impl DbTyp for jiff::civil::Date {
             self.year() >= 0,
             "only dates with a year that is greater than or equal to zero can be used"
         );
-        rusqlite::types::Value::String(Some(self.to_string()))
+        Rc::new(rusqlite::types::Value::Text(self.to_string()))
     }
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -145,7 +147,7 @@ impl<T: Table> DbTyp for TableRow<T> {
         TableRow::migrate_row(lazy.table_row())
     }
     fn out_to_value(self) -> Rc<rusqlite::types::Value> {
-        self.inner.idx.into()
+        Rc::new(rusqlite::types::Value::Integer(self.inner.idx))
     }
     type Lazy<'t> = crate::Lazy<'t, T>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -190,7 +192,7 @@ impl<T: EqTyp> DbTyp for Option<T> {
     }
     fn out_to_value(self) -> Rc<rusqlite::types::Value> {
         self.map(T::out_to_value)
-            .unwrap_or(rusqlite::types::Value::Bool(None))
+            .unwrap_or_else(|| Rc::new(rusqlite::types::Value::Null))
     }
     type Lazy<'t> = Option<T::Lazy<'t>>;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -231,7 +233,7 @@ macro_rules! impl_typ {
                 lazy.clone()
             }
             fn out_to_value(self) -> Rc<rusqlite::types::Value> {
-                self.into()
+                Rc::new(self.into())
             }
             type Lazy<'t> = Self;
             fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
@@ -315,7 +317,7 @@ fn jiff_check_constraint() {
             jiff::Timestamp::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
         assert_eq!(
             ts.out_to_value(),
-            rusqlite::types::Value::String(good.to_owned())
+            Rc::new(rusqlite::types::Value::Text(good.to_owned()))
         )
     }
 
@@ -368,7 +370,7 @@ fn jiff_check_constraint_date() {
             jiff::civil::Date::from_sql(rusqlite::types::ValueRef::Text(good.as_bytes())).unwrap();
         assert_eq!(
             ts.out_to_value(),
-            rusqlite::types::Value::String(good.to_owned())
+            Rc::new(rusqlite::types::Value::Text(good.to_owned()))
         )
     }
 
