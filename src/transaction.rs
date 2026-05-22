@@ -487,7 +487,7 @@ impl<S: 'static> Transaction<S> {
     /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
-        try_insert_private(lower::JoinableTable::Table(T::NAME, T::ID), None, val)
+        try_insert_private(lower::JoinableTable::Table(T::NAME), None, val)
     }
 
     /// This is a convenience function to make using [Transaction::insert]
@@ -542,7 +542,7 @@ impl<S: 'static> Transaction<S> {
 
         let mut stmt = emit::Stmt::default();
         stmt.write("UPDATE ");
-        lower::JoinableTable::Table(T::NAME, T::ID).emit(&mut stmt);
+        lower::JoinableTable::Table(T::NAME).emit(&mut stmt);
 
         stmt.write(" SET ");
         let mut list = ListWriter::new(&mut stmt, ", ");
@@ -582,7 +582,7 @@ impl<S: 'static> Transaction<S> {
                     let txn = txn.as_ref().unwrap().get();
                     <T::Conflict as FromConflict>::from_conflict(
                         txn,
-                        lower::JoinableTable::Table(T::NAME, T::ID),
+                        lower::JoinableTable::Table(T::NAME),
                         reader.builder,
                         msg,
                     )

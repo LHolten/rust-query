@@ -17,7 +17,7 @@ impl<'column, S, T: DbTyp + Default + IntoExpr<'column, S, Typ = T>> Default
 impl Default for JoinableTable {
     #[mutants::skip]
     fn default() -> Self {
-        JoinableTable::Table("foo", "id")
+        JoinableTable::Table("foo")
     }
 }
 

@@ -35,6 +35,9 @@ macro_rules! table {
                 let $var = self;
                 $name
             }
+            fn main_column(&self) -> &'static str {
+                "pragma_id" // should always be replaced
+            }
         }
         impl Table for $typ {
             type MigrateFrom = Self;

@@ -171,7 +171,7 @@ impl SelectFrozen {
             Expr::AggrIndex(select_vec, expr) => {
                 let aggr_idx = self
                     .aggregate
-                    .binary_search_by_key(&select_vec.as_ref(), |v| &v.rows)
+                    .binary_search_by_key(&select_vec, |v| &v.rows)
                     .unwrap();
                 let alias = self.aggregate[aggr_idx].get_select_alias(expr);
                 w.write(format_args!("a{aggr_idx}.{alias}"));
@@ -231,10 +231,10 @@ impl SelectFrozen {
 impl JoinableTable {
     pub fn emit(&self, w: &mut Stmt) {
         match self {
-            JoinableTable::Table(name, _) => {
+            JoinableTable::Table(name) => {
                 w.write(format_args!("main.{}", Alias(name)));
             }
-            JoinableTable::Tmp(tmp, _) => {
+            JoinableTable::Tmp(tmp) => {
                 w.write(format_args!("main._tmp{}", tmp.name));
             }
             JoinableTable::Pragma(func, params) => {

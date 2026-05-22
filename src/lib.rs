@@ -512,6 +512,7 @@ pub trait Table: Sized + 'static {
 
 trait CustomJoin: Table {
     fn name(&self) -> lower::JoinableTable;
+    fn main_column(&self) -> &'static str;
 }
 
 #[test]

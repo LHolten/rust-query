@@ -6,9 +6,7 @@ use std::{
 };
 
 use crate::{
-    Lazy, Table, TableRow, Transaction,
-    alias::{Scope, TmpTable},
-    migrate::new_table_inner,
+    Lazy, Table, TableRow, Transaction, lower, migrate::new_table_inner,
     transaction::try_insert_private,
 };
 
@@ -27,8 +25,8 @@ pub trait Migration {
 /// Transaction type for use in migrations.
 pub struct TransactionMigrate<FromSchema> {
     pub(super) inner: Transaction<FromSchema>,
-    pub(super) scope: Scope,
-    pub(super) rename_map: HashMap<&'static str, TmpTable>,
+    pub(super) scope: lower::Scope,
+    pub(super) rename_map: HashMap<&'static str, lower::TmpTable>,
     // creating non unique indices is delayed so that they don't need to be renamed
     pub(super) extra_index: Vec<String>,
 }
@@ -42,7 +40,7 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
 }
 
 impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
-    fn new_table_name<T: Table>(&mut self) -> TmpTable {
+    fn new_table_name<T: Table>(&mut self) -> lower::TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
             let table = crate::schema::from_macro::Table::new::<T>();
@@ -54,7 +52,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 
     fn unmigrated<M: Migration<FromSchema = FromSchema>>(
         &self,
-        new_name: TmpTable,
+        new_name: lower::TmpTable,
     ) -> impl Iterator<Item = TableRow<M::From>> {
         let data = self.inner.query(|rows| {
             let old = rows.join_private::<M::From>();

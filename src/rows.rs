@@ -51,7 +51,7 @@ impl<'inner, S> Rows<'inner, S> {
 
         Expr::adhoc(lower::Expr::RowIndex(
             lower::RowLike::Join(join),
-            joinable.table.main_column(),
+            joinable.main_column,
         ))
     }
 
@@ -64,14 +64,14 @@ impl<'inner, S> Rows<'inner, S> {
         &mut self,
         t: T,
     ) -> Expr<'inner, S, TableRow<T>> {
-        self.join(Joinable::new(t.name()))
+        self.join(Joinable::new(t.name(), t.main_column()))
     }
 
     pub(crate) fn join_tmp<T: Table<Schema = S>>(
         &mut self,
         tmp: lower::TmpTable,
     ) -> Expr<'inner, S, TableRow<T>> {
-        self.join(Joinable::new(lower::JoinableTable::Tmp(tmp, T::ID)))
+        self.join(Joinable::new(lower::JoinableTable::Tmp(tmp), T::ID))
     }
 
     /// Filter rows based on an expression.
