@@ -3,30 +3,31 @@ use std::{
     mem::replace,
 };
 
-pub struct ListWriter<'a, W: ?Sized> {
-    writer: &'a mut W,
+use crate::lower::emit::Stmt;
+
+pub struct ListWriter<'a> {
+    writer: &'a mut Stmt,
     any_items: bool,
     separator: &'static str,
 }
-impl<'a, W: ?Sized + Write> ListWriter<'a, W> {
-    pub fn new(writer: &'a mut W, separator: &'static str) -> Self {
+impl<'a> ListWriter<'a> {
+    pub fn new(writer: &'a mut Stmt, separator: &'static str) -> Self {
         Self {
             writer,
             any_items: false,
             separator,
         }
     }
-    pub fn item(&mut self) -> Result<&mut W, fmt::Error> {
+    pub fn item(&mut self) -> &mut Stmt {
         if replace(&mut self.any_items, true) {
-            write!(&mut self.writer, "{}", self.separator)?;
+            self.writer.write(self.separator);
         }
-        Ok(&mut self.writer)
+        &mut self.writer
     }
-    pub fn default(mut self, val: &str) -> fmt::Result {
+    pub fn default(mut self, val: impl Display) {
         if !self.any_items {
-            write!(&mut self.writer, "{val}")?;
+            self.writer.write(val);
         }
-        Ok(())
     }
 }
 

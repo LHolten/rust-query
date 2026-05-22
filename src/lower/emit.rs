@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt::{self, Write},
+    fmt::{self, Display, Write},
     rc::Rc,
 };
 
@@ -16,21 +16,20 @@ pub struct Stmt {
     pub params: Vec<OrdRc<rusqlite::types::Value>>,
 }
 
-impl Write for Stmt {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.sql.write_str(s)
-    }
-}
-
 impl Stmt {
-    pub fn write_param(&mut self, param: &OrdRc<rusqlite::types::Value>) -> fmt::Result {
+    pub fn write(&mut self, args: impl Display) -> &mut Self {
+        self.sql.write_fmt(format_args!("{args}")).unwrap();
+        self
+    }
+
+    pub fn write_param(&mut self, param: &OrdRc<rusqlite::types::Value>) {
         let position = self.params.iter().position(|x| x == param);
         let pos = position.unwrap_or_else(|| {
             let pos = self.params.len();
             self.params.push(param.clone());
             pos
         });
-        write!(self, "${}", pos + 1)
+        self.write("$").write(pos + 1);
     }
 }
 
@@ -73,7 +72,7 @@ impl Select {
 
 impl SelectFrozen {
     pub fn emit(&self, w: &mut Stmt, is_aggregate: bool) -> fmt::Result {
-        write!(w, "SELECT ")?;
+        w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in self.forwarded.iter().enumerate() {
             write!(list.item()?, "f{forward_idx}.id")?;
@@ -90,7 +89,7 @@ impl SelectFrozen {
         list.default("1")?;
 
         if !self.rows.from.is_empty() || !self.unique.is_empty() || !self.aggregate.is_empty() {
-            write!(w, " FROM ")?;
+            w.write(" FROM ");
             let mut list = ListWriter::new(w, ", ");
             for (join_idx, join) in self.rows.from.iter().enumerate() {
                 let list_item = list.item()?;
@@ -105,11 +104,11 @@ impl SelectFrozen {
             list.default("(SELECT 1)")?;
 
             for (unique_idx, unique) in self.unique.iter().enumerate() {
-                write!(w, " JOIN ")?;
-                unique.table.emit(w)?;
-                write!(w, " AS u{unique_idx}")?;
+                w.write(" JOIN ");
+                unique.table.emit(w);
+                w.write(format_args!(" AS u{unique_idx}"));
                 if !unique.conds.is_empty() {
-                    write!(w, " ON ")?;
+                    w.write(" ON ");
                     let mut list = ListWriter::new(w, " AND ");
                     for (col, expr) in &unique.conds {
                         let list_item = list.item()?;
@@ -120,11 +119,11 @@ impl SelectFrozen {
             }
 
             for (aggr_idx, aggr) in self.aggregate.iter().enumerate() {
-                write!(w, " JOIN (")?;
-                aggr.emit(w, true)?;
-                write!(w, ") AS a{aggr_idx}")?;
+                w.write(" JOIN (");
+                aggr.emit(w, true);
+                w.write(format_args!(") AS a{aggr_idx}"));
                 if !aggr.forwarded.is_empty() {
-                    write!(w, " ON ")?;
+                    w.write(" ON ");
                     let mut list = ListWriter::new(w, " AND ");
                     for (forward_idx, join) in aggr.forwarded.iter().enumerate() {
                         let list_item = list.item()?;
@@ -136,7 +135,7 @@ impl SelectFrozen {
         }
 
         if !self.rows.filter.is_empty() {
-            write!(w, " WHERE ")?;
+            w.write(" WHERE ");
             let mut list = ListWriter::new(w, " AND ");
             for expr in &self.rows.filter {
                 self.emit_expr(list.item()?, expr)?;
@@ -144,7 +143,7 @@ impl SelectFrozen {
         }
 
         if !self.forwarded.is_empty() {
-            write!(w, " GROUP BY ")?;
+            w.write(" GROUP BY ");
             let mut list = ListWriter::new(w, ", ");
             for (forward_idx, _) in self.forwarded.iter().enumerate() {
                 write!(list.item()?, "{}", forward_idx + 1)?;
@@ -154,18 +153,20 @@ impl SelectFrozen {
         Ok(())
     }
 
-    fn emit_join(&self, w: &mut Stmt, join: &Join) -> fmt::Result {
+    fn emit_join(&self, w: &mut Stmt, join: &Join) {
         if let Ok(idx) = self.rows.from.binary_search(join) {
-            write!(w, "j{idx}")
+            w.write(format_args!("j{idx}"));
         } else {
             let idx = self.forwarded.binary_search(join).unwrap();
-            write!(w, "f{idx}")
+            w.write(format_args!("f{idx}"));
         }
     }
 
-    fn emit_expr(&self, w: &mut Stmt, expr: &Expr) -> fmt::Result {
+    fn emit_expr(&self, w: &mut Stmt, expr: &Expr) {
         match expr {
-            Expr::Constant(c) => write!(w, "{c}"),
+            Expr::Constant(c) => {
+                w.write(c);
+            }
             Expr::Parameter(param) => w.write_param(param),
             Expr::AggrIndex(select_vec, expr) => {
                 let aggr_idx = self
@@ -173,50 +174,50 @@ impl SelectFrozen {
                     .binary_search_by_key(&select_vec.as_ref(), |v| &v.rows)
                     .unwrap();
                 let alias = self.aggregate[aggr_idx].get_select_alias(expr);
-                write!(w, "a{aggr_idx}.{alias}")
+                w.write(format_args!("a{aggr_idx}.{alias}"));
             }
             Expr::RowIndex(row_like, col) => match row_like {
                 RowLike::Join(join) => {
-                    self.emit_join(w, join)?;
-                    write!(w, ".{}", Alias(col))
+                    self.emit_join(w, join);
+                    w.write(format_args!(".{}", Alias(col)));
                 }
                 RowLike::Unique(unique) => {
                     let unique_idx = self.unique.binary_search(unique).unwrap();
-                    write!(w, "u{unique_idx}.{}", Alias(col))
+                    w.write(format_args!("u{unique_idx}.{}", Alias(col)));
                 }
             },
             Expr::Prefix(prefix, expr) => {
-                write!(w, "{prefix}")?;
+                w.write(prefix);
                 self.emit_expr(w, expr)
             }
             Expr::Infix(lhs, infix, rhs) => {
-                write!(w, "(")?;
-                self.emit_expr(w, lhs)?;
-                write!(w, "{infix}")?;
-                self.emit_expr(w, rhs)?;
-                write!(w, ")")
+                w.write("(");
+                self.emit_expr(w, lhs);
+                w.write(format_args!(" {infix} "));
+                self.emit_expr(w, rhs);
+                w.write(")");
             }
             Expr::Func(func, exprs) => {
-                write!(w, "{func}(")?;
+                w.write(format_args!("{func}("));
                 let mut list = ListWriter::new(w, ", ");
                 for expr in exprs.as_ref() {
-                    self.emit_expr(list.item()?, expr)?;
+                    self.emit_expr(list.item(), expr);
                 }
-                write!(w, ")")
+                w.write(")");
             }
             Expr::In(expr, list) => {
-                self.emit_expr(w, expr)?;
-                write!(w, " IN (")?;
+                self.emit_expr(w, expr);
+                w.write(" IN (");
                 let mut list = ListWriter::new(w, ", ");
                 for expr in list {
-                    self.emit_expr(list.item()?, expr)?;
+                    self.emit_expr(list.item(), expr);
                 }
-                write!(w, ")")
+                w.write(")");
             }
             Expr::Cast(expr, ty) => {
-                write!(w, "CAST(")?;
-                self.emit_expr(w, expr)?;
-                write!(w, " AS {ty})")
+                w.write("CAST(");
+                self.emit_expr(w, expr);
+                w.write(format_args!(" AS {ty})"));
             }
         }
     }
@@ -228,17 +229,21 @@ impl SelectFrozen {
 }
 
 impl JoinableTable {
-    pub fn emit(&self, w: &mut Stmt) -> fmt::Result {
+    pub fn emit(&self, w: &mut Stmt) {
         match self {
-            JoinableTable::Table(name) => write!(w, "main.{}", Alias(name)),
-            JoinableTable::Tmp(tmp) => write!(w, "main._tmp{}", tmp.name),
+            JoinableTable::Table(name) => {
+                w.write(format_args!("main.{}", Alias(name)));
+            }
+            JoinableTable::Tmp(tmp) => {
+                w.write(format_args!("main._tmp{}", tmp.name));
+            }
             JoinableTable::Pragma(func, params) => {
-                write!(w, "{func}(")?;
+                w.write(format_args!("{func}("));
                 let mut list = ListWriter::new(w, ", ");
                 for param in params {
-                    list.item()?.write_param(param)?;
+                    list.item().write_param(param);
                 }
-                write!(w, ")")
+                w.write(")");
             }
         }
     }

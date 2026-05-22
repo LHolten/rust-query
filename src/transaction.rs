@@ -541,20 +541,28 @@ impl<S: 'static> Transaction<S> {
         T::read(&val, &mut reader);
 
         let mut stmt = emit::Stmt::default();
-        write!(&mut stmt, "UPDATE ").unwrap();
+        stmt.write("UPDATE ");
         lower::JoinableTable::Table(T::NAME)
             .emit(&mut stmt)
             .unwrap();
 
-        write!(&mut stmt, " SET ").unwrap();
+        stmt.write(" SET ");
         let mut list = ListWriter::new(&mut stmt, ", ");
         for (key, val) in reader.builder {
             write!(&mut list, "{}.{} = ", Alias(T::NAME), Alias(key)).unwrap();
             list.write_param(val).unwrap();
         }
-        list.default(&format!("{0}.{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
+        list.default(format_args!(
+            "{0}.{1} = {0}.{1}",
+            Alias(T::NAME),
+            Alias(T::ID)
+        ));
 
-        write!(&mut stmt, " WHERE {}.{} = ", Alias(T::NAME), Alias(T::ID)).unwrap();
+        stmt.write(format_args!(
+            " WHERE {}.{} = ",
+            Alias(T::NAME),
+            Alias(T::ID)
+        ));
         stmt.write_param(&OrdRc(Rc::new(row.inner.idx.into())));
 
         let res = TXN.with_borrow(|txn| {
@@ -626,16 +634,14 @@ impl<S: Schema> TransactionWeak<S> {
                     .then_some(col_name)
             }) {
                 let mut stmt = emit::Stmt::default();
-                write!(&mut stmt, "SELECT ").unwrap();
+                stmt.write("SELECT ");
                 stmt.write_param(&OrdRc(Rc::new(val.inner.idx.into())))
                     .unwrap();
-                write!(
-                    &mut stmt,
+                stmt.write(format_args!(
                     " IN (SELECT {0}.{1} FROM {0})",
                     Alias(table_name),
                     Alias(col)
-                )
-                .unwrap();
+                ));
                 checks.push(stmt);
             }
         }
@@ -714,28 +720,28 @@ pub fn try_insert_private<T: Table>(
     }
 
     let mut stmt = emit::Stmt::default();
-    write!(&mut stmt, "INSERT INTO ").unwrap();
+    stmt.write("INSERT INTO ");
     table.emit(&mut stmt).unwrap();
 
     if reader.builder.is_empty() {
         // values always has at least one column, so we leave it out when there are no columns
-        write!(&mut stmt, " DEFAULT VALUES").unwrap();
+        stmt.write(" DEFAULT VALUES");
     } else {
         let (col_names, col_exprs): (Vec<_>, Vec<_>) = reader.builder.clone().into_iter().collect();
 
-        write!(&mut stmt, " (").unwrap();
+        stmt.write(" (");
         let list = ListWriter::new(&mut stmt, ", ");
         for col in col_names {
-            write!(list.item().unwrap(), "{}", Alias(col)).unwrap();
+            list.item().write(Alias(col));
         }
-        write!(&mut stmt, ") VALUES (").unwrap();
+        stmt.write(") VALUES (");
         let list = ListWriter::new(&mut stmt, ", ");
         for val in col_exprs {
-            list.item().unwrap().write_param(&val).unwrap()
+            list.item().write_param(&val);
         }
-        write!(&mut stmt, ")").unwrap();
+        stmt.write(")");
     }
-    write!(&mut stmt, " RETURNING {}", T::ID).unwrap();
+    stmt.write(" RETURNING ").write(T::ID);
 
     let res = TXN.with_borrow(|txn| {
         let txn = txn.as_ref().unwrap().get();
