@@ -14,7 +14,7 @@ use rusqlite::config::DbConfig;
 use self_cell::MutBorrow;
 
 use crate::{
-    Table, Transaction,
+    Table, Transaction, lower,
     migrate::{
         config::Config,
         migration::{SchemaBuilder, TransactionMigrate},
@@ -52,17 +52,6 @@ pub trait Schema: Sized + 'static {
     const PATH: &str;
     const SPAN: (usize, usize);
     fn typs(b: &mut TableTypBuilder<Self>);
-}
-
-fn new_table_inner(table: &crate::schema::from_macro::Table, alias: TmpTable) -> String {
-    let alias = alias.into_iden();
-    let mut create = table.create();
-    create
-        .table(alias.clone())
-        .col(ColumnDef::new(Alias::new("id")).integer().primary_key());
-    let mut sql = create.to_string(SqliteQueryBuilder);
-    sql.push_str(" STRICT");
-    sql
 }
 
 pub trait SchemaMigration<'a> {
@@ -224,9 +213,8 @@ impl<S: Schema> Database<S> {
             let schema = crate::schema::from_macro::Schema::new::<S>();
 
             for (&table_name, table) in &schema.tables {
-                txn.get()
-                    .execute(&new_table_inner(table, table_name), [])
-                    .unwrap();
+                let create = table.create(lower::JoinableTable::Table(table_name), primary);
+                txn.get().execute(&create, []).unwrap();
                 for stmt in table.delayed_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();
                 }
@@ -426,10 +414,10 @@ fn fix_indices<S: Schema>(txn: &Transaction<S>) {
             // can not be dropped, so we assume the worst and just recreate
             // the whole table.
 
-            let scope = Scope::default();
+            let scope = lower::Scope::default();
             let tmp_name = scope.tmp_table();
 
-            txn.execute(&new_table_inner(expected_table, tmp_name));
+            txn.execute(&expected_table.create(lower::JoinableTable::Tmp(tmp_name), primary));
 
             let mut columns: Vec<_> = expected_table.columns.keys().map(Alias::new).collect();
             columns.push(Alias::new("id"));

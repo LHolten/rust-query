@@ -93,7 +93,7 @@ impl Schema {
 }
 
 impl Table {
-    pub fn create(&self, table: lower::JoinableTable) -> emit::Stmt {
+    pub fn create(&self, table: lower::JoinableTable, primary: &'static str) -> String {
         let mut stmt = emit::Stmt::default();
 
         stmt.write("CREATE TABLE ");
@@ -101,6 +101,9 @@ impl Table {
 
         stmt.write(" (");
         let mut list = ListWriter::new(&mut stmt, ", ");
+        list.item()
+            .write(Alias(primary))
+            .write(" INTEGER PRIMARY KEY");
         for (name, col) in &self.columns {
             let col = &col.def;
             let item = list.item().write(Alias(&name));
@@ -131,7 +134,8 @@ impl Table {
             }
         }
         stmt.write(") STRICT");
-        stmt
+        assert!(stmt.params.is_empty());
+        stmt.sql
     }
 
     /// This gives the sql to create the remaining non unique indices

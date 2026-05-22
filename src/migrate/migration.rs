@@ -5,10 +5,7 @@ use std::{
     ops::Deref,
 };
 
-use crate::{
-    Lazy, Table, TableRow, Transaction, lower, migrate::new_table_inner,
-    transaction::try_insert_private,
-};
+use crate::{Lazy, Table, TableRow, Transaction, lower, transaction::try_insert_private};
 
 pub trait Migration {
     type FromSchema: 'static;
@@ -44,7 +41,8 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
             let new_table_name = self.scope.tmp_table();
             let table = crate::schema::from_macro::Table::new::<T>();
-            self.inner.execute(&new_table_inner(&table, new_table_name));
+            self.inner
+                .execute(&table.create(lower::JoinableTable::Tmp(new_table_name), T::ID));
             self.extra_index.extend(table.delayed_indices(T::NAME));
             new_table_name
         })
