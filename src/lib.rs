@@ -22,7 +22,6 @@ mod migrate;
 mod mutable;
 #[cfg(feature = "mutants")]
 mod mutants;
-mod mymap;
 mod pool;
 mod query;
 mod rows;
