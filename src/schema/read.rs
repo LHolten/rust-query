@@ -104,7 +104,7 @@ pub struct Pragma;
 struct TableList;
 
 table! {
-    TableList, _ => JoinableTable::Pragma("pragma_table_list", vec![]), TableList,
+    TableList, _ => JoinableTable::Table("pragma_table_list"), TableList,
     TableListSelect {
         schema: String,
         name: String,
@@ -164,7 +164,7 @@ table! {IndexInfo, val => JoinableTable::Pragma("pragma_index_info", vec![OrdRc:
 
 struct SqliteSchema;
 
-table! {SqliteSchema, _ => JoinableTable::Pragma("sqlite_schema", vec![]),
+table! {SqliteSchema, _ => JoinableTable::Table("sqlite_schema"),
     SqliteSchema,
     SqliteSchemaSelect {
         r#type: String,
