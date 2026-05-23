@@ -201,7 +201,7 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
             })
             .collect();
 
-        let rows = self.query.ast.as_ref().clone().frozen();
+        let rows = self.query.ast.as_ref().clone();
         let mut stmt = emit::Stmt::default();
         let forwarded = rows.emit(&mut stmt, false, &selected);
         assert!(forwarded.is_empty());

@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::lower::{
-    Expr, Join, JoinableTable, RowLike, RowsFrozen, Unique,
+    Expr, Join, JoinableTable, RowLike, Rows, Unique,
     list_writer::{Alias, ListWriter},
     ord_rc::OrdRc,
 };
@@ -88,12 +88,12 @@ struct ExprEmitDeps {
     // Outer scope tables required by the expression
     forwarded: IndexMap<Join, ()>,
     // aggregates used by the expression
-    aggregate: IndexMap<RowsFrozen, IndexMap<Rc<Expr>, ()>>,
+    aggregate: IndexMap<Rows, IndexMap<Rc<Expr>, ()>>,
     // unique tables used by the expression
     unique: IndexMap<Rc<Unique>, String>,
 }
 
-impl RowsFrozen {
+impl Rows {
     #[must_use]
     pub fn emit(
         &self,
@@ -211,7 +211,7 @@ impl RowsFrozen {
     }
 
     fn emit_join(&self, w: &mut Stmt, join: &Join, deps: &mut ExprEmitDeps) {
-        if let Ok(idx) = self.from.binary_search(join) {
+        if let Some((idx, _)) = self.from.iter().enumerate().find(|x| x.1 == join) {
             w.write(format_args!("j{idx}"));
         } else {
             let (idx, ()) = deps.forwarded.insert_with(join.clone(), |_| ());

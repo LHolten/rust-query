@@ -128,7 +128,6 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         }
 
         let mut selected = IndexMap::default();
-        let rows = rows.frozen();
 
         let id = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), T::ID));
         let (idx, _) = selected.insert_with(id, |_| ());
