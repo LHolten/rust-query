@@ -12,7 +12,7 @@ pub const CONST_0: Expr = Expr::Constant("0");
 pub const CONST_FALSE: Expr = Expr::Constant("false");
 pub const CONST_NULL: Expr = Expr::Constant("NULL");
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
     Table(&'static str),
     Tmp(TmpTable),
@@ -21,10 +21,10 @@ pub enum JoinableTable {
 }
 
 /// Specific join of a table
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Join(OrdRc<JoinableTable>);
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Unique {
     pub table: JoinableTable,
     pub conds: Vec<(&'static str, Rc<Expr>)>,
@@ -36,7 +36,16 @@ pub enum RowLike {
     Unique(Rc<Unique>),
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+impl Debug for RowLike {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Join(arg0) => arg0.fmt(f),
+            Self::Unique(arg0) => arg0.fmt(f),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<rusqlite::types::Value>),
@@ -83,7 +92,7 @@ pub struct Rows {
     filter: BTreeSet<Rc<Expr>>,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RowsFrozen {
     from: Vec<Join>,
     filter: BTreeSet<Rc<Expr>>,

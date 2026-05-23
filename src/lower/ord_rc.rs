@@ -3,6 +3,7 @@ use std::{
     rc::Rc,
 };
 
+#[derive(Debug)]
 pub struct OrdRc<T: ?Sized>(pub Rc<T>);
 
 impl OrdRc<rusqlite::types::Value> {
