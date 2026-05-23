@@ -44,25 +44,3 @@ impl<'inner, S, T: DbTyp> IntoJoinable<'inner, S> for Joinable<'inner, S, T> {
         self
     }
 }
-
-#[cfg(false)] // vec support doesn't work yet
-trait ConstExpr<S>: crate::IntoExpr<'static, S> {
-    fn into_out(self) -> <Self::Typ as DbTyp>::Out;
-}
-
-#[cfg(false)] // vec support doesn't work yet
-impl<'x, S, T: IntoIterator<Item: ConstExpr<S>>> IntoJoinable<'x, S> for T {
-    type Typ = <T::Item as IntoExpr<'static, S>>::Typ;
-
-    fn into_joinable(self) -> Joinable<'x, S, Self::Typ> {
-        Joinable {
-            _p: PhantomData,
-            table: JoinableTable::Vec(
-                self.into_iter()
-                    .map(|x| Self::Typ::out_to_value(x.into_out()))
-                    .collect(),
-            ),
-            conds: Vec::new(),
-        }
-    }
-}

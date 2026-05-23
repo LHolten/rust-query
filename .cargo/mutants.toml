@@ -1,3 +1,5 @@
 #:schema https://json.schemastore.org/cargo-mutants-config.json
 gitignore = true
 features = ["mutants"]
+exclude_re = ["impl Debug"]
+exclude_globs = ["src/schema/tokenizer.rs"] # tokenizer is fuzz tested
