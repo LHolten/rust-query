@@ -1,9 +1,9 @@
-use std::{borrow::Cow, collections::HashMap, convert::Infallible, ops::Deref};
+use std::{borrow::Cow, collections::HashMap, convert::Infallible, ops::Deref, rc::Rc};
 
 use crate::{
     Expr, FromExpr, IntoSelect, Select, Table, TableRow, Transaction,
-    lower::{JoinableTable, ord_rc::OrdRc},
-    private::{Reader, new_column},
+    lower::{self, JoinableTable, ord_rc::OrdRc},
+    private::Reader,
     schema::{self, check_constraint, from_db},
 };
 
@@ -48,8 +48,13 @@ macro_rules! table {
             }
 
             fn build_ext2<'t>(val: &Expr<'t, Self::Schema, TableRow<Self>>) -> Self::Ext2<'t> {
+                let lower::Expr::RowIndex(row_like, "pragma_id") = Rc::as_ref(&val.inner) else {
+                    unreachable!()
+                };
                 Self::Ext2 {
-                    $($field_name: new_column(val, strip_raw(stringify!($field_name))),)*
+                    $($field_name: Expr::adhoc(
+                        lower::Expr::RowIndex(row_like.clone(), strip_raw(stringify!($field_name)))
+                    ),)*
                 }
             }
 
@@ -63,20 +68,16 @@ macro_rules! table {
             type Lazy<'t> = ();
             type Mutable = NoMut;
 
-            #[doc(hidden)]
             type Select = ();
 
-            #[doc(hidden)]
             fn into_select(_val: Expr<'_, Self::Schema, TableRow<Self>>) -> Select<'_, Self::Schema, Self::Select> {
                 ().into_select()
             }
 
-            #[doc(hidden)]
             fn select_mutable(_select: Self::Select) -> Self::Mutable {
                 unreachable!()
             }
 
-            #[doc(hidden)]
             fn select_lazy<'t>(_select: Self::Select) -> Self::Lazy<'t> {
                 unreachable!()
             }

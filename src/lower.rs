@@ -36,6 +36,15 @@ pub enum RowLike {
     Unique(Rc<Unique>),
 }
 
+impl RowLike {
+    fn table(&self) -> &JoinableTable {
+        match self {
+            RowLike::Join(join) => &join.0.as_ref(),
+            RowLike::Unique(unique) => &unique.table,
+        }
+    }
+}
+
 impl Debug for RowLike {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -67,11 +76,12 @@ impl Expr {
         col: &'static str,
         main_col: &'static str,
     ) -> Rc<Expr> {
-        if let Expr::RowIndex(table, old) = Rc::as_ref(self)
+        if let Expr::RowIndex(row_like, old) = Rc::as_ref(self)
             && *old == main_col
+            && row_like.table() == &table
         {
             // if this is already a join then we can just change the column
-            return Rc::new(Expr::RowIndex(table.clone(), col));
+            return Rc::new(Expr::RowIndex(row_like.clone(), col));
         }
 
         let unique = Unique {
