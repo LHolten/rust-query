@@ -4,6 +4,6 @@ QUERY PLAN [
         SEARCH j0 USING INDEX invoice_index_0 (customer=?),
     ],
     SCAN j0,
-    BLOOM FILTER ON a0 (f0=?),
-    SEARCH a0 USING AUTOMATIC COVERING INDEX (f0=?) LEFT-JOIN,
+    BLOOM FILTER ON a0 (ff0=?),
+    SEARCH a0 USING AUTOMATIC COVERING INDEX (ff0=?) LEFT-JOIN,
 ]
