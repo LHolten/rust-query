@@ -1,15 +1,9 @@
 QUERY PLAN [
-    MATERIALIZE _1 [
-        SCAN _1,
-        SEARCH _0 USING INDEX track_index_1 (genre=?),
+    MATERIALIZE a0 [
+        SCAN f0,
+        SEARCH j0 USING INDEX track_index_1 (genre=?),
     ],
-    MATERIALIZE _2 [
-        SCAN _1,
-        SEARCH _0 USING INDEX track_index_1 (genre=?),
-    ],
-    SCAN _0,
-    BLOOM FILTER ON _1 (_0=?),
-    SEARCH _1 USING AUTOMATIC COVERING INDEX (_0=?) LEFT-JOIN,
-    BLOOM FILTER ON _2 (_0=?),
-    SEARCH _2 USING AUTOMATIC COVERING INDEX (_0=?) LEFT-JOIN,
+    SCAN j0,
+    BLOOM FILTER ON a0 (f0=?),
+    SEARCH a0 USING AUTOMATIC COVERING INDEX (f0=?) LEFT-JOIN,
 ]
