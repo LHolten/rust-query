@@ -1,7 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
-    fmt::Debug,
+    fmt::{Debug, Display},
     marker::PhantomData,
     ops::{Deref, DerefMut},
     rc::Rc,
@@ -15,6 +15,7 @@ use crate::{
     lower::{
         self,
         emit::{self, IndexMap},
+        list_writer::ListWriter,
         ord_rc::OrdRc,
     },
     rows::Rows,
@@ -140,6 +141,15 @@ enum Order {
     Desc,
 }
 
+impl Display for Order {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Order::Asc => f.write_str("ASC"),
+            Order::Desc => f.write_str("DESC"),
+        }
+    }
+}
+
 /// This is the result of calling [Query::order_by].
 ///
 /// Use [Self::asc] and [Self::desc] to refine the order of the returned rows.
@@ -182,10 +192,27 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
             })
             .collect();
 
+        let order_by_cols: Vec<_> = self
+            .order
+            .iter()
+            .map(|(col, order)| {
+                let (idx, _) = selected.insert_with(col.clone(), |_| ());
+                (idx, order)
+            })
+            .collect();
+
         let rows = self.query.ast.as_ref().clone().frozen();
         let mut stmt = emit::Stmt::default();
         let forwarded = rows.emit(&mut stmt, false, &selected);
         assert!(forwarded.is_empty());
+
+        if !order_by_cols.is_empty() {
+            stmt.write(" ORDER BY ");
+            let mut list = ListWriter::new(&mut stmt, ", ");
+            for (idx, order) in order_by_cols {
+                list.item().write(idx + 1).write(" ").write(order);
+            }
+        }
 
         TXN.with_borrow_mut(|txn| {
             let combi = txn.as_mut().unwrap();
