@@ -44,72 +44,78 @@ impl Stmt {
     }
 }
 
-pub struct Select {
-    /// These are the tables that are grouped by
-    /// These are joined distinct to not influence the aggregate
-    forwarded: BTreeSet<Join>,
-    // unique and aggregate are similar, they don't change number of rows
-    aggregate: BTreeMap<RowsFrozen, Select>,
-    unique: BTreeSet<Unique>,
-    // The results returned from the aggregate or select
-    select: BTreeSet<Rc<Expr>>,
+// Map that keeps track of when item was inserted
+pub struct IndexMap<K, V> {
+    inner: BTreeMap<K, (usize, V)>,
 }
 
-// All the information required to write sql
-pub struct SelectFrozen {
-    rows: RowsFrozen,
-    forwarded: Vec<Join>,
-    aggregate: Vec<SelectFrozen>,
-    unique: Vec<Unique>,
-    select: Vec<Rc<Expr>>,
-}
+impl<K: Ord, V> IndexMap<K, V> {
+    pub fn insert_with(&mut self, k: K, f: impl FnOnce(usize) -> V) -> (usize, &mut V) {
+        let idx = self.inner.len();
+        let (idx, val) = self.inner.entry(k).or_insert_with(|| (idx, f(idx)));
+        (*idx, val)
+    }
 
-impl Select {
-    /// rows provided should be the same as those that self was created with.
-    pub fn frozen(self, rows: RowsFrozen) -> SelectFrozen {
-        SelectFrozen {
-            rows,
-            forwarded: self.forwarded.into_iter().collect(),
-            aggregate: self
-                .aggregate
-                .into_iter()
-                .map(|(k, v)| v.frozen(k))
-                .collect(),
-            unique: self.unique.into_iter().collect(),
-            select: self.select.into_iter().collect(),
-        }
+    fn iter(&self) -> impl Iterator<Item = (usize, &K, &V)> {
+        let mut vals: Vec<_> = self.inner.iter().map(|(k, v)| (v.0, k, &v.1)).collect();
+        vals.sort_by_key(|a| a.0);
+        vals.into_iter()
+    }
+
+    fn values(&self) -> impl Iterator<Item = (usize, &V)> {
+        self.iter().map(|(i, _k, v)| (i, v))
+    }
+
+    fn keys(&self) -> impl Iterator<Item = (usize, &K)> {
+        self.iter().map(|(i, k, _v)| (i, k))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 }
 
-// Map that keeps track of when item was inserted
-struct IndexMap<K, V> {
-    inner: BTreeMap<K, (usize, V)>,
+impl<K, V> Default for IndexMap<K, V> {
+    fn default() -> Self {
+        Self {
+            inner: Default::default(),
+        }
+    }
 }
 
 #[derive(Default)]
 struct ExprEmitDeps {
     // Outer scope tables required by the expression
-    forwarded: Vec<Join>,
+    forwarded: IndexMap<Join, ()>,
     // aggregates used by the expression
-    aggregate: Vec<(RowsFrozen, Vec<Rc<Expr>>)>,
+    aggregate: IndexMap<RowsFrozen, IndexMap<Rc<Expr>, ()>>,
     // unique tables used by the expression
-    unique: Vec<(Unique, String)>,
+    unique: IndexMap<Rc<Unique>, String>,
 }
 
 impl RowsFrozen {
-    pub fn emit(&self, w: &mut Stmt, is_aggregate: bool, select: &[Rc<Expr>]) -> Vec<Join> {
+    #[must_use]
+    pub fn emit(
+        &self,
+        w: &mut Stmt,
+        is_aggregate: bool,
+        select: &IndexMap<Rc<Expr>, ()>,
+    ) -> IndexMap<Join, ()> {
         let mut deps = ExprEmitDeps::default();
 
         let select_exprs: Vec<_> = select
-            .iter()
-            .map(|expr| {
-                w.fresh(|w| {
-                    self.emit_expr(w, expr, &mut deps);
-                })
+            .keys()
+            .map(|(idx, expr)| {
+                (
+                    idx,
+                    w.fresh(|w| {
+                        self.emit_expr(w, expr, &mut deps);
+                    }),
+                )
             })
             .collect();
 
-        let filter_exprs: Vec<_> = self
+        let filter_exprs: BTreeSet<_> = self
             .filter
             .iter()
             .map(|expr| {
@@ -119,14 +125,42 @@ impl RowsFrozen {
             })
             .collect();
 
+        // Build the aggregates as the final step so that they are maximally combined.
+        // This should only add some additional forwarded joins.
+        let aggregates: Vec<_> = take(&mut deps.aggregate)
+            .iter()
+            .map(|(aggr_idx, aggr, exprs)| {
+                w.fresh(|w| {
+                    w.write("(");
+                    let aggr_forwarded = aggr.emit(w, true, exprs);
+                    w.write(format_args!(") AS a{aggr_idx}"));
+                    if !aggr_forwarded.is_empty() {
+                        w.write(" ON ");
+                        let mut list = ListWriter::new(w, " AND ");
+                        for (forward_idx, join) in aggr_forwarded.keys() {
+                            let list_item = list.item();
+                            list_item.write(format_args!("a{aggr_idx}.f{forward_idx} = "));
+                            self.emit_join(list_item, join, &mut deps);
+                            list_item.write(".id"); // TODO use real primary key
+                        }
+                    }
+                })
+            })
+            .collect();
+
+        // make deps immutable from this moment
+        let deps = deps;
+        // no additional aggregates should exist
+        assert!(deps.aggregate.is_empty());
+
         w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
-        for (forward_idx, _item) in deps.forwarded.iter().enumerate() {
+        for (forward_idx, _item) in deps.forwarded.keys() {
             // TODO: double check that this forward is correct
             list.item()
                 .write(format_args!("f{forward_idx}.id AS f{forward_idx}"));
         }
-        for (select_idx, expr) in select_exprs.iter().enumerate() {
+        for (select_idx, expr) in select_exprs.iter() {
             list.item().write(format_args!("{expr} AS s{select_idx}"));
         }
         if is_aggregate && deps.forwarded.is_empty() {
@@ -135,51 +169,26 @@ impl RowsFrozen {
         }
         list.default("1");
 
-        if !self.from.is_empty() || !deps.unique.is_empty() || !deps.aggregate.is_empty() {
-            w.write(" FROM ");
-            let mut list = ListWriter::new(w, ", ");
-            for (join_idx, join) in self.from.iter().enumerate() {
-                let list_item = list.item();
-                join.0.emit(list_item);
-                list_item.write(format_args!(" AS j{join_idx}"));
-            }
-            for (forwarded_idx, forwarded) in deps.forwarded.iter().enumerate() {
-                let list_item = list.item();
-                forwarded.0.emit(list_item);
-                list_item.write(format_args!(" AS f{forwarded_idx}"));
-            }
-            list.default("(SELECT 1)");
+        w.write(" FROM ");
+        let mut list = ListWriter::new(w, ", ");
+        for (join_idx, join) in self.from.iter().enumerate() {
+            let list_item = list.item();
+            join.0.emit(list_item);
+            list_item.write(format_args!(" AS j{join_idx}"));
+        }
+        for (forwarded_idx, forwarded) in deps.forwarded.keys() {
+            let list_item = list.item();
+            forwarded.0.emit(list_item);
+            list_item.write(format_args!(" AS f{forwarded_idx}"));
+        }
+        list.default("(SELECT 1)");
 
-            for (unique_idx, unique) in deps.unique.iter().enumerate() {
-                w.write(" LEFT JOIN ").write(unique);
-                // unique.table.emit(w);
-                // w.write(format_args!(" AS u{unique_idx}"));
-                // if !unique.conds.is_empty() {
-                //     w.write(" ON ");
-                //     let mut list = ListWriter::new(w, " AND ");
-                //     for (col, expr) in &unique.conds {
-                //         let list_item = list.item();
-                //         list_item.write(format_args!("u{unique_idx}.{} = ", Alias(col)));
-                //         self.emit_expr(list_item, expr);
-                //     }
-                // }
-            }
+        for (_unique_idx, unique) in deps.unique.values() {
+            w.write(" LEFT JOIN ").write(unique);
+        }
 
-            for (aggr_idx, (aggr, exprs)) in deps.aggregate.iter().enumerate() {
-                w.write(" LEFT JOIN (");
-                let aggr_forwarded = aggr.emit(w, true, exprs);
-                w.write(format_args!(") AS a{aggr_idx}"));
-                if !aggr_forwarded.is_empty() {
-                    w.write(" ON ");
-                    let mut list = ListWriter::new(w, " AND ");
-                    for (forward_idx, join) in aggr_forwarded.iter().enumerate() {
-                        let list_item = list.item();
-                        list_item.write(format_args!("a{aggr_idx}.f{forward_idx} = "));
-                        self.emit_join(list_item, join);
-                        list_item.write(".id"); // TODO use real primary key
-                    }
-                }
-            }
+        for aggr in aggregates {
+            w.write(" LEFT JOIN ").write(aggr);
         }
 
         if !filter_exprs.is_empty() {
@@ -193,7 +202,7 @@ impl RowsFrozen {
         if !deps.forwarded.is_empty() {
             w.write(" GROUP BY ");
             let mut list = ListWriter::new(w, ", ");
-            for (forward_idx, _) in deps.forwarded.iter().enumerate() {
+            for (forward_idx, _) in deps.forwarded.values().enumerate() {
                 list.item().write(forward_idx + 1);
             }
         }
@@ -201,11 +210,11 @@ impl RowsFrozen {
         deps.forwarded
     }
 
-    fn emit_join(&self, w: &mut Stmt, join: &Join) {
-        if let Ok(idx) = self.rows.from.binary_search(join) {
+    fn emit_join(&self, w: &mut Stmt, join: &Join, deps: &mut ExprEmitDeps) {
+        if let Ok(idx) = self.from.binary_search(join) {
             w.write(format_args!("j{idx}"));
         } else {
-            let idx = self.forwarded.binary_search(join).unwrap();
+            let (idx, ()) = deps.forwarded.insert_with(join.clone(), |_| ());
             w.write(format_args!("f{idx}"));
         }
     }
@@ -217,74 +226,93 @@ impl RowsFrozen {
             }
             Expr::Parameter(param) => w.write_param(param),
             Expr::AggrIndex(rows, expr) => {
-                let (aggr_idx, (aggr, cols)) = match deps
+                let (aggr_idx, cols) = deps
                     .aggregate
-                    .iter_mut()
-                    .enumerate()
-                    .find(|v| &v.1.0 == rows)
-                {
-                    Some(f) => f,
-                    None => (
-                        deps.aggregate.len(),
-                        deps.aggregate.push_mut((rows.clone(), Vec::new())),
-                    ),
-                };
-                let col_idx = match cols.iter().enumerate().find(|v| v.1 == expr) {
-                    Some(f) => f.0,
-                    None => (cols.len(), cols.push(expr.clone())).0,
-                };
+                    .insert_with(rows.clone(), |_| IndexMap::default());
+                let (col_idx, ()) = cols.insert_with(expr.clone(), |_| ());
                 w.write(format_args!("a{aggr_idx}.s{col_idx}"));
             }
             Expr::RowIndex(row_like, col) => match row_like {
                 RowLike::Join(join) => {
-                    self.emit_join(w, join);
+                    self.emit_join(w, join, deps);
                     w.write(format_args!(".{}", Alias(col)));
                 }
                 RowLike::Unique(unique) => {
-                    let unique_idx = deps.unique.binary_search(unique).unwrap();
+                    let conds: Vec<_> = unique
+                        .conds
+                        .iter()
+                        .map(|(col, expr)| {
+                            (
+                                *col,
+                                w.fresh(|w| {
+                                    self.emit_expr(w, expr, deps);
+                                }),
+                            )
+                        })
+                        .collect();
+
+                    let (unique_idx, _sql) =
+                        deps.unique.insert_with(unique.clone(), |unique_idx| {
+                            w.fresh(|w| {
+                                unique.table.emit(w);
+                                w.write(format_args!(" AS u{unique_idx}"));
+                                if !conds.is_empty() {
+                                    w.write(" ON ");
+                                    let mut list = ListWriter::new(w, " AND ");
+                                    for (col, expr) in &conds {
+                                        let list_item = list.item();
+                                        list_item.write(format_args!(
+                                            "u{unique_idx}.{} = {expr}",
+                                            Alias(col)
+                                        ));
+                                    }
+                                }
+                            })
+                        });
+
                     w.write(format_args!("u{unique_idx}.{}", Alias(col)));
                 }
             },
             Expr::Prefix(prefix, expr) => {
                 w.write(prefix);
-                self.emit_expr(w, expr)
+                self.emit_expr(w, expr, deps)
             }
             Expr::Infix(lhs, infix, rhs) => {
                 w.write("(");
-                self.emit_expr(w, lhs);
+                self.emit_expr(w, lhs, deps);
                 w.write(format_args!(" {infix} "));
-                self.emit_expr(w, rhs);
+                self.emit_expr(w, rhs, deps);
                 w.write(")");
             }
             Expr::Func(func, exprs) => {
                 w.write(format_args!("{func}("));
                 let mut list = ListWriter::new(w, ", ");
                 for expr in exprs.as_ref() {
-                    self.emit_expr(list.item(), expr);
+                    self.emit_expr(list.item(), expr, deps);
                 }
                 w.write(")");
             }
             Expr::In(expr, list) => {
-                self.emit_expr(w, expr);
+                self.emit_expr(w, expr, deps);
                 w.write(" IN (");
                 let mut list_writer = ListWriter::new(w, ", ");
                 for expr in list {
-                    self.emit_expr(list_writer.item(), expr);
+                    self.emit_expr(list_writer.item(), expr, deps);
                 }
                 w.write(")");
             }
             Expr::Cast(expr, ty) => {
                 w.write("CAST(");
-                self.emit_expr(w, expr);
+                self.emit_expr(w, expr, deps);
                 w.write(format_args!(" AS {ty})"));
             }
             Expr::Between(x, lower, upper) => {
                 w.write("(");
-                self.emit_expr(w, x);
+                self.emit_expr(w, x, deps);
                 w.write(format_args!(" BETWEEN "));
-                self.emit_expr(w, lower);
+                self.emit_expr(w, lower, deps);
                 w.write(format_args!(" AND "));
-                self.emit_expr(w, upper);
+                self.emit_expr(w, upper, deps);
                 w.write(")");
             }
         }
@@ -307,77 +335,6 @@ impl JoinableTable {
                     list.item().write_param(param);
                 }
                 w.write(")");
-            }
-        }
-    }
-}
-
-impl Select {
-    /// create info associated with rows.
-    pub fn new(rows: &RowsFrozen) -> Self {
-        let mut out = Self {
-            forwarded: BTreeSet::new(),
-            aggregate: BTreeMap::new(),
-            unique: BTreeSet::new(),
-            select: BTreeSet::new(),
-        };
-        for expr in &rows.filter {
-            out.analyze(rows, expr);
-        }
-        out
-    }
-
-    /// rows provided should be the same as those that self was created with.
-    pub fn add_select(&mut self, rows: &RowsFrozen, expr: &Rc<Expr>) {
-        if self.select.insert(expr.clone()) {
-            self.analyze(rows, expr);
-        }
-    }
-
-    /// rows provided should be the same as those that self was created with.
-    fn analyze(&mut self, rows: &RowsFrozen, expr: &Expr) {
-        match expr {
-            Expr::Constant(_const) => {}
-            Expr::Parameter(_ord_rc) => {}
-            Expr::AggrIndex(aggr_rows, expr) => {
-                self.aggregate
-                    .entry(aggr_rows.clone())
-                    .or_insert_with(|| Self::new(aggr_rows))
-                    .add_select(aggr_rows, expr);
-            }
-            Expr::RowIndex(row_like, _col) => match row_like {
-                RowLike::Join(join) => {
-                    if !rows.from.contains(join) {
-                        self.forwarded.insert(join.clone());
-                    }
-                }
-                RowLike::Unique(unique) => {
-                    self.unique.insert(unique.as_ref().clone());
-                }
-            },
-            Expr::Prefix(_prefix, expr) => self.analyze(rows, expr),
-            Expr::Infix(lhs, _infix, rhs) => {
-                self.analyze(rows, lhs);
-                self.analyze(rows, rhs);
-            }
-            Expr::Func(_func, exprs) => {
-                for expr in exprs.as_ref() {
-                    self.analyze(rows, expr);
-                }
-            }
-            Expr::In(expr, list) => {
-                self.analyze(rows, expr);
-                for expr in list {
-                    self.analyze(rows, expr);
-                }
-            }
-            Expr::Cast(expr, _ty) => {
-                self.analyze(rows, expr);
-            }
-            Expr::Between(x, lower, upper) => {
-                self.analyze(rows, x);
-                self.analyze(rows, lower);
-                self.analyze(rows, upper);
             }
         }
     }

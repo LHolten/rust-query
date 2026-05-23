@@ -12,7 +12,11 @@ use self_cell::{MutBorrow, self_cell};
 
 use crate::{
     IntoExpr,
-    lower::{self, emit, ord_rc::OrdRc},
+    lower::{
+        self,
+        emit::{self, IndexMap},
+        ord_rc::OrdRc,
+    },
     rows::Rows,
     select::{Cacher, DynPrepared, IntoSelect, Prepared, Row, SelectImpl},
     transaction::TXN,
@@ -168,20 +172,20 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
         let mut cacher = Cacher::new();
         let prepared = select.into_select().inner.prepare(&mut cacher);
 
-        let rows = self.query.ast.as_ref().clone().frozen();
-        let mut select = emit::Select::new(&rows);
-        for col in &cacher.columns {
-            select.add_select(&rows, col);
-        }
-        let select = select.frozen(rows);
-        let mut stmt = emit::Stmt::default();
-        select.emit(&mut stmt, false);
-
+        let mut selected = IndexMap::default();
         let cached_aliases = cacher
             .columns
-            .iter()
-            .map(|expr| select.get_select_alias(expr))
+            .into_iter()
+            .map(|expr| {
+                let (idx, ()) = selected.insert_with(expr, |_| ());
+                format!("s{idx}")
+            })
             .collect();
+
+        let rows = self.query.ast.as_ref().clone().frozen();
+        let mut stmt = emit::Stmt::default();
+        let forwarded = rows.emit(&mut stmt, false, &selected);
+        assert!(forwarded.is_empty());
 
         TXN.with_borrow_mut(|txn| {
             let combi = txn.as_mut().unwrap();

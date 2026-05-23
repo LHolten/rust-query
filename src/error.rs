@@ -3,7 +3,11 @@ use std::{borrow::Cow, convert::Infallible, fmt::Debug, marker::PhantomData, rc:
 use crate::{
     Table, TableRow,
     db::TableRowInner,
-    lower::{self, emit, ord_rc::OrdRc},
+    lower::{
+        self,
+        emit::{self, IndexMap},
+        ord_rc::OrdRc,
+    },
 };
 
 /// Error type that is used by [crate::Transaction::insert] and [crate::Mutable::unique] when
@@ -111,8 +115,8 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
         cols.retain(|(name, _val)| unique_columns.contains(&Cow::Borrowed(*name)));
         assert_eq!(cols.len(), unique_columns.len());
 
-        let mut select = lower::Rows::default();
-        let join = select.join(table);
+        let mut rows = lower::Rows::default();
+        let join = rows.join(table);
 
         for (col, val) in cols {
             let table_val = Rc::new(lower::Expr::RowIndex(
@@ -120,18 +124,18 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
                 col,
             ));
             let val = Rc::new(lower::Expr::Parameter(val));
-            select.filter(Rc::new(lower::Expr::Infix(val, "=", table_val)));
+            rows.filter(Rc::new(lower::Expr::Infix(val, "=", table_val)));
         }
 
-        let select = select.frozen();
-        let mut info = emit::Select::new(&select);
+        let mut selected = IndexMap::default();
+        let rows = rows.frozen();
 
         let id = Rc::new(lower::Expr::RowIndex(lower::RowLike::Join(join), T::ID));
-        info.add_select(&select, &id);
-        let info = info.frozen(select);
+        let (idx, _) = selected.insert_with(id, |_| ());
 
         let mut stmt = emit::Stmt::default();
-        info.emit(&mut stmt, false);
+        let forwarded = rows.emit(&mut stmt, false, &selected);
+        assert!(forwarded.is_empty());
 
         let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
         cached
@@ -140,7 +144,7 @@ impl<T: Table<Conflict = Self>> FromConflict for TableRow<T> {
                     _local: PhantomData,
                     inner: TableRowInner {
                         _p: PhantomData,
-                        idx: row.get(0)?,
+                        idx: row.get(&*format!("s{idx}"))?,
                     },
                 })
             })
