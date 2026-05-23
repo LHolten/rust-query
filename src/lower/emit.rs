@@ -30,7 +30,7 @@ impl Stmt {
             self.params.push(param.clone());
             pos
         });
-        self.write("$").write(pos + 1);
+        self.write("?").write(pos + 1);
     }
 
     pub fn fresh(&mut self, f: impl FnOnce(&mut Self)) -> String {
