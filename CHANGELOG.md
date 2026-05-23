@@ -5,6 +5,7 @@
 - Updated rust-version to `1.95`
 - Updated `rusqlite` (and removed `modern_sqlite` feature).
 - Removed `sea-query`, `sqlite3-parser`, `r2d2` and `r2d2-sqlite` dependencies.
+- Check that tables are `STRICT`.
 
 # 0.8.1
 

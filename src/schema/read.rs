@@ -112,7 +112,7 @@ table! {
         r#type: String,
         ncol: i64,
         wr: i64,
-        strict: i64,
+        strict: bool,
     }
 }
 
@@ -124,7 +124,7 @@ table! {
     TableInfoSelect {
         name: String,
         r#type: String,
-        notnull: i64,
+        notnull: bool,
         pk: i64,
     }
 }
@@ -184,7 +184,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         name: String,
         r#type: String,
         pk: i64,
-        notnull: i64,
+        notnull: bool,
     }
 
     let tables = conn.query(|q| {
@@ -194,7 +194,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         q.filter(table.name.neq("sqlite_schema"));
         // filter out tables such as `sqlite_stat1` and `sqlite_stat4`
         q.filter(table.name.starts_with("sqlite_stat").not());
-        q.into_vec(&table.name)
+        q.into_vec((&table.name, &table.strict))
     });
 
     let table_sql: HashMap<_, _> = conn.query(|q| {
@@ -205,7 +205,9 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
 
     let mut output = from_db::Schema::default();
 
-    for table_name in tables {
+    for (table_name, strict) in tables {
+        assert!(strict, "all tables must be STRICT");
+
         let columns: Vec<Column> = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
             q.into_vec(Column::from_expr(table))
@@ -235,7 +237,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
                     // TODO: lookup the actual primary key when the primary key is not always `id`.
                     .map(|x| (x.table, x.to.unwrap_or("id".to_owned()))),
                 typ: col.r#type,
-                nullable: col.notnull == 0,
+                nullable: !col.notnull,
                 check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
             };
             if col.pk != 0 {
