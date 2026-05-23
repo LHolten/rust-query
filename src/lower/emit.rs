@@ -88,7 +88,7 @@ struct ExprEmitDeps {
     // Outer scope tables required by the expression
     forwarded: IndexMap<Join, ()>,
     // aggregates used by the expression
-    aggregate: IndexMap<Rows, IndexMap<Rc<Expr>, ()>>,
+    aggregate: IndexMap<Rc<Rows>, IndexMap<Rc<Expr>, ()>>,
     // unique tables used by the expression
     unique: IndexMap<Rc<Unique>, String>,
 }
@@ -139,7 +139,7 @@ impl Rows {
                         let mut list = ListWriter::new(w, " AND ");
                         for (forward_idx, join) in aggr_forwarded.keys() {
                             let list_item = list.item();
-                            list_item.write(format_args!("a{aggr_idx}.f{forward_idx} = "));
+                            list_item.write(format_args!("a{aggr_idx}.ff{forward_idx} = "));
                             self.emit_join(list_item, join, &mut deps);
                             list_item.write(".id"); // TODO use real primary key
                         }
@@ -156,9 +156,8 @@ impl Rows {
         w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
         for (forward_idx, _item) in deps.forwarded.keys() {
-            // TODO: double check that this forward is correct
             list.item()
-                .write(format_args!("f{forward_idx}.id AS f{forward_idx}"));
+                .write(format_args!("f{forward_idx}.id AS ff{forward_idx}"));
         }
         for (select_idx, expr) in select_exprs.iter() {
             list.item().write(format_args!("{expr} AS s{select_idx}"));

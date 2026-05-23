@@ -49,7 +49,7 @@ impl Debug for RowLike {
 pub enum Expr {
     Constant(&'static str),
     Parameter(OrdRc<rusqlite::types::Value>),
-    AggrIndex(Rows, Rc<Expr>),
+    AggrIndex(Rc<Rows>, Rc<Expr>),
     RowIndex(RowLike, &'static str),
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
