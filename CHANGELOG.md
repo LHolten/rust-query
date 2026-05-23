@@ -2,10 +2,9 @@
 
 # 0.9
 
-- Removed dependency on sqlite3-parser
 - Updated rust-version to `1.95`
-- Removed `modern_sqlite` feature from `rusqlite`.
-- Updated `sea-query` and `rusqlite`.
+- Updated `rusqlite` (and removed `modern_sqlite` feature).
+- Removed `sea-query`, `sqlite3-parser`, `r2d2` and `r2d2-sqlite` dependencies.
 
 # 0.8.1
 

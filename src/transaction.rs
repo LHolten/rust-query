@@ -36,7 +36,7 @@ use crate::{
 /// Such non-malicious modification of the schema can happen for example if another [Database]
 /// instance is created with additional migrations (e.g. by another newer instance of your program).
 pub struct Database<S> {
-    pub(crate) manager: Pool,
+    pub(crate) pool: Pool,
     pub(crate) schema_version: AtomicI64,
     pub(crate) schema: PhantomData<S>,
     pub(crate) mut_lock: parking_lot::FairMutex<()>,
@@ -128,7 +128,7 @@ impl<S: Send + Sync + Schema> Database<S> {
 
     /// Same as [Self::transaction], but can only be used on a new thread.
     pub(crate) fn transaction_local<R>(&self, f: impl FnOnce(&'static Transaction<S>) -> R) -> R {
-        let conn = self.manager.pop();
+        let conn = self.pool.pop();
 
         let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             Some(conn.borrow_mut().transaction().unwrap())
@@ -137,7 +137,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         let res = f(Transaction::new_checked(owned, &self.schema_version));
 
         let owned = TXN.take().unwrap().into_owner();
-        self.manager.push(owned.into_owner().into_inner());
+        self.pool.push(owned.into_owner().into_inner());
 
         res
     }
@@ -165,7 +165,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         // file descriptors on transactions that need to wait anyway.
         let guard = self.mut_lock.lock();
 
-        let conn = self.manager.pop();
+        let conn = self.pool.pop();
 
         let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             let txn = conn
@@ -188,7 +188,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         } else {
             owned.with(|x| x.rollback().unwrap())
         };
-        self.manager.push(conn);
+        self.pool.push(conn);
 
         res
     }
@@ -215,7 +215,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     /// exist in a single process. On my machine the soft limit is (1024) by default.
     /// If this limit is reached, it may cause a panic in this method.
     pub fn rusqlite_connection(&self) -> rusqlite::Connection {
-        let conn = self.manager.pop();
+        let conn = self.pool.pop();
         conn.pragma_update(None, "foreign_keys", "ON").unwrap();
         conn
     }

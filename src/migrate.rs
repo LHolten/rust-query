@@ -10,7 +10,6 @@ use std::{
 };
 
 use annotate_snippets::{Renderer, renderer::DecorStyle};
-use rusqlite::config::DbConfig;
 use self_cell::MutBorrow;
 
 use crate::{
@@ -67,135 +66,9 @@ impl<S: Schema> Database<S> {
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.
     pub fn migrator(config: Config) -> Option<Migrator<S>> {
-        let synchronous = config.synchronous.as_str();
-        let foreign_keys = config.foreign_keys.as_str();
-        let manager = config.manager.with_init(move |inner| {
-            inner.pragma_update(None, "journal_mode", "WAL")?;
-            inner.pragma_update(None, "synchronous", synchronous)?;
-            inner.pragma_update(None, "foreign_keys", foreign_keys)?;
-            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
-            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
-            inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+        let pool = Pool::new(config);
 
-            #[cfg(feature = "bundled")]
-            inner.create_scalar_function(
-                "floor",
-                1,
-                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |ctx| {
-                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
-                    let res = ctx.get::<Option<f64>>(0)?.map(|x| x.floor());
-                    Ok(res)
-                },
-            )?;
-
-            #[cfg(feature = "bundled")]
-            inner.create_scalar_function(
-                "ceil",
-                1,
-                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |ctx| {
-                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
-                    let res = ctx.get::<Option<f64>>(0)?.map(|x| x.ceil());
-                    Ok(res)
-                },
-            )?;
-
-            #[cfg(feature = "jiff-02")]
-            inner.create_scalar_function(
-                "timestamp_add_nanosecond",
-                2,
-                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |ctx| {
-                    use crate::value::DbTyp;
-                    assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
-                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null)
-                        || matches!(ctx.get_raw(1), rusqlite::types::ValueRef::Null)
-                    {
-                        return Ok(None);
-                    }
-
-                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
-                    let seconds = ctx.get::<i64>(1)?;
-                    let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
-                    let rusqlite::types::Value::Text(res) = jiff::Timestamp::out_to_value(new)
-                    else {
-                        unreachable!("func always returns some string")
-                    };
-                    Ok(Some(res))
-                },
-            )?;
-
-            #[cfg(feature = "jiff-02")]
-            inner.create_scalar_function(
-                "timestamp_subsec_nanosecond",
-                1,
-                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |ctx| {
-                    use crate::value::DbTyp;
-                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
-                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null) {
-                        return Ok(None);
-                    }
-
-                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
-                    Ok(Some(timestamp.subsec_nanosecond()))
-                },
-            )?;
-
-            #[cfg(feature = "jiff-02")]
-            inner.create_scalar_function(
-                "timestamp_to_second",
-                1,
-                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |ctx| {
-                    use crate::value::DbTyp;
-                    assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
-                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null) {
-                        return Ok(None);
-                    }
-
-                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
-                    Ok(Some(timestamp.as_second()))
-                },
-            )?;
-
-            #[cfg(feature = "jiff-02")]
-            inner.create_scalar_function(
-                "timestamp_to_date",
-                2,
-                rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-                |ctx| {
-                    use jiff::fmt::temporal;
-
-                    use crate::value::DbTyp;
-                    assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
-                    if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null)
-                        || matches!(ctx.get_raw(1), rusqlite::types::ValueRef::Null)
-                    {
-                        return Ok(None);
-                    }
-
-                    static PARSER: temporal::DateTimeParser = temporal::DateTimeParser::new();
-
-                    let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
-                    let timezone = PARSER
-                        .parse_time_zone(ctx.get_raw(1).as_str()?)
-                        .expect("time zone was serialized with jiff");
-                    let date = timezone.to_datetime(timestamp).date();
-                    let rusqlite::types::Value::Text(res) = jiff::civil::Date::out_to_value(date)
-                    else {
-                        unreachable!("func always returns some string")
-                    };
-                    Ok(Some(res))
-                },
-            )?;
-
-            Ok(())
-        });
-
-        use r2d2::ManageConnection;
-        let conn = manager.connect().unwrap();
+        let conn = pool.pop();
         conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
         let txn = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             Some(
@@ -220,7 +93,6 @@ impl<S: Schema> Database<S> {
                     txn.get().execute(&stmt, []).unwrap();
                 }
             }
-            (config.init)(txn.get());
         } else if user_version.unwrap() < S::VERSION {
             // We can not migrate databases older than `S`
             return None;
@@ -234,7 +106,7 @@ impl<S: Schema> Database<S> {
 
         Some(Migrator {
             user_version,
-            manager,
+            pool,
             transaction: txn,
             _p: PhantomData,
         })
@@ -246,7 +118,7 @@ impl<S: Schema> Database<S> {
 /// When all migrations are done, it can be turned into a [Database] instance with
 /// [Migrator::finish].
 pub struct Migrator<S> {
-    manager: r2d2_sqlite::SqliteConnectionManager,
+    pool: Pool,
     transaction: OwnedTransaction,
     // Initialized to the user version when the transaction starts.
     // This is set to None if the schema user_version is updated.
@@ -341,7 +213,7 @@ impl<S: Schema> Migrator<S> {
 
         Migrator {
             user_version: self.user_version,
-            manager: self.manager,
+            pool: self.pool,
             transaction: self.transaction,
             _p: PhantomData,
         }
@@ -387,7 +259,7 @@ impl<S: Schema> Migrator<S> {
         self.transaction.with(|x| x.commit().unwrap());
 
         Some(Database {
-            manager: Pool::new(self.manager),
+            pool: self.pool,
             schema_version: AtomicI64::new(schema_version),
             schema: PhantomData,
             mut_lock: parking_lot::FairMutex::new(()),

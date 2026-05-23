@@ -1,4 +1,9 @@
-use std::path::Path;
+use std::{
+    path::{Path, PathBuf},
+    sync::atomic::AtomicUsize,
+};
+
+use rusqlite::config::DbConfig;
 
 #[cfg(doc)]
 use crate::migrate::{Database, Migrator};
@@ -15,8 +20,7 @@ use crate::migrate::{Database, Migrator};
 /// What is nice about this is that an immutable [crate::Transaction] can always be made immediately.
 /// Making a mutable [crate::Transaction] has to wait until all other mutable [crate::Transaction]s are finished.
 pub struct Config {
-    pub(super) manager: r2d2_sqlite::SqliteConnectionManager,
-    pub(super) init: Box<dyn FnOnce(&rusqlite::Transaction)>,
+    pub(super) source: PathBuf,
     /// Configure how often SQLite will synchronize the database to disk.
     ///
     /// The default is [Synchronous::Full].
@@ -46,7 +50,7 @@ pub enum Synchronous {
 
 impl Synchronous {
     #[cfg_attr(test, mutants::skip)] // hard to test
-    pub(crate) fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             Synchronous::Full => "FULL",
             Synchronous::Normal => "NORMAL",
@@ -80,7 +84,7 @@ pub enum ForeignKeys {
 }
 
 impl ForeignKeys {
-    pub(crate) fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             ForeignKeys::Rust => "OFF",
             ForeignKeys::SQLite => "ON",
@@ -102,22 +106,150 @@ impl Config {
     /// Any `-wal` file should be considered an integral part of the database and as such should be kept together.
     /// For more details see <https://sqlite.org/howtocorrupt.html>.
     pub fn open(p: impl AsRef<Path>) -> Self {
-        let manager = r2d2_sqlite::SqliteConnectionManager::file(p);
-        Self::open_internal(manager)
+        Self::open_internal(p.as_ref().to_path_buf())
     }
 
     /// Creates a new empty database in memory.
     pub fn open_in_memory() -> Self {
-        let manager = r2d2_sqlite::SqliteConnectionManager::memory();
-        Self::open_internal(manager)
+        static IDX: AtomicUsize = AtomicUsize::new(0);
+        let idx = IDX.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let uri = format!("file:{idx}?mode=memory&cache=shared");
+        Self::open_internal(PathBuf::from(uri))
     }
 
-    fn open_internal(manager: r2d2_sqlite::SqliteConnectionManager) -> Self {
+    fn open_internal(source: PathBuf) -> Self {
         Self {
-            manager,
-            init: Box::new(|_| {}),
+            source,
             synchronous: Synchronous::Full,
             foreign_keys: ForeignKeys::SQLite,
         }
+    }
+
+    /// [Self::connect] should always be used through [crate::pool::Pool::pop]!
+    /// The pool keeps at least one connection alive to make sure that in memory databases are not dropped.
+    pub(crate) fn connect(&self) -> rusqlite::Result<rusqlite::Connection> {
+        let inner = rusqlite::Connection::open(&self.source)?;
+
+        inner.pragma_update(None, "journal_mode", "WAL")?;
+        inner.pragma_update(None, "synchronous", self.synchronous.as_str())?;
+        inner.pragma_update(None, "foreign_keys", self.foreign_keys.as_str())?;
+        inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
+        inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
+        inner.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+
+        #[cfg(feature = "bundled")]
+        inner.create_scalar_function(
+            "floor",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                let res = ctx.get::<Option<f64>>(0)?.map(|x| x.floor());
+                Ok(res)
+            },
+        )?;
+
+        #[cfg(feature = "bundled")]
+        inner.create_scalar_function(
+            "ceil",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                let res = ctx.get::<Option<f64>>(0)?.map(|x| x.ceil());
+                Ok(res)
+            },
+        )?;
+
+        #[cfg(feature = "jiff-02")]
+        inner.create_scalar_function(
+            "timestamp_add_nanosecond",
+            2,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                use crate::value::DbTyp;
+                assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
+                if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null)
+                    || matches!(ctx.get_raw(1), rusqlite::types::ValueRef::Null)
+                {
+                    return Ok(None);
+                }
+
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                let seconds = ctx.get::<i64>(1)?;
+                let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
+                let rusqlite::types::Value::Text(res) = jiff::Timestamp::out_to_value(new) else {
+                    unreachable!("func always returns some string")
+                };
+                Ok(Some(res))
+            },
+        )?;
+
+        #[cfg(feature = "jiff-02")]
+        inner.create_scalar_function(
+            "timestamp_subsec_nanosecond",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                use crate::value::DbTyp;
+                assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null) {
+                    return Ok(None);
+                }
+
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                Ok(Some(timestamp.subsec_nanosecond()))
+            },
+        )?;
+
+        #[cfg(feature = "jiff-02")]
+        inner.create_scalar_function(
+            "timestamp_to_second",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                use crate::value::DbTyp;
+                assert_eq!(ctx.len(), 1, "called with unexpected number of arguments");
+                if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null) {
+                    return Ok(None);
+                }
+
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                Ok(Some(timestamp.as_second()))
+            },
+        )?;
+
+        #[cfg(feature = "jiff-02")]
+        inner.create_scalar_function(
+            "timestamp_to_date",
+            2,
+            rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| {
+                use jiff::fmt::temporal;
+
+                use crate::value::DbTyp;
+                assert_eq!(ctx.len(), 2, "called with unexpected number of arguments");
+                if matches!(ctx.get_raw(0), rusqlite::types::ValueRef::Null)
+                    || matches!(ctx.get_raw(1), rusqlite::types::ValueRef::Null)
+                {
+                    return Ok(None);
+                }
+
+                static PARSER: temporal::DateTimeParser = temporal::DateTimeParser::new();
+
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0))?;
+                let timezone = PARSER
+                    .parse_time_zone(ctx.get_raw(1).as_str()?)
+                    .expect("time zone was serialized with jiff");
+                let date = timezone.to_datetime(timestamp).date();
+                let rusqlite::types::Value::Text(res) = jiff::civil::Date::out_to_value(date)
+                else {
+                    unreachable!("func always returns some string")
+                };
+                Ok(Some(res))
+            },
+        )?;
+
+        Ok(inner)
     }
 }
