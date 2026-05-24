@@ -139,7 +139,7 @@ impl<S: Schema> Migrator<S> {
                 // check if this is the first migration that is applied
                 if self.user_version.take().is_some() {
                     // we check the schema before doing any migrations
-                    check_schema::<S>(txn);
+                    check_schema::<S>(txn, false);
                     // fixing indices before migrations can help with migration performance
                     fix_indices::<S>(txn);
                 }
@@ -245,7 +245,7 @@ impl<S: Schema> Migrator<S> {
         // This checks that the schema is correct and fixes indices etc
         self = self.with_transaction(|txn| {
             // sanity check, this should never fail
-            check_schema::<S>(txn);
+            check_schema::<S>(txn, true);
         });
 
         // adds an sqlite_stat1 table
@@ -351,7 +351,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
+pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>, sanity: bool) {
     let from_macro = crate::schema::from_macro::Schema::new::<S>();
     let from_db = read_schema(txn);
     let report = from_db.diff(from_macro, S::SOURCE, S::PATH, S::VERSION);
@@ -362,7 +362,11 @@ pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) {
             Renderer::styled()
         }
         .decor_style(DecorStyle::Unicode);
-        panic!("{}", renderer.render(&report));
+        if sanity {
+            unreachable!("THIS IS A RUST-QUERY BUG {}", renderer.render(&report));
+        } else {
+            panic!("{}", renderer.render(&report));
+        }
     }
 }
 
