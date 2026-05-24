@@ -5,7 +5,7 @@ use crate::{
     schema::{from_db, from_macro, read::read_schema},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Detail {
     // Unique constraints that are part of a table definition
     // can not be dropped, so we assume the worst and just recreate

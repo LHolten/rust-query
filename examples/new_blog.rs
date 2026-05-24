@@ -151,6 +151,13 @@ mod delete_example {
     pub fn migrate() {
         Database::migrator(Config::open_in_memory())
             .unwrap()
+            .fixup(|txn| {
+                // insert some data to migrate
+                let author = txn.insert_ok(v0::User {
+                    name: "foo".to_owned(),
+                });
+                txn.insert_ok(v0::Book { author });
+            })
             .migrate(|txn| v0::migrate::Schema {
                 author: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::Author {
                     name: old.name.clone(),

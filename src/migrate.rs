@@ -184,26 +184,24 @@ impl<S: Schema> Migrator<S> {
                     inner: txn,
                 };
                 m.tables(&mut builder);
-
-                let transaction = TXN.take().unwrap();
+                let txn = builder.inner.inner;
 
                 for drop in builder.drop {
-                    transaction.get().execute(&drop, []).unwrap();
+                    txn.execute(&drop);
                 }
                 for (to, tmp) in builder.inner.rename_map {
-                    let sql = format!("ALTER TABLE main.{tmp} RENAME TO {}", Alias(to));
-                    transaction.get().execute(&sql, []).unwrap();
+                    txn.execute(&format!("ALTER TABLE main.{tmp} RENAME TO {}", Alias(to)));
                 }
-                #[allow(
-                    unreachable_code,
-                    reason = "rustc is stupid and thinks this is unreachable"
-                )]
+                for stmt in builder.inner.extra_index {
+                    txn.execute(&stmt);
+                }
+
+                // Change transaction schema because we are now on the new version already
+                fix_by_copy::<M::To>(&Transaction::new(), fix_by_copy::Detail::ForeignKeys);
+
+                let transaction = TXN.take().unwrap();
                 if let Some(fk) = foreign_key_check(transaction.get()) {
                     (builder.foreign_key.remove(&*fk).unwrap())();
-                }
-                // adding non unique indexes is fine to do after checking foreign keys
-                for stmt in builder.inner.extra_index {
-                    transaction.get().execute(&stmt, []).unwrap();
                 }
 
                 TXN.set(Some(transaction));
