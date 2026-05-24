@@ -1,14 +1,29 @@
-use std::{borrow::Cow, collections::BTreeSet};
+use std::{borrow::Cow, collections::BTreeSet, convert::Infallible, str::FromStr};
 
 use crate::schema::check_constraint::Parsed;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u8)]
 pub enum ColumnType {
     Integer = 0,
     Real = 1,
     Text = 2,
     Blob = 3,
-    Any = 4,
+    Unknown(String),
+}
+
+impl FromStr for ColumnType {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "INTEGER" | "INT" => ColumnType::Integer,
+            "TEXT" => ColumnType::Text,
+            "REAL" => ColumnType::Real,
+            "BLOB" => ColumnType::Blob,
+            _ => ColumnType::Unknown(s.to_owned()),
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]

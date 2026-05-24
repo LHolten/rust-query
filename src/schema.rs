@@ -30,7 +30,7 @@ impl ColumnType {
             ColumnType::Real => "REAL",
             ColumnType::Text => "TEXT",
             ColumnType::Blob => "BLOB",
-            ColumnType::Any => "ANY",
+            ColumnType::Unknown(_) => unreachable!(),
         }
     }
 }

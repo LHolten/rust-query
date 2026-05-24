@@ -1,4 +1,5 @@
 pub mod config;
+mod fix_foreign_keys;
 mod fix_indices;
 pub mod migration;
 #[cfg(test)]

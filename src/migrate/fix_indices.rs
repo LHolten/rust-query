@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     Transaction,
@@ -21,6 +21,16 @@ pub fn fix_indices<S: Schema>(txn: &Transaction<S>) {
         let table = &schema.tables[table_name];
 
         if !check_eq(expected_table, table) {
+            debug_assert_eq!(
+                expected_table
+                    .columns
+                    .iter()
+                    .map(|(name, col)| (name, &col.def))
+                    .collect::<BTreeMap<_, _>>(),
+                table.columns.iter().collect(),
+                "check that we only change indices"
+            );
+
             // Unique constraints that are part of a table definition
             // can not be dropped, so we assume the worst and just recreate
             // the whole table.

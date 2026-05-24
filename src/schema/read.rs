@@ -4,7 +4,7 @@ use crate::{
     Expr, FromExpr, IntoSelect, Select, Table, TableRow, Transaction,
     lower::{self, JoinableTable, ord_rc::OrdRc},
     private::Reader,
-    schema::{self, check_constraint, from_db},
+    schema::{self, canonical, check_constraint, from_db},
 };
 
 pub fn strip_raw(inp: &'static str) -> &'static str {
@@ -230,13 +230,13 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         let mut table_def = from_db::Table::default();
         let mut primary_key_exists = false;
         for col in columns {
-            let def = from_db::Column {
+            let def = canonical::Column {
                 fk: fks
                     .remove(&col.name)
                     // a missing `to` column means that it references the primary key.
                     // TODO: lookup the actual primary key when the primary key is not always `id`.
                     .map(|x| (x.table, x.to.unwrap_or("id".to_owned()))),
-                typ: col.r#type,
+                typ: col.r#type.parse().unwrap(),
                 nullable: !col.notnull,
                 check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
             };
@@ -249,7 +249,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
                     def.fk, None,
                     "primary key is not allowed to have a foreign key constraint"
                 );
-                assert_eq!(def.typ, "INTEGER", "primary key must be `INTEGER` type");
+                assert_eq!(col.r#type, "INTEGER", "primary key must be `INTEGER` type");
                 primary_key_exists = true;
                 continue;
             }
