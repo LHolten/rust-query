@@ -1,6 +1,5 @@
 pub mod config;
-mod fix_foreign_keys;
-mod fix_indices;
+mod fix_by_copy;
 pub mod migration;
 #[cfg(test)]
 mod test;
@@ -15,7 +14,7 @@ use crate::{
     lower::{self, list_writer::Alias},
     migrate::{
         config::Config,
-        fix_indices::fix_indices,
+        fix_by_copy::fix_by_copy,
         migration::{SchemaBuilder, TransactionMigrate},
     },
     pool::Pool,
@@ -85,7 +84,8 @@ impl<S: Schema> Database<S> {
 
             let schema = crate::schema::from_macro::Schema::new::<S>();
 
-            for (&table_name, table) in &schema.tables {
+            for (table_name, table) in schema.tables {
+                let table = table.to_db();
                 let create = table.create(lower::JoinableTable::Table(table_name), "id");
                 txn.get().execute(&create, []).unwrap();
                 for stmt in table.delayed_indices(table_name) {
@@ -140,7 +140,7 @@ impl<S: Schema> Migrator<S> {
                     // we check the schema before doing any migrations
                     check_schema::<S>(txn, false);
                     // fixing indices before migrations can help with migration performance
-                    fix_indices::<S>(txn);
+                    fix_by_copy::<S>(txn, fix_by_copy::Detail::Indexes);
                 }
 
                 f(txn);

@@ -1,8 +1,11 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use crate::schema::canonical::{Column, ColumnType};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Index {
     // column order matters for performance
     pub columns: Vec<Cow<'static, str>>,
@@ -12,7 +15,7 @@ pub struct Index {
 #[derive(Debug, Default)]
 pub struct Table {
     pub columns: BTreeMap<String, Column>,
-    pub indices: BTreeMap<String, Index>,
+    pub indices: BTreeSet<Index>,
 }
 
 #[derive(Debug, Default)]

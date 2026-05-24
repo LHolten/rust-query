@@ -166,7 +166,7 @@ impl from_db::Table {
             .collect();
         let db_indices = self
             .indices
-            .into_values()
+            .into_iter()
             .filter_map(|i| Some((i.normalize()?, ())))
             .collect();
 

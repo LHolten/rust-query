@@ -305,13 +305,10 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
                 continue;
             };
 
-            table_def.indices.insert(
-                index.name,
-                from_db::Index {
-                    columns,
-                    unique: index.unique,
-                },
-            );
+            table_def.indices.insert(from_db::Index {
+                columns,
+                unique: index.unique,
+            });
         }
 
         let old = output.tables.insert(table_name, table_def);

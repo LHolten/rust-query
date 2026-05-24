@@ -19,7 +19,7 @@ use crate::{
     },
     schema::{
         canonical::ColumnType,
-        from_macro::{Index, Schema, Table},
+        from_macro::{Schema, Table},
     },
 };
 
@@ -93,6 +93,19 @@ impl Schema {
 }
 
 impl Table {
+    pub fn to_db(self) -> from_db::Table {
+        from_db::Table {
+            columns: self
+                .columns
+                .into_iter()
+                .map(|(name, col)| (name, col.def))
+                .collect(),
+            indices: self.indices.into_iter().map(|idx| idx.def).collect(),
+        }
+    }
+}
+
+impl from_db::Table {
     pub fn create(&self, table: lower::JoinableTable, primary: &'static str) -> String {
         let mut stmt = emit::Stmt::default();
 
@@ -105,7 +118,6 @@ impl Table {
             .write(Alias(primary))
             .write(" INTEGER PRIMARY KEY");
         for (name, col) in &self.columns {
-            let col = &col.def;
             let item = list.item().write(Alias(&name));
             item.write(" ").write(col.typ.rusqlite_type());
             if !col.nullable {
@@ -122,11 +134,11 @@ impl Table {
             // only unique indexes are allows on table definitions.
             // by making these part of the table, we don't need to rename them
             // after the migration
-            if index.def.unique {
+            if index.unique {
                 let item = list.item().write("UNIQUE (");
                 // Write columns in original order to allow user to control it for optimization.
                 let mut unique_list = ListWriter::new(item, ", ");
-                for col in &index.def.columns {
+                for col in &index.columns {
                     unique_list.item().write(Alias(col));
                 }
                 item.write(")");
@@ -142,10 +154,10 @@ impl Table {
     /// Indices can not be renamed in sqlite.
     /// These are named, so we delay creating them until after the old indices
     /// are deleted.
-    pub fn delayed_indices(&self, table_name: &'static str) -> impl Iterator<Item = String> {
+    pub fn delayed_indices(&self, table_name: &str) -> impl Iterator<Item = String> {
         self.indices
             .iter()
-            .filter(|x| !x.def.unique)
+            .filter(|x| !x.unique)
             .enumerate()
             .map(move |(index_num, index)| {
                 let stmt =
@@ -156,9 +168,9 @@ impl Table {
     }
 }
 
-impl Index {
+impl from_db::Index {
     pub fn create_not_unique(&self, index_name: &str, table_name: &str) -> emit::Stmt {
-        assert!(!self.def.unique);
+        assert!(!self.unique);
 
         let mut stmt = emit::Stmt::default();
         stmt.write("CREATE INDEX ")
@@ -169,7 +181,7 @@ impl Index {
         // Preserve the original order of columns in the unique constraint.
         // This lets users optimize queries by using index prefixes.
         let mut list = ListWriter::new(&mut stmt, ", ");
-        for col in &self.def.columns {
+        for col in &self.columns {
             list.item().write(Alias(col));
         }
         stmt.write(")");
