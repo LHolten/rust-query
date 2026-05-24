@@ -59,7 +59,8 @@ mod using_v0 {
 
 fn main() {
     let db = using_v1::migrate();
-    db.transaction_mut_ok(using_v1::do_stuff)
+    db.transaction_mut_ok(using_v1::do_stuff);
+    delete_example::migrate();
 }
 
 #[test]
@@ -127,6 +128,8 @@ mod using_v1 {
 }
 
 mod delete_example {
+    use rust_query::{Lazy, migration::Config};
+
     use super::*;
     #[schema(Schema)]
     #[version(0..=1)]
@@ -143,5 +146,17 @@ mod delete_example {
         pub struct Book {
             pub author: rust_query::TableRow<Author>,
         }
+    }
+
+    pub fn migrate() {
+        Database::migrator(Config::open_in_memory())
+            .unwrap()
+            .migrate(|txn| v0::migrate::Schema {
+                author: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::Author {
+                    name: old.name.clone(),
+                }),
+            })
+            .finish()
+            .unwrap();
     }
 }
