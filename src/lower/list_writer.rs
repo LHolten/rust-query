@@ -45,3 +45,14 @@ impl Display for Alias<'_> {
         f.write_char('"')
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alias_works() {
+        assert_eq!(Alias("foo").to_string(), r#""foo""#);
+        assert_eq!(Alias(r#"f"oo"#).to_string(), r#""f""oo""#);
+    }
+}
