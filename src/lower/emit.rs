@@ -188,8 +188,12 @@ impl Rows {
         }
 
         // uniques can depends on aggregates, so these are emitted after the aggregates
-        for (_unique_idx, unique) in deps.unique.values() {
-            w.write(" LEFT JOIN ").write(unique);
+        for (_unique_idx, unique, sql) in deps.unique.iter() {
+            if unique.guaranteed {
+                w.write(" JOIN ").write(sql);
+            } else {
+                w.write(" LEFT JOIN ").write(sql);
+            }
         }
 
         if !filter_exprs.is_empty() {

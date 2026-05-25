@@ -28,6 +28,7 @@ pub struct Join(OrdRc<JoinableTable>);
 pub struct Unique {
     pub table: JoinableTable,
     pub conds: Vec<(&'static str, Rc<Expr>)>,
+    pub guaranteed: bool,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -74,6 +75,7 @@ impl Expr {
         table: JoinableTable,
         col: &'static str,
         main_col: &'static str,
+        nullable: bool,
     ) -> Rc<Expr> {
         if let Expr::RowIndex(row_like, old) = Rc::as_ref(self)
             && *old == main_col
@@ -86,6 +88,7 @@ impl Expr {
         let unique = Unique {
             table,
             conds: vec![(main_col, self.clone())],
+            guaranteed: !nullable, // guaranteed by foreign key constraint when not null
         };
         let row = RowLike::Unique(Rc::new(unique));
         Rc::new(Expr::RowIndex(row, col))

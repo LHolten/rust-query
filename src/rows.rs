@@ -49,10 +49,13 @@ impl<'inner, S> Rows<'inner, S> {
             self.filter(Expr::adhoc(lower::Expr::Infix(expr, "=", val)));
         }
 
-        Expr::adhoc(lower::Expr::RowIndex(
-            lower::RowLike::Join(join),
-            joinable.main_column,
-        ))
+        Expr::new_inner(
+            Rc::new(lower::Expr::RowIndex(
+                lower::RowLike::Join(join),
+                joinable.main_column,
+            )),
+            false, // join can never be null
+        )
     }
 
     #[doc(hidden)]
@@ -90,6 +93,6 @@ impl<'inner, S> Rows<'inner, S> {
         Rc::make_mut(&mut self.ast).filter(val.inner.clone());
 
         // we already removed all rows with null, so this is ok.
-        Expr::new(val.inner)
+        Expr::new_inner(val.inner, false)
     }
 }

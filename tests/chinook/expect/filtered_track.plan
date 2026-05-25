@@ -1,5 +1,5 @@
 QUERY PLAN [
     SEARCH u1 USING COVERING INDEX sqlite_autoindex_genre_1 (name=?),
     SEARCH j0 USING INDEX track_index_1 (genre=?),
-    SEARCH u0 USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN,
+    SEARCH u0 USING INTEGER PRIMARY KEY (rowid=?),
 ]
