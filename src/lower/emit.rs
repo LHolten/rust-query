@@ -291,15 +291,6 @@ impl Rows {
                 }
                 w.write(")");
             }
-            Expr::In(expr, list) => {
-                self.emit_expr(w, expr, deps);
-                w.write(" IN (");
-                let mut list_writer = ListWriter::new(w, ", ");
-                for expr in list {
-                    self.emit_expr(list_writer.item(), expr, deps);
-                }
-                w.write(")");
-            }
             Expr::Cast(expr, ty) => {
                 w.write("CAST(");
                 self.emit_expr(w, expr, deps);

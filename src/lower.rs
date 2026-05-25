@@ -63,7 +63,6 @@ pub enum Expr {
     Prefix(&'static str, Rc<Expr>),
     Infix(Rc<Expr>, &'static str, Rc<Expr>),
     Func(&'static str, Box<[Rc<Expr>]>),
-    In(Rc<Expr>, Box<[Rc<Expr>]>),
     Cast(Rc<Expr>, &'static str),
     Between(Rc<Expr>, Rc<Expr>, Rc<Expr>),
 }
