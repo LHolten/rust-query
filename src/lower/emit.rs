@@ -254,17 +254,19 @@ impl Rows {
                         deps.unique.insert_with(unique.clone(), |unique_idx| {
                             w.fresh(|w| {
                                 unique.table.emit(w);
+                                // there are no unique constraints without columns, so there should always
+                                // be a condition.
+                                assert!(!conds.is_empty());
+
                                 w.write(format_args!(" AS u{unique_idx}"));
-                                if !conds.is_empty() {
-                                    w.write(" ON ");
-                                    let mut list = ListWriter::new(w, " AND ");
-                                    for (col, expr) in &conds {
-                                        let list_item = list.item();
-                                        list_item.write(format_args!(
-                                            "u{unique_idx}.{} = {expr}",
-                                            Alias(col)
-                                        ));
-                                    }
+                                w.write(" ON ");
+                                let mut list = ListWriter::new(w, " AND ");
+                                for (col, expr) in &conds {
+                                    let list_item = list.item();
+                                    list_item.write(format_args!(
+                                        "u{unique_idx}.{} = {expr}",
+                                        Alias(col)
+                                    ));
                                 }
                             })
                         });
