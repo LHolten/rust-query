@@ -2,6 +2,7 @@
 
 # 0.9
 
+- Added support for renaming tables with foreign key constraints to them.
 - Updated rust-version to `1.95`
 - Updated `rusqlite` (and removed `modern_sqlite` feature).
 - Removed `sea-query`, `sqlite3-parser`, `r2d2` and `r2d2-sqlite` dependencies.
