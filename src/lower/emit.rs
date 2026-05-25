@@ -109,7 +109,7 @@ impl Rows {
                 (
                     idx,
                     w.fresh(|w| {
-                        self.emit_expr(w, expr, &mut deps);
+                        self.emit_expr(w, expr, &mut deps, Parens::No);
                     }),
                 )
             })
@@ -120,7 +120,7 @@ impl Rows {
             .iter()
             .map(|expr| {
                 w.fresh(|w| {
-                    self.emit_expr(w, expr, &mut deps);
+                    self.emit_expr(w, expr, &mut deps, Parens::Yes);
                 })
             })
             .collect();
@@ -218,7 +218,7 @@ impl Rows {
         }
     }
 
-    fn emit_expr(&self, w: &mut Stmt, expr: &Expr, deps: &mut ExprEmitDeps) {
+    fn emit_expr(&self, w: &mut Stmt, expr: &Expr, deps: &mut ExprEmitDeps, parens: Parens) {
         match expr {
             Expr::Constant(c) => {
                 w.write(c);
@@ -244,7 +244,7 @@ impl Rows {
                             (
                                 *col,
                                 w.fresh(|w| {
-                                    self.emit_expr(w, expr, deps);
+                                    self.emit_expr(w, expr, deps, Parens::Yes);
                                 }),
                             )
                         })
@@ -273,38 +273,58 @@ impl Rows {
                 }
             },
             Expr::Prefix(prefix, expr) => {
-                w.write(prefix);
-                self.emit_expr(w, expr, deps)
+                parens.with(w, |w| {
+                    w.write(prefix);
+                    self.emit_expr(w, expr, deps, Parens::Yes);
+                });
             }
             Expr::Infix(lhs, infix, rhs) => {
-                w.write("(");
-                self.emit_expr(w, lhs, deps);
-                w.write(format_args!(" {infix} "));
-                self.emit_expr(w, rhs, deps);
-                w.write(")");
+                parens.with(w, |w| {
+                    self.emit_expr(w, lhs, deps, Parens::Yes);
+                    w.write(format_args!(" {infix} "));
+                    self.emit_expr(w, rhs, deps, Parens::Yes);
+                });
             }
             Expr::Func(func, exprs) => {
                 w.write(format_args!("{func}("));
                 let mut list = ListWriter::new(w, ", ");
                 for expr in exprs.as_ref() {
-                    self.emit_expr(list.item(), expr, deps);
+                    self.emit_expr(list.item(), expr, deps, Parens::No);
                 }
                 w.write(")");
             }
             Expr::Cast(expr, ty) => {
                 w.write("CAST(");
-                self.emit_expr(w, expr, deps);
+                self.emit_expr(w, expr, deps, Parens::No);
                 w.write(format_args!(" AS {ty})"));
             }
             Expr::Between(x, lower, upper) => {
+                parens.with(w, |w| {
+                    self.emit_expr(w, x, deps, Parens::Yes);
+                    w.write(format_args!(" BETWEEN "));
+                    self.emit_expr(w, lower, deps, Parens::Yes);
+                    w.write(format_args!(" AND "));
+                    self.emit_expr(w, upper, deps, Parens::Yes);
+                });
+            }
+        }
+    }
+}
+
+enum Parens {
+    Yes,
+    No, // Should only be used in rare cases where expr can never have wrong associativity.
+}
+
+impl Parens {
+    fn with(self, w: &mut Stmt, f: impl FnOnce(&mut Stmt)) {
+        match self {
+            Parens::Yes => {
                 w.write("(");
-                self.emit_expr(w, x, deps);
-                w.write(format_args!(" BETWEEN "));
-                self.emit_expr(w, lower, deps);
-                w.write(format_args!(" AND "));
-                self.emit_expr(w, upper, deps);
+                f(w);
                 w.write(")");
             }
+            Parens::No => f(w),
         }
     }
 }
