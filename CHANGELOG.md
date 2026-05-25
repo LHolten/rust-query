@@ -1,6 +1,8 @@
 # Unreleased
 
-# 0.9
+# 0.9.0
+
+The dependency removal update.
 
 - Added support for renaming tables with foreign key constraints to them.
 - Updated rust-version to `1.95`
