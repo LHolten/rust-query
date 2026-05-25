@@ -4,12 +4,7 @@ use rust_query::{
 };
 
 #[schema(Schema)]
-#[version(0..=1)]
 pub mod vN {
-    #[version(..1)]
-    pub struct EmptyOld;
-    #[version(1..)]
-    #[from(EmptyOld)]
     pub struct Empty;
 
     #[no_reference]
@@ -17,16 +12,10 @@ pub mod vN {
         pub empty: rust_query::TableRow<Empty>,
     }
 }
-use v1::*;
+use v0::*;
 
 pub fn main() {
-    let db = Database::migrator(Config::open_in_memory())
-        .unwrap()
-        .migrate(|txn| v0::migrate::Schema {
-            empty: txn.migrate_ok(|_v| v0::migrate::Empty {}),
-        })
-        .finish()
-        .unwrap();
+    let db = Database::new(Config::open_in_memory());
 
     db.transaction_mut_ok(|txn| {
         let id = txn.insert_ok(Empty {});
