@@ -2,14 +2,23 @@ use std::{borrow::Cow, collections::BTreeSet, convert::Infallible, str::FromStr}
 
 use crate::schema::check_constraint::Parsed;
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(u8)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u64)]
 pub enum ColumnType {
     Integer = 0,
     Real = 1,
     Text = 2,
     Blob = 3,
     Unknown(String),
+}
+
+impl std::hash::Hash for ColumnType {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        if let ColumnType::Unknown(_) = self {
+            unreachable!()
+        }
+        core::mem::discriminant(self).hash(state);
+    }
 }
 
 impl FromStr for ColumnType {
