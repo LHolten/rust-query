@@ -12,7 +12,7 @@ QUERY PLAN [
         SEARCH j1 USING INDEX track_index_0 (album=?),
     ],
     SCAN (subquery-1),
-    SEARCH u0 USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN,
     SCAN a0 LEFT-JOIN,
     SCAN a1 LEFT-JOIN,
+    SEARCH u0 USING INTEGER PRIMARY KEY (rowid=?) LEFT-JOIN,
 ]

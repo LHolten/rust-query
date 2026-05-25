@@ -182,12 +182,14 @@ impl Rows {
         }
         list.default("(SELECT 1)");
 
-        for (_unique_idx, unique) in deps.unique.values() {
-            w.write(" LEFT JOIN ").write(unique);
-        }
-
+        // aggregates can only depend on forwarded tables so we can emit them first
         for aggr in aggregates {
             w.write(" LEFT JOIN ").write(aggr);
+        }
+
+        // uniques can depends on aggregates, so these are emitted after the aggregates
+        for (_unique_idx, unique) in deps.unique.values() {
+            w.write(" LEFT JOIN ").write(unique);
         }
 
         if !filter_exprs.is_empty() {
