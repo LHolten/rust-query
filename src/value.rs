@@ -122,7 +122,7 @@ pub struct Expr<'column, S, T: DbTyp> {
     pub(crate) nullable: bool,
 }
 
-#[cfg_attr(test, mutants::skip)]
+#[cfg_attr(feature = "__mutants", mutants::skip)]
 impl<S, T: DbTyp> Debug for Expr<'_, S, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Expr of type {}", std::any::type_name::<T>())

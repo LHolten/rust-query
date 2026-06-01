@@ -15,7 +15,7 @@ struct NoMut;
 impl Deref for NoMut {
     type Target = ();
 
-    #[cfg_attr(test, mutants::skip)]
+    #[cfg_attr(feature = "__mutants", mutants::skip)]
     fn deref(&self) -> &Self::Target {
         &()
     }
