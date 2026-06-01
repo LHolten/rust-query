@@ -192,38 +192,25 @@ impl from_db::Index {
 
 #[cfg(feature = "dev")]
 pub mod dev {
-    use std::{
-        hash::{Hash, Hasher},
-        io::{Read, Write},
-    };
+    use std::hash::{Hash, Hasher};
 
-    use k12::{
-        KangarooTwelve, KangarooTwelveCore,
-        digest::{ExtendableOutput, core_api::CoreWrapper},
-    };
+    use k12::{ExtendableOutput, Kt128, Update, XofReader};
 
+    #[derive(Default)]
     pub struct KangarooHasher {
-        inner: CoreWrapper<KangarooTwelveCore<'static>>,
-    }
-
-    impl Default for KangarooHasher {
-        fn default() -> Self {
-            let core = KangarooTwelveCore::new(&[]);
-            let hasher = KangarooTwelve::from_core(core);
-            Self { inner: hasher }
-        }
+        inner: Kt128,
     }
 
     impl Hasher for KangarooHasher {
         fn finish(&self) -> u64 {
             let mut xof = self.inner.clone().finalize_xof();
             let mut buf = [0; 8];
-            xof.read_exact(&mut buf).unwrap();
+            xof.read(&mut buf);
             u64::from_le_bytes(buf)
         }
 
         fn write(&mut self, bytes: &[u8]) {
-            self.inner.write_all(bytes).unwrap();
+            self.inner.update(bytes);
         }
     }
 
