@@ -1,5 +1,11 @@
 # Unreleased
 
+# 0.9.1
+
+- Renamed private feature `mutants` to `__mutants`.
+- Updated `k12` from `0.3` to `0.5`.
+- Added keywords to `Cargo.toml`.
+
 # 0.9.0
 
 The dependency removal update.
