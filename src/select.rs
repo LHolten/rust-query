@@ -17,7 +17,7 @@ impl Cacher {
 
 pub struct Cached<T> {
     pub(crate) idx: usize,
-    _p: PhantomData<T>,
+    pub(crate) _p: PhantomData<T>,
 }
 
 impl<T> Clone for Cached<T> {
