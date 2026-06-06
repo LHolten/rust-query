@@ -68,7 +68,6 @@ self_cell = "1.2.1"
 parking_lot = "0.12.5"
 slab = "0.4.11"
 annotate-snippets = "0.12.9"
-mutants = { version = "=0.0.3", optional = true }
 jiff = { version = "0.2.22", optional = true }
 
 [dev-dependencies]
@@ -91,7 +90,7 @@ base0 = []
 
 # this adds some additional default impls to help run cargo-mutants on rust-query.
 # do not enable this for other reasons.
-__mutants = ["dep:mutants"]
+__mutants = []
 
 [package.metadata.docs.rs]
 features = ["dev", "jiff-02"]

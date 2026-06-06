@@ -405,7 +405,7 @@ pub mod private {
         pub use crate::aggregate;
         pub use v0::*;
 
-        #[cfg_attr(feature = "__mutants", mutants::skip)]
+        #[cfg_attr(false, mutants::skip)]
         pub fn get_txn(f: impl Send + FnOnce(&'static mut crate::Transaction<M>)) {
             crate::Database::new(rust_query::migration::Config::open_in_memory())
                 .transaction_mut_ok(f)
@@ -424,7 +424,7 @@ pub mod private {
         }
         pub use v0::*;
 
-        #[cfg_attr(feature = "__mutants", mutants::skip)]
+        #[cfg_attr(false, mutants::skip)]
         pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
             let db = Database::new(Config::open_in_memory());
             db.transaction_mut_ok(|txn| {

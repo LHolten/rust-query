@@ -27,13 +27,13 @@ impl Pool {
     }
 
     // code optimized to hold lock for shortest time possible
-    #[cfg_attr(feature = "__mutants", mutants::skip)]
+    #[cfg_attr(false, mutants::skip)]
     fn pop_fast(&self) -> Option<rusqlite::Connection> {
         self.reserve.lock().unwrap().pop()
     }
 
     /// Only return connections that are in original condition.
-    #[cfg_attr(feature = "__mutants", mutants::skip)]
+    #[cfg_attr(false, mutants::skip)]
     pub fn push(&self, val: rusqlite::Connection) {
         if let Some(a) = self.push_fast(val) {
             drop(a)
@@ -41,7 +41,7 @@ impl Pool {
     }
 
     // code optimized to hold lock for shortest time possible
-    #[cfg_attr(feature = "__mutants", mutants::skip)]
+    #[cfg_attr(false, mutants::skip)]
     fn push_fast(&self, val: rusqlite::Connection) -> Option<rusqlite::Connection> {
         let mut guard = self.reserve.lock().unwrap();
         if guard.len() < self.max_reserve {

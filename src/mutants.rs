@@ -8,28 +8,28 @@ use crate::{
 impl<'column, S, T: DbTyp + Default + IntoExpr<'column, S, Typ = T>> Default
     for Expr<'column, S, T>
 {
-    #[mutants::skip]
+    #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
         T::default().into_expr()
     }
 }
 
 impl Default for JoinableTable {
-    #[mutants::skip]
+    #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
         JoinableTable::Table("foo")
     }
 }
 
 impl Default for TmpTable {
-    #[mutants::skip]
+    #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
         Scope::default().tmp_table()
     }
 }
 
 impl<T: Table> Default for TableRow<T> {
-    #[mutants::skip]
+    #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
         Self {
             _local: Default::default(),

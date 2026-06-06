@@ -39,7 +39,7 @@ pub struct Lazy<'transaction, T: Table> {
     pub(crate) txn: &'transaction Transaction<T::Schema>,
 }
 
-#[cfg_attr(feature = "__mutants", mutants::skip)]
+#[cfg_attr(false, mutants::skip)]
 impl<T: Table> Debug for Lazy<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Lazy").field(&self.id).finish()
