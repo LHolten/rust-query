@@ -62,11 +62,11 @@ self_cell!(
 /// Would be nice to relax this variance in the future.
 pub struct Iter<'inner, O> {
     // The actual OwnedRows is stored in a thread local
-    inner_phantom: PhantomData<(OwnedRows<'inner>, *const ())>,
-    inner: usize,
+    pub(crate) inner_phantom: PhantomData<(OwnedRows<'inner>, *const ())>,
+    pub(crate) inner: usize,
 
-    prepared: DynPrepared<O>,
-    cached: Vec<String>,
+    pub(crate) prepared: DynPrepared<O>,
+    pub(crate) cached: Vec<String>,
 }
 
 impl<O> Iterator for Iter<'_, O> {

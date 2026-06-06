@@ -82,7 +82,7 @@ impl<'columns, S, Out: 'static> Select<'columns, S, Out> {
 }
 
 pub struct DynSelectImpl<Out> {
-    inner: Box<dyn FnOnce(&mut Cacher) -> DynPrepared<Out>>,
+    pub(crate) inner: Box<dyn FnOnce(&mut Cacher) -> DynPrepared<Out>>,
 }
 
 impl<Out> SelectImpl for DynSelectImpl<Out> {
@@ -95,7 +95,7 @@ impl<Out> SelectImpl for DynSelectImpl<Out> {
 }
 
 pub struct DynPrepared<Out> {
-    inner: Box<dyn Prepared<Out = Out>>,
+    pub(crate) inner: Box<dyn Prepared<Out = Out>>,
 }
 
 impl<Out> Prepared for DynPrepared<Out> {

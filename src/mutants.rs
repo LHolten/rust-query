@@ -1,11 +1,12 @@
-use std::marker::PhantomData;
+use std::{cell::OnceCell, marker::PhantomData};
 
 use crate::{
-    Expr, Table, TableRow,
+    Expr, Lazy, Mutable, Select, Table, TableRow, Transaction,
     db::TableRowInner,
     lower::{self, JoinableTable, Scope, TmpTable},
     private::Joinable,
-    select,
+    query::Iter,
+    select::{self, Cached, DynPrepared, DynSelectImpl},
     value::DbTyp,
 };
 
@@ -63,6 +64,69 @@ impl<T> Default for select::Cached<T> {
         Self {
             idx: 0,
             _p: PhantomData,
+        }
+    }
+}
+
+impl<T: Table> Default for Mutable<'_, T> {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        Self {
+            cell: OnceCell::new(),
+            row_id: TableRow::default(),
+            _txn: Default::default(),
+        }
+    }
+}
+
+impl<T: Table> Default for Lazy<'_, T> {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        Self {
+            id: TableRow::default(),
+            lazy: OnceCell::new(),
+            txn: Transaction::new_ref(),
+        }
+    }
+}
+
+impl<S, Out: DbTyp> Default for Select<'_, S, Out> {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        Self {
+            inner: DynSelectImpl::default(),
+            _p: PhantomData,
+            _p2: PhantomData,
+        }
+    }
+}
+
+impl<Out: DbTyp> Default for DynSelectImpl<Out> {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        Self {
+            inner: Box::new(|_cacher| DynPrepared::default()),
+        }
+    }
+}
+
+impl<Out: DbTyp> Default for DynPrepared<Out> {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        Self {
+            inner: Box::new(Cached::default()),
+        }
+    }
+}
+
+impl<O: DbTyp> Default for Iter<'_, O> {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        Self {
+            inner_phantom: PhantomData,
+            inner: 0,
+            prepared: DynPrepared::default(),
+            cached: Vec::new(),
         }
     }
 }

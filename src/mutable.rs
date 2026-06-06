@@ -15,12 +15,12 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 ///
 /// To update columns with a unique constraint, you have to use [Mutable::unique].
 pub struct Mutable<'transaction, T: Table> {
-    cell: OnceCell<MutableInner<T>>,
-    row_id: TableRow<T>,
-    _txn: PhantomData<&'transaction mut Transaction<T::Schema>>,
+    pub(crate) cell: OnceCell<MutableInner<T>>,
+    pub(crate) row_id: TableRow<T>,
+    pub(crate) _txn: PhantomData<&'transaction mut Transaction<T::Schema>>,
 }
 
-struct MutableInner<T: Table> {
+pub(crate) struct MutableInner<T: Table> {
     val: T::Mutable,
     any_update: bool,
 }

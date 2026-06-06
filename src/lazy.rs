@@ -36,6 +36,7 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 pub struct Lazy<'transaction, T: Table> {
     pub(crate) id: TableRow<T>,
     pub(crate) lazy: OnceCell<Box<T::Lazy<'transaction>>>,
+    // TODO: make this phantomdata?
     pub(crate) txn: &'transaction Transaction<T::Schema>,
 }
 
