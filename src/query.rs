@@ -76,10 +76,7 @@ impl<O> Iterator for Iter<'_, O> {
         TXN.with_borrow_mut(|combi| {
             let combi = combi.as_mut().unwrap();
             combi.with_dependent_mut(|_txn, row_store| {
-                // If rows is already dropped then we just return None.
-                // This can happen if this is called in a thread_local destructor or something.
-                let rows = row_store.get_mut(self.inner)?;
-                rows.with_dependent_mut(|_, rows| {
+                row_store[self.inner].with_dependent_mut(|_, rows| {
                     let row = rows.next().unwrap()?;
                     Some(self.prepared.call(Row::new(row, &self.cached)))
                 })
@@ -88,16 +85,19 @@ impl<O> Iterator for Iter<'_, O> {
     }
 }
 
+// It is somewhat reasonable for this type to be dropped during thread local destruction.
+// So we implement it in a way that works even when TXN is already destructed or even re-initialized.
 impl<O> Drop for Iter<'_, O> {
     fn drop(&mut self) {
-        TXN.with_borrow_mut(|combi| {
-            let combi = combi.as_mut().unwrap();
+        // The transaction may already be destroyed, so use `try_with`
+        let _ = TXN.try_with(|txn| {
+            let Some(combi) = &mut *txn.borrow_mut() else {
+                return; // txn got re-initialized to `None`,
+            };
             combi.with_dependent_mut(|_txn, row_store| {
-                // If the rows is already dropped that is fine.
-                // This can happen if this is called in a thread_local destructor or something.
-                row_store.try_remove(self.inner);
+                row_store.remove(self.inner);
             })
-        })
+        });
     }
 }
 
