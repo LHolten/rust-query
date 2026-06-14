@@ -4,9 +4,11 @@ pub mod migration;
 #[cfg(test)]
 mod test;
 
-use std::{collections::HashMap, marker::PhantomData, sync::atomic::AtomicI64};
+use std::{
+    cell::RefCell, collections::HashMap, marker::PhantomData, mem::take, sync::atomic::AtomicI64,
+};
 
-use annotate_snippets::{Renderer, renderer::DecorStyle};
+use annotate_snippets::{Group, Renderer, renderer::DecorStyle};
 use self_cell::MutBorrow;
 
 use crate::{
@@ -138,7 +140,7 @@ impl<S: Schema> Migrator<S> {
                 // check if this is the first migration that is applied
                 if self.user_version.take().is_some() {
                     // we check the schema before doing any migrations
-                    check_schema::<S>(txn, false);
+                    check_schema::<S>(txn)?;
                     // fixing indices before migrations can help with migration performance
                     fix_by_copy::<S>(txn, fix_by_copy::Detail::Indexes);
                 }
@@ -147,12 +149,12 @@ impl<S: Schema> Migrator<S> {
 
                 let transaction = TXN.take().unwrap();
 
-                transaction.into_owner()
+                Ok::<_, Renderable>(transaction.into_owner())
             })
             .join()
         });
         match res {
-            Ok(val) => self.transaction = val,
+            Ok(val) => self.transaction = val.unwrap_or_else(|e| e.to_panic()),
             Err(payload) => std::panic::resume_unwind(payload),
         }
         self
@@ -242,7 +244,7 @@ impl<S: Schema> Migrator<S> {
         // This checks that the schema is correct and fixes indices etc
         self = self.with_transaction(|txn| {
             // sanity check, this should never fail
-            check_schema::<S>(txn, true);
+            check_schema::<S>(txn).unwrap_or_else(|e| e.as_sanity())
         });
 
         // adds an sqlite_stat1 table
@@ -287,23 +289,51 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
     conn.pragma_update(None, "user_version", v)
 }
 
-pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>, sanity: bool) {
+pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) -> Result<(), Renderable> {
     let from_macro = crate::schema::from_macro::Schema::new::<S>();
     let from_db = read_schema(txn);
     let report = from_db.diff(from_macro, S::SOURCE, S::PATH, S::VERSION);
-    if !report.is_empty() {
-        let renderer = if cfg!(test) {
-            Renderer::plain().anonymized_line_numbers(true)
-        } else {
-            Renderer::styled()
-        }
-        .decor_style(DecorStyle::Unicode);
-        if sanity {
-            unreachable!("THIS IS A RUST-QUERY BUG {}", renderer.render(&report));
-        } else {
-            panic!("{}", renderer.render(&report));
+    if report.is_empty() {
+        Ok(())
+    } else {
+        Err(Renderable(report))
+    }
+}
+
+pub struct Renderable(Vec<Group<'static>>);
+
+impl Renderable {
+    /// [Renderable] should be made into a panic on the thread of the caller.
+    pub fn to_panic(self) -> ! {
+        let renderer = RENDERER
+            .with_borrow(Clone::clone)
+            .decor_style(DecorStyle::Unicode);
+        panic!("{}", renderer.render(&self.0))
+    }
+
+    pub fn as_sanity(self) -> ! {
+        unreachable!(
+            "THIS IS A RUST-QUERY BUG {}",
+            Renderer::plain().render(&self.0)
+        );
+    }
+}
+
+thread_local! {
+    static RENDERER: RefCell<Renderer> = const { RefCell::new(Renderer::styled()) }
+}
+
+pub fn with_test_renderer<R>(f: impl FnOnce() -> R) -> R {
+    struct TestRenderGuard(Option<Renderer>);
+    impl Drop for TestRenderGuard {
+        fn drop(&mut self) {
+            RENDERER.set(take(&mut self.0).unwrap());
         }
     }
+    let _g = TestRenderGuard(Some(
+        RENDERER.replace(Renderer::plain().anonymized_line_numbers(true)),
+    ));
+    f()
 }
 
 fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {

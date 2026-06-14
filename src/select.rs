@@ -21,6 +21,7 @@ pub struct Cached<T> {
 }
 
 impl<T> Clone for Cached<T> {
+    #[cfg_attr(false, mutants::skip)]
     fn clone(&self) -> Self {
         *self
     }

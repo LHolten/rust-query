@@ -1,4 +1,8 @@
-use crate::{Database, migrate::Schema, migration::Config};
+use crate::{
+    Database,
+    migrate::{Schema, with_test_renderer},
+    migration::Config,
+};
 
 impl<S: Send + Sync + Schema> Database<S> {
     fn check_schema(&self, expect: expect_test::Expect) {
@@ -144,12 +148,14 @@ fn diagnostics() {
     open_db::<base::v0::Schema>(FILE_NAME);
 
     let err = std::panic::catch_unwind(|| {
-        open_db::<table_changes::v0::Schema>(FILE_NAME);
+        with_test_renderer(|| {
+            open_db::<table_changes::v0::Schema>(FILE_NAME);
+        })
     })
     .unwrap_err();
     expect_test::expect![[r#"
         error: Table mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:122:36
+           ╭▸ src/schema/test.rs:126:36
            │
         LL │         #[crate::migration::schema(Schema)]
            │                                    ━━━━━━ database has table `foo`
@@ -159,12 +165,14 @@ fn diagnostics() {
     .assert_eq(err.downcast_ref::<String>().unwrap());
 
     let err = std::panic::catch_unwind(|| {
-        open_db::<column_changes::v0::Schema>(FILE_NAME);
+        with_test_renderer(|| {
+            open_db::<column_changes::v0::Schema>(FILE_NAME);
+        })
     })
     .unwrap_err();
     expect_test::expect![[r#"
         error: Column mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:134:24
+           ╭▸ src/schema/test.rs:138:24
            │
         LL │             pub struct Foo {
            │                        ━━━ database has column `field1: String`
@@ -174,7 +182,7 @@ fn diagnostics() {
            │                     ━━━ database column has type `String`
            ╰╴
         error: Unique constraint mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:133:15
+           ╭▸ src/schema/test.rs:137:15
            │
         LL │             #[unique(baz, field2)]
            │               ━━━━━━ database does not have this unique constraint

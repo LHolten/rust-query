@@ -13,7 +13,7 @@ use crate::{
         list_writer::{Alias, ListWriter},
         ord_rc::OrdRc,
     },
-    migrate::{Schema, check_schema, schema_version, user_version},
+    migrate::{Renderable, Schema, check_schema, schema_version, user_version},
     migration::Config,
     mutable::Mutable,
     pool::Pool,
@@ -121,25 +121,28 @@ impl<S: Send + Sync + Schema> Database<S> {
     pub fn transaction<R: Send>(&self, f: impl Send + FnOnce(&'static Transaction<S>) -> R) -> R {
         let res = std::thread::scope(|scope| scope.spawn(|| self.transaction_local(f)).join());
         match res {
-            Ok(val) => val,
+            Ok(val) => val.unwrap_or_else(|e| e.to_panic()),
             Err(payload) => std::panic::resume_unwind(payload),
         }
     }
 
     /// Same as [Self::transaction], but can only be used on a new thread.
-    pub(crate) fn transaction_local<R>(&self, f: impl FnOnce(&'static Transaction<S>) -> R) -> R {
+    pub(crate) fn transaction_local<R>(
+        &self,
+        f: impl FnOnce(&'static Transaction<S>) -> R,
+    ) -> Result<R, Renderable> {
         let conn = self.pool.pop();
 
         let owned = OwnedTransaction::new(MutBorrow::new(conn), |conn| {
             Some(conn.borrow_mut().transaction().unwrap())
         });
 
-        let res = f(Transaction::new_checked(owned, &self.schema_version));
+        let res = f(Transaction::new_checked(owned, &self.schema_version)?);
 
         let owned = TXN.take().unwrap().into_owner();
         self.pool.push(owned.into_owner().into_inner());
 
-        res
+        Ok(res)
     }
 
     #[doc = include_str!("database/transaction_mut.md")]
@@ -151,7 +154,7 @@ impl<S: Send + Sync + Schema> Database<S> {
             std::thread::scope(|scope| scope.spawn(|| self.transaction_mut_local(f)).join());
 
         match join_res {
-            Ok(val) => val,
+            Ok(val) => val.unwrap_or_else(|e| e.to_panic()),
             Err(payload) => std::panic::resume_unwind(payload),
         }
     }
@@ -159,7 +162,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     pub(crate) fn transaction_mut_local<O, E>(
         &self,
         f: impl FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
-    ) -> Result<O, E> {
+    ) -> Result<Result<O, E>, Renderable> {
         // Acquire the lock before creating the connection.
         // Technically we can acquire the lock later, but we don't want to waste
         // file descriptors on transactions that need to wait anyway.
@@ -175,7 +178,7 @@ impl<S: Send + Sync + Schema> Database<S> {
             Some(txn)
         });
         // if this panics then the transaction is rolled back and the guard is dropped.
-        let res = f(Transaction::new_checked(owned, &self.schema_version));
+        let res = f(Transaction::new_checked(owned, &self.schema_version)?);
 
         // Drop the guard before commiting to let sqlite go to the next transaction
         // more quickly while guaranteeing that the database will unlock soon.
@@ -190,7 +193,7 @@ impl<S: Send + Sync + Schema> Database<S> {
         };
         self.pool.push(conn);
 
-        res
+        Ok(res)
     }
 
     #[doc = include_str!("database/transaction_mut_ok.md")]
@@ -251,7 +254,10 @@ impl<S> Transaction<S> {
 
 impl<S: Schema> Transaction<S> {
     /// This will check the schema version and panic if it is not as expected
-    pub(crate) fn new_checked(txn: OwnedTransaction, expected: &AtomicI64) -> &'static mut Self {
+    pub(crate) fn new_checked(
+        txn: OwnedTransaction,
+        expected: &AtomicI64,
+    ) -> Result<&'static mut Self, Renderable> {
         let schema_version = schema_version(txn.get());
         // If the schema version is not the expected version then we
         // check if the changes are acceptable.
@@ -261,7 +267,7 @@ impl<S: Schema> Transaction<S> {
             }
 
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
-            check_schema::<S>(Self::new_ref(), false);
+            check_schema::<S>(Self::new_ref())?;
             expected.store(schema_version, std::sync::atomic::Ordering::Relaxed);
         } else {
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
@@ -270,7 +276,7 @@ impl<S: Schema> Transaction<S> {
         const {
             assert!(size_of::<Self>() == 0);
         }
-        Self::new_ref()
+        Ok(Self::new_ref())
     }
 }
 

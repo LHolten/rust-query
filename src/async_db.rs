@@ -45,7 +45,9 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         f: impl 'static + Send + FnOnce(&'static Transaction<S>) -> R,
     ) -> R {
         let db = self.inner.clone();
-        async_run(move || db.transaction_local(f)).await
+        async_run(move || db.transaction_local(f))
+            .await
+            .unwrap_or_else(|e| e.to_panic())
     }
 
     #[doc = include_str!("database/transaction_mut.md")]
@@ -54,7 +56,9 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
         f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
         let db = self.inner.clone();
-        async_run(move || db.transaction_mut_local(f)).await
+        async_run(move || db.transaction_mut_local(f))
+            .await
+            .unwrap_or_else(|e| e.to_panic())
     }
 
     #[doc = include_str!("database/transaction_mut_ok.md")]

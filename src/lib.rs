@@ -369,6 +369,7 @@ pub mod private {
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
         migration::{Migration, SchemaBuilder},
+        with_test_renderer,
     };
     pub use crate::query::get_plan;
     pub use crate::schema::from_macro::{SchemaType, TypBuilder};
