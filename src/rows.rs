@@ -54,7 +54,7 @@ impl<'inner, S> Rows<'inner, S> {
                 lower::RowLike::Join(join),
                 joinable.main_column,
             )),
-            false, // join can never be null
+            true, // join can never be null
         )
     }
 
@@ -92,7 +92,7 @@ impl<'inner, S> Rows<'inner, S> {
         let val = val.into_expr();
         Rc::make_mut(&mut self.ast).filter(val.inner.clone());
 
-        // we already removed all rows with null, so this is ok.
-        Expr::new_inner(val.inner, false)
+        // expr may still be null because of error nulls.
+        Expr::new(val.inner)
     }
 }

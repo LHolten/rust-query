@@ -119,7 +119,8 @@ pub struct Expr<'column, S, T: DbTyp> {
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
     pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
-    pub(crate) nullable: bool,
+    // is this expressions not null and a foreign key?
+    pub(crate) not_null_key: bool,
 }
 
 #[cfg_attr(false, mutants::skip)]
@@ -148,10 +149,13 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
 ) -> Expr<'x, S, C> {
     let table = table.into_expr();
     Expr::new_inner(
-        table
-            .inner
-            .col(JoinableTable::Table(T::NAME), name, T::ID, table.nullable),
-        table.nullable || C::NULLABLE,
+        table.inner.col(
+            JoinableTable::Table(T::NAME),
+            name,
+            T::ID,
+            table.not_null_key,
+        ),
+        table.not_null_key && !C::NULLABLE,
     )
 }
 
@@ -173,17 +177,17 @@ impl<S, T: DbTyp> Expr<'_, S, T> {
     }
 
     pub(crate) fn new(val: Rc<lower::Expr>) -> Self {
-        Self::new_inner(val, true)
+        Self::new_inner(val, false)
     }
 
-    pub(crate) fn new_inner(val: Rc<lower::Expr>, nullable: bool) -> Self {
+    pub(crate) fn new_inner(val: Rc<lower::Expr>, not_null_key: bool) -> Self {
         Self {
             _local: PhantomData,
             inner: val,
             _p: PhantomData,
             _p2: PhantomData,
             ext: OnceCell::new(),
-            nullable,
+            not_null_key,
         }
     }
 }
@@ -196,7 +200,7 @@ impl<S, T: DbTyp> Clone for Expr<'_, S, T> {
             _p: self._p,
             _p2: self._p2,
             ext: OnceCell::new(),
-            nullable: self.nullable,
+            not_null_key: self.not_null_key,
         }
     }
 }
@@ -212,7 +216,7 @@ impl<'t, T: Table> Deref for Expr<'t, T::Schema, TableRow<T>> {
                 _p: PhantomData::<&'static ()>,
                 _p2: PhantomData,
                 ext: OnceCell::new(),
-                nullable: self.nullable,
+                not_null_key: self.not_null_key,
             };
             Box::new(T::build_ext2(&expr))
         }))

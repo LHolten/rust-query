@@ -75,7 +75,7 @@ impl Expr {
         table: JoinableTable,
         col: &'static str,
         main_col: &'static str,
-        nullable: bool,
+        not_null_id: bool,
     ) -> Rc<Expr> {
         if let Expr::RowIndex(row_like, old) = Rc::as_ref(self)
             && *old == main_col
@@ -88,7 +88,7 @@ impl Expr {
         let unique = Unique {
             table,
             conds: vec![(main_col, self.clone())],
-            guaranteed: !nullable, // guaranteed by foreign key constraint when not null
+            guaranteed: not_null_id, // guaranteed by foreign key constraint when not null
         };
         let row = RowLike::Unique(Rc::new(unique));
         Rc::new(Expr::RowIndex(row, col))
