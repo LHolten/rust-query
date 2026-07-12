@@ -56,14 +56,18 @@ fn migrations_preserve_index() {
         #[crate::migration::schema(Test)]
         #[version(0..=1)]
         pub mod vN {
+            #[version(..1)]
             pub struct Foo {
-                #[version(..1)]
                 pub name: String,
-                #[version(1..)]
-                pub name_new: String,
+            }
+            #[version(1..)]
+            #[from(Foo)]
+            #[primary_key("new_id")]
+            pub struct FooNew {
+                pub name: String,
             }
             pub struct Ref {
-                pub foo: rust_query::TableRow<Foo>,
+                pub foo: rust_query::TableRow<FooNew>,
             }
         }
     }
@@ -71,12 +75,13 @@ fn migrations_preserve_index() {
         #[crate::migration::schema(Test)]
         #[version(1..=1)]
         pub mod vN {
-            pub struct Foo {
+            #[primary_key("new_id")]
+            pub struct FooNew {
                 #[index]
-                pub name_new: String,
+                pub name: String,
             }
             pub struct Ref {
-                pub foo: rust_query::TableRow<Foo>,
+                pub foo: rust_query::TableRow<FooNew>,
             }
         }
     }
@@ -106,9 +111,9 @@ fn migrations_preserve_index() {
     Database::migrator(Config::open(FILE))
         .unwrap()
         .migrate(|txn| v0::migrate::Test {
-            foo: txn
-                .migrate(|prev: Lazy<v0::Foo>| v0::migrate::Foo {
-                    name_new: prev.name.clone(),
+            foo_new: txn
+                .migrate(|prev: Lazy<v0::Foo>| v0::migrate::FooNew {
+                    name: prev.name.clone(),
                 })
                 .unwrap(),
         })
@@ -122,6 +127,6 @@ fn migrations_preserve_index() {
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
-        assert_eq!(item.foo.name_new, "charlie");
+        assert_eq!(item.foo.name, "charlie");
     });
 }
