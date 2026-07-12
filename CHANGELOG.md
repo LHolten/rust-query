@@ -1,6 +1,10 @@
 # Unreleased
 
-- Fix bug in `Rows::filter_some` (it would filter out `Some(false)`).
+# 0.9.2
+
+- Fixed bug in `Rows::filter_some` (it would filter out `Some(false)`).
+- Added support for renaming the primary key with `#[primary_key("new_name")]`.
+- Improved `#[schema]` docs.
 
 # 0.9.1
 

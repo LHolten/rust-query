@@ -3,7 +3,7 @@ members = ["rust-query-macros", "fuzz"]
 
 [package]
 name = "rust-query"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2024"
 description = "A query builder using rust concepts."
 categories = ["database"]
@@ -62,7 +62,7 @@ required-features = ["jiff-02"]
 [dependencies]
 rusqlite = { version = "0.39", default-features = false, features = ["cache"] }
 k12 = { version = "0.5", optional = true }
-rust-query-macros = { path = "rust-query-macros", version = "=0.7.0" }
+rust-query-macros = { path = "rust-query-macros", version = "=0.9.2" }
 static_assertions = "1.1.0"
 self_cell = "1.2.1"
 parking_lot = "0.12.5"
