@@ -48,7 +48,7 @@ pub fn fix_by_copy<S: Schema>(txn: &Transaction<S>, detail: Detail) {
             let scope = lower::Scope::default();
             let tmp_name = scope.tmp_table();
 
-            txn.execute(&table.create(lower::JoinableTable::Tmp(tmp_name), "id"));
+            txn.execute(&table.create(lower::JoinableTable::Tmp(tmp_name)));
 
             let mut columns: Vec<_> = table.columns.keys().map(|x| Alias(x.as_str())).collect();
             columns.push(Alias("id"));

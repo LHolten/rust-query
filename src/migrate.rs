@@ -88,7 +88,7 @@ impl<S: Schema> Database<S> {
 
             for (table_name, table) in schema.tables {
                 let table = table.to_db();
-                let create = table.create(lower::JoinableTable::Table(table_name), "id");
+                let create = table.create(lower::JoinableTable::Table(table_name));
                 txn.get().execute(&create, []).unwrap();
                 for stmt in table.delayed_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();

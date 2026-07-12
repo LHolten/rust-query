@@ -46,7 +46,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
             let new_table_name = self.scope.tmp_table();
             let table = crate::schema::from_macro::Table::new::<T>().to_db();
             self.inner
-                .execute(&table.create(lower::JoinableTable::Tmp(new_table_name), T::ID));
+                .execute(&table.create(lower::JoinableTable::Tmp(new_table_name)));
             self.extra_index.extend(table.delayed_indices(T::NAME));
             new_table_name
         })

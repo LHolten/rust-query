@@ -108,7 +108,7 @@ impl Table {
 }
 
 impl from_db::Table {
-    pub fn create(&self, table: lower::JoinableTable, primary: &'static str) -> String {
+    pub fn create(&self, table: lower::JoinableTable) -> String {
         let mut stmt = emit::Stmt::default();
 
         stmt.write("CREATE TABLE ");
@@ -117,7 +117,7 @@ impl from_db::Table {
         stmt.write(" (");
         let mut list = ListWriter::new(&mut stmt, ", ");
         list.item()
-            .write(Alias(primary))
+            .write(Alias(&self.primary_key))
             .write(" INTEGER PRIMARY KEY");
         for (name, col) in &self.columns {
             let item = list.item().write(Alias(&name));
