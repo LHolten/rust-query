@@ -113,6 +113,14 @@ impl from_db::Table {
 
         let span = || from_macro.span.0..from_macro.span.1;
 
+        if from_macro.primary_key.to_ascii_lowercase() != self.primary_key.to_ascii_lowercase() {
+            annotations.push(
+                AnnotationKind::Primary
+                    .span(span())
+                    .label(format!("database has primary key `{}`", self.primary_key)),
+            );
+        }
+
         for (col, diff) in diff_map(from_macro.columns, self.columns) {
             match diff {
                 EntryDiff::DbOnly(column) => {
