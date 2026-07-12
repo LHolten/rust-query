@@ -61,13 +61,7 @@ pub fn define_all_tables(
 }
 
 fn byte_from(source: &str, line: usize, col: usize) -> usize {
-    source
-        .lines().nth(line - 1)
-        .unwrap()
-        .as_ptr()
-        .addr()
-        - source.as_ptr().addr()
-        + col
+    source.lines().nth(line - 1).unwrap().as_ptr().addr() - source.as_ptr().addr() + col
 }
 
 fn byte_range(source: &str, span: Span) -> TokenStream {
@@ -89,6 +83,7 @@ fn define_table(
     let table_ident_with_span = table.name.clone();
     table.name.set_span(Span::call_site());
     let table_ident = &table.name;
+    let table_row_id = &table.row_id;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
     let table_lazy = format_ident!("{table_ident}Lazy");
@@ -281,7 +276,7 @@ fn define_table(
                     #(#unique_typs;)*
                 }
 
-                const ID: &'static str = "id";
+                const ID: &'static str = #table_row_id;
                 const NAME: &'static str = #table_name;
                 const SPAN: (usize, usize) = #table_span;
 

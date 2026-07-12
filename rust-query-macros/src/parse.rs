@@ -1,8 +1,10 @@
 use std::ops::{Not, Range};
 
+use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, Attribute, Field, Ident, Item, Token, Visibility,
+    punctuated::Punctuated, spanned::Spanned, Attribute, Field, Ident, Item, LitStr, Token,
+    Visibility,
 };
 
 use crate::multi::{Index, IndexKind, VersionedColumn, VersionedSchema, VersionedTable};
@@ -72,6 +74,7 @@ impl VersionedTable {
         let mut prev = None;
         let mut referenceable = true;
         let mut doc_comments = vec![];
+        let mut row_id = None;
 
         for attr in table.attrs {
             let path = attr.path();
@@ -94,6 +97,14 @@ impl VersionedTable {
                 prev = Some(attr.parse_args()?)
             } else if path.is_ident("doc") {
                 doc_comments.push(attr);
+            } else if path.is_ident("row_id") {
+                if row_id.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        attr,
+                        "can not have multiple row_id",
+                    ));
+                }
+                row_id = Some(attr.parse_args()?)
             } else {
                 other_attrs.push(attr);
             }
@@ -120,6 +131,7 @@ impl VersionedTable {
             versions,
             prev,
             name: table.ident,
+            row_id: row_id.unwrap_or_else(|| LitStr::new("id", Span::call_site())),
             columns,
             indices,
             referenceable,
