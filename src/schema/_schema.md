@@ -63,15 +63,6 @@ Create a single column unique constraint with the column that it is applied to.
 - `#[index]`:
 Create a single column index with column that it is applied to.
 
-# Trivial changes
-
-`rust_query` allows changing some schema details without a new schema version.
-These changes are made retroactively when the database is opened with a compatible schema.
-The following changes are trivial:
-
-- Changing the order of columns in unique constraints and indices.
-- Adding and removing indices (not unique).
-
 # Column level changes
 
 Lets say we have a username and want to make it unique.
@@ -124,33 +115,19 @@ That is because the name of the table is a table level property. While it is a b
 - We could have named the new table `Foo` if we wanted to change table level properties other than the name. This would not conflict with the old `Foo` because they live in different versions.
 - We could have left the version range of `Foo` be unbounded, in that case `Foo` and `FooNew` would both exist in the new schema version.
 
+# Executing the migration
+
+Having defined a new version of the schema is not enough to actually execute the migration.
+You have to tell `rust_query` how to inialize new columns, what to do when there are unique constraint violations etcetera.
+Luckily this process is completely type checked and does not require any macros. Just call [Migrator::migrate] and the compiler will tell you what you need to provide.
 
 # Using indexes and unique constraints
 
-To define a unique constraint on a column, you need to add an attribute to the table or field.
-For example:
-```
-#[rust_query::migration::schema(SchemaName)]
-pub mod vN {
-    #[unique(username, movie)] // <-- here
-    pub struct Rating {
-        pub movie: String,
-        pub username: String,
-        #[unique] // <-- or here
-        pub uuid: String,
-    }
-}
-```
-This will create a single schema version with a single table called `rating` and three columns.
-The table will also have two unique contraints (one on the `uuid` column and one on the combination of `username` and `movie`).
-Note that optional types are not allowed in unique constraints.
+Having defined some indexes or unique constraints as described in previous sections, we can use these with some nice new syntax.
 
-## Indexes
-Indexes are very similar to unique constraints, but they don't require the columns to be unique.
-These are useful to prevent sqlite from having to scan a whole table.
-To incentivise creating indices you also get some extra sugar to use the index!
 ```
-#[rust_query::migration::schema(SchemaName)]
+# use rust_query::migration::schema;
+#[schema(SchemaName)]
 pub mod vN {
     pub struct Topic {
         #[unique]
@@ -168,123 +145,5 @@ The `TableName.column_name(value)` syntax is only allowed if `TableName` has an 
 unique constraint that starts with `column_name`.
 Adding and removing indexes and changing the order of columns in indexes and unique constraints
 is considered backwards compatible and thus does not require a new schema version.
-
-# Multiple schema versions
-At some point you might want to change something substantial in your schema.
-It would be really sad if you had to throw away all the old data in your database.
-That is why [rust_query] allows us to define multiple schema versions and how to transition between them.
-
-## Adding tables
-One of the simplest things to do is adding a new table.
-```
-#[rust_query::migration::schema(SchemaName)]
-#[version(0..=1)]
-pub mod vN {
-    pub struct User {
-        #[unique]
-        pub username: String,
-    }
-    #[version(1..)] // <-- note that `Game`` has a version range
-    pub struct Game {
-        #[unique]
-        pub name: String,
-        pub size: i64,
-    }
-}
-// These are just examples of tables you can use
-use v0::SchemaName as _;
-use v1::SchemaName as _;
-use v0::User as _;
-use v1::User as _;
-// `v0::Game` does not exist
-use v1::Game as _;
-# fn main() {}
-fn migrate() -> rust_query::Database<v1::SchemaName> {
-    rust_query::Database::migrator(rust_query::migration::Config::open("test.db"))
-        .expect("database version is before supported versions")
-        .migrate(|_txn| v0::migrate::SchemaName {})
-        .finish()
-        .expect("database version is after supported versions")
-}
-```
-The migration itself is not very interesting because new tables are automatically created
-without any data. To have some initial data, take a look at the `#[from]` attribute down below or use
-[crate::migration::Migrator::fixup].
-
-## Changing columns
-Changing columns is very similar to adding and removing structs.
-```
-use rust_query::migration::{schema, Config};
-use rust_query::{Database, Lazy};
-#[schema(Schema)]
-#[version(0..=1)]
-pub mod vN {
-    pub struct User {
-        #[unique]
-        pub username: String,
-        #[version(1..)] // <-- here
-        pub score: i64,
-    }
-}
-pub fn migrate() -> Database<v1::Schema> {
-    Database::migrator(Config::open_in_memory()) // we use an in memory database for this test
-        .expect("database version is before supported versions")
-        .migrate(|txn| v0::migrate::Schema {
-            // In this case it is required to provide a value for each row that already exists.
-            // This is done with the `v0::migrate::User` struct:
-            user: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::User {
-                score: old.username.len() as i64 // use the username length as the new score
-            }),
-        })
-        .finish()
-        .expect("database version is after supported versions")
-}
-# fn main() {}
-```
-
-## `#[from(TableName)]` Attribute
-You can use this attribute when renaming or splitting a table.
-This will make it clear that data in the table should have the
-same row ids as the `from` table.
-For example:
-```
-# use rust_query::migration::{schema, Config};
-# use rust_query::{Database, Lazy};
-# fn main() {}
-#[schema(Schema)]
-#[version(0..=1)]
-pub mod vN {
-    #[version(..1)]
-    pub struct User {
-        pub name: String,
-    }
-    #[version(1..)]
-    #[from(User)]
-    pub struct Author {
-        pub name: String,
-    }
-    pub struct Book {
-        pub author: rust_query::TableRow<Author>,
-    }
-}
-pub fn migrate() -> Database<v1::Schema> {
-    Database::migrator(Config::open_in_memory()) // we use an in memory database for this test
-        .expect("database version is before supported versions")
-        .migrate(|txn| v0::migrate::Schema {
-            author: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::Author {
-                name: old.name.clone(),
-            }),
-        })
-        .finish()
-        .expect("database version is after supported versions")
-}
-```
-In this example the `Book` table exists in both `v0` and `v1`,
-however `User` only exists in `v0` and `Author` only exist in `v1`.
-Note that the `pub author: Author` field only specifies the latest version
-of the table, it will use the `#[from]` attribute to find previous versions.
-
-## `#[no_reference]` Attribute
-You can put this attribute on your table definitions and it will make it impossible
-to have foreign key references to such table.
-This makes it possible to use `TransactionWeak::delete_ok`.
+So don't hesitate to add a new index or tweak the order of columns in a unique constraint if it helps
+clean up your code!
