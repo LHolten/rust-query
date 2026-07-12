@@ -1,4 +1,10 @@
-use std::{borrow::Cow, collections::HashMap, convert::Infallible, ops::Deref, rc::Rc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    convert::Infallible,
+    ops::Deref,
+    rc::Rc,
+};
 
 use crate::{
     Expr, FromExpr, IntoSelect, Select, Table, TableRow, Transaction,
@@ -227,8 +233,8 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
             })
             .collect();
 
-        let mut table_def = from_db::Table::default();
-        let mut primary_key_exists = false;
+        let mut primary_key = None;
+        let mut out_columns = BTreeMap::new();
         for col in columns {
             let def = canonical::Column {
                 fk: fks
@@ -241,22 +247,23 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
                 check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
             };
             if col.pk != 0 {
-                assert_eq!(
-                    col.name, "id",
-                    "only a primary key named \"id\" is supported"
-                );
+                if primary_key.is_some() {
+                    panic!("multi column primary key is not supported");
+                }
+                primary_key = Some(col.name);
                 assert_eq!(
                     def.fk, None,
                     "primary key is not allowed to have a foreign key constraint"
                 );
                 assert_eq!(col.r#type, "INTEGER", "primary key must be `INTEGER` type");
-                primary_key_exists = true;
                 continue;
             }
-            let old = table_def.columns.insert(col.name, def);
+            let old = out_columns.insert(col.name, def);
             debug_assert!(old.is_none());
         }
-        assert!(primary_key_exists, "table must have a primary key");
+        let Some(primary_key) = primary_key else {
+            panic!("table must have a primary key");
+        };
         debug_assert!(fks.is_empty());
 
         #[derive(Clone, FromExpr)]
@@ -279,6 +286,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
             name: Option<String>,
         }
 
+        let mut out_indices = BTreeSet::new();
         for index in indices {
             let false = index.partial else {
                 if index.unique {
@@ -305,13 +313,20 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
                 continue;
             };
 
-            table_def.indices.insert(from_db::Index {
+            out_indices.insert(from_db::Index {
                 columns,
                 unique: index.unique,
             });
         }
 
-        let old = output.tables.insert(table_name, table_def);
+        let old = output.tables.insert(
+            table_name,
+            from_db::Table {
+                row_id: primary_key,
+                columns: out_columns,
+                indices: out_indices,
+            },
+        );
         debug_assert!(old.is_none());
     }
 

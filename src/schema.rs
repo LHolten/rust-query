@@ -79,6 +79,7 @@ impl Table {
         let mut f = crate::schema::from_macro::TypBuilder::default();
         T::typs(&mut f);
         f.ast.span = T::SPAN;
+        f.ast.row_id = T::ID;
         f.ast
     }
 }
@@ -95,6 +96,7 @@ impl Schema {
 impl Table {
     pub fn to_db(self) -> from_db::Table {
         from_db::Table {
+            row_id: self.row_id.to_owned(),
             columns: self
                 .columns
                 .into_iter()

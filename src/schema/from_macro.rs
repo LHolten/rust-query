@@ -24,6 +24,7 @@ pub struct Index {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Table {
+    pub row_id: &'static str,
     pub columns: BTreeMap<String, Column>,
     pub indices: BTreeSet<Index>,
     pub span: (usize, usize),

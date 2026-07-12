@@ -12,8 +12,9 @@ pub struct Index {
     pub unique: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Table {
+    pub row_id: String,
     pub columns: BTreeMap<String, Column>,
     pub indices: BTreeSet<Index>,
 }
