@@ -1,5 +1,7 @@
 # Unreleased
 
+- Fix bug in `Rows::filter_some` (it would filter out `Some(false)`).
+
 # 0.9.1
 
 - Renamed private feature `mutants` to `__mutants`.

@@ -85,12 +85,26 @@ impl<'inner, S> Rows<'inner, S> {
     /// Filter out rows where this expression is [None].
     ///
     /// Returns a new expression with the unwrapped type.
+    ///
+    /// ```
+    /// # use rust_query::IntoExpr;
+    /// # rust_query::private::doctest::get_txn(|txn| {
+    /// txn.query(|rows| {
+    ///     let a = rows.filter_some(Some(100));
+    ///     let b = rows.filter_some(Some(false));
+    ///     assert_eq!(vec![(100, false)], rows.into_vec((&a, &b)));
+    ///     let c = rows.filter_some(None::<i64>);
+    ///     assert_eq!(Vec::<(i64, bool)>::new(), rows.into_vec((&a, &b)));
+    /// })
+    /// # });
+    /// ```
     pub fn filter_some<Typ: EqTyp>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {
         let val = val.into_expr();
-        Rc::make_mut(&mut self.ast).filter(val.inner.clone());
+        let not_null = val.is_some();
+        Rc::make_mut(&mut self.ast).filter(not_null.inner.clone());
 
         // expr may still be null because of error nulls.
         Expr::new(val.inner)
