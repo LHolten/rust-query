@@ -142,6 +142,18 @@ fn diagnostics() {
         }
     }
 
+    mod primary_key_change {
+        #[crate::migration::schema(Schema)]
+        pub mod vN {
+            #[unique(baz, field1)]
+            #[primary_key("foo_id")]
+            pub struct Foo {
+                pub field1: String,
+                pub baz: String,
+            }
+        }
+    }
+
     static FILE_NAME: &str = "diagnostic_test.sqlite";
     let _ = std::fs::remove_file(FILE_NAME);
 
@@ -188,5 +200,19 @@ fn diagnostics() {
            │               ━━━━━━ database does not have this unique constraint
         LL │             pub struct Foo {
            ╰╴                       ━━━ database has `#[unique(baz, field1)]`"#]]
+    .assert_eq(err.downcast_ref::<String>().unwrap());
+
+    let err = std::panic::catch_unwind(|| {
+        with_test_renderer(|| {
+            open_db::<primary_key_change::v0::Schema>(FILE_NAME);
+        })
+    })
+    .unwrap_err();
+    expect_test::expect![[r#"
+        error: Database has primary key `id`
+           ╭▸ src/schema/test.rs:150:24
+           │
+        LL │             pub struct Foo {
+           ╰╴                       ─── in this table"#]]
     .assert_eq(err.downcast_ref::<String>().unwrap());
 }

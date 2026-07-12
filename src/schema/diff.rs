@@ -108,19 +108,19 @@ impl from_db::Table {
         path: &'a str,
         schema_version: i64,
     ) -> Vec<Group<'a>> {
-        let mut annotations = Vec::new();
-        let mut db_only = Vec::new();
-
         let span = || from_macro.span.0..from_macro.span.1;
 
+        let mut out = Vec::new();
         if from_macro.primary_key.to_ascii_lowercase() != self.primary_key.to_ascii_lowercase() {
-            annotations.push(
-                AnnotationKind::Primary
-                    .span(span())
-                    .label(format!("database has primary key `{}`", self.primary_key)),
-            );
+            let snippet = Snippet::source(source)
+                .path(path)
+                .annotation(AnnotationKind::Context.span(span()).label("in this table"));
+            let title = format!("Database has primary key `{}`", self.primary_key);
+            out.push(Level::ERROR.primary_title(title).element(snippet));
         }
 
+        let mut annotations = Vec::new();
+        let mut db_only = Vec::new();
         for (col, diff) in diff_map(from_macro.columns, self.columns) {
             match diff {
                 EntryDiff::DbOnly(column) => {
@@ -153,7 +153,6 @@ impl from_db::Table {
             }
         }
 
-        let mut out = Vec::new();
         if !annotations.is_empty() || !db_only.is_empty() {
             let context = db_only
                 .is_empty()
