@@ -1,4 +1,4 @@
-error: The `id` column is reserved to be used by rust-query internally
+error: column cannot have the same name as the primary_key
  --> tests/compile/id_column.rs:6:13
   |
 6 |         pub id: i64,
