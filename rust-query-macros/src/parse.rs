@@ -19,14 +19,6 @@ impl VersionedColumn {
             return Err(syn::Error::new_spanned(name, "field must be public"));
         };
 
-        // not sure if case matters here
-        if name.to_string().to_lowercase() == "id" {
-            return Err(syn::Error::new_spanned(
-                name,
-                "The `id` column is reserved to be used by rust-query internally",
-            ));
-        }
-
         let mut other_field_attr = vec![];
         let mut doc_comments = vec![];
         let mut index = None;
@@ -121,17 +113,28 @@ impl VersionedTable {
             .unwrap_or_default()
             .into_std(limit, true)?;
 
-        let columns = table
+        let columns: Vec<_> = table
             .fields
             .into_iter()
             .map(|x| VersionedColumn::parse(x, versions.clone()))
             .collect::<Result<_, _>>()?;
 
+        let row_id = row_id.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
+
+        if let Some(col) = columns.iter().find(|col| {
+            col.name.to_string().to_ascii_lowercase() == row_id.value().to_ascii_lowercase()
+        }) {
+            return Err(syn::Error::new_spanned(
+                &col.name,
+                "column cannot have the same name as the row_id",
+            ));
+        }
+
         Ok(VersionedTable {
             versions,
             prev,
             name: table.ident,
-            row_id: row_id.unwrap_or_else(|| LitStr::new("id", Span::call_site())),
+            row_id,
             columns,
             indices,
             referenceable,
