@@ -51,7 +51,7 @@ pub fn fix_by_copy<S: Schema>(txn: &Transaction<S>, detail: Detail) {
             txn.execute(&table.create(lower::JoinableTable::Tmp(tmp_name)));
 
             let mut columns: Vec<_> = table.columns.keys().map(|x| Alias(x.as_str())).collect();
-            columns.push(Alias("id"));
+            columns.push(Alias(&table.primary_key));
             let columns = columns
                 .iter()
                 .map(|x| x.to_string())
