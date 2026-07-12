@@ -96,7 +96,7 @@ impl Schema {
 impl Table {
     pub fn to_db(self) -> from_db::Table {
         from_db::Table {
-            row_id: self.row_id.to_owned(),
+            primary_key: self.row_id.to_owned(),
             columns: self
                 .columns
                 .into_iter()

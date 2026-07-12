@@ -209,24 +209,29 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         q.into_iter((&table.name, &table.sql)).collect()
     });
 
-    let mut output = from_db::Schema::default();
+    struct Basic {
+        primary_key: String,
+        columns: Vec<Column>,
+        fks: BTreeMap<String, ForeignKey>,
+    }
 
+    #[derive(Clone, FromExpr)]
+    #[rust_query(From = ForeignKeyList)]
+    struct ForeignKey {
+        table: String,
+        to: Option<String>,
+    }
+
+    let mut basic = BTreeMap::new();
     for (table_name, strict) in tables {
         assert!(strict, "all tables must be STRICT");
 
-        let columns: Vec<Column> = conn.query(|q| {
+        let mut columns: Vec<Column> = conn.query(|q| {
             let table = q.join_custom(TableInfo(table_name.clone()));
             q.into_vec(Column::from_expr(table))
         });
 
-        #[derive(Clone, FromExpr)]
-        #[rust_query(From = ForeignKeyList)]
-        struct ForeignKey {
-            table: String,
-            to: Option<String>,
-        }
-
-        let mut fks: HashMap<_, _> = conn
+        let fks: BTreeMap<_, _> = conn
             .query(|q| {
                 let fk = q.join_custom(ForeignKeyList(table_name.to_owned()));
                 q.into_iter((&fk.from, ForeignKey::from_expr(&fk)))
@@ -234,36 +239,65 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
             .collect();
 
         let mut primary_key = None;
-        let mut out_columns = BTreeMap::new();
-        for col in columns {
-            let def = canonical::Column {
-                fk: fks
-                    .remove(&col.name)
-                    // a missing `to` column means that it references the primary key.
-                    // TODO: lookup the actual primary key when the primary key is not always `id`.
-                    .map(|x| (x.table, x.to.unwrap_or("id".to_owned()))),
-                typ: col.r#type.parse().unwrap(),
-                nullable: !col.notnull,
-                check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
-            };
-            if col.pk != 0 {
-                if primary_key.is_some() {
-                    panic!("multi column primary key is not supported");
-                }
-                primary_key = Some(col.name);
-                assert_eq!(
-                    def.fk, None,
-                    "primary key is not allowed to have a foreign key constraint"
-                );
-                assert_eq!(col.r#type, "INTEGER", "primary key must be `INTEGER` type");
-                continue;
+        for col in columns.extract_if(.., |col| col.pk != 0) {
+            if primary_key.is_some() {
+                panic!("multi column primary key is not supported");
             }
-            let old = out_columns.insert(col.name, def);
-            debug_assert!(old.is_none());
+            assert!(
+                !fks.contains_key(&col.name),
+                "primary key is not allowed to have a foreign key constraint"
+            );
+            assert_eq!(col.r#type, "INTEGER", "primary key must be `INTEGER` type");
+            assert_eq!(
+                check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
+                None,
+                "primary key can not have check constraint"
+            );
+            primary_key = Some(col.name);
         }
         let Some(primary_key) = primary_key else {
             panic!("table must have a primary key");
         };
+
+        basic.insert(
+            table_name,
+            Basic {
+                primary_key,
+                columns,
+                fks,
+            },
+        );
+    }
+    let pks: BTreeMap<_, _> = basic
+        .iter()
+        .map(|(name, basic)| (name.clone(), basic.primary_key.clone()))
+        .collect();
+
+    let mut output = from_db::Schema::default();
+
+    for (
+        table_name,
+        Basic {
+            primary_key,
+            columns,
+            mut fks,
+        },
+    ) in basic
+    {
+        let mut out_columns = BTreeMap::new();
+        for col in columns {
+            let def = canonical::Column {
+                fk: fks.remove(&col.name).map(|x| {
+                    let to = x.to.unwrap_or_else(|| pks[&x.table].clone());
+                    (x.table, to)
+                }),
+                typ: col.r#type.parse().unwrap(),
+                nullable: !col.notnull,
+                check: check_constraint::get_check_constraint(&table_sql[&table_name], &col.name),
+            };
+            let old = out_columns.insert(col.name, def);
+            debug_assert!(old.is_none());
+        }
         debug_assert!(fks.is_empty());
 
         #[derive(Clone, FromExpr)]
@@ -308,7 +342,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
 
             let Some(columns) = columns else {
                 if index.unique {
-                    panic!("unique constraint on row_id or expression is not supported");
+                    panic!("unique constraint on rowid or expression is not supported");
                 }
                 continue;
             };
@@ -322,7 +356,7 @@ pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
         let old = output.tables.insert(
             table_name,
             from_db::Table {
-                row_id: primary_key,
+                primary_key,
                 columns: out_columns,
                 indices: out_indices,
             },

@@ -14,7 +14,7 @@ pub struct Index {
 
 #[derive(Debug)]
 pub struct Table {
-    pub row_id: String,
+    pub primary_key: String,
     pub columns: BTreeMap<String, Column>,
     pub indices: BTreeSet<Index>,
 }
