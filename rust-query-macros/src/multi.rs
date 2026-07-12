@@ -25,7 +25,7 @@ pub(crate) struct VersionedSchema {
 // This is a table fully parsed from the schema, it represents multiple versions
 pub(crate) struct VersionedTable {
     pub name: Ident,
-    pub row_id: LitStr,
+    pub primary_key: LitStr,
     pub versions: std::ops::Range<u32>,
     // `prev` always has a distinct span from `name`
     pub prev: Option<Ident>,
@@ -93,7 +93,7 @@ impl VersionedSchema {
         Ok(SingleVersionTable {
             prev,
             name: table.name.clone(),
-            row_id: table.row_id.clone(),
+            primary_key: table.primary_key.clone(),
             indices,
             doc_comments: table.doc_comments.clone(),
             columns,
@@ -105,7 +105,7 @@ impl VersionedSchema {
 pub(crate) struct SingleVersionTable {
     pub prev: Option<Ident>,
     pub name: Ident,
-    pub row_id: LitStr,
+    pub primary_key: LitStr,
     pub indices: Vec<Index>,
     pub doc_comments: Vec<Attribute>,
     pub columns: BTreeMap<usize, SingleVersionColumn>,

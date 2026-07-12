@@ -83,7 +83,7 @@ fn define_table(
     let table_ident_with_span = table.name.clone();
     table.name.set_span(Span::call_site());
     let table_ident = &table.name;
-    let table_row_id = &table.row_id;
+    let table_id = &table.primary_key;
     let table_name: &String = &table_ident.to_string().to_snek_case();
     let table_helper = format_ident!("{table_ident}Index");
     let table_lazy = format_ident!("{table_ident}Lazy");
@@ -276,7 +276,7 @@ fn define_table(
                     #(#unique_typs;)*
                 }
 
-                const ID: &'static str = #table_row_id;
+                const ID: &'static str = #table_id;
                 const NAME: &'static str = #table_name;
                 const SPAN: (usize, usize) = #table_span;
 

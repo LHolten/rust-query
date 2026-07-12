@@ -66,7 +66,7 @@ impl VersionedTable {
         let mut prev = None;
         let mut referenceable = true;
         let mut doc_comments = vec![];
-        let mut row_id = None;
+        let mut primary_key = None;
 
         for attr in table.attrs {
             let path = attr.path();
@@ -89,14 +89,14 @@ impl VersionedTable {
                 prev = Some(attr.parse_args()?)
             } else if path.is_ident("doc") {
                 doc_comments.push(attr);
-            } else if path.is_ident("row_id") {
-                if row_id.is_some() {
+            } else if path.is_ident("primary_key") {
+                if primary_key.is_some() {
                     return Err(syn::Error::new_spanned(
                         attr,
-                        "can not have multiple row_id",
+                        "can not have multiple primary_key",
                     ));
                 }
-                row_id = Some(attr.parse_args()?)
+                primary_key = Some(attr.parse_args()?)
             } else {
                 other_attrs.push(attr);
             }
@@ -119,14 +119,14 @@ impl VersionedTable {
             .map(|x| VersionedColumn::parse(x, versions.clone()))
             .collect::<Result<_, _>>()?;
 
-        let row_id = row_id.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
+        let primary_key = primary_key.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
 
         if let Some(col) = columns.iter().find(|col| {
-            col.name.to_string().to_ascii_lowercase() == row_id.value().to_ascii_lowercase()
+            col.name.to_string().to_ascii_lowercase() == primary_key.value().to_ascii_lowercase()
         }) {
             return Err(syn::Error::new_spanned(
                 &col.name,
-                "column cannot have the same name as the row_id",
+                "column cannot have the same name as the primary_key",
             ));
         }
 
@@ -134,7 +134,7 @@ impl VersionedTable {
             versions,
             prev,
             name: table.ident,
-            row_id,
+            primary_key,
             columns,
             indices,
             referenceable,
