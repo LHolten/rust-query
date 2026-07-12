@@ -116,6 +116,8 @@ impl<S: Schema> Database<S> {
 
 /// [Migrator] is used to apply database migrations.
 ///
+/// Create it with [Database::migrator].
+///
 /// When all migrations are done, it can be turned into a [Database] instance with
 /// [Migrator::finish].
 pub struct Migrator<S> {
@@ -163,6 +165,32 @@ impl<S: Schema> Migrator<S> {
     /// Apply a database migration if the current schema is `S` and return a [Migrator] for the next schema `N`.
     ///
     /// This function will panic if the schema on disk does not match what is expected for its `user_version`.
+    ///
+    /// ```
+    /// # use rust_query::migration::{schema, Config};
+    /// # use rust_query::{Lazy, Database};
+    /// #[schema(Schema)]
+    /// #[version(0..=1)]
+    /// pub mod vN {
+    ///     pub struct User {
+    ///         pub name: String,
+    ///         #[version(1..)]
+    ///         pub score: i64,
+    ///     }
+    /// }
+    ///
+    /// fn main() {
+    ///     Database::migrator(Config::open_in_memory())
+    ///         .unwrap()
+    ///         .migrate(|txn| v0::migrate::Schema {
+    ///             user: txn.migrate_ok(|old: Lazy<v0::User>| v0::migrate::User {
+    ///                 score: old.name.len() as i64,
+    ///             }),
+    ///         })
+    ///         .finish()
+    ///         .unwrap();
+    /// }
+    /// ```
     pub fn migrate<'x, M>(
         mut self,
         m: impl Send + FnOnce(&mut TransactionMigrate<S>) -> M,
