@@ -26,12 +26,8 @@ pub struct Schema {
 
 impl Column {
     pub fn render_rust(&self) -> String {
-        let base = if let Some((table, col)) = &self.fk {
-            if col == "id" {
-                table.clone()
-            } else {
-                format!("{table}::{col}")
-            }
+        let base = if let Some((table, _col)) = &self.fk {
+            table.clone()
         } else {
             match &self.typ {
                 ColumnType::Integer => "i64".to_owned(),
