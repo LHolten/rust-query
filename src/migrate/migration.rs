@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     convert::Infallible,
     marker::PhantomData,
     ops::Deref,
@@ -40,6 +40,11 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
     }
 }
 
+pub enum MigrateRow<'t, M> {
+    Yes(M),
+    No(Box<dyn 't + FnOnce() -> Infallible>),
+}
+
 impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     fn new_table_name<T: Table>(&mut self) -> lower::TmpTable {
         *self.rename_map.entry(T::NAME).or_insert_with(|| {
@@ -78,25 +83,39 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// migration can violate:
     /// - 0 => [Infallible]
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
-    pub fn migrate_optional<'t, M: Migration<FromSchema = FromSchema>>(
+    pub fn migrate_optional<'t, 'x, M: Migration<FromSchema = FromSchema>>(
         &'t mut self,
-        mut f: impl FnMut(Lazy<'t, M::From>) -> Option<M>,
-    ) -> Result<(), M::Conflict> {
+        mut f: impl FnMut(Lazy<'t, M::From>) -> MigrateRow<'x, M>,
+    ) -> Result<Migrated<'x, FromSchema, M::To>, M::Conflict> {
         let new_name = self.new_table_name::<M::To>();
 
+        let mut error_map = BTreeMap::new();
+
         for row in self.unmigrated::<M>(new_name) {
-            if let Some(new) = f(self.lazy(row)) {
-                // TODO: deduplicate this self.lazy call
-                let val = M::prepare(new, self.lazy(row));
-                try_insert_private::<M::To>(
-                    lower::JoinableTable::Tmp(new_name),
-                    Some(row.inner.idx),
-                    val,
-                )
-                .map_err(|_| M::map_conflict(row))?;
+            match f(self.lazy(row)) {
+                MigrateRow::Yes(new) => {
+                    // TODO: deduplicate this self.lazy call
+                    let val = M::prepare(new, self.lazy(row));
+                    try_insert_private::<M::To>(
+                        lower::JoinableTable::Tmp(new_name),
+                        Some(row.inner.idx),
+                        val,
+                    )
+                    .map_err(|_| M::map_conflict(row))?;
+                }
+                MigrateRow::No(fn_once) => {
+                    error_map.insert(row.inner.idx, fn_once);
+                }
             };
         }
-        Ok(())
+
+        Ok(Migrated {
+            _p: PhantomData,
+            f: Box::new(|b| {
+                b.foreign_key::<M::To>(error_map);
+            }),
+            _local: PhantomData,
+        })
     }
 
     /// Migrate all rows to the new schema.
@@ -109,13 +128,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, M::From>) -> M,
     ) -> Result<Migrated<'static, FromSchema, M::To>, M::Conflict> {
-        self.migrate_optional::<M>(|x| Some(f(x)))?;
-
-        Ok(Migrated {
-            _p: PhantomData,
-            f: Box::new(|_| {}),
-            _local: PhantomData,
-        })
+        self.migrate_optional::<M>(|x| MigrateRow::Yes(f(x)))
     }
 
     /// Helper method for [Self::migrate].
@@ -140,17 +153,6 @@ pub struct Migrated<'t, FromSchema, T> {
 }
 
 impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
-    /// Don't migrate the remaining rows.
-    ///
-    /// This can cause foreign key constraint violations, which is why an error callback needs to be provided.
-    pub fn map_fk_err(err: impl 't + FnOnce() -> Infallible) -> Self {
-        Self {
-            _p: PhantomData,
-            f: Box::new(|x| x.foreign_key::<T>(err)),
-            _local: PhantomData,
-        }
-    }
-
     #[doc(hidden)]
     pub fn apply(self, b: &mut SchemaBuilder<'t, FromSchema>) {
         (self.f)(b)
@@ -160,14 +162,18 @@ impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
 pub struct SchemaBuilder<'t, FromSchema> {
     pub(super) inner: TransactionMigrate<FromSchema>,
     pub(super) drop: Vec<String>,
-    pub(super) foreign_key: HashMap<&'static str, Box<dyn 't + FnOnce() -> Infallible>>,
+    pub(super) foreign_key:
+        HashMap<&'static str, BTreeMap<i64, Box<dyn 't + FnOnce() -> Infallible>>>,
 }
 
 impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
-    pub fn foreign_key<To: Table>(&mut self, err: impl 't + FnOnce() -> Infallible) {
+    pub fn foreign_key<To: Table>(
+        &mut self,
+        err: BTreeMap<i64, Box<dyn 't + FnOnce() -> Infallible>>,
+    ) {
         self.inner.new_table_name::<To>();
 
-        self.foreign_key.insert(To::NAME, Box::new(err));
+        self.foreign_key.insert(To::NAME, err);
     }
 
     pub fn create_empty<To: Table>(&mut self) {

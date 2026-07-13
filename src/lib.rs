@@ -150,7 +150,7 @@ pub mod migration {
     pub use crate::migrate::{
         Migrator,
         config::{Config, ForeignKeys, Synchronous},
-        migration::{Migrated, TransactionMigrate},
+        migration::{MigrateRow, Migrated, TransactionMigrate},
     };
     #[cfg(feature = "dev")]
     pub use crate::schema::dev::hash_schema;

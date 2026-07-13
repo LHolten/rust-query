@@ -1,9 +1,6 @@
 use std::fs;
 
-use crate::{
-    Database, Lazy,
-    migration::{Config, Migrated},
-};
+use crate::{Database, Lazy, migrate::migration::MigrateRow, migration::Config};
 
 #[test]
 fn unique_constraint_violation() {
@@ -43,7 +40,9 @@ fn unique_constraint_violation() {
             });
             assert!(res.is_err(), "the new unique constraint should be caught");
             v0::migrate::Test {
-                foo: Migrated::map_fk_err(|| panic!()),
+                foo: txn
+                    .migrate_optional::<v0::migrate::Foo>(|_| MigrateRow::No(Box::new(|| panic!())))
+                    .unwrap(),
             }
         })
         .finish()
