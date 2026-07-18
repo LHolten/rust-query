@@ -11,16 +11,15 @@ use crate::{
     transaction::try_insert_private,
 };
 
-pub trait Migration {
-    type FromSchema: 'static;
-    type From: Table<Schema = Self::FromSchema>;
-    type To: Table<MigrateFrom = Self::From>;
-    type Conflict;
+pub trait Migrateable: Table<MigrateFrom: Table<Schema = Self::FromSchema>> {
+    type Migration;
+    type FromSchema;
+    type MigrateConflict;
 
     #[doc(hidden)]
-    fn prepare(val: Self, prev: Lazy<'_, Self::From>) -> Self::To;
+    fn prepare(val: Self::Migration, prev: Lazy<'_, Self::MigrateFrom>) -> Self;
     #[doc(hidden)]
-    fn map_conflict(val: TableRow<Self::From>) -> Self::Conflict;
+    fn map_conflict(val: TableRow<Self::MigrateFrom>) -> Self::MigrateConflict;
 }
 
 /// Transaction type for use in migrations.
@@ -57,17 +56,17 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         })
     }
 
-    fn unmigrated<M: Migration<FromSchema = FromSchema>>(
+    fn unmigrated<T: Migrateable<FromSchema = FromSchema>>(
         &self,
         new_name: lower::TmpTable,
-    ) -> impl Iterator<Item = TableRow<M::From>> {
+    ) -> impl Iterator<Item = TableRow<T::MigrateFrom>> {
         let data = self.inner.query(|rows| {
-            let old = rows.join_private::<M::From>();
+            let old = rows.join_private::<T::MigrateFrom>();
             rows.into_vec(old)
         });
 
         let migrated = Transaction::new().query(|rows| {
-            let new = rows.join_tmp::<M::To>(new_name);
+            let new = rows.join_tmp::<T>(new_name);
             rows.into_vec(new)
         });
         let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
@@ -83,25 +82,25 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// migration can violate:
     /// - 0 => [Infallible]
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
-    pub fn migrate_optional<'t, 'x, M: Migration<FromSchema = FromSchema>>(
+    pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
-        mut f: impl FnMut(Lazy<'t, M::From>) -> MigrateRow<'x, M>,
-    ) -> Result<Migrated<'x, FromSchema, M::To>, M::Conflict> {
-        let new_name = self.new_table_name::<M::To>();
+        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> MigrateRow<'x, T::Migration>,
+    ) -> Result<Migrated<'x, FromSchema, T>, T::MigrateConflict> {
+        let new_name = self.new_table_name::<T>();
 
         let mut error_map = BTreeMap::new();
 
-        for row in self.unmigrated::<M>(new_name) {
+        for row in self.unmigrated::<T>(new_name) {
             match f(self.lazy(row)) {
                 MigrateRow::Yes(new) => {
                     // TODO: deduplicate this self.lazy call
-                    let val = M::prepare(new, self.lazy(row));
-                    try_insert_private::<M::To>(
+                    let val = T::prepare(new, self.lazy(row));
+                    try_insert_private::<T>(
                         lower::JoinableTable::Tmp(new_name),
                         Some(row.inner.idx),
                         val,
                     )
-                    .map_err(|_| M::map_conflict(row))?;
+                    .map_err(|_| T::map_conflict(row))?;
                 }
                 MigrateRow::No(fn_once) => {
                     error_map.insert(row.inner.idx, fn_once);
@@ -112,7 +111,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         Ok(Migrated {
             _p: PhantomData,
             f: Box::new(|b| {
-                b.foreign_key::<M::To>(error_map);
+                b.foreign_key::<T>(error_map);
             }),
             _local: PhantomData,
         })
@@ -124,20 +123,20 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     ///
     /// However, this method will return [Migrated] when all rows are migrated.
     /// This can then be used as proof that there will be no foreign key violations.
-    pub fn migrate<'t, M: Migration<FromSchema = FromSchema>>(
+    pub fn migrate<'t, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
-        mut f: impl FnMut(Lazy<'t, M::From>) -> M,
-    ) -> Result<Migrated<'static, FromSchema, M::To>, M::Conflict> {
-        self.migrate_optional::<M>(|x| MigrateRow::Yes(f(x)))
+        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
+    ) -> Result<Migrated<'static, FromSchema, T>, T::MigrateConflict> {
+        self.migrate_optional(|x| MigrateRow::Yes(f(x)))
     }
 
     /// Helper method for [Self::migrate].
     ///
     /// It can only be used when the migration is known to never cause unique constraint conflicts.
-    pub fn migrate_ok<'t, M: Migration<FromSchema = FromSchema, Conflict = Infallible>>(
+    pub fn migrate_ok<'t, T: Migrateable<FromSchema = FromSchema, MigrateConflict = Infallible>>(
         &'t mut self,
-        f: impl FnMut(Lazy<'t, M::From>) -> M,
-    ) -> Migrated<'static, FromSchema, M::To> {
+        f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
+    ) -> Migrated<'static, FromSchema, T> {
         let Ok(res) = self.migrate(f);
         res
     }

@@ -167,7 +167,7 @@ pub mod private {
     pub use crate::joinable::{IntoJoinable, Joinable};
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
-        migration::{Migration, SchemaBuilder},
+        migration::{Migrateable, SchemaBuilder},
         with_test_renderer,
     };
     pub use crate::query::get_plan;

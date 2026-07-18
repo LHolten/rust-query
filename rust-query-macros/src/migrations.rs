@@ -103,7 +103,7 @@ fn define_table_migration(
         } else {
             let mut unique_columns = table.indices.iter().flat_map(|u| &u.columns);
             if unique_columns.any(|c| c == name) {
-                migration_conflict = quote! {::rust_query::TableRow<Self::From>};
+                migration_conflict = quote! {::rust_query::TableRow<Self::MigrateFrom>};
                 conflict_from = quote! {val};
             }
 
@@ -124,24 +124,23 @@ fn define_table_migration(
             pub #alter_ident: <#new_mod::#alter_tmp as ::rust_query::private::DbTyp>::Prev,
         )*}
 
-        impl ::rust_query::private::Migration for #table_ident {
-            type To = #new_mod::#table_ident;
-            type FromSchema = <Self::From as ::rust_query::Table>::Schema;
-            type From = <Self::To as ::rust_query::Table>::MigrateFrom;
-            type Conflict = #migration_conflict;
+        impl ::rust_query::private::Migrateable for #new_mod::#table_ident {
+            type Migration = #table_ident;
+            type FromSchema = <Self::MigrateFrom as ::rust_query::Table>::Schema;
+            type MigrateConflict = #migration_conflict;
 
             fn prepare(
-                val: Self,
-                prev: ::rust_query::Lazy<'_, Self::From>,
-            ) -> Self::To {
+                val: Self::Migration,
+                prev: ::rust_query::Lazy<'_, Self::MigrateFrom>,
+            ) -> Self {
                 let prev = ::std::ops::Deref::deref(&prev);
-                #new_mod::#table_ident {
+                Self {
                     #(#old_ident: ::rust_query::private::DbTyp::from_lazy(&prev.#old_ident),)*
                     #(#alter_ident: ::rust_query::private::DbTyp::migrate(val.#alter_ident),)*
                 }
             }
 
-            fn map_conflict(val: ::rust_query::TableRow<Self::From>) -> Self::Conflict {
+            fn map_conflict(val: ::rust_query::TableRow<Self::MigrateFrom>) -> Self::MigrateConflict {
                 #conflict_from
             }
         }

@@ -35,13 +35,13 @@ fn unique_constraint_violation() {
     Database::migrator(Config::open(FILE))
         .unwrap()
         .migrate(|txn| {
-            let res = txn.migrate(|prev: Lazy<v0::Foo>| v0::migrate::Foo {
+            let res = txn.migrate::<v1::Foo>(|prev: Lazy<v0::Foo>| v0::migrate::Foo {
                 name_new: prev.name.clone(),
             });
             assert!(res.is_err(), "the new unique constraint should be caught");
             v0::migrate::Test {
                 foo: txn
-                    .migrate_optional::<v0::migrate::Foo>(|_| MigrateRow::No(Box::new(|| panic!())))
+                    .migrate_optional(|_| MigrateRow::No(Box::new(|| panic!())))
                     .unwrap(),
             }
         })
