@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use crate::{dummy::wrap, SingleVersionTable};
 
 use super::make_generic;
-use heck::ToSnekCase;
 use quote::{format_ident, quote};
 
 use proc_macro2::{Span, TokenStream};
@@ -84,7 +83,7 @@ fn define_table(
     table.name.set_span(Span::call_site());
     let table_ident = &table.name;
     let table_id = &table.primary_key;
-    let table_name: &String = &table_ident.to_string().to_snek_case();
+    let table_name = &table.table_name;
     let table_helper = format_ident!("{table_ident}Index");
     let table_lazy = format_ident!("{table_ident}Lazy");
     let table_expr = format_ident!("{table_ident}Expr");

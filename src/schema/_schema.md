@@ -44,6 +44,8 @@ be used as the name of a regular column.
 The primary key is only used for foreign key constraints and can not be queried using `rust_query`.
 If you want a readable key, then you have to use a `unique` constraint instead of a primary key.
 The default is `#[primary_key("id")]`.
+- `#[table_name("some_table_name")]`:
+Change the table name in the database. The default table name is the struct name converted to `snake_case`.
 - `#[no_reference]`:
 This makes it impossible for any table to have a foreign key constraint to this table.
 Required if you want to use [crate::TransactionWeak::delete_ok].

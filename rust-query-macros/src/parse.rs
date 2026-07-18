@@ -1,5 +1,6 @@
 use std::ops::{Not, Range};
 
+use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
@@ -67,6 +68,7 @@ impl VersionedTable {
         let mut referenceable = true;
         let mut doc_comments = vec![];
         let mut primary_key = None;
+        let mut table_name = None;
 
         for attr in table.attrs {
             let path = attr.path();
@@ -97,6 +99,14 @@ impl VersionedTable {
                     ));
                 }
                 primary_key = Some(attr.parse_args()?)
+            } else if path.is_ident("table_name") {
+                if table_name.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        attr,
+                        "can not have multiple table_name",
+                    ));
+                }
+                table_name = Some(attr.parse_args()?)
             } else {
                 other_attrs.push(attr);
             }
@@ -120,6 +130,9 @@ impl VersionedTable {
             .collect::<Result<_, _>>()?;
 
         let primary_key = primary_key.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
+        let table_name = table_name.unwrap_or_else(|| {
+            LitStr::new(&table.ident.to_string().to_snake_case(), table.ident.span())
+        });
 
         if let Some(col) = columns.iter().find(|col| {
             col.name.to_string().to_ascii_lowercase() == primary_key.value().to_ascii_lowercase()
@@ -131,6 +144,7 @@ impl VersionedTable {
         }
 
         Ok(VersionedTable {
+            table_name,
             versions,
             prev,
             name: table.ident,
