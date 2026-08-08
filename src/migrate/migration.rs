@@ -85,7 +85,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> MigrateRow<'x, T::Migration>,
-    ) -> Result<Migrated<'x, FromSchema, T>, T::MigrateConflict> {
+    ) -> Result<Migrated<'x, T>, T::MigrateConflict> {
         let new_name = self.new_table_name::<T>();
 
         let mut error_map = BTreeMap::new();
@@ -126,7 +126,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     pub fn migrate<'t, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
-    ) -> Result<Migrated<'static, FromSchema, T>, T::MigrateConflict> {
+    ) -> Result<Migrated<'static, T>, T::MigrateConflict> {
         self.migrate_optional(|x| MigrateRow::Yes(f(x)))
     }
 
@@ -136,7 +136,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     pub fn migrate_ok<'t, T: Migrateable<FromSchema = FromSchema, MigrateConflict = Infallible>>(
         &'t mut self,
         f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
-    ) -> Migrated<'static, FromSchema, T> {
+    ) -> Migrated<'static, T> {
         let Ok(res) = self.migrate(f);
         res
     }
@@ -145,15 +145,15 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 /// [Migrated] provides a proof of migration.
 ///
 /// This only needs to be provided for tables that are migrated from a previous table.
-pub struct Migrated<'t, FromSchema, T> {
+pub struct Migrated<'t, T: Migrateable> {
     _p: PhantomData<T>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, FromSchema>)>,
+    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, T::FromSchema>)>,
     _local: PhantomData<*const ()>,
 }
 
-impl<'t, FromSchema: 'static, T: Table> Migrated<'t, FromSchema, T> {
+impl<'t, T: Migrateable> Migrated<'t, T> {
     #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t, FromSchema>) {
+    pub fn apply(self, b: &mut SchemaBuilder<'t, T::FromSchema>) {
         (self.f)(b)
     }
 }

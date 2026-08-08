@@ -63,7 +63,7 @@ pub fn migrations(
         #table_migrations
 
         pub struct #schema_name<#lifetime> {
-            #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, #prev_mod::#schema_name, #new_mod::#create_table_name>,)*
+            #(pub #create_table_lower: ::rust_query::migration::Migrated<'t, #new_mod::#create_table_name>,)*
         }
 
         impl<'t> ::rust_query::private::SchemaMigration<'t> for #schema_name<#lifetime> {
