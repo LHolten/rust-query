@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs};
 
 use rust_query::{
     Database, Lazy,
-    migration::{Config, MigrateRow, schema},
+    migration::{Config, MigrateWith, schema},
 };
 
 pub use v2::*;
@@ -165,11 +165,11 @@ pub fn migrate() -> Database<v2::Schema> {
             short_genre: txn
                 .migrate_optional(|old: Lazy<v0::Genre>| {
                     if old.name.len() <= 10 {
-                        MigrateRow::Yes(v0::migrate::ShortGenre {
+                        MigrateWith::New(v0::migrate::ShortGenre {
                             name: old.name.clone(),
                         })
                     } else {
-                        MigrateRow::No(Box::new(|| panic!()))
+                        MigrateWith::remove_or_else(|| panic!())
                     }
                 })
                 .unwrap(),

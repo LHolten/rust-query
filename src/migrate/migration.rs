@@ -39,9 +39,19 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
     }
 }
 
-pub enum MigrateRow<'t, M> {
-    Yes(M),
-    No(Box<dyn 't + FnOnce() -> Infallible>),
+#[non_exhaustive]
+pub enum MigrateWith<'t, M> {
+    New(M),
+    #[doc(hidden)]
+    Remove(FkErrHandler<'t>),
+}
+
+pub(crate) struct FkErrHandler<'t>(pub Box<dyn 't + FnOnce() -> Infallible>);
+
+impl<'t, M> MigrateWith<'t, M> {
+    pub fn remove_or_else(f: impl 't + FnOnce() -> Infallible) -> Self {
+        Self::Remove(FkErrHandler(Box::new(f)))
+    }
 }
 
 impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
@@ -84,7 +94,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
     pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
-        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> MigrateRow<'x, T::Migration>,
+        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> MigrateWith<'x, T::Migration>,
     ) -> Result<Migrated<'x, T>, T::MigrateConflict> {
         let new_name = self.new_table_name::<T>();
 
@@ -92,7 +102,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 
         for row in self.unmigrated::<T>(new_name) {
             match f(self.lazy(row)) {
-                MigrateRow::Yes(new) => {
+                MigrateWith::New(new) => {
                     // TODO: deduplicate this self.lazy call
                     let val = T::prepare(new, self.lazy(row));
                     try_insert_private::<T>(
@@ -102,7 +112,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
                     )
                     .map_err(|_| T::map_conflict(row))?;
                 }
-                MigrateRow::No(fn_once) => {
+                MigrateWith::Remove(fn_once) => {
                     error_map.insert(row.inner.idx, fn_once);
                 }
             };
@@ -127,7 +137,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
     ) -> Result<Migrated<'static, T>, T::MigrateConflict> {
-        self.migrate_optional(|x| MigrateRow::Yes(f(x)))
+        self.migrate_optional(|x| MigrateWith::New(f(x)))
     }
 
     /// Helper method for [Self::migrate].
@@ -161,15 +171,11 @@ impl<'t, T: Migrateable> Migrated<'t, T> {
 pub struct SchemaBuilder<'t, FromSchema> {
     pub(super) inner: TransactionMigrate<FromSchema>,
     pub(super) drop: Vec<String>,
-    pub(super) foreign_key:
-        HashMap<&'static str, BTreeMap<i64, Box<dyn 't + FnOnce() -> Infallible>>>,
+    pub(super) foreign_key: HashMap<&'static str, BTreeMap<i64, FkErrHandler<'t>>>,
 }
 
 impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
-    pub fn foreign_key<To: Table>(
-        &mut self,
-        err: BTreeMap<i64, Box<dyn 't + FnOnce() -> Infallible>>,
-    ) {
+    pub fn foreign_key<To: Table>(&mut self, err: BTreeMap<i64, FkErrHandler<'t>>) {
         self.inner.new_table_name::<To>();
 
         self.foreign_key.insert(To::NAME, err);

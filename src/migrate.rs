@@ -236,7 +236,8 @@ impl<S: Schema> Migrator<S> {
                         .remove(&*fk)
                         .unwrap()
                         .remove(&idx)
-                        .unwrap())();
+                        .unwrap()
+                        .0)();
                 }
 
                 TXN.set(Some(transaction));
