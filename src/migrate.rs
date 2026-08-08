@@ -24,6 +24,13 @@ use crate::{
     transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
 };
 
+enum NamingScheme {
+    SnakeCase,
+    CamelCase,
+    Preserve,
+    Manual,
+}
+
 pub struct TableTypBuilder<S> {
     pub(crate) ast: from_macro::Schema,
     _p: PhantomData<S>,
