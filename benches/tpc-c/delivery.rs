@@ -52,7 +52,7 @@ pub fn delivery(
     let order = order.into_table_row();
 
     let mut total_amount = 0;
-    for mut line in txn.mutable_vec(OrderLine.order(order)) {
+    for mut line in txn.mutable_iter(OrderLine.order(order)) {
         total_amount += line.amount;
         line.delivery_d = Some(input.delivery_d);
     }

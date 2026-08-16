@@ -328,7 +328,7 @@ impl<S> Transaction<S> {
         res
     }
 
-    /// Retrieve a [crate::Lazy] value from the database.
+    /// Retrieve a [crate::Lazy] or `Option<Lazy>` from the database.
     ///
     /// This is very similar to [Self::query_one], except that it retrieves
     /// [crate::Lazy] instead of [TableRow]. As such it only works with
@@ -388,7 +388,7 @@ impl<S> Transaction<S> {
         })
     }
 
-    /// Retrieves a [Mutable] row from the database.
+    /// Retrieves a [Mutable] or `Option<Mutable>` from the database.
     ///
     /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.
     /// It is recommended to keep the lifetime of [Mutable] short, to prevent borrow checker errors.
@@ -446,23 +446,30 @@ impl<S> Transaction<S> {
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
     /// # txn.insert_ok(User {age: 30});
-    /// for mut user in txn.mutable_vec(User.age(20)) {
+    /// for mut user in txn.mutable_iter(User.age(20)) {
     ///     user.age += 1;
     /// }
     /// # });
     /// ```
-    pub fn mutable_vec<'t, T: Table<Schema = S>>(
+    pub fn mutable_iter<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
-    ) -> Vec<Mutable<'t, T>> {
+    ) -> impl Iterator<Item = Mutable<'t, T>> {
         let val = val.into_joinable();
         self.query(|rows| {
             let val = rows.join(val);
             rows.into_vec((T::into_select(val.clone()), val))
                 .into_iter()
                 .map(TableRow::<T>::into_mutable)
-                .collect()
         })
+    }
+
+    #[deprecated]
+    pub fn mutable_vec<'t, T: Table<Schema = S>>(
+        &'t mut self,
+        val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
+    ) -> Vec<Mutable<'t, T>> {
+        self.mutable_iter(val).collect()
     }
 }
 

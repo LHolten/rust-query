@@ -62,6 +62,7 @@ impl EqTyp for jiff::civil::Date {}
 #[diagnostic::do_not_recommend]
 impl<T: Table> EqTyp for TableRow<T> {}
 
+/// Should not be used outside this crate.
 pub trait OptTable: DbTyp {
     type Schema;
     type Select;
