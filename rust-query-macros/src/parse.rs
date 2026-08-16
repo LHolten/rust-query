@@ -87,7 +87,7 @@ impl VersionedTable {
         let mut referenceable = true;
         let mut doc_comments = vec![];
         let mut primary_key = None;
-        let mut table_name = None;
+        let mut rename = None;
 
         for attr in table.attrs {
             let path = attr.path();
@@ -118,14 +118,14 @@ impl VersionedTable {
                     ));
                 }
                 primary_key = Some(attr.parse_args()?)
-            } else if path.is_ident("table_name") {
-                if table_name.is_some() {
+            } else if path.is_ident("rename") {
+                if rename.is_some() {
                     return Err(syn::Error::new_spanned(
                         attr,
-                        "can not have multiple table_name",
+                        r#"can not have multiple "rename""#,
                     ));
                 }
-                table_name = Some(attr.parse_args()?)
+                rename = Some(attr.parse_args()?)
             } else {
                 other_attrs.push(attr);
             }
@@ -149,7 +149,7 @@ impl VersionedTable {
             .collect::<Result<_, _>>()?;
 
         let primary_key = primary_key.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
-        let table_name = table_name.unwrap_or_else(|| {
+        let rename = rename.unwrap_or_else(|| {
             let new_name = naming_scheme.table.apply(&table.ident.unraw().to_string());
             LitStr::new(&new_name, table.ident.span())
         });
@@ -164,7 +164,7 @@ impl VersionedTable {
         }
 
         Ok(VersionedTable {
-            rename: table_name,
+            rename,
             versions,
             prev,
             name: table.ident,
@@ -186,26 +186,26 @@ impl VersionedSchema {
             ));
         }
 
-        let mut rename_all_col = None;
-        let mut rename_all = None;
+        let mut rename_columns = None;
+        let mut rename_tables = None;
         let mut other_attrs = Vec::new();
         for attr in item.attrs {
-            if attr.path().is_ident("rename_all_col") {
-                if rename_all_col.is_some() {
+            if attr.path().is_ident("rename_columns") {
+                if rename_columns.is_some() {
                     return Err(syn::Error::new_spanned(
                         attr,
-                        r#"can not have multiple "rename_all_col""#,
+                        r#"can not have multiple "rename_columns""#,
                     ));
                 }
-                rename_all_col = Some(attr.parse_args()?)
-            } else if attr.path().is_ident("rename_all") {
-                if rename_all.is_some() {
+                rename_columns = Some(attr.parse_args()?)
+            } else if attr.path().is_ident("rename_tables") {
+                if rename_tables.is_some() {
                     return Err(syn::Error::new_spanned(
                         attr,
-                        r#"can not have multiple "rename_all""#,
+                        r#"can not have multiple "rename_tables""#,
                     ));
                 }
-                rename_all = Some(attr.parse_args()?)
+                rename_tables = Some(attr.parse_args()?)
             } else {
                 other_attrs.push(attr);
             }
@@ -215,8 +215,8 @@ impl VersionedSchema {
             .into_std(0..1, false)?;
 
         let naming_schemes = NamingSchemes {
-            column: rename_all_col.unwrap_or_default(),
-            table: rename_all.unwrap_or_default(),
+            column: rename_columns.unwrap_or_default(),
+            table: rename_tables.unwrap_or_default(),
         };
 
         let Visibility::Public(_) = item.vis else {

@@ -24,7 +24,17 @@ Supported data types are:
 - `jiff::Date` (sqlite `text` with `CHECK "col" IS ltrim(date("col"), '-')`)
 - `jiff::Timestamp` (sqlite `text` with `CHECK "col" IS (ltrim(datetime("col" || 'Z'), '-') || rtrim(substr("col", 20, 10), '0 '))`)
 
-# Table attributes
+# Schema (mod) attributes
+- `#[version(..=4)`, `#[version(2..=3)`:
+This specifies the range of schema versions to generate. Be careful with this because the amount of
+generated code is linear in the number of schema versions. It is recommended to only support the minimum
+number of schema versions that is required to support migrations.
+- `#[rename_tables("snake_case")]`
+Rename all tables to use `snake_case` naming. Useful if the database schema uses `snake_case` for tables.
+- `#[rename_columns("PascalCase")]`
+Rename all columns to use `PascalCase` naming. Useful if the database schema uses `PascalCase` for columns.
+
+# Table (struct) attributes
 
 Table names are `snake_case` versions of the rust struct names.
 So a struct `FooNew` will be called `foo_new` in the database.
@@ -34,6 +44,8 @@ This specifies the range of schema versions in which this table exists. The rang
 on either side which means the table exists for all versions in that direction. 
 Note that it is possible to have tables with the same name as long as they don't exist in the same version of the schema.
 The default is `#[version(..)]`.
+- `#[rename("some_table_name")]`:
+Change the table name in the database. The default table name is the rust struct name.
 - `#[unique(some, list, of, columns)]`:
 Create a (multi) column unique constraint on the specified columns of the table.
 - `#[index(some, list, of, columns)]`:
@@ -44,8 +56,6 @@ be used as the name of a regular column.
 The primary key is only used for foreign key constraints and can not be queried using `rust_query`.
 If you want a readable key, then you have to use a `unique` constraint instead of a primary key.
 The default is `#[primary_key("id")]`.
-- `#[table_name("some_table_name")]`:
-Change the table name in the database. The default table name is the struct name converted to `snake_case`.
 - `#[no_reference]`:
 This makes it impossible for any table to have a foreign key constraint to this table.
 Required if you want to use [crate::TransactionWeak::delete_ok].
@@ -53,13 +63,15 @@ Required if you want to use [crate::TransactionWeak::delete_ok].
 This attribute can be used to initialize the table from another table when it is created.
 See the [example](#table-level-changes) for how this can be used.
 
-# Column attributes
+# Column (field) attributes
 
 - `#[version(1..)`, `#[version(..4)`, `#[version(2..3)`:
 This specifies the range of schema versions in which this column exists. The range can be unbounded
 on either side which means the column exists for all version of the table in that direction. 
 Note that it is possible to have columns with the same name as long as they don't exist in the same version of the table.
 The default is `#[version(..)]`.
+- `#[rename("some_column_name")]`:
+Change the column name in the database. The default column name is the same as the rust field name.
 - `#[unique]`:
 Create a single column unique constraint with the column that it is applied to.
 - `#[index]`:
