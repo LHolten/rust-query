@@ -21,7 +21,7 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 /// # use rust_query::Lazy;
 /// # use v0::*;
 /// fn foo(post: Lazy<Post>) {
-///     let user = &post.author; // If the `post` row was not retrieved yet, then it is retrieved now to read the `user` column.
+///     let user = &post.author; // If the `post` row was not retrieved yet, then it is retrieved now to read the `author` column.
 ///     let user_id = user.table_row(); // This doesn't access the database because the `user` id was already read from the `post` row.
 ///     let user_name = &user.name; // If the `user` row was not retrieved yet, then it is retrieved now to read the `name` column.
 /// }

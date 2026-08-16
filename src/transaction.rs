@@ -400,20 +400,28 @@ impl<S> Transaction<S> {
     /// #     pub struct Player {
     /// #         #[unique]
     /// #         pub number: i64,
-    /// #         #[unique]
     /// #         pub name: String,
     /// #         pub score: i64,
     /// #     }
     /// # }
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
-    /// # txn.insert(Player {number: 5, name: "Floris".to_owned(), score: 0});
+    /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
+    ///
+    /// // `player` is dropped automatically because the variable goes out of scope.
     /// if let Some(mut player) = txn.mutable(Player.number(1)) {
     ///     player.score += 100;
     /// }
     ///
-    /// let floris = txn.query_one(Player.name("Floris")).unwrap();
-    /// txn.mutable(floris).score += 50;
+    /// // The mutable is not assigned to a variable,
+    /// // so it is automatically dropped after the statement ends.
+    /// txn.mutable(baz_id).score += 50;
+    ///
+    /// // If it is necessary to assign the Mutable to a variable,
+    /// // then make sure to drop the Mutable as soon as possible.
+    /// let mut tmp = txn.mutable(baz_id)
+    /// tmp.name = format!({tmp.name}{tmp.score});
+    /// drop(tmp);
     /// # });
     /// ```
     pub fn mutable<'t, T: OptTable<Schema = S>>(
@@ -432,12 +440,13 @@ impl<S> Transaction<S> {
     /// ```
     /// # #[rust_query::migration::schema(M)]
     /// # pub mod vN {
+    /// #     #[index(age)]
     /// #     pub struct User { pub age: i64 }
     /// # }
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
     /// # txn.insert_ok(User {age: 30});
-    /// for mut user in txn.mutable_vec(User) {
+    /// for mut user in txn.mutable_vec(User.age(20)) {
     ///     user.age += 1;
     /// }
     /// # });
