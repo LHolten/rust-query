@@ -23,6 +23,7 @@ impl VersionedColumn {
         let mut other_field_attr = vec![];
         let mut doc_comments = vec![];
         let mut index = None;
+        let mut rename = None;
         for attr in field.attrs {
             let path = attr.path();
             if path.is_ident("unique") || path.is_ident("index") {
@@ -38,6 +39,14 @@ impl VersionedColumn {
                 }
             } else if path.is_ident("doc") {
                 doc_comments.push(attr);
+            } else if path.is_ident("rename") {
+                if rename.is_some() {
+                    return Err(syn::Error::new_spanned(
+                        attr,
+                        r#"cannot have multiple "rename""#,
+                    ));
+                }
+                rename = Some(attr.parse_args()?);
             } else {
                 other_field_attr.push(attr);
             }
@@ -46,8 +55,14 @@ impl VersionedColumn {
             .unwrap_or_default()
             .into_std(limit, true)?;
 
+        let rename = rename.unwrap_or_else(|| {
+            let new_name = scheme.apply(&name.unraw().to_string());
+            LitStr::new(&new_name, name.span())
+        });
+
         Ok(VersionedColumn {
             versions,
+            rename,
             name,
             typ: field.ty.into_token_stream(),
             doc_comments,
@@ -149,7 +164,7 @@ impl VersionedTable {
         }
 
         Ok(VersionedTable {
-            table_name,
+            rename: table_name,
             versions,
             prev,
             name: table.ident,

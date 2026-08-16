@@ -24,7 +24,7 @@ pub(crate) struct VersionedSchema {
 
 // This is a table fully parsed from the schema, it represents multiple versions
 pub(crate) struct VersionedTable {
-    pub table_name: LitStr,
+    pub rename: LitStr,
     pub name: Ident,
     pub primary_key: LitStr,
     pub versions: std::ops::Range<u32>,
@@ -38,6 +38,7 @@ pub(crate) struct VersionedTable {
 
 pub(crate) struct VersionedColumn {
     pub versions: std::ops::Range<u32>,
+    pub rename: LitStr,
     pub name: Ident,
     pub typ: TokenStream,
     pub doc_comments: Vec<Attribute>,
@@ -66,6 +67,7 @@ impl VersionedSchema {
                     i,
                     SingleVersionColumn {
                         name: c.name.clone(),
+                        rename: c.rename.clone(),
                         typ: c.typ.clone(),
                         is_def: version == c.versions.end - 1,
                         doc_comments: c.doc_comments.clone(),
@@ -93,7 +95,7 @@ impl VersionedSchema {
 
         Ok(SingleVersionTable {
             prev,
-            table_name: table.table_name.clone(),
+            rename: table.rename.clone(),
             name: table.name.clone(),
             primary_key: table.primary_key.clone(),
             indices,
@@ -106,7 +108,7 @@ impl VersionedSchema {
 
 pub(crate) struct SingleVersionTable {
     pub prev: Option<Ident>,
-    pub table_name: LitStr,
+    pub rename: LitStr,
     pub name: Ident,
     pub primary_key: LitStr,
     pub indices: Vec<Index>,
@@ -117,6 +119,7 @@ pub(crate) struct SingleVersionTable {
 
 pub(crate) struct SingleVersionColumn {
     pub name: Ident,
+    pub rename: LitStr,
     pub typ: TokenStream,
     // is this the latest version where the column exists?
     pub is_def: bool,

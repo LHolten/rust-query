@@ -83,7 +83,7 @@ fn define_table(
     table.name.set_span(Span::call_site());
     let table_ident = &table.name;
     let table_id = &table.primary_key;
-    let table_name = &table.table_name;
+    let table_rename = &table.rename;
     let table_helper = format_ident!("{table_ident}Index");
     let table_lazy = format_ident!("{table_ident}Lazy");
     let table_expr = format_ident!("{table_ident}Expr");
@@ -111,7 +111,7 @@ fn define_table(
     let mut update_columns_safe = vec![];
     let mut generic = vec![];
     let mut try_from_update = vec![];
-    let mut col_str = vec![];
+    let mut col_rename = vec![];
     let mut col_ident = vec![];
     let mut col_doc = vec![];
     let mut col_typ = vec![];
@@ -150,7 +150,7 @@ fn define_table(
         }
         parts.push(quote! {&col.#ident});
         generic.push(make_generic(ident));
-        col_str.push(ident.to_string());
+        col_rename.push(&col.rename);
         col_ident.push(ident);
         col_doc.push(&col.doc_comments);
 
@@ -262,7 +262,7 @@ fn define_table(
 
                 fn build_ext2<'t>(val: &::rust_query::Expr<'t, Self::Schema, ::rust_query::TableRow<Self>>) -> Self::Ext2<'t> {
                     Self::Ext2 {
-                        #(#col_ident: ::rust_query::private::new_column(val, #col_str),)*
+                        #(#col_ident: ::rust_query::private::new_column(val, #col_rename),)*
                         #private: ::std::marker::PhantomData,
                     }
                 }
@@ -270,13 +270,13 @@ fn define_table(
                 type Schema = #schema;
 
                 fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
-                    #(f.col::<#col_typ>(#col_str, #col_span);)*
+                    #(f.col::<#col_typ>(#col_rename, #col_span);)*
                     #(#def_typs;)*
                     #(#unique_typs;)*
                 }
 
                 const ID: &'static str = #table_id;
-                const NAME: &'static str = #table_name;
+                const NAME: &'static str = #table_rename;
                 const SPAN: (usize, usize) = #table_span;
 
                 type Conflict = #conflict_type;
@@ -311,7 +311,7 @@ fn define_table(
                 }
 
                 fn read(&self, f: &mut ::rust_query::private::Reader) {
-                    #(f.col::<#col_typ>(#col_str, ::std::clone::Clone::clone(&self.#col_ident));)*
+                    #(f.col::<#col_typ>(#col_rename, ::std::clone::Clone::clone(&self.#col_ident));)*
                 }
                 fn mutable_into_insert(val: Self::Mutable) -> Self {
                     Self {
