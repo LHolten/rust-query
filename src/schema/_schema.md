@@ -29,10 +29,6 @@ Supported data types are:
 This specifies the range of schema versions to generate. Be careful with this because the amount of
 generated code is linear in the number of schema versions. It is recommended to only support the minimum
 number of schema versions that is required to support migrations.
-- `#[rename_tables("snake_case")]`
-Rename all tables to use `snake_case` naming. Useful if the database schema uses `snake_case` for tables.
-- `#[rename_columns("PascalCase")]`
-Rename all columns to use `PascalCase` naming. Useful if the database schema uses `PascalCase` for columns.
 
 # Table (struct) attributes
 
@@ -45,7 +41,7 @@ on either side which means the table exists for all versions in that direction.
 Note that it is possible to have tables with the same name as long as they don't exist in the same version of the schema.
 The default is `#[version(..)]`.
 - `#[rename("some_table_name")]`:
-Change the table name in the database. The default table name is the rust struct name.
+Change the table name in the database. The default table name is the rust struct name converted to `snake_case`.
 - `#[unique(some, list, of, columns)]`:
 Create a (multi) column unique constraint on the specified columns of the table.
 - `#[index(some, list, of, columns)]`:

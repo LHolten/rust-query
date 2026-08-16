@@ -1,17 +1,17 @@
 use std::ops::{Not, Range};
 
-use heck::{ToPascalCase, ToSnakeCase};
+use heck::ToSnakeCase;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
-    ext::IdentExt, parse::Parse, punctuated::Punctuated, spanned::Spanned, Attribute, Field, Ident,
-    Item, LitStr, Token, Visibility,
+    ext::IdentExt, punctuated::Punctuated, spanned::Spanned, Attribute, Field, Ident, Item, LitStr,
+    Token, Visibility,
 };
 
 use crate::multi::{Index, IndexKind, VersionedColumn, VersionedSchema, VersionedTable};
 
 impl VersionedColumn {
-    pub fn parse(field: Field, limit: Range<u32>, scheme: NamingScheme) -> syn::Result<Self> {
+    pub fn parse(field: Field, limit: Range<u32>) -> syn::Result<Self> {
         let Some(name) = field.ident.clone() else {
             return Err(syn::Error::new_spanned(field, "field must be named"));
         };
@@ -56,7 +56,7 @@ impl VersionedColumn {
             .into_std(limit, true)?;
 
         let rename = rename.unwrap_or_else(|| {
-            let new_name = scheme.apply(&name.unraw().to_string());
+            let new_name = name.unraw().to_string();
             LitStr::new(&new_name, name.span())
         });
 
@@ -72,11 +72,7 @@ impl VersionedColumn {
 }
 
 impl VersionedTable {
-    pub fn parse(
-        table: syn::ItemStruct,
-        limit: Range<u32>,
-        naming_scheme: NamingSchemes,
-    ) -> syn::Result<Self> {
+    pub fn parse(table: syn::ItemStruct, limit: Range<u32>) -> syn::Result<Self> {
         let Visibility::Public(_) = table.vis else {
             return Err(syn::Error::new_spanned(table.ident, "table must be public"));
         };
@@ -145,12 +141,12 @@ impl VersionedTable {
         let columns: Vec<_> = table
             .fields
             .into_iter()
-            .map(|x| VersionedColumn::parse(x, versions.clone(), naming_scheme.column))
+            .map(|x| VersionedColumn::parse(x, versions.clone()))
             .collect::<Result<_, _>>()?;
 
         let primary_key = primary_key.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
         let rename = rename.unwrap_or_else(|| {
-            let new_name = naming_scheme.table.apply(&table.ident.unraw().to_string());
+            let new_name = table.ident.unraw().to_string().to_snake_case();
             LitStr::new(&new_name, table.ident.span())
         });
 
@@ -186,38 +182,9 @@ impl VersionedSchema {
             ));
         }
 
-        let mut rename_columns = None;
-        let mut rename_tables = None;
-        let mut other_attrs = Vec::new();
-        for attr in item.attrs {
-            if attr.path().is_ident("rename_columns") {
-                if rename_columns.is_some() {
-                    return Err(syn::Error::new_spanned(
-                        attr,
-                        r#"can not have multiple "rename_columns""#,
-                    ));
-                }
-                rename_columns = Some(attr.parse_args()?)
-            } else if attr.path().is_ident("rename_tables") {
-                if rename_tables.is_some() {
-                    return Err(syn::Error::new_spanned(
-                        attr,
-                        r#"can not have multiple "rename_tables""#,
-                    ));
-                }
-                rename_tables = Some(attr.parse_args()?)
-            } else {
-                other_attrs.push(attr);
-            }
-        }
-        let versions = parse_version(&other_attrs)?
+        let versions = parse_version(&item.attrs)?
             .unwrap_or_default()
             .into_std(0..1, false)?;
-
-        let naming_schemes = NamingSchemes {
-            column: rename_columns.unwrap_or_default(),
-            table: rename_tables.unwrap_or_default(),
-        };
 
         let Visibility::Public(_) = item.vis else {
             return Err(syn::Error::new_spanned(item.ident, "module must be public"));
@@ -239,9 +206,7 @@ impl VersionedSchema {
         for item in content {
             match item {
                 Item::Use(x) => use_items.push(x),
-                Item::Struct(x) => {
-                    tables.push(VersionedTable::parse(x, versions.clone(), naming_schemes)?)
-                }
+                Item::Struct(x) => tables.push(VersionedTable::parse(x, versions.clone())?),
                 _ => {
                     return Err(syn::Error::new_spanned(
                         item,
@@ -256,46 +221,6 @@ impl VersionedSchema {
             tables,
             use_items,
         })
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct NamingSchemes {
-    column: NamingScheme,
-    table: NamingScheme,
-}
-
-#[derive(Default, Clone, Copy)]
-pub enum NamingScheme {
-    SnakeCase,
-    PascalCase,
-    #[default]
-    Preserve,
-}
-
-impl Parse for NamingScheme {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let string: LitStr = input.parse()?;
-        Ok(match string.value().as_ref() {
-            "snake_case" => Self::SnakeCase,
-            "PascalCase" => Self::PascalCase,
-            _ => {
-                return Err(syn::Error::new_spanned(
-                    string,
-                    r#"must be "snake_case" or "PascalCase""#,
-                ))
-            }
-        })
-    }
-}
-
-impl NamingScheme {
-    pub fn apply(self, inp: &str) -> String {
-        match self {
-            NamingScheme::SnakeCase => inp.to_snake_case(),
-            NamingScheme::PascalCase => inp.to_pascal_case(),
-            NamingScheme::Preserve => inp.to_owned(),
-        }
     }
 }
 
