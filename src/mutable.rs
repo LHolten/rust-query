@@ -9,10 +9,11 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 
 /// [Mutable] access to columns of a single table row.
 ///
-/// The whole row is retrieved and can be inspected from Rust code.
-/// However, only rows that are not used in a `#[unique]`
-/// constraint can be updated directly by dereferencing [Mutable].
+/// The whole row is retrieved and can be inspected/updated from Rust code.
+/// Because a [Mutable] row borrows the database mutably, it is impossible
+/// to forget to drop the [Mutable], which then writes the changes to the database.
 ///
+/// Only rows that are not used in a `#[unique]` constraint can be updated directly by dereferencing [Mutable].
 /// To update columns with a unique constraint, you have to use [Mutable::unique].
 pub struct Mutable<'transaction, T: Table> {
     pub(crate) cell: OnceCell<MutableInner<T>>,
@@ -82,8 +83,10 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
         };
         // we need to catch panics so that we can restore `self` to a valid state.
         // if we don't do this then the Drop impl is likely to panic.
+        // AssertUnwindSafe is fine to use, because we propagate the panic and don't use
+        // any objects that might be corrupted while handling the panic.
         let res = std::panic::catch_unwind(AssertUnwindSafe(|| f(T::mutable_as_unique(self))));
-        // taking `self.cell` puts the Mutable in a guaranteed valid state.
+        // taking `self.cell` puts the Mutable in a guaranteed coherent state with the database.
         // it doesn't matter if the update succeeds or not as long as we only deref after the update.
         let update = self.cell.take().unwrap().val;
         let out = match res {
@@ -132,6 +135,8 @@ impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
 #[cfg(test)]
 mod tests {
 
+    use std::panic::AssertUnwindSafe;
+
     use crate::{Database, migration::Config};
 
     #[test]
@@ -146,37 +151,40 @@ mod tests {
         }
         use v0::*;
 
-        let err = std::panic::catch_unwind(move || {
-            let db = Database::new(Config::open_in_memory());
-            db.transaction_mut_ok(|txn| {
-                txn.insert(Foo { alpha: 1, bravo: 1 }).unwrap();
-                let row = txn.insert(Foo { alpha: 1, bravo: 2 }).unwrap();
-                let mut mutable = txn.mutable(row);
-                mutable.alpha = 100;
-                mutable
-                    .unique(|x| {
-                        x.bravo = 1;
-                    })
-                    .unwrap_err();
-                assert_eq!(mutable.alpha, 100);
-                assert_eq!(mutable.bravo, 2);
+        let db = Database::new(Config::open_in_memory());
+        db.transaction_mut_ok(|txn| {
+            txn.insert(Foo { alpha: 1, bravo: 1 }).unwrap();
+            let row = txn.insert(Foo { alpha: 1, bravo: 2 }).unwrap();
+            let mut mutable = txn.mutable(row);
+            mutable.alpha = 100;
+            mutable
+                .unique(|x| {
+                    x.bravo = 1;
+                })
+                .unwrap_err();
+            assert_eq!(mutable.alpha, 100);
+            assert_eq!(mutable.bravo, 2);
 
-                let row = mutable.into_table_row();
-                let view = txn.lazy(row);
-                assert_eq!(view.alpha, 100);
-                assert_eq!(view.bravo, 2);
+            let row = mutable.into_table_row();
+            let view = txn.lazy(row);
+            assert_eq!(view.alpha, 100);
+            assert_eq!(view.bravo, 2);
 
-                let mut mutable = txn.mutable(row);
-                mutable.alpha = 200;
-                mutable
-                    .unique(|x| {
-                        x.bravo = 1;
-                        panic!("error in unique")
-                    })
-                    .unwrap();
-            });
+            let mut mutable = txn.mutable(row);
+            mutable.alpha = 200;
+
+            // User applies AssertUnwindSafe to full closure. Should still be fine.
+            let err = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                let _ = mutable.unique(|x| {
+                    x.bravo = 1;
+                    panic!("error in unique")
+                });
+            }))
+            .unwrap_err();
+            assert_eq!(*err.downcast_ref::<&str>().unwrap(), "error in unique");
+
+            assert_eq!(mutable.alpha, 200); // mutation outside of `.unique` should still be applied
+            assert_eq!(mutable.bravo, 2); // mutation inside unique should be reverted
         })
-        .unwrap_err();
-        assert_eq!(*err.downcast_ref::<&str>().unwrap(), "error in unique");
     }
 }
