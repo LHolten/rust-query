@@ -57,8 +57,6 @@ impl<T: ?Sized> PartialEq for OrdRc<T> {
 
 impl<T: ?Sized> PartialOrd for OrdRc<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Rc::as_ptr(&self.0)
-            .cast::<()>()
-            .partial_cmp(&Rc::as_ptr(&other.0).cast())
+        Some(self.cmp(other))
     }
 }

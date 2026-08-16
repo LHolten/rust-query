@@ -111,7 +111,7 @@ impl from_db::Table {
         let span = || from_macro.span.0..from_macro.span.1;
 
         let mut out = Vec::new();
-        if from_macro.primary_key.to_ascii_lowercase() != self.primary_key.to_ascii_lowercase() {
+        if !from_macro.primary_key.eq_ignore_ascii_case(&self.primary_key) {
             let snippet = Snippet::source(source)
                 .path(path)
                 .annotation(AnnotationKind::Context.span(span()).label("in this table"));

@@ -239,14 +239,10 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
     }
 }
 
-pub(crate) fn track_stmt(
-    conn: &Connection,
-    sql: &String,
-    values: &[OrdRc<rusqlite::types::Value>],
-) {
+pub(crate) fn track_stmt(conn: &Connection, sql: &str, values: &[OrdRc<rusqlite::types::Value>]) {
     if COLLECT.get() {
         SQL_AND_PLAN.with_borrow_mut(|map| {
-            map.entry(sql.clone())
+            map.entry(sql.to_owned())
                 .or_insert_with(|| get_node(conn, values, sql));
         });
     }

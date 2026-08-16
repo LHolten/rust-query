@@ -26,9 +26,9 @@ Supported data types are:
 
 # Schema (mod) attributes
 - `#[version(..=4)`, `#[version(2..=3)`:
-This specifies the range of schema versions to generate. Be careful with this because the amount of
-generated code is linear in the number of schema versions. It is recommended to only support the minimum
-number of schema versions that is required to support migrations.
+  This specifies the range of schema versions to generate. Be careful with this because the amount of
+  generated code is linear in the number of schema versions. It is recommended to only support the minimum
+  number of schema versions that is required to support migrations.
 
 # Table (struct) attributes
 
@@ -36,42 +36,42 @@ Table names are `snake_case` versions of the rust struct names.
 So a struct `FooNew` will be called `foo_new` in the database.
 
 - `#[version(1..)`, `#[version(..4)`, `#[version(2..3)`:
-This specifies the range of schema versions in which this table exists. The range can be unbounded
-on either side which means the table exists for all versions in that direction. 
-Note that it is possible to have tables with the same name as long as they don't exist in the same version of the schema.
-The default is `#[version(..)]`.
+  This specifies the range of schema versions in which this table exists. The range can be unbounded
+  on either side which means the table exists for all versions in that direction. 
+  Note that it is possible to have tables with the same name as long as they don't exist in the same version of the schema.
+  The default is `#[version(..)]`.
 - `#[rename("some_table_name")]`:
-Change the table name in the database. The default table name is the rust struct name converted to `snake_case`.
+  Change the table name in the database. The default table name is the rust struct name converted to `snake_case`.
 - `#[unique(some, list, of, columns)]`:
-Create a (multi) column unique constraint on the specified columns of the table.
+  Create a (multi) column unique constraint on the specified columns of the table.
 - `#[index(some, list, of, columns)]`:
-Create a (multi) column index without unique constraint on the specified columns of the table.
+  Create a (multi) column index without unique constraint on the specified columns of the table.
 - `#[primary_key("some_col")]`:
-Rename the primary key of the table. Note that the primary key must be an `INTEGER PRIMARY KEY` and must not
-be used as the name of a regular column.
-The primary key is only used for foreign key constraints and can not be queried using `rust_query`.
-If you want a readable key, then you have to use a `unique` constraint instead of a primary key.
-The default is `#[primary_key("id")]`.
+  Rename the primary key of the table. Note that the primary key must be an `INTEGER PRIMARY KEY` and must not
+  be used as the name of a regular column.
+  The primary key is only used for foreign key constraints and can not be queried using `rust_query`.
+  If you want a readable key, then you have to use a `unique` constraint instead of a primary key.
+  The default is `#[primary_key("id")]`.
 - `#[no_reference]`:
-This makes it impossible for any table to have a foreign key constraint to this table.
-Required if you want to use [crate::TransactionWeak::delete_ok].
+  This makes it impossible for any table to have a foreign key constraint to this table.
+  Required if you want to use [crate::TransactionWeak::delete_ok].
 - `#[from(PrevTable)]`:
-This attribute can be used to initialize the table from another table when it is created.
-See the [example](#table-level-changes) for how this can be used.
+  This attribute can be used to initialize the table from another table when it is created.
+  See the [example](#table-level-changes) for how this can be used.
 
 # Column (field) attributes
 
 - `#[version(1..)`, `#[version(..4)`, `#[version(2..3)`:
-This specifies the range of schema versions in which this column exists. The range can be unbounded
-on either side which means the column exists for all version of the table in that direction. 
-Note that it is possible to have columns with the same name as long as they don't exist in the same version of the table.
-The default is `#[version(..)]`.
+  This specifies the range of schema versions in which this column exists. The range can be unbounded
+  on either side which means the column exists for all version of the table in that direction. 
+  Note that it is possible to have columns with the same name as long as they don't exist in the same version of the table.
+  The default is `#[version(..)]`.
 - `#[rename("some_column_name")]`:
-Change the column name in the database. The default column name is the same as the rust field name.
+  Change the column name in the database. The default column name is the same as the rust field name.
 - `#[unique]`:
-Create a single column unique constraint with the column that it is applied to.
+  Create a single column unique constraint with the column that it is applied to.
 - `#[index]`:
-Create a single column index with column that it is applied to.
+  Create a single column index with column that it is applied to.
 
 # Column level changes
 
@@ -120,7 +120,7 @@ pub mod vN {
 A lot is going on here:
 
 - First note that we had to copy the whole definition of `Foo` in order to rename it.
-That is because the name of the table is a table level property. While it is a bit annoying to copy the full definition if you just want to rename a table, this gives a lot of flexibility.
+  That is because the name of the table is a table level property. While it is a bit annoying to copy the full definition if you just want to rename a table, this gives a lot of flexibility.
 - The `Other` struct references the `Foo` table in the old version and `FooNew` in the new version. This works because old versions of structs are automatically resolved using the `#[from]` attribute. The `Other` table is automatically migrated to update the foreign key.
 - We could have named the new table `Foo` if we wanted to change table level properties other than the name. This would not conflict with the old `Foo` because they live in different versions.
 - We could have left the version range of `Foo` be unbounded, in that case `Foo` and `FooNew` would both exist in the new schema version.

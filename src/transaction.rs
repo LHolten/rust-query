@@ -555,7 +555,7 @@ impl<S: 'static> Transaction<S> {
         for (key, val) in &reader.builder {
             list.item()
                 .write(format_args!("{} = ", Alias(key)))
-                .write_param(&val);
+                .write_param(val);
         }
         list.default(format_args!("{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
 

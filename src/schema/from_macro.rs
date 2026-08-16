@@ -57,13 +57,7 @@ impl<S> TypBuilder<S> {
                 typ: <T::Typ as DbTyp>::TYP,
                 nullable: <T::Typ as DbTyp>::NULLABLE,
                 fk: <T::Typ as DbTyp>::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
-                check: {
-                    if let Some(sql) = <T::Typ as StorableTyp>::check(name) {
-                        Some(Parsed::parse(&sql))
-                    } else {
-                        None
-                    }
-                },
+                check: <T::Typ as StorableTyp>::check(name).map(|sql| Parsed::parse(&sql)),
             },
             span,
         };

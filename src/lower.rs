@@ -40,7 +40,7 @@ pub enum RowLike {
 impl RowLike {
     fn table(&self) -> &JoinableTable {
         match self {
-            RowLike::Join(join) => &join.0.as_ref(),
+            RowLike::Join(join) => join.0.as_ref(),
             RowLike::Unique(unique) => &unique.table,
         }
     }

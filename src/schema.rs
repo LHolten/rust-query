@@ -120,7 +120,7 @@ impl from_db::Table {
             .write(Alias(&self.primary_key))
             .write(" INTEGER PRIMARY KEY");
         for (name, col) in &self.columns {
-            let item = list.item().write(Alias(&name));
+            let item = list.item().write(Alias(name));
             item.write(" ").write(col.typ.rusqlite_type());
             if !col.nullable {
                 item.write(" NOT NULL");

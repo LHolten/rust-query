@@ -22,7 +22,7 @@ impl<'a> ListWriter<'a> {
         if replace(&mut self.any_items, true) {
             self.writer.write(self.separator);
         }
-        &mut self.writer
+        self.writer
     }
     pub fn default(self, val: impl Display) {
         if !self.any_items {

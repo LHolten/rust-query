@@ -96,7 +96,7 @@ be turned into `Result` types so that the user is aware of them:
 
 Next to those features, `rust-query` also helps writing complex queries:
 - Reuse part of your query in another query by extracting it into a Rust function.
-Query types are kept simple so that the required function signature is easy to write.
+  Query types are kept simple so that the required function signature is easy to write.
 - Aggregates that always return a single row make it easier to reason about queries.
 - Automatic decorrelation of correlated sub-queries makes it possible to run those on SQLite.
 
