@@ -39,8 +39,10 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
     }
 }
 
+/// This type is used to specify what should happen with a row during migration.
 #[non_exhaustive]
 pub enum MigrateWith<'t, M> {
+    /// The row should be migrated to have this new value.
     New(M),
     #[doc(hidden)]
     Remove(FkErrHandler<'t>),
@@ -49,8 +51,18 @@ pub enum MigrateWith<'t, M> {
 pub(crate) struct FkErrHandler<'t>(pub Box<dyn 't + FnOnce() -> Infallible>);
 
 impl<'t, M> MigrateWith<'t, M> {
+    /// The row should be removed.
+    ///
+    /// The closure is called when there is a foreign key error due to the row being removed.
     pub fn remove_or_else(f: impl 't + FnOnce() -> Infallible) -> Self {
         Self::Remove(FkErrHandler(Box::new(f)))
+    }
+}
+
+impl<'t, M: Migrateable<MigrateFrom: Table<Referer = Infallible>>> MigrateWith<'t, M> {
+    /// The row should be removed and the table has the `#[no_reference]` attribute.
+    pub fn remove() -> Self {
+        Self::remove_or_else(|| unreachable!("there are no foreign keys to this table"))
     }
 }
 
@@ -91,7 +103,9 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// The error type depends on the number of unique constraints that the
     /// migration can violate:
     /// - 0 => [Infallible]
-    /// - 1.. => `TableRow<T::From>` (row in the old table that could not be migrated)
+    /// - 1.. => [TableRow] (row in the old table that could not be migrated)
+    ///
+    /// The closure should return [MigrateWith] to indicate what should happen with each row.
     pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> MigrateWith<'x, T::Migration>,
@@ -129,10 +143,11 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 
     /// Migrate all rows to the new schema.
     ///
-    /// Conflict errors work the same as in [Self::migrate_optional].
+    /// Same as [Self::migrate_optional], but it does not require wrapping all migrated
+    /// rows in [MigrateWith::New].
     ///
-    /// However, this method will return [Migrated] when all rows are migrated.
-    /// This can then be used as proof that there will be no foreign key violations.
+    /// This is most likely the variant that you want to use, unless you have a table without
+    /// unique constraint, see [Self::migrate_ok].
     pub fn migrate<'t, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
@@ -140,9 +155,10 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         self.migrate_optional(|x| MigrateWith::New(f(x)))
     }
 
-    /// Helper method for [Self::migrate].
+    /// Migrate all rows to the new schema, without unique constraint conflicts.
     ///
-    /// It can only be used when the migration is known to never cause unique constraint conflicts.
+    /// Same as [Self::migrate], but can only be used when the migration is known to
+    /// never cause unique constraint conflicts.
     pub fn migrate_ok<'t, T: Migrateable<FromSchema = FromSchema, MigrateConflict = Infallible>>(
         &'t mut self,
         f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
