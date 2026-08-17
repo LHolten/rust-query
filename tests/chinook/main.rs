@@ -59,31 +59,6 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
     assert_eq!(txn.lazy_iter(Track.genre(jazz)).count(), 130);
 
     free_reference(txn);
-
-    let first_id = txn
-        .insert(Artist {
-            name: "first".to_owned(),
-        })
-        .unwrap();
-    let id = txn
-        .insert(Artist {
-            name: "second".to_owned(),
-        })
-        .unwrap();
-
-    let conflict_id = txn
-        .mutable(id)
-        .unique(|artist| artist.name = "first".to_owned())
-        .unwrap_err();
-    assert_eq!(conflict_id, first_id);
-
-    txn.mutable(id)
-        .unique(|artist| artist.name = "other".to_owned())
-        .unwrap();
-    assert_eq!(txn.query_one(&id.into_expr().name), "other");
-
-    let db = txn.downgrade();
-    assert!(db.delete(id).unwrap());
 }
 
 #[derive(Debug, Select, PartialEq, PartialOrd)]

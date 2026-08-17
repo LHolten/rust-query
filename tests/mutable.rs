@@ -50,3 +50,44 @@ fn mutable_shenanigans() {
         assert_eq!(mutable.bravo, 2); // mutation inside unique should be reverted
     })
 }
+
+#[test]
+fn conflict() {
+    #[rust_query::migration::schema(Test)]
+    pub mod vN {
+        #[no_reference]
+        pub struct Artist {
+            #[unique]
+            pub name: String,
+        }
+    }
+    use v0::*;
+
+    let db = Database::new(Config::open_in_memory());
+    db.transaction_mut_ok(|txn| {
+        let first_id = txn
+            .insert(Artist {
+                name: "first".to_owned(),
+            })
+            .unwrap();
+        let id = txn
+            .insert(Artist {
+                name: "second".to_owned(),
+            })
+            .unwrap();
+
+        let conflict_id = txn
+            .mutable(id)
+            .unique(|artist| artist.name = "first".to_owned())
+            .unwrap_err();
+        assert_eq!(conflict_id, first_id);
+
+        txn.mutable(id)
+            .unique(|artist| artist.name = "other".to_owned())
+            .unwrap();
+        assert_eq!(txn.lazy(id).name, "other");
+
+        let db = txn.downgrade();
+        assert!(db.delete_ok(id));
+    })
+}
