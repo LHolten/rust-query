@@ -1,12 +1,12 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     convert::Infallible,
     marker::PhantomData,
     ops::Deref,
 };
 
 use crate::{
-    Lazy, Table, TableRow, Transaction,
+    Lazy, Table, TableRow, Transaction, aggregate,
     lower::{self, list_writer::Alias},
     transaction::try_insert_private,
 };
@@ -82,19 +82,15 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         &self,
         new_name: lower::TmpTable,
     ) -> impl Iterator<Item = TableRow<T::MigrateFrom>> {
-        let data = self.inner.query(|rows| {
+        self.inner.query(|rows| {
             let old = rows.join_private::<T::MigrateFrom>();
-            rows.into_vec(old)
-        });
-
-        let migrated = Transaction::new().query(|rows| {
-            let new = rows.join_tmp::<T>(new_name);
-            rows.into_vec(new)
-        });
-        let migrated: HashSet<_> = migrated.into_iter().map(|x| x.inner.idx).collect();
-
-        data.into_iter()
-            .filter(move |row| !migrated.contains(&row.inner.idx))
+            rows.filter(aggregate(|rows| {
+                let new = rows.join_tmp::<T::MigrateFrom>(new_name);
+                rows.filter(new.eq(&old));
+                rows.exists().not()
+            }));
+            rows.into_iter(old)
+        })
     }
 
     /// Migrate some rows to the new schema.
@@ -114,6 +110,11 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 
         let mut error_map = BTreeMap::new();
 
+        // We will do insertions here while retrieving rows from the database.
+        // This is fine because we do not care if the query uses old or new data.
+        // The only problematic case is if sqlite decides to repeat a returned row.
+        // That would be very strange though, since we are not updating the old table.
+        // See https://sqlite.org/isolation.html for more information.
         for row in self.unmigrated::<T>(new_name) {
             match f(self.lazy(row)) {
                 MigrateWith::New(new) => {
