@@ -60,22 +60,23 @@ fn run_queries(txn: &'static mut Transaction<Schema>) {
 
     free_reference(txn);
 
-    txn.insert(Artist {
-        name: "first".to_owned(),
-    })
-    .unwrap();
+    let first_id = txn
+        .insert(Artist {
+            name: "first".to_owned(),
+        })
+        .unwrap();
     let id = txn
         .insert(Artist {
             name: "second".to_owned(),
         })
         .unwrap();
 
-    let Err(_) = txn
+    let conflict_id = txn
         .mutable(id)
         .unique(|artist| artist.name = "first".to_owned())
-    else {
-        panic!()
-    };
+        .unwrap_err();
+    assert_eq!(conflict_id, first_id);
+
     txn.mutable(id)
         .unique(|artist| artist.name = "other".to_owned())
         .unwrap();
