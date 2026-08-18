@@ -1,5 +1,15 @@
 # Unreleased
 
+- Added `#[rename]` attribute for tables and columns.
+- Optimized migrations to never load all rows.
+- Added `Transaction::mutable_iter` and deprecated `Transaction::mutable_vec`.
+
+## Breaking
+
+- Changed generics on `TransactionMigrate` methods to the new table type.
+- `TransactionMigrate::migrate_optional` is changed to use `MigrateWith` type.
+- `Migrated` can no longer be constructed manually.
+
 # 0.9.2
 
 - Fixed bug in `Rows::filter_some` (it would filter out `Some(false)`).
