@@ -419,8 +419,8 @@ impl<S> Transaction<S> {
     ///
     /// // If it is necessary to assign the Mutable to a variable,
     /// // then make sure to drop the Mutable as soon as possible.
-    /// let mut tmp = txn.mutable(baz_id)
-    /// tmp.name = format!({tmp.name}{tmp.score});
+    /// let mut tmp = txn.mutable(baz_id);
+    /// tmp.name = format!("{}{}", tmp.name, tmp.score);
     /// drop(tmp);
     /// # });
     /// ```
