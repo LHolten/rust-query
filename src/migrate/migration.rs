@@ -85,8 +85,13 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         self.inner.query(|rows| {
             let old = rows.join_private::<T::MigrateFrom>();
             rows.filter(aggregate(|rows| {
-                let new = rows.join_tmp::<T::MigrateFrom>(new_name);
-                rows.filter(new.eq(&old));
+                // manually construct Joinable because we are using the new definition in the old schema.
+                // the result type is also the old type even though it represents the new table.
+                let new = rows.join(crate::private::Joinable::new(
+                    lower::JoinableTable::Tmp(new_name),
+                    <T as Table>::ID,
+                ));
+                rows.filter(old.eq(&new));
                 rows.exists().not()
             }));
             rows.into_iter(old)

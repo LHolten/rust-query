@@ -70,13 +70,6 @@ impl<'inner, S> Rows<'inner, S> {
         self.join(Joinable::new(t.name(), t.main_column()))
     }
 
-    pub(crate) fn join_tmp<T: Table<Schema = S>>(
-        &mut self,
-        tmp: lower::TmpTable,
-    ) -> Expr<'inner, S, TableRow<T>> {
-        self.join(Joinable::new(lower::JoinableTable::Tmp(tmp), T::ID))
-    }
-
     /// Filter rows based on an expression.
     pub fn filter(&mut self, prop: impl IntoExpr<'inner, S, Typ = bool>) {
         Rc::make_mut(&mut self.ast).filter(prop.into_expr().inner);

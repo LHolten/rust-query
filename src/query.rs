@@ -218,7 +218,7 @@ impl<'t, 'inner, S> OrderBy<'_, 't, 'inner, S> {
             let combi = txn.as_mut().unwrap();
 
             combi.with_dependent_mut(|conn, rows_store| {
-                track_stmt(conn.get(), &stmt.sql, &stmt.params);
+                track_stmt(conn.get(), dbg!(&&stmt.sql), &stmt.params);
                 let cached = MutBorrow::new(conn.get().prepare_cached(&stmt.sql).unwrap());
 
                 let idx = rows_store.insert(OwnedRows::new(cached, |cached| {
