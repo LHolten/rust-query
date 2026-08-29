@@ -2,7 +2,6 @@
 
 - Added `#[rename]` attribute for tables and columns.
 - Optimized migrations to never load all rows.
-- Added `Transaction::mutable_iter` and deprecated `Transaction::mutable_vec`.
 
 ## Breaking
 

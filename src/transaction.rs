@@ -437,6 +437,9 @@ impl<S> Transaction<S> {
     /// Refer to [Rows::join] for the kind of the parameter that is supported here.
     /// This may be useful when you need mutable access to multiple rows (potentially at the same time).
     ///
+    /// Getting a lazy [Iterator] over mutable rows instead of a [Vec] is not possible, because mutating
+    /// while iterating can result in duplicate rows.
+    ///
     /// ```
     /// # #[rust_query::migration::schema(M)]
     /// # pub mod vN {
@@ -446,30 +449,22 @@ impl<S> Transaction<S> {
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
     /// # txn.insert_ok(User {age: 30});
-    /// for mut user in txn.mutable_iter(User.age(20)) {
+    /// for mut user in txn.mutable_vec(User.age(20)) {
     ///     user.age += 1;
     /// }
     /// # });
     /// ```
-    pub fn mutable_iter<'t, T: Table<Schema = S>>(
-        &'t mut self,
-        val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
-    ) -> impl Iterator<Item = Mutable<'t, T>> {
-        let val = val.into_joinable();
-        self.query(|rows| {
-            let val = rows.join(val);
-            rows.into_vec((T::into_select(val.clone()), val))
-                .into_iter()
-                .map(TableRow::<T>::into_mutable)
-        })
-    }
-
-    #[deprecated]
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
     ) -> Vec<Mutable<'t, T>> {
-        self.mutable_iter(val).collect()
+        let val = val.into_joinable();
+        self.query(|rows| {
+            let val = rows.join(val);
+            rows.into_iter(OptTable::select_opt_mutable(val))
+                .map(TableRow::<T>::into_mutable)
+                .collect()
+        })
     }
 }
 
