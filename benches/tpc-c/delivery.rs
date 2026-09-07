@@ -19,7 +19,7 @@ pub struct DeliveryInput {
 }
 
 pub fn delivery(
-    mut txn: Transaction<Schema>,
+    mut txn: Box<Transaction<Schema>>,
     input: &DeliveryInput,
     district_num: i64,
 ) -> Option<DeliveryOutput> {

@@ -151,7 +151,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     #[doc = include_str!("database/transaction_mut.md")]
     pub fn transaction_mut<O: Send, E: Send>(
         &self,
-        f: impl Send + FnOnce(Transaction<S>) -> Result<O, E>,
+        f: impl Send + FnOnce(Box<Transaction<S>>) -> Result<O, E>,
     ) -> Result<O, E> {
         let join_res =
             std::thread::scope(|scope| scope.spawn(|| self.transaction_mut_local(f)).join());
@@ -164,7 +164,7 @@ impl<S: Send + Sync + Schema> Database<S> {
 
     pub(crate) fn transaction_mut_local<O, E>(
         &self,
-        f: impl FnOnce(Transaction<S>) -> Result<O, E>,
+        f: impl FnOnce(Box<Transaction<S>>) -> Result<O, E>,
     ) -> Result<Result<O, E>, Renderable> {
         // Acquire the lock before creating the connection.
         // Technically we can acquire the lock later, but we don't want to waste
@@ -200,7 +200,10 @@ impl<S: Send + Sync + Schema> Database<S> {
     }
 
     #[doc = include_str!("database/transaction_mut_ok.md")]
-    pub fn transaction_mut_ok<R: Send>(&self, f: impl Send + FnOnce(Transaction<S>) -> R) -> R {
+    pub fn transaction_mut_ok<R: Send>(
+        &self,
+        f: impl Send + FnOnce(Box<Transaction<S>>) -> R,
+    ) -> R {
         self.transaction_mut(|txn| Ok::<R, Infallible>(f(txn)))
             .unwrap()
     }
@@ -229,26 +232,28 @@ impl<S: Send + Sync + Schema> Database<S> {
 /// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
 /// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
-pub struct Transaction<S> {
+pub struct Transaction<S, D: ?Sized = [()]> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
+    _data: D,
 }
 
 impl<S> Transaction<S> {
-    pub(crate) fn new() -> Self {
-        Self {
+    pub(crate) fn new() -> Box<Self> {
+        Box::new(Transaction::<S, [(); 0]> {
             _p2: PhantomData,
             _local: PhantomData,
-        }
+            _data: [],
+        })
     }
 
-    pub(crate) fn copy(&self) -> Self {
+    pub(crate) fn copy(&self) -> Box<Self> {
         Self::new()
     }
 
     pub(crate) fn new_ref() -> &'static mut Self {
         // no memory is leaked because Self is zero sized
-        Box::leak(Box::new(Self::new()))
+        Box::leak(Self::new())
     }
 }
 
@@ -257,7 +262,7 @@ impl<S: Schema> Transaction<S> {
     pub(crate) fn new_checked(
         txn: OwnedTransaction,
         expected: &AtomicI64,
-    ) -> Result<Self, Renderable> {
+    ) -> Result<Box<Self>, Renderable> {
         let schema_version = schema_version(txn.get());
         // If the schema version is not the expected version then we
         // check if the changes are acceptable.
@@ -273,9 +278,6 @@ impl<S: Schema> Transaction<S> {
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
         }
 
-        const {
-            assert!(size_of::<Self>() == 0);
-        }
         Ok(Self::new())
     }
 }
@@ -607,8 +609,8 @@ impl<S: 'static> Transaction<S> {
     }
 
     /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
-    pub fn downgrade(self) -> TransactionWeak<S> {
-        TransactionWeak { _inner: self }
+    pub fn downgrade(self: Box<Self>) -> TransactionWeak<S> {
+        TransactionWeak { _p: PhantomData }
     }
 }
 
@@ -619,7 +621,7 @@ impl<S: 'static> Transaction<S> {
 ///
 /// [TransactionWeak] is useful because it allowes deleting rows.
 pub struct TransactionWeak<S> {
-    _inner: Transaction<S>,
+    _p: PhantomData<Transaction<S>>,
 }
 
 impl<S: Schema> TransactionWeak<S> {

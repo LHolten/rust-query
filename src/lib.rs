@@ -225,7 +225,7 @@ pub mod private {
         pub use v0::*;
 
         #[cfg_attr(false, mutants::skip)]
-        pub fn get_txn(f: impl Send + FnOnce(Transaction<Empty>)) {
+        pub fn get_txn(f: impl Send + FnOnce(Box<Transaction<Empty>>)) {
             let db = Database::new(Config::open_in_memory());
             db.transaction_mut_ok(|mut txn| {
                 txn.insert(User {
