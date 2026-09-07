@@ -232,28 +232,30 @@ impl<S: Send + Sync + Schema> Database<S> {
 /// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
 /// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
-pub struct Transaction<S, D: ?Sized = [()]> {
+pub struct Transaction<S, D: ?Sized = [Data]> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
     _data: D,
 }
 
+pub struct Data {}
+
 impl<S> Transaction<S> {
-    pub(crate) fn new() -> Box<Self> {
-        Box::new(Transaction::<S, [(); 0]> {
+    pub(crate) fn new(data: Data) -> Box<Self> {
+        Box::new(Transaction::<S, [Data; 1]> {
             _p2: PhantomData,
             _local: PhantomData,
-            _data: [],
+            _data: [data],
         })
     }
 
-    pub(crate) fn copy(&self) -> Box<Self> {
-        Self::new()
-    }
-
-    pub(crate) fn new_ref() -> &'static mut Self {
+    pub(crate) fn new_ref() -> &'static Self {
         // no memory is leaked because Self is zero sized
-        Box::leak(Self::new())
+        Box::leak(Box::new(Transaction::<S, [Data; 0]> {
+            _p2: PhantomData,
+            _local: PhantomData,
+            _data: [],
+        }))
     }
 }
 
@@ -278,7 +280,7 @@ impl<S: Schema> Transaction<S> {
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
         }
 
-        Ok(Self::new())
+        Ok(Self::new(Data {}))
     }
 }
 
@@ -551,7 +553,7 @@ impl<S: 'static> Transaction<S> {
     }
 
     pub(crate) fn update<T: Table<Schema = S>>(
-        &mut self,
+        &self,
         row: TableRow<T>,
         val: T::Mutable,
     ) -> Result<(), T::Conflict> {

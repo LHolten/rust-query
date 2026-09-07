@@ -182,7 +182,7 @@ table! {SqliteSchema, _ => JoinableTable::Table("sqlite_schema"),
 }
 
 pub fn read_schema<S>(_conn: &Transaction<S>) -> from_db::Schema {
-    let conn = Transaction::new();
+    let conn = Transaction::new_ref();
 
     #[derive(Clone, FromExpr)]
     #[rust_query(From = TableInfo)]

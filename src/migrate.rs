@@ -21,7 +21,7 @@ use crate::{
     },
     pool::Pool,
     schema::{from_macro, read::read_schema},
-    transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
+    transaction::{Data, Database, OwnedTransaction, TXN, TransactionWithRows},
 };
 
 pub struct TableTypBuilder<S> {
@@ -137,7 +137,7 @@ impl<S: Schema> Migrator<S> {
         let res = std::thread::scope(|s| {
             s.spawn(|| {
                 TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
-                let mut txn = Transaction::new();
+                let mut txn = Transaction::new(Data {});
 
                 // check if this is the first migration that is applied
                 if self.user_version.take().is_some() {
@@ -201,7 +201,7 @@ impl<S: Schema> Migrator<S> {
         if self.user_version.is_none_or(|x| x == S::VERSION) {
             self = self.with_transaction(|txn| {
                 let mut txn = TransactionMigrate {
-                    inner: txn.copy(),
+                    inner: txn,
                     scope: Default::default(),
                     rename_map: HashMap::new(),
                     extra_index: Vec::new(),
@@ -227,7 +227,7 @@ impl<S: Schema> Migrator<S> {
                 }
 
                 // Change transaction schema because we are now on the new version already
-                fix_by_copy::<M::To>(&Transaction::new(), fix_by_copy::Detail::ForeignKeys);
+                fix_by_copy::<M::To>(Transaction::new_ref(), fix_by_copy::Detail::ForeignKeys);
 
                 let transaction = TXN.take().unwrap();
                 if let Some((fk, idx)) = foreign_key_check(transaction.get()) {
