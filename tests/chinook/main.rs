@@ -29,10 +29,10 @@ fn assert_dbg_preordered<T: Debug>(file_name: &str, f: impl FnOnce() -> Vec<T>) 
 #[test]
 fn test_queries() {
     let db = migrate();
-    db.transaction_mut_ok(run_queries);
+    db.transaction_mut_ok(|mut txn| run_queries(&mut txn));
 }
 
-fn run_queries(txn: &'static mut Transaction<Schema>) {
+fn run_queries(txn: &mut Transaction<Schema>) {
     assert_dbg("invoice_info", || invoice_info(txn));
     assert_dbg("playlist_track_count", || playlist_track_count(txn));
     assert_dbg("avg_album_track_count_for_artist", || {

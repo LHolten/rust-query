@@ -23,10 +23,10 @@ use v0::*;
 
 fn main() {
     let database = Database::new(Config::open_in_memory());
-    database.transaction_mut_ok(queries);
+    database.transaction_mut_ok(|mut txn| queries(&mut txn));
 }
 
-fn queries(txn: &'static mut Transaction<Schema>) {
+fn queries(txn: &mut Transaction<Schema>) {
     let pub_id = 100;
 
     #[expect(unused)]

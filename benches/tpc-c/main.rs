@@ -161,7 +161,8 @@ const DB_FILE: &str = "tpc.sqlite";
 fn main() {
     // every warehouse is ~70MB
     let warehouse_cnt = args()
-        .skip(1).find(|x| x != "--bench")
+        .skip(1)
+        .find(|x| x != "--bench")
         .map(|x| x.parse().unwrap())
         .unwrap_or(50);
 
@@ -179,13 +180,13 @@ fn main() {
 }
 
 fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         let warehouses_exist = txn.query_one(aggregate(|rows| {
             let warehouse = rows.join(Warehouse);
             rows.max(&warehouse.number).unwrap_or(0)
         }));
         expect::collect_all(|| {
-            populate::populate(txn, warehouses_exist..warehouse_cnt);
+            populate::populate(&mut txn, warehouses_exist..warehouse_cnt);
         });
     });
     println!("initialization complete");

@@ -21,8 +21,8 @@ use v0::*;
 fn main() {
     let database = Database::new(Config::open_in_memory());
 
-    database.transaction_mut_ok(|txn| {
-        do_stuff_with_database(txn);
+    database.transaction_mut_ok(|mut txn| {
+        do_stuff_with_database(&mut txn);
         // Changes are committed at the end of the closure!
     });
 }

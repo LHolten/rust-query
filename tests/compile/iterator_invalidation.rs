@@ -9,7 +9,7 @@ pub mod vN {
 use v0::*;
 
 fn test(db: Database<Schema>) {
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         let names = txn.query(|rows| {
             let item = rows.join(MyTable);
             rows.into_iter(&item.name)

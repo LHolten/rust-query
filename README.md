@@ -28,7 +28,7 @@ fn main() {
     # let _ = fs::remove_file("my_database.sqlite");
     let database = Database::new(Config::open("my_database.sqlite"));
 
-    database.transaction_mut_ok(|txn| {
+    database.transaction_mut_ok(|mut txn| {
         // First we insert a new `User` in the database.
         // There are no unique constraints on this table, so no errors to handle.
         let mike = txn.insert_ok(User { 
@@ -43,7 +43,7 @@ fn main() {
         .expect("no other file called `dog.png` should exist");
     }); // Changes are committed at the end of the closure!
 
-    database.transaction_mut_ok(|txn| {
+    database.transaction_mut_ok(|mut txn| {
         let ref dog = txn.lazy(Image.file_name("dog.png")).expect("`dog.png` should exist");
         // Note that this automatically retrieves the `User` row that matches the image!
         println!("`dog` image was uploaded by {}", dog.uploaded_by.name);
@@ -70,7 +70,7 @@ fn main() {
         txn.mutable(dog).uploaded_by = paul;
     
         // Deleting happens in a separate transaction mode.
-        let txn = txn.downgrade();
+        let mut txn = txn.downgrade();
         // Since users can be referenced by images, we need to handle a potential error.
         txn.delete(user).expect("no images should refer to this user anymore");
     });

@@ -206,9 +206,9 @@ pub mod private {
         pub use v0::*;
 
         #[cfg_attr(false, mutants::skip)]
-        pub fn get_txn(f: impl Send + FnOnce(&'static mut crate::Transaction<M>)) {
+        pub fn get_txn(f: impl Send + FnOnce(&mut crate::Transaction<M>)) {
             crate::Database::new(rust_query::migration::Config::open_in_memory())
-                .transaction_mut_ok(f)
+                .transaction_mut_ok(|mut txn| f(&mut txn))
         }
     }
 
@@ -225,9 +225,9 @@ pub mod private {
         pub use v0::*;
 
         #[cfg_attr(false, mutants::skip)]
-        pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
+        pub fn get_txn(f: impl Send + FnOnce(Transaction<Empty>)) {
             let db = Database::new(Config::open_in_memory());
-            db.transaction_mut_ok(|txn| {
+            db.transaction_mut_ok(|mut txn| {
                 txn.insert(User {
                     name: "Alice".to_owned(),
                 })

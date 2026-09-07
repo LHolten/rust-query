@@ -1,4 +1,4 @@
-error[E0502]: cannot borrow `*txn` as mutable because it is also borrowed as immutable
+error[E0502]: cannot borrow `txn` as mutable because it is also borrowed as immutable
   --> tests/compile/iterator_invalidation.rs:19:9
    |
 13 |           let names = txn.query(|rows| {

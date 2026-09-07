@@ -85,13 +85,13 @@ mod using_v1 {
             .expect("database should not be newer than supported versions")
     }
 
-    pub fn do_stuff(txn: &'static mut Transaction<Schema>) {
+    pub fn do_stuff(mut txn: Transaction<Schema>) {
         let loc: TableRow<Location> = txn.insert_ok(Location {
             name: "Amsterdam".to_owned(),
         });
-        let _ = location_info(txn, loc);
+        let _ = location_info(&txn, loc);
 
-        let txn = txn.downgrade();
+        let mut txn = txn.downgrade();
 
         let is_deleted = txn
             .delete(loc)
@@ -151,7 +151,7 @@ mod delete_example {
     pub fn migrate() {
         Database::migrator(Config::open_in_memory())
             .unwrap()
-            .fixup(|txn| {
+            .fixup(|mut txn| {
                 // insert some data to migrate
                 let author = txn.insert_ok(v0::User {
                     name: "foo".to_owned(),

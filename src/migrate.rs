@@ -132,19 +132,19 @@ pub struct Migrator<S> {
 }
 
 impl<S: Schema> Migrator<S> {
-    fn with_transaction(mut self, f: impl Send + FnOnce(&'static mut Transaction<S>)) -> Self {
+    fn with_transaction(mut self, f: impl Send + FnOnce(Transaction<S>)) -> Self {
         assert!(self.user_version.is_none_or(|x| x == S::VERSION));
         let res = std::thread::scope(|s| {
             s.spawn(|| {
                 TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
-                let txn = Transaction::new_ref();
+                let mut txn = Transaction::new();
 
                 // check if this is the first migration that is applied
                 if self.user_version.take().is_some() {
                     // we check the schema before doing any migrations
-                    check_schema::<S>(txn)?;
+                    check_schema::<S>(&mut txn)?;
                     // fixing indices before migrations can help with migration performance
-                    fix_by_copy::<S>(txn, fix_by_copy::Detail::Indexes);
+                    fix_by_copy::<S>(&mut txn, fix_by_copy::Detail::Indexes);
                 }
 
                 f(txn);
@@ -258,7 +258,7 @@ impl<S: Schema> Migrator<S> {
     /// by this [Migrator] instance.
     /// If [Migrator::fixup] is used before all [Migrator::migrate], then the closures is only executed
     /// when the database is created.
-    pub fn fixup(mut self, f: impl Send + FnOnce(&'static mut Transaction<S>)) -> Self {
+    pub fn fixup(mut self, f: impl Send + FnOnce(Transaction<S>)) -> Self {
         if self.user_version.is_none() {
             self = self.with_transaction(f);
         }
@@ -278,7 +278,7 @@ impl<S: Schema> Migrator<S> {
         // This checks that the schema is correct and fixes indices etc
         self = self.with_transaction(|txn| {
             // sanity check, this should never fail
-            check_schema::<S>(txn).unwrap_or_else(|e| e.as_sanity())
+            check_schema::<S>(&txn).unwrap_or_else(|e| e.as_sanity())
         });
 
         // adds an sqlite_stat1 table

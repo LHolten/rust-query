@@ -15,7 +15,7 @@ fn mutable_shenanigans() {
     use v0::*;
 
     let db = Database::new(Config::open_in_memory());
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         txn.insert(Foo { alpha: 1, bravo: 1 }).unwrap();
         let row = txn.insert(Foo { alpha: 1, bravo: 2 }).unwrap();
         let mut mutable = txn.mutable(row);
@@ -64,7 +64,7 @@ fn conflict() {
     use v0::*;
 
     let db = Database::new(Config::open_in_memory());
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         let first_id = txn
             .insert(Artist {
                 name: "first".to_owned(),
@@ -87,7 +87,7 @@ fn conflict() {
             .unwrap();
         assert_eq!(txn.lazy(id).name, "other");
 
-        let db = txn.downgrade();
+        let mut db = txn.downgrade();
         assert!(db.delete_ok(id));
     })
 }

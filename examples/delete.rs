@@ -17,13 +17,17 @@ fn main() {
     // This is necessary to keep transactions separated.
     let database = Database::new(Config::open_in_memory());
 
-    database.transaction_mut_ok(|txn| {
+    database.transaction_mut_ok(|mut txn| {
         let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
             .into_iter()
-            .map(|name| txn.insert_ok(Name { name: name.to_owned() }))
+            .map(|name| {
+                txn.insert_ok(Name {
+                    name: name.to_owned(),
+                })
+            })
             .collect();
 
-        let txn = txn.downgrade();
+        let mut txn = txn.downgrade();
         for id in ids.clone() {
             assert!(txn.delete_ok(id));
         }

@@ -19,7 +19,7 @@ pub struct DeliveryInput {
 }
 
 pub fn delivery(
-    txn: &'static mut Transaction<Schema>,
+    mut txn: Transaction<Schema>,
     input: &DeliveryInput,
     district_num: i64,
 ) -> Option<DeliveryOutput> {
@@ -62,7 +62,7 @@ pub fn delivery(
     customer.delivery_cnt += 1;
     drop(customer);
 
-    let txn = txn.downgrade();
+    let mut txn = txn.downgrade();
     assert!(txn.delete_ok(new_order));
 
     Some(DeliveryOutput {

@@ -93,16 +93,16 @@ impl Emulate {
         match txn_kind {
             TxnKind::NewOrder => {
                 let input = new_order::generate_input(self.warehouse, &self.other_warehouses);
-                let _ = black_box(db.transaction_mut(|txn| {
+                let _ = black_box(db.transaction_mut(|mut txn| {
                     start = Some(Instant::now());
-                    new_order::new_order(txn, input)
+                    new_order::new_order(&mut txn, input)
                 }));
             }
             TxnKind::Payment => {
                 let input = payment::generate_input(self.warehouse, &self.other_warehouses);
-                black_box(db.transaction_mut_ok(|txn| {
+                black_box(db.transaction_mut_ok(|mut txn| {
                     start = Some(Instant::now());
-                    payment::payment(txn, input)
+                    payment::payment(&mut txn, input)
                 }));
             }
             TxnKind::OrderStatus => {

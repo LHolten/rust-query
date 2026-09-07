@@ -137,7 +137,10 @@ impl<S: Send + Sync + Schema> Database<S> {
             Some(conn.borrow_mut().transaction().unwrap())
         });
 
-        let res = f(Transaction::new_checked(owned, &self.schema_version)?);
+        let res = f(Box::leak(Box::new(Transaction::new_checked(
+            owned,
+            &self.schema_version,
+        )?)));
 
         let owned = TXN.take().unwrap().into_owner();
         self.pool.push(owned.into_owner().into_inner());
@@ -148,7 +151,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     #[doc = include_str!("database/transaction_mut.md")]
     pub fn transaction_mut<O: Send, E: Send>(
         &self,
-        f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
+        f: impl Send + FnOnce(Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
         let join_res =
             std::thread::scope(|scope| scope.spawn(|| self.transaction_mut_local(f)).join());
@@ -161,7 +164,7 @@ impl<S: Send + Sync + Schema> Database<S> {
 
     pub(crate) fn transaction_mut_local<O, E>(
         &self,
-        f: impl FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
+        f: impl FnOnce(Transaction<S>) -> Result<O, E>,
     ) -> Result<Result<O, E>, Renderable> {
         // Acquire the lock before creating the connection.
         // Technically we can acquire the lock later, but we don't want to waste
@@ -197,10 +200,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     }
 
     #[doc = include_str!("database/transaction_mut_ok.md")]
-    pub fn transaction_mut_ok<R: Send>(
-        &self,
-        f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
-    ) -> R {
+    pub fn transaction_mut_ok<R: Send>(&self, f: impl Send + FnOnce(Transaction<S>) -> R) -> R {
         self.transaction_mut(|txn| Ok::<R, Infallible>(f(txn)))
             .unwrap()
     }
@@ -257,7 +257,7 @@ impl<S: Schema> Transaction<S> {
     pub(crate) fn new_checked(
         txn: OwnedTransaction,
         expected: &AtomicI64,
-    ) -> Result<&'static mut Self, Renderable> {
+    ) -> Result<Self, Renderable> {
         let schema_version = schema_version(txn.get());
         // If the schema version is not the expected version then we
         // check if the changes are acceptable.
@@ -276,7 +276,7 @@ impl<S: Schema> Transaction<S> {
         const {
             assert!(size_of::<Self>() == 0);
         }
-        Ok(Self::new_ref())
+        Ok(Self::new())
     }
 }
 
@@ -347,7 +347,7 @@ impl<S> Transaction<S> {
     /// #     }
     /// # }
     /// # use v0::*;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
     /// let cat = txn.insert_ok(Author {
     ///     name: "Cat".to_owned()
     /// });
@@ -405,7 +405,7 @@ impl<S> Transaction<S> {
     /// #     }
     /// # }
     /// # use v0::*;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
     /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
     ///
     /// // `player` is dropped automatically because the variable goes out of scope.
@@ -447,7 +447,7 @@ impl<S> Transaction<S> {
     /// #     pub struct User { pub age: i64 }
     /// # }
     /// # use v0::*;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
     /// # txn.insert_ok(User {age: 30});
     /// for mut user in txn.mutable_vec(User.age(20)) {
     ///     user.age += 1;
@@ -607,9 +607,8 @@ impl<S: 'static> Transaction<S> {
     }
 
     /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
-    pub fn downgrade(&'static mut self) -> &'static mut TransactionWeak<S> {
-        // TODO: clean this up
-        Box::leak(Box::new(TransactionWeak { inner: PhantomData }))
+    pub fn downgrade(self) -> TransactionWeak<S> {
+        TransactionWeak { _inner: self }
     }
 }
 
@@ -620,7 +619,7 @@ impl<S: 'static> Transaction<S> {
 ///
 /// [TransactionWeak] is useful because it allowes deleting rows.
 pub struct TransactionWeak<S> {
-    inner: PhantomData<Transaction<S>>,
+    _inner: Transaction<S>,
 }
 
 impl<S: Schema> TransactionWeak<S> {

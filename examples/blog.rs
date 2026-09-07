@@ -92,9 +92,9 @@ pub fn migrate() -> Database<v1::Schema> {
 
 fn main() {
     let db = migrate();
-    db.transaction_mut_ok(|txn| {
-        insert_data(txn);
-        query_data(txn);
+    db.transaction_mut_ok(|mut txn| {
+        insert_data(&mut txn);
+        query_data(&txn);
     })
 }
 

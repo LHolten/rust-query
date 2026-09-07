@@ -19,7 +19,7 @@ use v0::*;
 fn main() {
     let db = Database::new(Config::open_in_memory());
 
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         let a = txn.insert_ok(Entry {
             text: "hello world!".to_owned(),
             timestamp: jiff::Timestamp::now(),

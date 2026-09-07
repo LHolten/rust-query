@@ -46,7 +46,7 @@ async fn main() {
 }
 
 async fn create_user(State(db): State<DatabaseAsync<Schema>>, Json(new_user): Json<UserInfo>) {
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         txn.insert_ok(User {
             name: new_user.name,
             hair_color: new_user.hair_color,

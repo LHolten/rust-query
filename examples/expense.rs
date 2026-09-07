@@ -1,6 +1,6 @@
 use std::fs;
 
-use rust_query::{Database, Lazy, Transaction, migration::Config};
+use rust_query::{Database, Lazy, migration::Config};
 
 #[rust_query::migration::schema(Mifg)]
 #[version(0..=1)]
@@ -34,7 +34,7 @@ const FILE_NAME: &str = "expense.sqlite";
 fn migrate() -> Database<v1::Mifg> {
     Database::migrator(Config::open(FILE_NAME))
         .unwrap()
-        .fixup(|txn| {
+        .fixup(|mut txn| {
             // we insert some test data when the database is created
             let user1 = txn
                 .insert(v0::User {
@@ -62,7 +62,7 @@ fn migrate() -> Database<v1::Mifg> {
                 })
                 .unwrap(),
         })
-        .fixup(|txn: &mut Transaction<v1::Mifg>| {
+        .fixup(|mut txn| {
             for (expense, paid_by) in txn.query(|rows| {
                 let expense = rows.join(v1::Expense);
                 rows.into_vec((&expense, &expense.paid_by))
@@ -82,7 +82,7 @@ fn main() {
     use v1::*;
     let _ = fs::remove_file(FILE_NAME);
     let db = migrate();
-    db.transaction_mut_ok(|txn| {
+    db.transaction_mut_ok(|mut txn| {
         let user1 = txn.query_one(User.user_id("user1")).unwrap();
         txn.insert(Expense {
             expense_id: "expense without split".to_owned(),
