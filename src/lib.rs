@@ -26,6 +26,7 @@ mod pool;
 mod query;
 mod rows;
 mod schema;
+mod scoped_transaction;
 mod select;
 mod transaction;
 mod value;
@@ -209,7 +210,7 @@ pub mod private {
         #[cfg_attr(false, mutants::skip)]
         pub fn get_txn(f: impl Send + FnOnce(&mut crate::Transaction<M>)) {
             crate::Database::new(rust_query::migration::Config::open_in_memory())
-                .transaction_mut_ok(|mut txn| f(&mut txn))
+                .transaction_mut_ok(f)
         }
     }
 
@@ -226,9 +227,9 @@ pub mod private {
         pub use v0::*;
 
         #[cfg_attr(false, mutants::skip)]
-        pub fn get_txn(f: impl Send + FnOnce(Box<Transaction<Empty>>)) {
+        pub fn get_txn(f: impl Send + FnOnce(&'static mut Transaction<Empty>)) {
             let db = Database::new(Config::open_in_memory());
-            db.transaction_mut_ok(|mut txn| {
+            db.transaction_mut_ok(|txn| {
                 txn.insert(User {
                     name: "Alice".to_owned(),
                 })

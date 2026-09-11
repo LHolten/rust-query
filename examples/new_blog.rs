@@ -85,7 +85,7 @@ mod using_v1 {
             .expect("database should not be newer than supported versions")
     }
 
-    pub fn do_stuff(mut txn: Box<Transaction<Schema>>) {
+    pub fn do_stuff(txn: &'static mut Transaction<Schema>) {
         let loc: TableRow<Location> = txn.insert_ok(Location {
             name: "Amsterdam".to_owned(),
         });

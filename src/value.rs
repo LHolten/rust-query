@@ -7,15 +7,21 @@ mod jiff_operations;
 mod operations;
 pub mod optional;
 
-use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{
+    cell::{Cell, OnceCell},
+    fmt::Debug,
+    marker::PhantomData,
+    ops::Deref,
+    rc::Rc,
+};
 
 use crate::{
-    IntoExpr, Table, Transaction,
+    IntoExpr, Table,
     db::TableRow,
     lower::{self, JoinableTable},
     mutable::Mutable,
     private::IntoJoinable,
-    transaction::MutTemp,
+    scoped_transaction::{MutTemp, ScopedTransaction},
 };
 pub use db_typ::{DbTyp, StorableTyp};
 
@@ -68,17 +74,22 @@ pub trait OptTable: DbTyp {
     type Schema;
     type Mutable<'t>;
 
-    fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, val: Self) -> Self::Mutable<'t>;
+    fn into_mutable<'t>(
+        txn: &'t mut ScopedTransaction<Self::Schema>,
+        val: Self,
+    ) -> Self::Mutable<'t>;
 }
 
 impl<T: Table> OptTable for TableRow<T> {
     type Schema = T::Schema;
     type Mutable<'t> = Mutable<'t, T>;
 
-    fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, inp: Self) -> Self::Mutable<'t> {
-        let data = txn.get_new_data();
-        *data = vec![MutTemp::new(inp)];
-        Mutable::new(&mut *data[0])
+    fn into_mutable<'t>(
+        txn: &'t mut ScopedTransaction<Self::Schema>,
+        inp: Self,
+    ) -> Self::Mutable<'t> {
+        txn.tmp = Cell::new(vec![MutTemp::new(inp)]);
+        Mutable::new(&mut *Cell::get_mut(&mut txn.tmp)[0])
     }
 }
 
@@ -86,7 +97,10 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
     type Schema = T::Schema;
     type Mutable<'t> = Option<Mutable<'t, T>>;
 
-    fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, val: Self) -> Self::Mutable<'t> {
+    fn into_mutable<'t>(
+        txn: &'t mut ScopedTransaction<Self::Schema>,
+        val: Self,
+    ) -> Self::Mutable<'t> {
         val.map(|x| TableRow::<T>::into_mutable(txn, x))
     }
 }

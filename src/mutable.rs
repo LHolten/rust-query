@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    IntoExpr, Table, TableRow, Transaction,
-    transaction::{MutTemp, Temp, try_update_private},
+    IntoExpr, Table, TableRow, Transaction, scoped_transaction::MutTemp,
+    transaction::try_update_private,
 };
 
 /// [Mutable] access to columns of a single table row.
@@ -19,7 +19,7 @@ pub struct Mutable<'transaction, T: Table> {
 }
 
 impl<'transaction, T: Table> Mutable<'transaction, T> {
-    pub(crate) fn new(temp: &'transaction mut dyn Temp) -> Self {
+    pub(crate) fn new(temp: &'transaction mut dyn Any) -> Self {
         Self {
             temp: (temp as &mut dyn Any).downcast_mut().unwrap(),
         }

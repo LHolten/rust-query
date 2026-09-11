@@ -53,7 +53,7 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
     #[doc = include_str!("database/transaction_mut.md")]
     pub async fn transaction_mut<O: 'static + Send, E: 'static + Send>(
         &self,
-        f: impl 'static + Send + FnOnce(Box<Transaction<S>>) -> Result<O, E>,
+        f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
         let db = self.inner.clone();
         async_run(move || db.transaction_mut_local(f))
@@ -64,7 +64,7 @@ impl<S: 'static + Send + Sync + Schema> DatabaseAsync<S> {
     #[doc = include_str!("database/transaction_mut_ok.md")]
     pub async fn transaction_mut_ok<R: 'static + Send>(
         &self,
-        f: impl 'static + Send + FnOnce(Box<Transaction<S>>) -> R,
+        f: impl 'static + Send + FnOnce(&'static mut Transaction<S>) -> R,
     ) -> R {
         self.transaction_mut(|txn| Ok::<R, std::convert::Infallible>(f(txn)))
             .await

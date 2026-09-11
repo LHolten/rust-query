@@ -23,7 +23,7 @@ fn unique_constraint_violation() {
     let _ = fs::remove_file(FILE);
 
     let db: Database<v0::Test> = Database::new(Config::open(FILE));
-    db.transaction_mut_ok(|mut txn| {
+    db.transaction_mut_ok(|txn| {
         txn.insert_ok(v0::Foo {
             name: "alpha".to_owned(),
         });
@@ -90,7 +90,7 @@ fn migrations_preserve_index() {
     let _ = fs::remove_file(FILE);
 
     let db: Database<v0::Test> = Database::new(Config::open(FILE));
-    db.transaction_mut_ok(|mut txn| {
+    db.transaction_mut_ok(|txn| {
         let alpha = txn.insert_ok(v0::Foo {
             name: "alpha".to_owned(),
         });

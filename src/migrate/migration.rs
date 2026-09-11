@@ -23,8 +23,8 @@ pub trait Migrateable: Table<MigrateFrom: Table<Schema = Self::FromSchema>> {
 }
 
 /// Transaction type for use in migrations.
-pub struct TransactionMigrate<FromSchema> {
-    pub(super) inner: Box<Transaction<FromSchema>>,
+pub struct TransactionMigrate<FromSchema: 'static> {
+    pub(super) inner: &'static mut Transaction<FromSchema>,
     pub(super) scope: lower::Scope,
     pub(super) rename_map: HashMap<&'static str, lower::TmpTable>,
     // creating non unique indices is delayed so that they don't need to be renamed
@@ -190,7 +190,7 @@ impl<'t, T: Migrateable> Migrated<'t, T> {
     }
 }
 
-pub struct SchemaBuilder<'t, FromSchema> {
+pub struct SchemaBuilder<'t, FromSchema: 'static> {
     pub(super) inner: TransactionMigrate<FromSchema>,
     pub(super) drop: Vec<String>,
     pub(super) foreign_key: HashMap<&'static str, BTreeMap<i64, FkErrHandler<'t>>>,

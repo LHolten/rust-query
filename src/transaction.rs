@@ -1,10 +1,5 @@
 use std::{
-    any::Any,
-    cell::{Cell, OnceCell, RefCell},
-    convert::Infallible,
-    marker::PhantomData,
-    rc::Rc,
-    sync::atomic::AtomicI64,
+    cell::RefCell, convert::Infallible, marker::PhantomData, rc::Rc, sync::atomic::AtomicI64,
 };
 
 use rusqlite::ErrorCode;
@@ -20,11 +15,11 @@ use crate::{
     },
     migrate::{Renderable, Schema, check_schema, schema_version, user_version},
     migration::Config,
-    mutable::Mutable,
     pool::Pool,
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
+    scoped_transaction::ScopedTransaction,
     value::{DbTyp, OptTable},
 };
 
@@ -156,7 +151,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     #[doc = include_str!("database/transaction_mut.md")]
     pub fn transaction_mut<O: Send, E: Send>(
         &self,
-        f: impl Send + FnOnce(Box<Transaction<S>>) -> Result<O, E>,
+        f: impl Send + FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<O, E> {
         let join_res =
             std::thread::scope(|scope| scope.spawn(|| self.transaction_mut_local(f)).join());
@@ -169,7 +164,7 @@ impl<S: Send + Sync + Schema> Database<S> {
 
     pub(crate) fn transaction_mut_local<O, E>(
         &self,
-        f: impl FnOnce(Box<Transaction<S>>) -> Result<O, E>,
+        f: impl FnOnce(&'static mut Transaction<S>) -> Result<O, E>,
     ) -> Result<Result<O, E>, Renderable> {
         // Acquire the lock before creating the connection.
         // Technically we can acquire the lock later, but we don't want to waste
@@ -185,8 +180,10 @@ impl<S: Send + Sync + Schema> Database<S> {
                 .unwrap();
             Some(txn)
         });
+
+        let full_transaction = Transaction::new_checked(owned, &self.schema_version)?;
         // if this panics then the transaction is rolled back and the guard is dropped.
-        let res = f(Transaction::new_checked(owned, &self.schema_version)?);
+        let res = f(full_transaction);
 
         // Drop the guard before commiting to let sqlite go to the next transaction
         // more quickly while guaranteeing that the database will unlock soon.
@@ -207,7 +204,7 @@ impl<S: Send + Sync + Schema> Database<S> {
     #[doc = include_str!("database/transaction_mut_ok.md")]
     pub fn transaction_mut_ok<R: Send>(
         &self,
-        f: impl Send + FnOnce(Box<Transaction<S>>) -> R,
+        f: impl Send + FnOnce(&'static mut Transaction<S>) -> R,
     ) -> R {
         self.transaction_mut(|txn| Ok::<R, Infallible>(f(txn)))
             .unwrap()
@@ -237,96 +234,19 @@ impl<S: Send + Sync + Schema> Database<S> {
 /// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
 /// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
-///
-/// [Transaction] must be dropped before the transaction thread exits, otherwise the program will abort.
-/// Note that this does allow storing the [Transaction] in a `thread_local`, but it doesn't allow leaking.
-pub struct Transaction<S, D: IsData + ?Sized = [Data]> {
+pub struct Transaction<S> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
-    data: D,
-}
-
-#[derive(Default)]
-pub struct Data {
-    pub tmp: Cell<Vec<Box<dyn Temp>>>,
-}
-
-pub trait IsData {
-    fn as_slice(&self) -> &[Data];
-}
-
-impl<const N: usize> IsData for [Data; N] {
-    fn as_slice(&self) -> &[Data] {
-        self
-    }
-}
-
-impl IsData for [Data] {
-    fn as_slice(&self) -> &[Data] {
-        self
-    }
-}
-
-pub trait Temp: Any {
-    fn write(self: Box<Self>);
-}
-
-pub struct MutTemp<T: Table> {
-    pub inner: OnceCell<T::Mutable>,
-    pub row_id: TableRow<T>,
-}
-
-impl<T: Table> MutTemp<T> {
-    pub fn new(row_id: TableRow<T>) -> Box<dyn Temp> {
-        Box::new(MutTemp {
-            inner: OnceCell::new(),
-            row_id,
-        })
-    }
-}
-
-impl<T: Table> Temp for MutTemp<T> {
-    fn write(self: Box<Self>) {
-        if let Some(update) = self.inner.into_inner() {
-            let Ok(_) = try_update_private(self.row_id, update) else {
-                panic!("mutable can not fail, no unique is updated")
-            };
-        }
-    }
-}
-
-impl<S, D: IsData + ?Sized> Transaction<S, D> {
-    pub(crate) fn flush(&self) {
-        if let Some(data) = self.data.as_slice().get(0) {
-            for tmp in data.tmp.take() {
-                tmp.write();
-            }
-        }
-    }
 }
 
 impl<S> Transaction<S> {
-    pub(crate) fn new(data: Data) -> Box<Self> {
-        Box::new(Transaction::<S, [Data; 1]> {
-            _p2: PhantomData,
-            _local: PhantomData,
-            data: [data],
-        })
-    }
-
-    pub(crate) fn new_ref() -> &'static Self {
+    pub(crate) fn new_ref() -> &'static mut Self {
         // no memory is leaked because Self is zero sized
-        Box::leak(Box::new(Transaction::<S, [Data; 0]> {
+        const { assert!(size_of::<Self>() == 0) };
+        Box::leak(Box::new(Self {
             _p2: PhantomData,
             _local: PhantomData,
-            data: [],
         }))
-    }
-
-    /// if self is mutable then there is guaranteed to be data
-    pub(crate) fn get_new_data(&mut self) -> &mut Vec<Box<dyn Temp>> {
-        self.flush();
-        Cell::get_mut(&mut self.data[0].tmp)
     }
 }
 
@@ -335,7 +255,7 @@ impl<S: Schema> Transaction<S> {
     pub(crate) fn new_checked(
         txn: OwnedTransaction,
         expected: &AtomicI64,
-    ) -> Result<Box<Self>, Renderable> {
+    ) -> Result<&'static mut Transaction<S>, Renderable> {
         let schema_version = schema_version(txn.get());
         // If the schema version is not the expected version then we
         // check if the changes are acceptable.
@@ -351,11 +271,19 @@ impl<S: Schema> Transaction<S> {
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
         }
 
-        Ok(Self::new(Data::default()))
+        Ok(Transaction::new_ref())
     }
 }
 
-impl<S> Transaction<S> {
+impl<S: 'static> Transaction<S> {
+    pub fn with_mut<O>(&mut self, f: impl FnOnce(&mut ScopedTransaction<S>) -> O) -> O {
+        let mut txn = ScopedTransaction {
+            _p2: PhantomData,
+            tmp: Default::default(),
+        };
+        f(&mut txn)
+    }
+
     /// Execute a query with multiple results.
     ///
     /// ```
@@ -369,8 +297,6 @@ impl<S> Transaction<S> {
     /// # });
     /// ```
     pub fn query<'t, R>(&'t self, f: impl FnOnce(&mut Query<'t, '_, S>) -> R) -> R {
-        self.flush();
-
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
@@ -463,80 +389,6 @@ impl<S> Transaction<S> {
             }
         })
     }
-
-    /// Retrieves a [Mutable] or `Option<Mutable>` from the database.
-    ///
-    /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.
-    ///
-    /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     pub struct Player {
-    /// #         #[unique]
-    /// #         pub number: i64,
-    /// #         pub name: String,
-    /// #         pub score: i64,
-    /// #     }
-    /// # }
-    /// # use v0::*;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
-    /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
-    ///
-    /// let mut tmp = txn.mutable(baz_id);
-    /// tmp.score += 50;
-    /// tmp.name = format!("{}{}", tmp.name, tmp.score);
-    ///
-    /// if let Some(mut player) = txn.mutable(Player.number(1)) {
-    ///     player.score += 100;
-    /// }
-    /// # });
-    /// ```
-    pub fn mutable<'t, T: OptTable<Schema = S>>(
-        &'t mut self,
-        val: impl IntoExpr<'static, S, Typ = T>,
-    ) -> T::Mutable<'t> {
-        let x = self.query_one(val.into_expr());
-        T::into_mutable(self, x)
-    }
-
-    /// Retrieve multiple [Mutable] rows from the database.
-    ///
-    /// Refer to [Rows::join] for the kind of the parameter that is supported here.
-    /// This may be useful when you need mutable access to multiple rows (potentially at the same time).
-    ///
-    /// Getting a lazy [Iterator] over mutable rows instead of a [Vec] is not possible, because mutating
-    /// while iterating can result in duplicate rows.
-    ///
-    /// ```
-    /// # #[rust_query::migration::schema(M)]
-    /// # pub mod vN {
-    /// #     #[index(age)]
-    /// #     pub struct User { pub age: i64 }
-    /// # }
-    /// # use v0::*;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
-    /// # txn.insert_ok(User {age: 30});
-    /// for mut user in txn.mutable_vec(User.age(20)) {
-    ///     user.age += 1;
-    /// }
-    /// # });
-    /// ```
-    pub fn mutable_vec<'t, T: Table<Schema = S>>(
-        &'t mut self,
-        val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
-    ) -> Vec<Mutable<'t, T>> {
-        let val = val.into_joinable();
-
-        let new_mutable = self.query(|rows| {
-            let val = rows.join(val);
-            rows.into_iter(val).map(MutTemp::new).collect()
-        });
-        let data = self.get_new_data();
-        assert!(data.is_empty());
-        *data = new_mutable;
-
-        data.iter_mut().map(|x| Mutable::new(&mut **x)).collect()
-    }
 }
 
 pub struct LazyIter<'t, T: Table> {
@@ -575,8 +427,6 @@ impl<S: 'static> Transaction<S> {
     /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
-        self.flush();
-
         try_insert_private(lower::JoinableTable::Table(T::NAME), None, val)
     }
 
@@ -622,14 +472,9 @@ impl<S: 'static> Transaction<S> {
     }
 
     /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
-    pub fn downgrade(self: Box<Self>) -> TransactionWeak<S> {
+    pub fn downgrade(&'static self) -> TransactionWeak<S> {
+        // TODO: check if this was a ref in previous release
         TransactionWeak { _p: PhantomData }
-    }
-}
-
-impl<S, D: IsData + ?Sized> Drop for Transaction<S, D> {
-    fn drop(&mut self) {
-        self.flush();
     }
 }
 
