@@ -163,7 +163,7 @@ pub fn unique_from_joinable<'inner, T: Table>(
 ) -> Expr<'inner, T::Schema, Option<TableRow<T>>> {
     let joinable = j.into_joinable();
     let unique = Rc::new(lower::Unique {
-        table: joinable.table,
+        table: joinable.table.name,
         conds: joinable.conds,
         guaranteed: false,
     });

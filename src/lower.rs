@@ -17,12 +17,17 @@ pub enum JoinableTable {
     Table(&'static str),
     Tmp(TmpTable),
     Pragma(&'static str, Vec<OrdRc<rusqlite::types::Value>>),
-    // Vec(OrdRc<Vec<rusqlite::types::Value>>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct JoinableTableWithId {
+    pub name: JoinableTable,
+    pub main_column: &'static str,
 }
 
 /// Specific join of a table
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Join(OrdRc<JoinableTable>);
+pub struct Join(OrdRc<JoinableTableWithId>);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Unique {
@@ -40,7 +45,7 @@ pub enum RowLike {
 impl RowLike {
     fn table(&self) -> &JoinableTable {
         match self {
-            RowLike::Join(join) => join.0.as_ref(),
+            RowLike::Join(join) => &join.0.name,
             RowLike::Unique(unique) => &unique.table,
         }
     }
@@ -105,7 +110,7 @@ pub struct Rows {
 }
 
 impl Rows {
-    pub fn join(&mut self, table: JoinableTable) -> Join {
+    pub fn join(&mut self, table: JoinableTableWithId) -> Join {
         let join = Join(OrdRc(Rc::new(table)));
         self.from.push(join.clone());
         join

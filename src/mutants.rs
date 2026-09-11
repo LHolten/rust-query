@@ -3,7 +3,7 @@ use std::{cell::OnceCell, marker::PhantomData};
 use crate::{
     Expr, Lazy, Mutable, Select, Table, TableRow, Transaction,
     db::TableRowInner,
-    lower::{self, JoinableTable, Scope, TmpTable},
+    lower::{self, JoinableTable, JoinableTableWithId, Scope, TmpTable},
     private::Joinable,
     query::Iter,
     scoped_transaction::MutTemp,
@@ -25,10 +25,20 @@ impl Default for JoinableTable {
     }
 }
 
+impl Default for JoinableTableWithId {
+    #[cfg_attr(false, mutants::skip)]
+    fn default() -> Self {
+        JoinableTableWithId {
+            name: Default::default(),
+            main_column: "id",
+        }
+    }
+}
+
 impl<S, T: DbTyp> Default for Joinable<'_, S, T> {
     #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
-        Self::new(JoinableTable::default(), "id")
+        Self::new(JoinableTableWithId::default())
     }
 }
 

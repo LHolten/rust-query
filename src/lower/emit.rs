@@ -172,12 +172,12 @@ impl Rows {
         let mut list = ListWriter::new(w, ", ");
         for (join_idx, join) in self.from.iter().enumerate() {
             let list_item = list.item();
-            join.0.emit(list_item);
+            join.0.name.emit(list_item);
             list_item.write(format_args!(" AS j{join_idx}"));
         }
         for (forwarded_idx, forwarded) in deps.forwarded.keys() {
             let list_item = list.item();
-            forwarded.0.emit(list_item);
+            forwarded.0.name.emit(list_item);
             list_item.write(format_args!(" AS f{forwarded_idx}"));
         }
         list.default("(SELECT 1)");

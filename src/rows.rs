@@ -3,7 +3,7 @@ use std::{marker::PhantomData, rc::Rc};
 use crate::{
     CustomJoin, Expr, IntoExpr, Table, TableRow,
     joinable::IntoJoinable,
-    lower,
+    lower::{self, JoinableTableWithId},
     private::Joinable,
     value::{DbTyp, EqTyp},
 };
@@ -52,7 +52,7 @@ impl<'inner, S> Rows<'inner, S> {
         Expr::new_inner(
             Rc::new(lower::Expr::RowIndex(
                 lower::RowLike::Join(join),
-                joinable.main_column,
+                joinable.table.main_column,
             )),
             true, // join can never be null
         )
@@ -67,7 +67,10 @@ impl<'inner, S> Rows<'inner, S> {
         &mut self,
         t: T,
     ) -> Expr<'inner, S, TableRow<T>> {
-        self.join(Joinable::new(t.name(), t.main_column()))
+        self.join(Joinable::new(JoinableTableWithId {
+            name: t.name(),
+            main_column: t.main_column(),
+        }))
     }
 
     /// Filter rows based on an expression.

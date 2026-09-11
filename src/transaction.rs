@@ -9,7 +9,7 @@ use crate::{
     IntoExpr, IntoSelect, Table, TableRow,
     error::FromConflict,
     lower::{
-        self, emit,
+        self, JoinableTableWithId, emit,
         list_writer::{Alias, ListWriter},
         ord_rc::OrdRc,
     },
@@ -643,7 +643,15 @@ pub fn try_insert_private<T: Table>(
             // val looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
             let res = TXN.with_borrow(|txn| {
                 let txn = txn.as_ref().unwrap().get();
-                <T::Conflict as FromConflict>::from_conflict(txn, table, reader.builder, msg)
+                <T::Conflict as FromConflict>::from_conflict(
+                    txn,
+                    JoinableTableWithId {
+                        name: table,
+                        main_column: T::ID,
+                    },
+                    reader.builder,
+                    msg,
+                )
             });
             Err(res)
         }
@@ -697,7 +705,10 @@ pub(crate) fn try_update_private<T: Table>(
                 let txn = txn.as_ref().unwrap().get();
                 <T::Conflict as FromConflict>::from_conflict(
                     txn,
-                    lower::JoinableTable::Table(T::NAME),
+                    lower::JoinableTableWithId {
+                        name: lower::JoinableTable::Table(T::NAME),
+                        main_column: T::ID,
+                    },
                     reader.builder,
                     msg,
                 )
