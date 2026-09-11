@@ -137,7 +137,7 @@ impl<S: Schema> Migrator<S> {
         let res = std::thread::scope(|s| {
             s.spawn(|| {
                 TXN.set(Some(TransactionWithRows::new_empty(self.transaction)));
-                let mut txn = Transaction::new(Data {});
+                let mut txn = Transaction::new(Data::default());
 
                 // check if this is the first migration that is applied
                 if self.user_version.take().is_some() {

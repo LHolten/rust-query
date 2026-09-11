@@ -1,5 +1,10 @@
 use std::{
-    cell::RefCell, convert::Infallible, marker::PhantomData, rc::Rc, sync::atomic::AtomicI64,
+    any::Any,
+    cell::{Cell, OnceCell, RefCell},
+    convert::Infallible,
+    marker::PhantomData,
+    rc::Rc,
+    sync::atomic::AtomicI64,
 };
 
 use rusqlite::ErrorCode;
@@ -232,20 +237,77 @@ impl<S: Send + Sync + Schema> Database<S> {
 /// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
 /// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
-pub struct Transaction<S, D: ?Sized = [Data]> {
+pub struct Transaction<S, D: IsData + ?Sized = [Data]> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
-    _data: D,
+    data: D,
 }
 
-pub struct Data {}
+#[derive(Default)]
+pub struct Data {
+    pub tmp: Cell<Vec<Box<dyn Temp>>>,
+}
+
+pub trait IsData {
+    fn as_slice(&self) -> &[Data];
+}
+
+impl<const N: usize> IsData for [Data; N] {
+    fn as_slice(&self) -> &[Data] {
+        self
+    }
+}
+
+impl IsData for [Data] {
+    fn as_slice(&self) -> &[Data] {
+        self
+    }
+}
+
+pub trait Temp: Any {
+    fn write(self: Box<Self>);
+}
+
+pub struct MutTemp<T: Table> {
+    pub inner: OnceCell<T::Mutable>,
+    pub row_id: TableRow<T>,
+}
+
+impl<T: Table> MutTemp<T> {
+    pub fn new(row_id: TableRow<T>) -> Box<dyn Temp> {
+        Box::new(MutTemp {
+            inner: OnceCell::new(),
+            row_id,
+        })
+    }
+}
+
+impl<T: Table> Temp for MutTemp<T> {
+    fn write(self: Box<Self>) {
+        if let Some(update) = self.inner.into_inner() {
+            let Ok(_) = Transaction::new_ref().update(self.row_id, update) else {
+                panic!("mutable can not fail, no unique is updated")
+            };
+        }
+    }
+}
+
+impl<S, D: IsData + ?Sized> Transaction<S, D> {
+    pub(crate) fn flush(&self) {
+        if let Some(data) = self.data.as_slice().get(0) {
+            for tmp in data.tmp.take() {
+                tmp.write();
+            }
+        }
+    }
+}
 
 impl<S> Transaction<S> {
     pub(crate) fn new(data: Data) -> Box<Self> {
         Box::new(Transaction::<S, [Data; 1]> {
             _p2: PhantomData,
             _local: PhantomData,
-            _data: [data],
+            data: [data],
         })
     }
 
@@ -254,8 +316,14 @@ impl<S> Transaction<S> {
         Box::leak(Box::new(Transaction::<S, [Data; 0]> {
             _p2: PhantomData,
             _local: PhantomData,
-            _data: [],
+            data: [],
         }))
+    }
+
+    /// if self is mutable then there is guaranteed to be data
+    pub(crate) fn get_new_data(&mut self) -> &mut Data {
+        self.flush();
+        &mut self.data[0]
     }
 }
 
@@ -280,7 +348,7 @@ impl<S: Schema> Transaction<S> {
             TXN.set(Some(TransactionWithRows::new_empty(txn)));
         }
 
-        Ok(Self::new(Data {}))
+        Ok(Self::new(Data::default()))
     }
 }
 
@@ -298,10 +366,11 @@ impl<S> Transaction<S> {
     /// # });
     /// ```
     pub fn query<'t, R>(&'t self, f: impl FnOnce(&mut Query<'t, '_, S>) -> R) -> R {
+        self.flush();
+
         // Execution already happens in a [Transaction].
         // and thus any [TransactionMut] that it might be borrowed
         // from is borrowed immutably, which means the rows can not change.
-
         let q = Rows {
             phantom: PhantomData,
             ast: Default::default(),
@@ -433,7 +502,7 @@ impl<S> Transaction<S> {
         val: impl IntoExpr<'static, S, Typ = T>,
     ) -> T::Mutable<'t> {
         let x = self.query_one(T::select_opt_mutable(val.into_expr()));
-        T::into_mutable(x)
+        T::into_mutable(self, x)
     }
 
     /// Retrieve multiple [Mutable] rows from the database.
@@ -463,12 +532,16 @@ impl<S> Transaction<S> {
         val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
     ) -> Vec<Mutable<'t, T>> {
         let val = val.into_joinable();
-        self.query(|rows| {
+
+        let new_mutable = self.query(|rows| {
             let val = rows.join(val);
-            rows.into_iter(OptTable::select_opt_mutable(val))
-                .map(TableRow::<T>::into_mutable)
-                .collect()
-        })
+            rows.into_iter(val).map(MutTemp::new).collect()
+        });
+        let data = Cell::get_mut(&mut self.get_new_data().tmp);
+        assert!(data.is_empty());
+        *data = new_mutable;
+
+        data.iter_mut().map(|x| Mutable::new(&mut **x)).collect()
     }
 }
 
@@ -508,6 +581,8 @@ impl<S: 'static> Transaction<S> {
     /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
+        self.flush();
+
         try_insert_private(lower::JoinableTable::Table(T::NAME), None, val)
     }
 
@@ -613,6 +688,12 @@ impl<S: 'static> Transaction<S> {
     /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
     pub fn downgrade(self: Box<Self>) -> TransactionWeak<S> {
         TransactionWeak { _p: PhantomData }
+    }
+}
+
+impl<S, D: IsData + ?Sized> Drop for Transaction<S, D> {
+    fn drop(&mut self) {
+        self.flush();
     }
 }
 

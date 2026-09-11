@@ -1,11 +1,12 @@
 use std::{
-    cell::OnceCell,
-    marker::PhantomData,
+    any::Any,
     ops::{Deref, DerefMut},
-    panic::AssertUnwindSafe,
 };
 
-use crate::{IntoExpr, Table, TableRow, Transaction};
+use crate::{
+    IntoExpr, Table, TableRow, Transaction,
+    transaction::{MutTemp, Temp},
+};
 
 /// [Mutable] access to columns of a single table row.
 ///
@@ -16,35 +17,13 @@ use crate::{IntoExpr, Table, TableRow, Transaction};
 /// Only rows that are not used in a `#[unique]` constraint can be updated directly by dereferencing [Mutable].
 /// To update columns with a unique constraint, you have to use [Mutable::unique].
 pub struct Mutable<'transaction, T: Table> {
-    pub(crate) cell: OnceCell<MutableInner<T>>,
-    pub(crate) row_id: TableRow<T>,
-    pub(crate) _txn: PhantomData<&'transaction mut Transaction<T::Schema>>,
-}
-
-pub(crate) struct MutableInner<T: Table> {
-    val: T::Mutable,
-    any_update: bool,
-}
-
-impl<T: Table> MutableInner<T> {
-    fn new(row_id: TableRow<T>) -> Self {
-        let select = Transaction::new_ref().query_one(T::into_select(row_id.into_expr()));
-        Self {
-            val: T::select_mutable(select),
-            any_update: false,
-        }
-    }
+    pub(crate) temp: &'transaction mut MutTemp<T>,
 }
 
 impl<'transaction, T: Table> Mutable<'transaction, T> {
-    pub(crate) fn new(inner: T::Mutable, row_id: TableRow<T>) -> Self {
+    pub(crate) fn new(temp: &'transaction mut dyn Temp) -> Self {
         Self {
-            cell: OnceCell::from(MutableInner {
-                val: inner,
-                any_update: false,
-            }),
-            row_id,
-            _txn: PhantomData,
+            temp: (temp as &mut dyn Any).downcast_mut().unwrap(),
         }
     }
 
@@ -55,7 +34,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
     ///
     /// If you do not need the [TableRow], then it is also possible to just call [drop].
     pub fn into_table_row(self) -> TableRow<T> {
-        self.row_id
+        self.temp.row_id
     }
 
     /// Update unique constraint columns.
@@ -75,26 +54,21 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
         &mut self,
         f: impl FnOnce(&mut <T::Mutable as Deref>::Target) -> O,
     ) -> Result<O, T::Conflict> {
-        // this drops the old mutable, causing all previous writes to be applied.
-        *self = Mutable {
-            cell: OnceCell::new(),
-            row_id: self.row_id,
-            _txn: PhantomData,
-        };
-        // we need to catch panics so that we can restore `self` to a valid state.
-        // if we don't do this then the Drop impl is likely to panic.
-        // AssertUnwindSafe is fine to use, because we propagate the panic and don't use
-        // any objects that might be corrupted while handling the panic.
-        let res = std::panic::catch_unwind(AssertUnwindSafe(|| f(T::mutable_as_unique(self))));
-        // taking `self.cell` puts the Mutable in a guaranteed coherent state with the database.
-        // it doesn't matter if the update succeeds or not as long as we only deref after the update.
-        let update = self.cell.take().unwrap().val;
-        let out = match res {
-            Ok(out) => out,
-            Err(payload) => std::panic::resume_unwind(payload),
-        };
+        // taking the data puts it in a guaranteed valid state
+        if let Some(update) = self.temp.inner.take() {
+            Transaction::new_ref()
+                .update(self.temp.row_id, update)
+                .expect("flushing non unique update should always work");
+        }
+
+        let data = Transaction::new_ref().query_one(T::into_select(self.temp.row_id.into_expr()));
+        let mut data = T::select_mutable(data);
+
+        // no need to catch panics here because we already guaranteed a valid state.
+        let out = f(T::mutable_as_unique(&mut data));
+
         // only apply the update if there was no panic
-        Transaction::new_ref().update(self.row_id, update)?;
+        Transaction::new_ref().update(self.temp.row_id, data)?;
 
         Ok(out)
     }
@@ -104,30 +78,17 @@ impl<'transaction, T: Table> Deref for Mutable<'transaction, T> {
     type Target = T::Mutable;
 
     fn deref(&self) -> &Self::Target {
-        &self.cell.get_or_init(|| MutableInner::new(self.row_id)).val
+        self.temp.inner.get_or_init(|| {
+            let data =
+                Transaction::new_ref().query_one(T::into_select(self.temp.row_id.into_expr()));
+            T::select_mutable(data)
+        })
     }
 }
 
 impl<'transaction, T: Table> DerefMut for Mutable<'transaction, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // initialize the cell
-        let _ = Mutable::deref(self);
-        let inner = self.cell.get_mut().unwrap();
-        inner.any_update = true;
-        &mut inner.val
-    }
-}
-
-impl<'transaction, T: Table> Drop for Mutable<'transaction, T> {
-    fn drop(&mut self) {
-        let Some(cell) = self.cell.take() else {
-            return;
-        };
-        if cell.any_update {
-            let update = cell.val;
-            let Ok(_) = Transaction::new_ref().update(self.row_id, update) else {
-                panic!("mutable can not fail, no unique is updated")
-            };
-        }
+        let _ = Deref::deref(self);
+        self.temp.inner.get_mut().unwrap()
     }
 }

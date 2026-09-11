@@ -71,11 +71,12 @@ impl<T> Default for select::Cached<T> {
 impl<T: Table> Default for Mutable<'_, T> {
     #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
-        Self {
-            cell: OnceCell::new(),
-            row_id: TableRow::default(),
-            _txn: Default::default(),
-        }
+        // Self {
+        //     temp: OnceCell::new(),
+        //     row_id: TableRow::default(),
+        //     _txn: Default::default(),
+        // }
+        todo!()
     }
 }
 

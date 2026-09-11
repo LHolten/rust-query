@@ -7,14 +7,21 @@ mod jiff_operations;
 mod operations;
 pub mod optional;
 
-use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
+use std::{
+    cell::{Cell, OnceCell},
+    fmt::Debug,
+    marker::PhantomData,
+    ops::Deref,
+    rc::Rc,
+};
 
 use crate::{
-    IntoExpr, IntoSelect, Select, Table,
+    IntoExpr, IntoSelect, Select, Table, Transaction,
     db::TableRow,
     lower::{self, JoinableTable},
     mutable::Mutable,
     private::IntoJoinable,
+    transaction::MutTemp,
 };
 pub use db_typ::{DbTyp, StorableTyp};
 
@@ -71,39 +78,47 @@ pub trait OptTable: DbTyp {
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select>;
 
-    fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t>;
+    fn into_mutable<'t>(
+        txn: &'t mut Transaction<Self::Schema>,
+        val: Self::Select,
+    ) -> Self::Mutable<'t>;
 }
 
 impl<T: Table> OptTable for TableRow<T> {
     type Schema = T::Schema;
-    type Select = (T::Select, TableRow<T>);
+    type Select = TableRow<T>;
     type Mutable<'t> = Mutable<'t, T>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
-        (T::into_select(val.clone()), val).into_select()
+        (val).into_select()
     }
 
-    fn into_mutable<'t>((inner, row_id): Self::Select) -> Self::Mutable<'t> {
-        Mutable::new(T::select_mutable(inner), row_id)
+    fn into_mutable<'t>(
+        txn: &'t mut Transaction<Self::Schema>,
+        inp: Self::Select,
+    ) -> Self::Mutable<'t> {
+        let data = txn.get_new_data();
+        data.tmp = Cell::new(vec![MutTemp::new(inp)]);
+        Mutable::new(&mut *Cell::get_mut(&mut data.tmp)[0])
     }
 }
 
 impl<T: Table> OptTable for Option<TableRow<T>> {
     type Schema = T::Schema;
-    type Select = Option<(T::Select, TableRow<T>)>;
+    type Select = Option<TableRow<T>>;
     type Mutable<'t> = Option<Mutable<'t, T>>;
     fn select_opt_mutable(
         val: Expr<'_, Self::Schema, Self>,
     ) -> Select<'_, Self::Schema, Self::Select> {
-        crate::optional(|row| {
-            let val = row.and(val);
-            row.then_select((T::into_select(val.clone()), val))
-        })
+        val.into_select()
     }
 
-    fn into_mutable<'t>(val: Self::Select) -> Self::Mutable<'t> {
-        val.map(TableRow::<T>::into_mutable)
+    fn into_mutable<'t>(
+        txn: &'t mut Transaction<Self::Schema>,
+        val: Self::Select,
+    ) -> Self::Mutable<'t> {
+        val.map(|x| TableRow::<T>::into_mutable(txn, x))
     }
 }
 

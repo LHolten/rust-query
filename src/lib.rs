@@ -33,6 +33,7 @@ mod writable;
 
 use private::Reader;
 use schema::from_macro::TypBuilder;
+use std::fmt::Debug;
 use std::ops::Deref;
 
 pub use async_db::DatabaseAsync;
@@ -260,7 +261,7 @@ pub trait Table: Sized + 'static {
 
     /// The type of conflict that can result from inserting a row in this table.
     /// This is the same type that is used for row updates too.
-    type Conflict: FromConflict;
+    type Conflict: FromConflict + Debug;
     /// The type of error when a delete fails due to a foreign key constraint.
     type Referer;
 
