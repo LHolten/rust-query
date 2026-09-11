@@ -501,7 +501,7 @@ impl<S> Transaction<S> {
         &'t mut self,
         val: impl IntoExpr<'static, S, Typ = T>,
     ) -> T::Mutable<'t> {
-        let x = self.query_one(T::select_opt_mutable(val.into_expr()));
+        let x = self.query_one(val.into_expr());
         T::into_mutable(self, x)
     }
 

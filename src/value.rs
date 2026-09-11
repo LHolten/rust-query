@@ -16,7 +16,7 @@ use std::{
 };
 
 use crate::{
-    IntoExpr, IntoSelect, Select, Table, Transaction,
+    IntoExpr, Table, Transaction,
     db::TableRow,
     lower::{self, JoinableTable},
     mutable::Mutable,
@@ -72,32 +72,16 @@ impl<T: Table> EqTyp for TableRow<T> {}
 /// Should not be used outside this crate.
 pub trait OptTable: DbTyp {
     type Schema;
-    type Select;
     type Mutable<'t>;
-    fn select_opt_mutable(
-        val: Expr<'_, Self::Schema, Self>,
-    ) -> Select<'_, Self::Schema, Self::Select>;
 
-    fn into_mutable<'t>(
-        txn: &'t mut Transaction<Self::Schema>,
-        val: Self::Select,
-    ) -> Self::Mutable<'t>;
+    fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, val: Self) -> Self::Mutable<'t>;
 }
 
 impl<T: Table> OptTable for TableRow<T> {
     type Schema = T::Schema;
-    type Select = TableRow<T>;
     type Mutable<'t> = Mutable<'t, T>;
-    fn select_opt_mutable(
-        val: Expr<'_, Self::Schema, Self>,
-    ) -> Select<'_, Self::Schema, Self::Select> {
-        (val).into_select()
-    }
 
-    fn into_mutable<'t>(
-        txn: &'t mut Transaction<Self::Schema>,
-        inp: Self::Select,
-    ) -> Self::Mutable<'t> {
+    fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, inp: Self) -> Self::Mutable<'t> {
         let data = txn.get_new_data();
         data.tmp = Cell::new(vec![MutTemp::new(inp)]);
         Mutable::new(&mut *Cell::get_mut(&mut data.tmp)[0])
@@ -106,18 +90,9 @@ impl<T: Table> OptTable for TableRow<T> {
 
 impl<T: Table> OptTable for Option<TableRow<T>> {
     type Schema = T::Schema;
-    type Select = Option<TableRow<T>>;
     type Mutable<'t> = Option<Mutable<'t, T>>;
-    fn select_opt_mutable(
-        val: Expr<'_, Self::Schema, Self>,
-    ) -> Select<'_, Self::Schema, Self::Select> {
-        val.into_select()
-    }
 
-    fn into_mutable<'t>(
-        txn: &'t mut Transaction<Self::Schema>,
-        val: Self::Select,
-    ) -> Self::Mutable<'t> {
+    fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, val: Self) -> Self::Mutable<'t> {
         val.map(|x| TableRow::<T>::into_mutable(txn, x))
     }
 }
