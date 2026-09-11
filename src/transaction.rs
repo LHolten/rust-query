@@ -473,9 +473,8 @@ impl<S: 'static> Transaction<S> {
     }
 
     /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
-    pub fn downgrade(&'static self) -> TransactionWeak<S> {
-        // TODO: check if this was a ref in previous release
-        TransactionWeak { _p: PhantomData }
+    pub fn downgrade(&'static mut self) -> &'static mut TransactionWeak<S> {
+        Box::leak(Box::new(TransactionWeak { _p: PhantomData }))
     }
 }
 

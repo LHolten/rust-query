@@ -6,6 +6,7 @@ use crate::{
     lower::{self, JoinableTable, Scope, TmpTable},
     private::Joinable,
     query::Iter,
+    scoped_transaction::MutTemp,
     select::{self, Cached, DynPrepared, DynSelectImpl},
     value::DbTyp,
 };
@@ -71,12 +72,12 @@ impl<T> Default for select::Cached<T> {
 impl<T: Table> Default for Mutable<'_, T> {
     #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
-        // Self {
-        //     temp: OnceCell::new(),
-        //     row_id: TableRow::default(),
-        //     _txn: Default::default(),
-        // }
-        todo!()
+        Mutable {
+            temp: Box::leak(Box::new(MutTemp {
+                inner: Default::default(),
+                row_id: Default::default(),
+            })),
+        }
     }
 }
 

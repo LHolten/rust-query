@@ -22,7 +22,7 @@ pub fn main() {
         let id2 = txn.insert_ok(Empty {});
         let r = txn.insert_ok(Ref { empty: id2 });
         let id = txn.query_one(id.into_expr());
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
         assert!(txn.delete(id).unwrap());
         txn.delete(id2).unwrap_err();
         txn.delete_ok(r);

@@ -24,7 +24,7 @@ fn main() {
             })
             .collect();
 
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
 
         txn.rusqlite_transaction(|raw_txn| {
             for id in ids {

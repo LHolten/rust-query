@@ -3,9 +3,7 @@ mod schema;
 use std::fmt::Debug;
 
 use expect_test::expect_file;
-use rust_query::{
-    Expr, FromExpr, IntoExpr, IntoSelect, Select, TableRow, Transaction, aggregate, optional,
-};
+use rust_query::{Expr, IntoExpr, IntoSelect, Select, TableRow, Transaction, aggregate, optional};
 use schema::*;
 
 fn assert_dbg<T: Debug + PartialOrd>(file_name: &str, f: impl FnOnce() -> Vec<T>) {
@@ -74,8 +72,7 @@ fn invoice_info(db: &Transaction<Schema>) -> Vec<InvoiceInfo> {
         rows.into_vec(InvoiceInfoSelect {
             track: &ivl.track.name,
             artist: &ivl.track.album.artist.name,
-            // TODO: this should be made to work without FromExpr
-            ivl_id: FromExpr::from_expr(&ivl),
+            ivl_id: &ivl,
         })
     })
 }

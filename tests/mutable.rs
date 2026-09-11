@@ -91,7 +91,7 @@ fn conflict() {
             assert_eq!(txn.lazy(id).name, "other");
         });
 
-        let mut db = txn.downgrade();
+        let db = txn.downgrade();
         assert!(db.delete_ok(id));
     })
 }

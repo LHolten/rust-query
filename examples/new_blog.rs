@@ -91,7 +91,7 @@ mod using_v1 {
         });
         let _ = location_info(&txn, loc);
 
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
 
         let is_deleted = txn
             .delete(loc)

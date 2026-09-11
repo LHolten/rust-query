@@ -64,7 +64,7 @@ pub fn delivery(
         customer.delivery_cnt += 1;
     });
 
-    let mut txn = txn.downgrade();
+    let txn = txn.downgrade();
     assert!(txn.delete_ok(new_order));
 
     Some(DeliveryOutput {

@@ -101,7 +101,7 @@ fn migrations_preserve_index() {
             name: "charlie".to_owned(),
         });
         txn.insert_ok(v0::Ref { foo: charlie });
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
         // delete the first item so that migrations that do not preserve index
         // will renumber the items.
         assert!(txn.delete(alpha).unwrap());

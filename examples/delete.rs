@@ -27,7 +27,7 @@ fn main() {
             })
             .collect();
 
-        let mut txn = txn.downgrade();
+        let txn = txn.downgrade();
         for id in ids.clone() {
             assert!(txn.delete_ok(id));
         }
