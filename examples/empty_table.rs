@@ -17,7 +17,7 @@ use v0::*;
 pub fn main() {
     let db = Database::new(Config::open_in_memory());
 
-    db.transaction_mut_ok(|mut txn| {
+    db.transaction_mut_ok(|txn| {
         let id = txn.insert_ok(Empty {});
         let id2 = txn.insert_ok(Empty {});
         let r = txn.insert_ok(Ref { empty: id2 });

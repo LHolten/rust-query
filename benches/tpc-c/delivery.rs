@@ -30,7 +30,7 @@ pub fn delivery(
         }))
         .unwrap();
 
-    let new_order = txn.query_one(optional(|row| {
+    let new_order = txn.lazy(optional(|row| {
         aggregate(|rows| {
             let customer = rows.join(Customer.district(district));
             let order = rows.join(Order.customer(&customer));
@@ -46,21 +46,23 @@ pub fn delivery(
         })
     }))?;
 
-    let mut order = txn.mutable(&new_order.into_expr().order);
-    order.carrier_id = Some(input.carrier_id);
-    let order_num = order.number;
-    let order = order.into_table_row();
+    let order_num = new_order.order.number;
+    let order = new_order.order.table_row();
+    let new_order = new_order.table_row();
 
-    let mut total_amount = 0;
-    for mut line in txn.mutable_vec(OrderLine.order(order)) {
-        total_amount += line.amount;
-        line.delivery_d = Some(input.delivery_d);
-    }
+    txn.scoped(|txn| {
+        txn.mutable(order).carrier_id = Some(input.carrier_id);
 
-    let mut customer = txn.mutable(&order.into_expr().customer);
-    customer.balance += total_amount;
-    customer.delivery_cnt += 1;
-    drop(customer);
+        let mut total_amount = 0;
+        for mut line in txn.mutable_vec(OrderLine.order(order)) {
+            total_amount += line.amount;
+            line.delivery_d = Some(input.delivery_d);
+        }
+
+        let mut customer = txn.mutable(&order.into_expr().customer);
+        customer.balance += total_amount;
+        customer.delivery_cnt += 1;
+    });
 
     let mut txn = txn.downgrade();
     assert!(txn.delete_ok(new_order));

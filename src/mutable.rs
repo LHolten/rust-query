@@ -31,7 +31,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
     /// [Mutable] does not have a non lexical lifetime, because of the [Drop] impl.
     ///
     /// If you do not need the [TableRow], then it is also possible to just call [drop].
-    pub fn into_table_row(self) -> TableRow<T> {
+    pub fn table_row(&self) -> TableRow<T> {
         self.temp.row_id
     }
 

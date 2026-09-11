@@ -10,19 +10,22 @@ use crate::{
     transaction::try_update_private, value::OptTable,
 };
 
-pub struct ScopedTransaction<S: 'static> {
+/// [Transaction] with mutation support and without downgrade support.
+///
+/// This type can be created using [Transaction::scoped].
+pub struct TransactionScoped<S: 'static> {
     pub(crate) _p2: PhantomData<&'static Transaction<S>>,
     pub tmp: Cell<Vec<Box<dyn Any>>>,
 }
 
-impl<S> DerefMut for ScopedTransaction<S> {
+impl<S> DerefMut for TransactionScoped<S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.tmp.take();
         Transaction::new_ref()
     }
 }
 
-impl<S> Deref for ScopedTransaction<S> {
+impl<S> Deref for TransactionScoped<S> {
     type Target = Transaction<S>;
 
     fn deref(&self) -> &Self::Target {
@@ -31,7 +34,7 @@ impl<S> Deref for ScopedTransaction<S> {
     }
 }
 
-impl<S> ScopedTransaction<S> {
+impl<S> TransactionScoped<S> {
     /// Retrieves a [Mutable] or `Option<Mutable>` from the database.
     ///
     /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.

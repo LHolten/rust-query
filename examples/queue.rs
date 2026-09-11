@@ -21,7 +21,7 @@ fn main() {
         Queue { seq: 10, typ: 0 },
     ];
 
-    database.transaction_mut_ok(|mut txn| {
+    database.transaction_mut_ok(|txn| {
         for item in items {
             txn.insert_ok(item);
         }

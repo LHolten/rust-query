@@ -19,7 +19,7 @@ use crate::{
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    scoped_transaction::ScopedTransaction,
+    scoped_transaction::TransactionScoped,
     value::{DbTyp, OptTable},
 };
 
@@ -276,8 +276,8 @@ impl<S: Schema> Transaction<S> {
 }
 
 impl<S: 'static> Transaction<S> {
-    pub fn with_mut<O>(&mut self, f: impl FnOnce(&mut ScopedTransaction<S>) -> O) -> O {
-        let mut txn = ScopedTransaction {
+    pub fn scoped<O>(&mut self, f: impl FnOnce(&mut TransactionScoped<S>) -> O) -> O {
+        let mut txn = TransactionScoped {
             _p2: PhantomData,
             tmp: Default::default(),
         };

@@ -1,6 +1,6 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{Transaction, optional};
+use rust_query::{TransactionScoped, optional};
 use std::{mem::replace, time::SystemTime};
 
 pub fn generate_input(warehouse: i64, other: &[i64]) -> NewOrderInput {
@@ -52,7 +52,7 @@ struct ItemInput {
 }
 
 pub fn new_order(
-    txn: &mut Transaction<Schema>,
+    txn: &mut TransactionScoped<Schema>,
     input: NewOrderInput,
 ) -> Result<OutputData, OutputData> {
     let customer = txn
@@ -157,7 +157,7 @@ pub fn new_order(
             "G"
         };
 
-        let stock = stock.into_table_row();
+        let stock = stock.table_row();
 
         txn.insert(OrderLine {
             order,

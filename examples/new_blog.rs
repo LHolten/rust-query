@@ -151,7 +151,7 @@ mod delete_example {
     pub fn migrate() {
         Database::migrator(Config::open_in_memory())
             .unwrap()
-            .fixup(|mut txn| {
+            .fixup(|txn| {
                 // insert some data to migrate
                 let author = txn.insert_ok(v0::User {
                     name: "foo".to_owned(),

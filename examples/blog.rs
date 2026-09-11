@@ -1,5 +1,5 @@
 use rust_query::{
-    Database, Lazy, Transaction, aggregate,
+    Database, Lazy, Transaction, TransactionScoped, aggregate,
     migration::{Config, schema},
 };
 
@@ -29,7 +29,7 @@ pub mod vN {
 }
 use v1::*;
 
-fn insert_data(txn: &mut Transaction<Schema>) {
+fn insert_data(txn: &mut TransactionScoped<Schema>) {
     // Insert users
     let alice = txn.insert_ok(User {
         name: "alice".to_owned(),
@@ -92,8 +92,8 @@ pub fn migrate() -> Database<v1::Schema> {
 
 fn main() {
     let db = migrate();
-    db.transaction_mut_ok(|mut txn| {
-        insert_data(&mut txn);
+    db.transaction_mut_ok(|txn| {
+        txn.scoped(insert_data);
         query_data(&txn);
     })
 }

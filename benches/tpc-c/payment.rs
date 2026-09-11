@@ -1,6 +1,6 @@
 use super::*;
 use rand::seq::IndexedRandom;
-use rust_query::{FromExpr, Transaction};
+use rust_query::{FromExpr, TransactionScoped};
 
 pub fn generate_input(warehouse: i64, other: &[i64]) -> PaymentInput {
     let district = rand::random_range(1..=10);
@@ -34,18 +34,18 @@ pub struct PaymentInput {
     date: SystemTime,
 }
 
-pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOutput {
+pub fn payment(txn: &mut TransactionScoped<Schema>, input: PaymentInput) -> PaymentOutput {
     let mut warehouse = txn.mutable(Warehouse.number(input.warehouse)).unwrap();
     warehouse.ytd += input.amount;
     let warehouse_name = warehouse.name.clone();
-    let warehouse = warehouse.into_table_row();
+    let warehouse = warehouse.table_row();
 
     let mut district = txn
         .mutable(District.warehouse(warehouse).number(input.district))
         .unwrap();
     district.ytd += input.amount;
     let district_name = district.name.clone();
-    let district = district.into_table_row();
+    let district = district.table_row();
 
     let customer: TableRow<Customer> =
         input
@@ -75,7 +75,7 @@ pub fn payment(txn: &mut Transaction<Schema>, input: PaymentInput) -> PaymentOut
     }
 
     let customer_number = customer.number;
-    let customer = customer.into_table_row();
+    let customer = customer.table_row();
 
     txn.insert_ok(History {
         customer,

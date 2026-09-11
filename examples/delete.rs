@@ -17,7 +17,7 @@ fn main() {
     // This is necessary to keep transactions separated.
     let database = Database::new(Config::open_in_memory());
 
-    database.transaction_mut_ok(|mut txn| {
+    database.transaction_mut_ok(|txn| {
         let ids: Vec<_> = vec!["alpha", "bravo", "charlie", "delta"]
             .into_iter()
             .map(|name| {
