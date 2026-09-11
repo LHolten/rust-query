@@ -141,7 +141,7 @@ impl Rows {
                             let list_item = list.item();
                             list_item.write(format_args!("a{aggr_idx}.ff{forward_idx} = "));
                             self.emit_join(list_item, join, &mut deps);
-                            list_item.write(".id"); // TODO use real primary key
+                            list_item.write(format!(".{}", Alias(join.0.main_column))); // TODO use real primary key
                         }
                     }
                 })
@@ -155,9 +155,11 @@ impl Rows {
 
         w.write("SELECT ");
         let mut list = ListWriter::new(w, ", ");
-        for (forward_idx, _item) in deps.forwarded.keys() {
-            list.item()
-                .write(format_args!("f{forward_idx}.id AS ff{forward_idx}"));
+        for (forward_idx, item) in deps.forwarded.keys() {
+            list.item().write(format_args!(
+                "f{forward_idx}.{} AS ff{forward_idx}",
+                Alias(item.0.main_column)
+            ));
         }
         for (select_idx, expr) in select_exprs.iter() {
             list.item().write(format_args!("{expr} AS s{select_idx}"));
