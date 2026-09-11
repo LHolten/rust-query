@@ -464,8 +464,6 @@ impl<S> Transaction<S> {
     /// Retrieves a [Mutable] or `Option<Mutable>` from the database.
     ///
     /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.
-    /// It is recommended to keep the lifetime of [Mutable] short, to prevent borrow checker errors.
-    /// See below for some good examples of how to use [Transaction::mutable].
     ///
     /// ```
     /// # #[rust_query::migration::schema(M)]
@@ -481,20 +479,13 @@ impl<S> Transaction<S> {
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
     /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
     ///
-    /// // `player` is dropped automatically because the variable goes out of scope.
+    /// let mut tmp = txn.mutable(baz_id);
+    /// tmp.score += 50;
+    /// tmp.name = format!("{}{}", tmp.name, tmp.score);
+    ///
     /// if let Some(mut player) = txn.mutable(Player.number(1)) {
     ///     player.score += 100;
     /// }
-    ///
-    /// // The mutable is not assigned to a variable,
-    /// // so it is automatically dropped after the statement ends.
-    /// txn.mutable(baz_id).score += 50;
-    ///
-    /// // If it is necessary to assign the Mutable to a variable,
-    /// // then make sure to drop the Mutable as soon as possible.
-    /// let mut tmp = txn.mutable(baz_id);
-    /// tmp.name = format!("{}{}", tmp.name, tmp.score);
-    /// drop(tmp);
     /// # });
     /// ```
     pub fn mutable<'t, T: OptTable<Schema = S>>(
