@@ -237,6 +237,9 @@ impl<S: Send + Sync + Schema> Database<S> {
 /// From the perspective of a [Transaction] each other [Transaction] is fully applied or not at all.
 /// Futhermore, the effects of [Transaction]s have a global order.
 /// So if we have mutations `A` and then `B`, it is impossible for a [Transaction] to see the effect of `B` without seeing the effect of `A`.
+///
+/// [Transaction] must be dropped before the transaction thread exits, otherwise the program will abort.
+/// Note that this does allow storing the [Transaction] in a `thread_local`, but it doesn't allow leaking.
 pub struct Transaction<S, D: IsData + ?Sized = [Data]> {
     pub(crate) _p2: PhantomData<S>,
     pub(crate) _local: PhantomData<*const ()>,
