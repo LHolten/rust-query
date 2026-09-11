@@ -15,7 +15,7 @@ use crate::{
 /// This type can be created using [Transaction::scoped].
 pub struct TransactionScoped<S: 'static> {
     pub(crate) _p2: PhantomData<&'static Transaction<S>>,
-    pub tmp: Cell<Vec<Box<dyn Any>>>,
+    pub(crate) tmp: Cell<Vec<Box<dyn Any>>>,
 }
 
 impl<S> DerefMut for TransactionScoped<S> {
@@ -50,7 +50,8 @@ impl<S> TransactionScoped<S> {
     /// #     }
     /// # }
     /// # use v0::*;
-    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
+    /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
+    /// txn.scoped(|txn| {
     /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
     ///
     /// let mut tmp = txn.mutable(baz_id);
@@ -60,7 +61,7 @@ impl<S> TransactionScoped<S> {
     /// if let Some(mut player) = txn.mutable(Player.number(1)) {
     ///     player.score += 100;
     /// }
-    /// # });
+    /// # })});
     /// ```
     pub fn mutable<'t, T: OptTable<Schema = S>>(
         &'t mut self,
@@ -72,7 +73,7 @@ impl<S> TransactionScoped<S> {
 
     /// Retrieve multiple [Mutable] rows from the database.
     ///
-    /// Refer to [Rows::join] for the kind of the parameter that is supported here.
+    /// Refer to [crate::args::Rows::join] for the kind of the parameter that is supported here.
     /// This may be useful when you need mutable access to multiple rows (potentially at the same time).
     ///
     /// Getting a lazy [Iterator] over mutable rows instead of a [Vec] is not possible, because mutating
@@ -86,11 +87,12 @@ impl<S> TransactionScoped<S> {
     /// # }
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
+    /// # txn.scoped(|txn|{
     /// # txn.insert_ok(User {age: 30});
     /// for mut user in txn.mutable_vec(User.age(20)) {
     ///     user.age += 1;
     /// }
-    /// # });
+    /// # })});
     /// ```
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,

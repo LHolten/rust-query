@@ -31,7 +31,7 @@ Refer to the documentation of [migration::schema] for more information on availa
 
 All mutation requires a mutable [Transaction], which can be obtained using [Database::transaction_mut] or [Database::transaction_mut_ok].
 
-All mutation are done using [Transaction::insert], [Transaction::mutable] and [TransactionWeak::delete] methods. In some cases it is possible to use the more ergonomic [Transaction::insert_ok] and [TransactionWeak::delete_ok].
+All mutation are done using [Transaction::insert], [TransactionScoped::mutable] and [TransactionWeak::delete] methods. In some cases it is possible to use the more ergonomic [Transaction::insert_ok] and [TransactionWeak::delete_ok].
 
 Deleting is special as it requires the [Transaction] to be downgraded using [Transaction::downgrade]. This signals that all [TableRow] have lost their proof of existence, since rows can now be deleted.
 

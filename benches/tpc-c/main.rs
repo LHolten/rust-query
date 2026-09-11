@@ -180,13 +180,13 @@ fn main() {
 }
 
 fn test_cnt(db: Arc<Database<Schema>>, warehouse_cnt: i64) -> bool {
-    db.transaction_mut_ok(|mut txn| {
+    db.transaction_mut_ok(|txn| {
         let warehouses_exist = txn.query_one(aggregate(|rows| {
             let warehouse = rows.join(Warehouse);
             rows.max(&warehouse.number).unwrap_or(0)
         }));
         expect::collect_all(|| {
-            populate::populate(&mut txn, warehouses_exist..warehouse_cnt);
+            populate::populate(txn, warehouses_exist..warehouse_cnt);
         });
     });
     println!("initialization complete");

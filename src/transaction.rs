@@ -276,6 +276,7 @@ impl<S: Schema> Transaction<S> {
 }
 
 impl<S: 'static> Transaction<S> {
+    /// Create a transaction scope that limits the lifetime of [crate::Mutable].
     pub fn scoped<O>(&mut self, f: impl FnOnce(&mut TransactionScoped<S>) -> O) -> O {
         let mut txn = TransactionScoped {
             _p2: PhantomData,
