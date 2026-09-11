@@ -285,7 +285,7 @@ impl<T: Table> MutTemp<T> {
 impl<T: Table> Temp for MutTemp<T> {
     fn write(self: Box<Self>) {
         if let Some(update) = self.inner.into_inner() {
-            let Ok(_) = Transaction::new_ref().update(self.row_id, update) else {
+            let Ok(_) = try_update_private(self.row_id, update) else {
                 panic!("mutable can not fail, no unique is updated")
             };
         }
@@ -627,64 +627,6 @@ impl<S: 'static> Transaction<S> {
         }
     }
 
-    pub(crate) fn update<T: Table<Schema = S>>(
-        &self,
-        row: TableRow<T>,
-        val: T::Mutable,
-    ) -> Result<(), T::Conflict> {
-        let val = T::mutable_into_insert(val);
-        let mut reader = Reader::default();
-        T::read(&val, &mut reader);
-
-        let mut stmt = emit::Stmt::default();
-        stmt.write("UPDATE ");
-        lower::JoinableTable::Table(T::NAME).emit(&mut stmt);
-
-        stmt.write(" SET ");
-        let mut list = ListWriter::new(&mut stmt, ", ");
-        for (key, val) in &reader.builder {
-            list.item()
-                .write(format_args!("{} = ", Alias(key)))
-                .write_param(val);
-        }
-        list.default(format_args!("{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
-
-        stmt.write(format_args!(
-            " WHERE {}.{} = ",
-            Alias(T::NAME),
-            Alias(T::ID)
-        ));
-        stmt.write_param(&OrdRc(Rc::new(row.inner.idx.into())));
-
-        let res = TXN.with_borrow(|txn| {
-            let txn = txn.as_ref().unwrap().get();
-
-            let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
-            cached.execute(rusqlite::params_from_iter(stmt.params))
-        });
-
-        match res {
-            Ok(1) => Ok(()),
-            Ok(n) => panic!("unexpected number of updates: {n}"),
-            Err(rusqlite::Error::SqliteFailure(kind, Some(msg)))
-                if kind.code == ErrorCode::ConstraintViolation =>
-            {
-                // `msg` looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
-                let res = TXN.with_borrow(|txn| {
-                    let txn = txn.as_ref().unwrap().get();
-                    <T::Conflict as FromConflict>::from_conflict(
-                        txn,
-                        lower::JoinableTable::Table(T::NAME),
-                        reader.builder,
-                        msg,
-                    )
-                });
-                Err(res)
-            }
-            Err(err) => panic!("{err:?}"),
-        }
-    }
-
     /// Convert the [Transaction] into a [TransactionWeak] to allow deletions.
     pub fn downgrade(self: Box<Self>) -> TransactionWeak<S> {
         TransactionWeak { _p: PhantomData }
@@ -863,6 +805,63 @@ pub fn try_insert_private<T: Table>(
             let res = TXN.with_borrow(|txn| {
                 let txn = txn.as_ref().unwrap().get();
                 <T::Conflict as FromConflict>::from_conflict(txn, table, reader.builder, msg)
+            });
+            Err(res)
+        }
+        Err(err) => panic!("{err:?}"),
+    }
+}
+
+pub(crate) fn try_update_private<T: Table>(
+    row: TableRow<T>,
+    val: T::Mutable,
+) -> Result<(), T::Conflict> {
+    let val = T::mutable_into_insert(val);
+    let mut reader = Reader::default();
+    T::read(&val, &mut reader);
+
+    let mut stmt = emit::Stmt::default();
+    stmt.write("UPDATE ");
+    lower::JoinableTable::Table(T::NAME).emit(&mut stmt);
+
+    stmt.write(" SET ");
+    let mut list = ListWriter::new(&mut stmt, ", ");
+    for (key, val) in &reader.builder {
+        list.item()
+            .write(format_args!("{} = ", Alias(key)))
+            .write_param(val);
+    }
+    list.default(format_args!("{1} = {0}.{1}", Alias(T::NAME), Alias(T::ID)));
+
+    stmt.write(format_args!(
+        " WHERE {}.{} = ",
+        Alias(T::NAME),
+        Alias(T::ID)
+    ));
+    stmt.write_param(&OrdRc(Rc::new(row.inner.idx.into())));
+
+    let res = TXN.with_borrow(|txn| {
+        let txn = txn.as_ref().unwrap().get();
+
+        let mut cached = txn.prepare_cached(&stmt.sql).unwrap();
+        cached.execute(rusqlite::params_from_iter(stmt.params))
+    });
+
+    match res {
+        Ok(1) => Ok(()),
+        Ok(n) => panic!("unexpected number of updates: {n}"),
+        Err(rusqlite::Error::SqliteFailure(kind, Some(msg)))
+            if kind.code == ErrorCode::ConstraintViolation =>
+        {
+            // `msg` looks like "UNIQUE constraint failed: playlist_track.playlist, playlist_track.track"
+            let res = TXN.with_borrow(|txn| {
+                let txn = txn.as_ref().unwrap().get();
+                <T::Conflict as FromConflict>::from_conflict(
+                    txn,
+                    lower::JoinableTable::Table(T::NAME),
+                    reader.builder,
+                    msg,
+                )
             });
             Err(res)
         }

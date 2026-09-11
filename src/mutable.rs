@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     IntoExpr, Table, TableRow, Transaction,
-    transaction::{MutTemp, Temp},
+    transaction::{MutTemp, Temp, try_update_private},
 };
 
 /// [Mutable] access to columns of a single table row.
@@ -56,8 +56,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
     ) -> Result<O, T::Conflict> {
         // taking the data puts it in a guaranteed valid state
         if let Some(update) = self.temp.inner.take() {
-            Transaction::new_ref()
-                .update(self.temp.row_id, update)
+            try_update_private(self.temp.row_id, update)
                 .expect("flushing non unique update should always work");
         }
 
@@ -68,7 +67,7 @@ impl<'transaction, T: Table> Mutable<'transaction, T> {
         let out = f(T::mutable_as_unique(&mut data));
 
         // only apply the update if there was no panic
-        Transaction::new_ref().update(self.temp.row_id, data)?;
+        try_update_private(self.temp.row_id, data)?;
 
         Ok(out)
     }
