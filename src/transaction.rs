@@ -321,9 +321,9 @@ impl<S> Transaction<S> {
     }
 
     /// if self is mutable then there is guaranteed to be data
-    pub(crate) fn get_new_data(&mut self) -> &mut Data {
+    pub(crate) fn get_new_data(&mut self) -> &mut Vec<Box<dyn Temp>> {
         self.flush();
-        &mut self.data[0]
+        Cell::get_mut(&mut self.data[0].tmp)
     }
 }
 
@@ -537,7 +537,7 @@ impl<S> Transaction<S> {
             let val = rows.join(val);
             rows.into_iter(val).map(MutTemp::new).collect()
         });
-        let data = Cell::get_mut(&mut self.get_new_data().tmp);
+        let data = self.get_new_data();
         assert!(data.is_empty());
         *data = new_mutable;
 

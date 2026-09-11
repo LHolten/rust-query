@@ -7,13 +7,7 @@ mod jiff_operations;
 mod operations;
 pub mod optional;
 
-use std::{
-    cell::{Cell, OnceCell},
-    fmt::Debug,
-    marker::PhantomData,
-    ops::Deref,
-    rc::Rc,
-};
+use std::{cell::OnceCell, fmt::Debug, marker::PhantomData, ops::Deref, rc::Rc};
 
 use crate::{
     IntoExpr, Table, Transaction,
@@ -83,8 +77,8 @@ impl<T: Table> OptTable for TableRow<T> {
 
     fn into_mutable<'t>(txn: &'t mut Transaction<Self::Schema>, inp: Self) -> Self::Mutable<'t> {
         let data = txn.get_new_data();
-        data.tmp = Cell::new(vec![MutTemp::new(inp)]);
-        Mutable::new(&mut *Cell::get_mut(&mut data.tmp)[0])
+        *data = vec![MutTemp::new(inp)];
+        Mutable::new(&mut *data[0])
     }
 }
 

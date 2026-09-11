@@ -11,8 +11,6 @@ use crate::{
 /// [Mutable] access to columns of a single table row.
 ///
 /// The whole row is retrieved and can be inspected/updated from Rust code.
-/// Because a [Mutable] row borrows the database mutably, it is impossible
-/// to forget to drop the [Mutable], which then writes the changes to the database.
 ///
 /// Only rows that are not used in a `#[unique]` constraint can be updated directly by dereferencing [Mutable].
 /// To update columns with a unique constraint, you have to use [Mutable::unique].
