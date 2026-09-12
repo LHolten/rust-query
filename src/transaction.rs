@@ -137,10 +137,7 @@ impl<S: Send + Sync + Schema> Database<S> {
             Some(conn.borrow_mut().transaction().unwrap())
         });
 
-        let res = f(Box::leak(Box::new(Transaction::new_checked(
-            owned,
-            &self.schema_version,
-        )?)));
+        let res = f(Transaction::new_checked(owned, &self.schema_version)?);
 
         let owned = TXN.take().unwrap().into_owner();
         self.pool.push(owned.into_owner().into_inner());

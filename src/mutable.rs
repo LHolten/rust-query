@@ -21,7 +21,7 @@ pub struct Mutable<'transaction, T: Table> {
 impl<'transaction, T: Table> Mutable<'transaction, T> {
     pub(crate) fn new(temp: &'transaction mut dyn Any) -> Self {
         Self {
-            temp: (temp as &mut dyn Any).downcast_mut().unwrap(),
+            temp: temp.downcast_mut().unwrap(),
         }
     }
 

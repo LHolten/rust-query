@@ -141,7 +141,7 @@ impl Rows {
                             let list_item = list.item();
                             list_item.write(format_args!("a{aggr_idx}.ff{forward_idx} = "));
                             self.emit_join(list_item, join, &mut deps);
-                            list_item.write(format!(".{}", Alias(join.0.main_column))); // TODO use real primary key
+                            list_item.write(format_args!(".{}", Alias(join.0.main_column)));
                         }
                     }
                 })
