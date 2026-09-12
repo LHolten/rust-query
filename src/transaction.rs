@@ -248,6 +248,13 @@ impl<S> Transaction<S> {
             _local: PhantomData,
         }))
     }
+
+    pub(crate) fn copy(&self) -> Self {
+        Self {
+            _p2: PhantomData,
+            _local: PhantomData,
+        }
+    }
 }
 
 impl<S: Schema> Transaction<S> {

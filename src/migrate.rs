@@ -201,7 +201,7 @@ impl<S: Schema> Migrator<S> {
         if self.user_version.is_none_or(|x| x == S::VERSION) {
             self = self.with_transaction(|txn| {
                 let mut txn = TransactionMigrate {
-                    inner: txn,
+                    inner: txn.copy(),
                     scope: Default::default(),
                     rename_map: HashMap::new(),
                     extra_index: Vec::new(),
