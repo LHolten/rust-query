@@ -41,7 +41,7 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
 
 /// This type is used to specify what should happen with a row during migration.
 #[non_exhaustive]
-pub enum MigrateWith<'t, M> {
+pub enum Migrate<'t, M> {
     /// The row should be migrated to have this new value.
     New(M),
     #[doc(hidden)]
@@ -50,7 +50,7 @@ pub enum MigrateWith<'t, M> {
 
 pub(crate) struct FkErrHandler<'t>(pub Box<dyn 't + FnOnce() -> Infallible>);
 
-impl<'t, M> MigrateWith<'t, M> {
+impl<'t, M> Migrate<'t, M> {
     /// The row should be removed.
     ///
     /// The closure is called when there is a foreign key error due to the row being removed.
@@ -59,7 +59,7 @@ impl<'t, M> MigrateWith<'t, M> {
     }
 }
 
-impl<'t, M: Migrateable<MigrateFrom: Table<Referer = Infallible>>> MigrateWith<'t, M> {
+impl<'t, M: Migrateable<MigrateFrom: Table<Referer = Infallible>>> Migrate<'t, M> {
     /// The row should be removed and the table has the `#[no_reference]` attribute.
     pub fn remove() -> Self {
         Self::remove_or_else(|| unreachable!("there are no foreign keys to this table"))
@@ -106,10 +106,10 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// - 0 => [Infallible]
     /// - 1.. => [TableRow] (row in the old table that could not be migrated)
     ///
-    /// The closure should return [MigrateWith] to indicate what should happen with each row.
+    /// The closure should return [Migrate] to indicate what should happen with each row.
     pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
-        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> MigrateWith<'x, T::Migration>,
+        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> Migrate<'x, T::Migration>,
     ) -> Result<Migrated<'x, T>, T::MigrateConflict> {
         let new_name = self.new_table_name::<T>();
 
@@ -122,7 +122,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         // See https://sqlite.org/isolation.html for more information.
         for row in self.unmigrated::<T>(new_name) {
             match f(self.lazy(row)) {
-                MigrateWith::New(new) => {
+                Migrate::New(new) => {
                     // TODO: deduplicate this self.lazy call
                     let val = T::prepare(new, self.lazy(row));
                     try_insert_private::<T>(
@@ -132,7 +132,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
                     )
                     .map_err(|_| T::map_conflict(row))?;
                 }
-                MigrateWith::Remove(fn_once) => {
+                Migrate::Remove(fn_once) => {
                     error_map.insert(row.inner.idx, fn_once);
                 }
             };
@@ -150,7 +150,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// Migrate all rows to the new schema.
     ///
     /// Same as [Self::migrate_optional], but it does not require wrapping all migrated
-    /// rows in [MigrateWith::New].
+    /// rows in [Migrate::New].
     ///
     /// This is most likely the variant that you want to use, unless you have a table without
     /// unique constraint, see [Self::migrate_ok].
@@ -158,7 +158,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
     ) -> Result<Migrated<'static, T>, T::MigrateConflict> {
-        self.migrate_optional(|x| MigrateWith::New(f(x)))
+        self.migrate_optional(|x| Migrate::New(f(x)))
     }
 
     /// Migrate all rows to the new schema, without unique constraint conflicts.

@@ -2,13 +2,13 @@
 
 - Added `#[rename]` attribute to rename any table or column to be 
 different from the Rust struct or field.
-- Optimized migrations to never load all rows at once, but the new `MigrateWith::remove_or_else`
+- Optimized migrations to never load all rows at once, but the new `Migrate::remove_or_else`
 means that an error handler must be stored for each removed row.
 - Fixed a bug where a custom primary key name was not used when decorrelating nested queries.
 
 ## Breaking
 
-- Changed `TransactionMigrate::migrate_optional` to use `MigrateWith` type.
+- Changed `TransactionMigrate::migrate_optional` to use `Migrate` type.
 This new type allows you to specify for each row that is dropped what should happen
 if the row had a foreign key reference to it.
   - `Migrated::map_fk_error` is removed. `Migrated` can no longer be constructed manually.
