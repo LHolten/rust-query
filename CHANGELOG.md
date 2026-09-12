@@ -5,6 +5,7 @@ different from the Rust struct or field.
 - Optimized migrations to never load all rows at once, but the new `Migrate::remove_or_else`
 means that an error handler must be stored for each removed row.
 - Fixed a bug where a custom primary key name was not used when decorrelating nested queries.
+- Fixed a migration bug with custom primary keys.
 
 ## Breaking
 
