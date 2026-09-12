@@ -19,7 +19,7 @@ use crate::{
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
-    scoped_transaction::TransactionScoped,
+    scoped_transaction::TransactionScope,
     value::{DbTyp, OptTable},
 };
 
@@ -284,8 +284,8 @@ impl<S: Schema> Transaction<S> {
 
 impl<S: 'static> Transaction<S> {
     /// Create a transaction scope that limits the lifetime of [crate::Mutable].
-    pub fn scoped<O>(&mut self, f: impl FnOnce(&mut TransactionScoped<S>) -> O) -> O {
-        let mut txn = TransactionScoped {
+    pub fn scope<O>(&mut self, f: impl FnOnce(&mut TransactionScope<S>) -> O) -> O {
+        let mut txn = TransactionScope {
             _p2: PhantomData,
             tmp: Default::default(),
         };

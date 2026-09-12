@@ -21,7 +21,7 @@ use crate::{
     lower::{self, JoinableTable},
     mutable::Mutable,
     private::IntoJoinable,
-    scoped_transaction::{MutTemp, TransactionScoped},
+    scoped_transaction::{MutTemp, TransactionScope},
 };
 pub use db_typ::{DbTyp, StorableTyp};
 
@@ -75,7 +75,7 @@ pub trait OptTable: DbTyp {
     type Mutable<'t>;
 
     fn into_mutable<'t>(
-        txn: &'t mut TransactionScoped<Self::Schema>,
+        txn: &'t mut TransactionScope<Self::Schema>,
         val: Self,
     ) -> Self::Mutable<'t>;
 }
@@ -85,7 +85,7 @@ impl<T: Table> OptTable for TableRow<T> {
     type Mutable<'t> = Mutable<'t, T>;
 
     fn into_mutable<'t>(
-        txn: &'t mut TransactionScoped<Self::Schema>,
+        txn: &'t mut TransactionScope<Self::Schema>,
         inp: Self,
     ) -> Self::Mutable<'t> {
         txn.tmp = Cell::new(vec![MutTemp::new(inp)]);
@@ -98,7 +98,7 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
     type Mutable<'t> = Option<Mutable<'t, T>>;
 
     fn into_mutable<'t>(
-        txn: &'t mut TransactionScoped<Self::Schema>,
+        txn: &'t mut TransactionScope<Self::Schema>,
         val: Self,
     ) -> Self::Mutable<'t> {
         val.map(|x| TableRow::<T>::into_mutable(txn, x))

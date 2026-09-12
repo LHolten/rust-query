@@ -42,7 +42,7 @@ pub use db::TableRow;
 pub use error::Conflict;
 pub use lazy::Lazy;
 pub use mutable::Mutable;
-pub use scoped_transaction::TransactionScoped;
+pub use scoped_transaction::TransactionScope;
 pub use select::{IntoSelect, Select};
 pub use transaction::{Database, Transaction, TransactionWeak};
 pub use value::aggregate::aggregate;

@@ -12,20 +12,20 @@ use crate::{
 
 /// [Transaction] with mutation support and without downgrade support.
 ///
-/// This type can be created using [Transaction::scoped].
-pub struct TransactionScoped<S: 'static> {
+/// This type can be created using [Transaction::scope].
+pub struct TransactionScope<S: 'static> {
     pub(crate) _p2: PhantomData<&'static Transaction<S>>,
     pub(crate) tmp: Cell<Vec<Box<dyn Any>>>,
 }
 
-impl<S> DerefMut for TransactionScoped<S> {
+impl<S> DerefMut for TransactionScope<S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.tmp.take();
         Transaction::new_ref()
     }
 }
 
-impl<S> Deref for TransactionScoped<S> {
+impl<S> Deref for TransactionScope<S> {
     type Target = Transaction<S>;
 
     fn deref(&self) -> &Self::Target {
@@ -34,7 +34,7 @@ impl<S> Deref for TransactionScoped<S> {
     }
 }
 
-impl<S> TransactionScoped<S> {
+impl<S> TransactionScope<S> {
     /// Retrieves a [Mutable] or `Option<Mutable>` from the database.
     ///
     /// The [Transaction] is borrowed mutably until the [Mutable] is dropped.
@@ -51,7 +51,7 @@ impl<S> TransactionScoped<S> {
     /// # }
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|txn| {
-    /// txn.scoped(|txn| {
+    /// txn.scope(|txn| {
     /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
     ///
     /// let mut tmp = txn.mutable(baz_id);
@@ -87,7 +87,7 @@ impl<S> TransactionScoped<S> {
     /// # }
     /// # use v0::*;
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
-    /// # txn.scoped(|txn|{
+    /// # txn.scope(|txn|{
     /// # txn.insert_ok(User {age: 30});
     /// for mut user in txn.mutable_vec(User.age(20)) {
     ///     user.age += 1;

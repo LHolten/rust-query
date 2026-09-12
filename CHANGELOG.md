@@ -9,17 +9,17 @@ means that an error handler must be stored for each removed row.
 
 ## Breaking
 
-- Changed `TransactionMigrate::migrate_optional` to use `Migrate` type.
-This new type allows you to specify for each row that is dropped what should happen
-if the row had a foreign key reference to it.
+- Changed `TransactionMigrate::migrate_optional` to use the new `Migrate` type.
+This new type allows you to specify for each row that is dropped how the program should
+diverge.
   - `Migrated::map_fk_error` is removed. `Migrated` can no longer be constructed manually.
   - Schema generic is removed from `Migrated` type. 
   - Changed generics on `TransactionMigrate` methods to the new table type.
 
-- Added `ScopedTransaction` to handle mutable table rows without a `Drop` impl.
+- Added `TransactionScope` to handle mutable table rows without a `Drop` impl.
 This means that the `Mutable` type will now automatically have a non lexical lifetime, which
 makes it easier to use. 
-  - The `Transaction::mutable` and `Transaction::mutable_vec` have moved to `ScopedTransaction`.
+  - The `Transaction::mutable` and `Transaction::mutable_vec` have moved to `TransactionScope`.
   - `Mutable::into_table_row` is renamed to `Mutable::table_row` and takes self by reference.
 
 

@@ -16,7 +16,7 @@ fn mutable_shenanigans() {
 
     let db = Database::new(Config::open_in_memory());
     db.transaction_mut_ok(|txn| {
-        txn.scoped(|txn| {
+        txn.scope(|txn| {
             txn.insert(Foo { alpha: 1, bravo: 1 }).unwrap();
             let row = txn.insert(Foo { alpha: 1, bravo: 2 }).unwrap();
             let mut mutable = txn.mutable(row);
@@ -78,7 +78,7 @@ fn conflict() {
             })
             .unwrap();
 
-        txn.scoped(|txn| {
+        txn.scope(|txn| {
             let conflict_id = txn
                 .mutable(id)
                 .unique(|artist| artist.name = "first".to_owned())

@@ -95,14 +95,14 @@ impl Emulate {
                 let input = new_order::generate_input(self.warehouse, &self.other_warehouses);
                 let _ = black_box(db.transaction_mut(|txn| {
                     start = Some(Instant::now());
-                    txn.scoped(|txn| new_order::new_order(txn, input))
+                    txn.scope(|txn| new_order::new_order(txn, input))
                 }));
             }
             TxnKind::Payment => {
                 let input = payment::generate_input(self.warehouse, &self.other_warehouses);
                 black_box(db.transaction_mut_ok(|txn| {
                     start = Some(Instant::now());
-                    txn.scoped(|txn| payment::payment(txn, input))
+                    txn.scope(|txn| payment::payment(txn, input))
                 }));
             }
             TxnKind::OrderStatus => {

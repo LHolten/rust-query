@@ -50,7 +50,7 @@ pub fn delivery(
     let order = new_order.order.table_row();
     let new_order = new_order.table_row();
 
-    txn.scoped(|txn| {
+    txn.scope(|txn| {
         txn.mutable(order).carrier_id = Some(input.carrier_id);
 
         let mut total_amount = 0;

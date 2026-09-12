@@ -67,7 +67,7 @@ fn main() {
             name: "paul".to_owned(),
         });
 
-        txn.scoped(|txn| {
+        txn.scope(|txn| {
             // We can mutate rows with a simple assignment.
             txn.mutable(dog).uploaded_by = paul;
         });
