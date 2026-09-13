@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, panic};
 
 use crate::{Database, Lazy, migrate::migration::Migrate, migration::Config};
 
@@ -128,4 +128,57 @@ fn migrations_preserve_index() {
             .unwrap();
         assert_eq!(item.foo.name, "charlie");
     });
+}
+
+#[test]
+fn foreign_key_violation() {
+    mod schema {
+        #[crate::migration::schema(Test)]
+        #[version(0..=1)]
+        pub mod vN {
+            use crate::TableRow;
+
+            pub struct Ref {
+                pub foo: TableRow<Foo>,
+            }
+            pub struct Foo {
+                #[version(..1)]
+                pub name: String,
+            }
+        }
+    }
+    use schema::*;
+
+    const FILE: &str = "foreign_key_violation.sqlite";
+    let _ = fs::remove_file(FILE);
+
+    let db: Database<v0::Test> = Database::new(Config::open(FILE));
+    db.transaction_mut_ok(|txn| {
+        let spacer = txn.insert_ok(v0::Foo {
+            name: "spacer".to_owned(),
+        });
+        let foo = txn.insert_ok(v0::Foo {
+            name: "referenced".to_owned(),
+        });
+        txn.insert_ok(v0::Ref { foo });
+        let txn = txn.downgrade();
+        txn.delete(spacer).unwrap();
+    });
+
+    let err = panic::catch_unwind(|| {
+        Database::migrator(Config::open(FILE))
+            .unwrap()
+            .migrate(|txn| v0::migrate::Test {
+                foo: txn
+                    .migrate_optional(|old: Lazy<'_, v0::Foo>| {
+                        assert_eq!(old.name, "referenced");
+                        Migrate::remove_or_else(|| panic!("this should trigger"))
+                    })
+                    .unwrap(),
+            })
+            .finish()
+            .unwrap();
+    })
+    .unwrap_err();
+    assert_eq!(err.downcast_ref::<&str>().unwrap(), &"this should trigger");
 }
