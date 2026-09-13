@@ -1,9 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    convert::Infallible,
-    marker::PhantomData,
-    ops::Deref,
-};
+use std::{collections::HashMap, convert::Infallible, marker::PhantomData, ops::Deref};
 
 use crate::{
     Lazy, Table, TableRow, Transaction, aggregate,
@@ -36,33 +31,6 @@ impl<FromSchema> Deref for TransactionMigrate<FromSchema> {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
-    }
-}
-
-/// This type is used to specify what should happen with a row during migration.
-#[non_exhaustive]
-pub enum Migrate<'t, M> {
-    /// The row should be migrated to have this new value.
-    New(M),
-    #[doc(hidden)]
-    Remove(FkErrHandler<'t>),
-}
-
-pub(crate) struct FkErrHandler<'t>(pub Box<dyn 't + FnOnce() -> Infallible>);
-
-impl<'t, M> Migrate<'t, M> {
-    /// The row should be removed.
-    ///
-    /// The closure is called when there is a foreign key error due to the row being removed.
-    pub fn remove_or_else(f: impl 't + FnOnce() -> Infallible) -> Self {
-        Self::Remove(FkErrHandler(Box::new(f)))
-    }
-}
-
-impl<'t, M: Table<Referer = Infallible>> Migrate<'t, M> {
-    /// The row should be removed and the table has the `#[no_reference]` attribute.
-    pub fn remove() -> Self {
-        Self::remove_or_else(|| unreachable!("there are no foreign keys to this table"))
     }
 }
 
@@ -109,11 +77,9 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// The closure should return [Migrate] to indicate what should happen with each row.
     pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
-        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> Migrate<'x, T::Migration>,
-    ) -> Result<Migrated<'x, T>, T::MigrateConflict> {
+        mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> Option<T::Migration>,
+    ) -> Result<MigratedOptional<'x, T>, T::MigrateConflict> {
         let new_name = self.new_table_name::<T>();
-
-        let mut error_map = BTreeMap::new();
 
         // We will do insertions here while retrieving rows from the database.
         // This is fine because we do not care if the query uses old or new data.
@@ -121,30 +87,19 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         // That would be very strange though, since we are not updating the old table.
         // See https://sqlite.org/isolation.html for more information.
         for row in self.unmigrated::<T>(new_name) {
-            match f(self.lazy(row)) {
-                Migrate::New(new) => {
-                    // TODO: deduplicate this self.lazy call
-                    let val = T::prepare(new, self.lazy(row));
-                    try_insert_private::<T>(
-                        lower::JoinableTable::Tmp(new_name),
-                        Some(row.inner.idx),
-                        val,
-                    )
-                    .map_err(|_| T::map_conflict(row))?;
-                }
-                Migrate::Remove(fn_once) => {
-                    error_map.insert(row.inner.idx, fn_once);
-                }
+            if let Some(new) = f(self.lazy(row)) {
+                // TODO: deduplicate this self.lazy call
+                let val = T::prepare(new, self.lazy(row));
+                try_insert_private::<T>(
+                    lower::JoinableTable::Tmp(new_name),
+                    Some(row.inner.idx),
+                    val,
+                )
+                .map_err(|_| T::map_conflict(row))?;
             };
         }
 
-        Ok(Migrated {
-            _p: PhantomData,
-            f: Box::new(|b| {
-                b.foreign_key::<T>(error_map);
-            }),
-            _local: PhantomData,
-        })
+        Ok(MigratedOptional { inner: PhantomData })
     }
 
     /// Migrate all rows to the new schema.
@@ -158,7 +113,8 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> T::Migration,
     ) -> Result<Migrated<'static, T>, T::MigrateConflict> {
-        self.migrate_optional(|x| Migrate::New(f(x)))
+        self.migrate_optional(|x| Some(f(x)))
+            .map(|x| x.map_fk_err(|| unreachable!("all rows are migrated")))
     }
 
     /// Migrate all rows to the new schema, without unique constraint conflicts.
@@ -179,25 +135,25 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
 /// This only needs to be provided for tables that are migrated from a previous table.
 pub struct Migrated<'t, T: Migrateable> {
     _p: PhantomData<T>,
-    f: Box<dyn 't + FnOnce(&mut SchemaBuilder<'t, T::FromSchema>)>,
+    f: FkErrHandler<'t>,
     _local: PhantomData<*const ()>,
 }
 
-impl<'t, T: Migrateable> Migrated<'t, T> {
+impl<'t, To: Migrateable> Migrated<'t, To> {
     #[doc(hidden)]
-    pub fn apply(self, b: &mut SchemaBuilder<'t, T::FromSchema>) {
-        (self.f)(b)
+    pub fn apply(self, b: &mut SchemaBuilder<'t, To::FromSchema>) {
+        b.foreign_key::<To>(self.f);
     }
 }
 
 pub struct SchemaBuilder<'t, FromSchema: 'static> {
     pub(super) inner: TransactionMigrate<FromSchema>,
     pub(super) drop: Vec<String>,
-    pub(super) foreign_key: HashMap<&'static str, BTreeMap<i64, FkErrHandler<'t>>>,
+    pub(super) foreign_key: HashMap<&'static str, FkErrHandler<'t>>,
 }
 
 impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
-    pub fn foreign_key<To: Table>(&mut self, err: BTreeMap<i64, FkErrHandler<'t>>) {
+    pub fn foreign_key<To: Table>(&mut self, err: FkErrHandler<'t>) {
         self.inner.new_table_name::<To>();
 
         self.foreign_key.insert(To::NAME, err);
@@ -211,3 +167,31 @@ impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
         self.drop.push(format!("DROP TABLE {}", Alias(T::NAME)));
     }
 }
+
+/// Proof that a table is at least partially migrated.
+///
+/// This type can be turned into [Migrated] by providing an error
+/// handler.
+pub struct MigratedOptional<'t, T: Migrateable> {
+    inner: PhantomData<Migrated<'t, T>>,
+}
+
+impl<'t, T: Migrateable> MigratedOptional<'t, T> {
+    /// The closure is called when there is a foreign key error due to some row being removed.
+    pub fn map_fk_err(self, f: impl 't + FnOnce() -> Infallible) -> Migrated<'t, T> {
+        Migrated {
+            _p: PhantomData,
+            f: FkErrHandler(Box::new(f)),
+            _local: PhantomData,
+        }
+    }
+}
+
+impl<'t, T: Migrateable<Referer = Infallible>> MigratedOptional<'t, T> {
+    /// The table has the no_reference attribute, so partial migration is always ok.
+    pub fn no_reference(self) -> Migrated<'t, T> {
+        self.map_fk_err(|| unreachable!("no references exist to this table"))
+    }
+}
+
+pub(crate) struct FkErrHandler<'t>(pub Box<dyn 't + FnOnce() -> Infallible>);

@@ -230,14 +230,8 @@ impl<S: Schema> Migrator<S> {
                 fix_by_copy::<M::To>(Transaction::new_ref(), fix_by_copy::Detail::ForeignKeys);
 
                 let transaction = TXN.take().unwrap();
-                if let Some((fk, idx)) = foreign_key_check(transaction.get()) {
-                    (builder
-                        .foreign_key
-                        .remove(&*fk)
-                        .unwrap()
-                        .remove(&idx)
-                        .unwrap()
-                        .0)();
+                if let Some(fk) = foreign_key_check(transaction.get()) {
+                    (builder.foreign_key.remove(&*fk).unwrap().0)();
                 }
 
                 TXN.set(Some(transaction));
@@ -370,11 +364,11 @@ pub fn with_test_renderer<R>(f: impl FnOnce() -> R) -> R {
     f()
 }
 
-fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<(String, i64)> {
+fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {
     let error = conn
         .prepare("PRAGMA foreign_key_check")
         .unwrap()
-        .query_map([], |row| Ok((row.get(2)?, row.get(3)?)))
+        .query_map([], |row| Ok(row.get(2)?))
         .unwrap()
         .next();
     error.transpose().unwrap()

@@ -1,6 +1,6 @@
 use std::{fs, panic};
 
-use crate::{Database, Lazy, migrate::migration::Migrate, migration::Config};
+use crate::{Database, Lazy, migration::Config};
 
 #[test]
 fn unique_constraint_violation() {
@@ -8,6 +8,7 @@ fn unique_constraint_violation() {
         #[crate::migration::schema(Test)]
         #[version(0..=1)]
         pub mod vN {
+            #[no_reference]
             pub struct Foo {
                 #[version(..1)]
                 pub name: String,
@@ -40,9 +41,7 @@ fn unique_constraint_violation() {
             });
             assert!(res.is_err(), "the new unique constraint should be caught");
             v0::migrate::Test {
-                foo: txn
-                    .migrate_optional(|_| Migrate::remove_or_else(|| panic!()))
-                    .unwrap(),
+                foo: txn.migrate_optional(|_| None).unwrap().no_reference(),
             }
         })
         .finish()
@@ -172,9 +171,10 @@ fn foreign_key_violation() {
                 foo: txn
                     .migrate_optional(|old: Lazy<'_, v0::Foo>| {
                         assert_eq!(old.name, "referenced");
-                        Migrate::remove_or_else(|| panic!("this should trigger"))
+                        None
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .map_fk_err(|| panic!("this should trigger")),
             })
             .finish()
             .unwrap();
