@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{collections::BTreeSet, rc::Rc};
 
 use ord_rc::OrdRc;
+use rusqlite::types::Value;
 
 pub const CONST_0: Expr = Expr::Constant("0");
 pub const CONST_FALSE: Expr = Expr::Constant("false");
@@ -14,9 +15,8 @@ pub const CONST_NULL: Expr = Expr::Constant("NULL");
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JoinableTable {
-    Table(&'static str),
+    Table(&'static str, Option<OrdRc<Value>>),
     Tmp(TmpTable),
-    Pragma(&'static str, Vec<OrdRc<rusqlite::types::Value>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -77,21 +77,22 @@ impl Expr {
     /// Only use this on expressions that represent the id of a table
     pub fn col(
         self: &Rc<Self>,
-        table: JoinableTable,
+        table: &'static str,
         col: &'static str,
         main_col: &'static str,
         not_null_id: bool,
     ) -> Rc<Expr> {
-        if let Expr::RowIndex(row_like, old) = Rc::as_ref(self)
-            && *old == main_col
-            && row_like.table() == &table
+        if let Expr::RowIndex(row_like, old_col) = Rc::as_ref(self)
+            && *old_col == main_col
+            && let JoinableTable::Table(old_table, _pragma_args) = row_like.table()
+            && *old_table == table
         {
             // if this is already a join then we can just change the column
             return Rc::new(Expr::RowIndex(row_like.clone(), col));
         }
 
         let unique = Unique {
-            table,
+            table: JoinableTable::Table(table, None),
             conds: vec![(main_col, self.clone())],
             guaranteed: not_null_id, // guaranteed by foreign key constraint when not null
         };

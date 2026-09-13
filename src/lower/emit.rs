@@ -342,19 +342,16 @@ impl Parens {
 impl JoinableTable {
     pub fn emit(&self, w: &mut Stmt) {
         match self {
-            JoinableTable::Table(name) => {
+            JoinableTable::Table(name, pragma_arg) => {
                 w.write(format_args!("main.{}", Alias(name)));
+                if let Some(param) = pragma_arg {
+                    w.write("(");
+                    w.write_param(param);
+                    w.write(")");
+                }
             }
             JoinableTable::Tmp(tmp) => {
                 w.write(format_args!("main.{}", tmp));
-            }
-            JoinableTable::Pragma(func, params) => {
-                w.write(format_args!("{func}("));
-                let mut list = ListWriter::new(w, ", ");
-                for param in params {
-                    list.item().write_param(param);
-                }
-                w.write(")");
             }
         }
     }

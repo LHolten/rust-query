@@ -1,9 +1,9 @@
 use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
-    CustomJoin, Expr, IntoExpr, Table, TableRow,
+    Expr, IntoExpr, Table, TableRow,
     joinable::IntoJoinable,
-    lower::{self, JoinableTableWithId},
+    lower,
     private::Joinable,
     value::{DbTyp, EqTyp},
 };
@@ -61,16 +61,6 @@ impl<'inner, S> Rows<'inner, S> {
     #[doc(hidden)]
     pub fn join_private<T: Table<Schema = S>>(&mut self) -> Expr<'inner, S, TableRow<T>> {
         self.join(Joinable::table())
-    }
-
-    pub(crate) fn join_custom<T: CustomJoin<Schema = S>>(
-        &mut self,
-        t: T,
-    ) -> Expr<'inner, S, TableRow<T>> {
-        self.join(Joinable::new(JoinableTableWithId {
-            name: t.name(),
-            main_column: t.main_column(),
-        }))
     }
 
     /// Filter rows based on an expression.

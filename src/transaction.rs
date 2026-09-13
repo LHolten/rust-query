@@ -19,6 +19,7 @@ use crate::{
     private::{IntoJoinable, Reader},
     query::{OwnedRows, Query, track_stmt},
     rows::Rows,
+    schema::read::Pragma,
     scoped_transaction::TransactionScope,
     value::{DbTyp, OptTable},
 };
@@ -246,6 +247,10 @@ impl<S> Transaction<S> {
         }))
     }
 
+    pub(crate) fn pragma(&self) -> &'static Transaction<Pragma> {
+        Transaction::new_ref()
+    }
+
     pub(crate) fn copy(&self) -> Self {
         Self {
             _p2: PhantomData,
@@ -432,7 +437,7 @@ impl<S: 'static> Transaction<S> {
     /// # });
     /// ```
     pub fn insert<T: Table<Schema = S>>(&mut self, val: T) -> Result<TableRow<T>, T::Conflict> {
-        try_insert_private(lower::JoinableTable::Table(T::NAME), None, val)
+        try_insert_private(lower::JoinableTable::Table(T::NAME, None), None, val)
     }
 
     /// This is a convenience function to make using [Transaction::insert]
@@ -673,7 +678,7 @@ pub(crate) fn try_update_private<T: Table>(
 
     let mut stmt = emit::Stmt::default();
     stmt.write("UPDATE ");
-    lower::JoinableTable::Table(T::NAME).emit(&mut stmt);
+    lower::JoinableTable::Table(T::NAME, None).emit(&mut stmt);
 
     stmt.write(" SET ");
     let mut list = ListWriter::new(&mut stmt, ", ");
@@ -710,7 +715,7 @@ pub(crate) fn try_update_private<T: Table>(
                 <T::Conflict as FromConflict>::from_conflict(
                     txn,
                     lower::JoinableTableWithId {
-                        name: lower::JoinableTable::Table(T::NAME),
+                        name: lower::JoinableTable::Table(T::NAME, None),
                         main_column: T::ID,
                     },
                     reader.builder,

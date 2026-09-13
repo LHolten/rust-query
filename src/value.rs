@@ -18,7 +18,7 @@ use std::{
 use crate::{
     IntoExpr, Table,
     db::TableRow,
-    lower::{self, JoinableTable},
+    lower,
     mutable::Mutable,
     private::IntoJoinable,
     scoped_transaction::{MutTemp, TransactionScope},
@@ -148,12 +148,7 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
 ) -> Expr<'x, S, C> {
     let table = table.into_expr();
     Expr::new_inner(
-        table.inner.col(
-            JoinableTable::Table(T::NAME),
-            name,
-            T::ID,
-            table.not_null_key,
-        ),
+        table.inner.col(T::NAME, name, T::ID, table.not_null_key),
         table.not_null_key && !C::NULLABLE,
     )
 }

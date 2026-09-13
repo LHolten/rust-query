@@ -21,7 +21,7 @@ impl<'column, S, T: DbTyp> Default for Expr<'column, S, T> {
 impl Default for JoinableTable {
     #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
-        JoinableTable::Table("foo")
+        JoinableTable::Table("foo", None)
     }
 }
 

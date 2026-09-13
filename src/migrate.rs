@@ -88,7 +88,7 @@ impl<S: Schema> Database<S> {
 
             for (table_name, table) in schema.tables {
                 let table = table.to_db();
-                let create = table.create(lower::JoinableTable::Table(table_name));
+                let create = table.create(lower::JoinableTable::Table(table_name, None));
                 txn.get().execute(&create, []).unwrap();
                 for stmt in table.delayed_indices(table_name) {
                     txn.get().execute(&stmt, []).unwrap();
@@ -325,7 +325,7 @@ fn set_user_version(conn: &rusqlite::Transaction, v: i64) -> Result<(), rusqlite
 
 pub(crate) fn check_schema<S: Schema>(txn: &Transaction<S>) -> Result<(), Renderable> {
     let from_macro = crate::schema::from_macro::Schema::new::<S>();
-    let from_db = read_schema(txn);
+    let from_db = read_schema(txn.pragma());
     let report = from_db.diff(from_macro, S::SOURCE, S::PATH, S::VERSION);
     if report.is_empty() {
         Ok(())

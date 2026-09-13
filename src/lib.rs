@@ -312,11 +312,6 @@ pub trait Table: Sized + 'static {
     const NAME: &'static str;
 }
 
-trait CustomJoin: Table {
-    fn name(&self) -> lower::JoinableTable;
-    fn main_column(&self) -> &'static str;
-}
-
 #[test]
 #[cfg(feature = "jiff-02")]
 fn compile_tests() {

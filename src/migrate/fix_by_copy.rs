@@ -16,7 +16,7 @@ pub enum Detail {
 }
 
 pub fn fix_by_copy<S: Schema>(txn: &Transaction<S>, detail: Detail) {
-    let schema = read_schema(txn);
+    let schema = read_schema(txn.pragma());
     let expected_schema = crate::schema::from_macro::Schema::new::<S>();
 
     fn apply_detail(old: &mut from_db::Table, goal: &from_macro::Table, detail: Detail) -> bool {
@@ -77,7 +77,7 @@ pub fn fix_by_copy<S: Schema>(txn: &Transaction<S>, detail: Detail) {
     }
 
     // check that we solved the mismatch
-    let schema = read_schema(txn);
+    let schema = read_schema(txn.pragma());
     for (name, mut table) in schema.tables {
         let expected_table = &expected_schema.tables[&*name];
         assert!(!apply_detail(&mut table, expected_table, detail));
