@@ -59,7 +59,7 @@ impl<'t, M> Migrate<'t, M> {
     }
 }
 
-impl<'t, M: Migrateable<MigrateFrom: Table<Referer = Infallible>>> Migrate<'t, M> {
+impl<'t, M: Table<Referer = Infallible>> Migrate<'t, M> {
     /// The row should be removed and the table has the `#[no_reference]` attribute.
     pub fn remove() -> Self {
         Self::remove_or_else(|| unreachable!("there are no foreign keys to this table"))
