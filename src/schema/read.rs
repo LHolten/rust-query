@@ -41,7 +41,10 @@ pub mod vN {
     }
 
     #[rename("pragma_foreign_key_list")]
+    #[primary_key("pragma_has_no_pk")]
     pub struct ForeignKeyList {
+        pub id: i64,
+        pub seq: i64,
         pub table: String,
         pub from: String,
         pub to: Option<String>,
@@ -102,13 +105,6 @@ pub fn read_schema(conn: &'static Transaction<Pragma>) -> from_db::Schema {
         fks: BTreeMap<String, ForeignKey>,
     }
 
-    #[derive(Clone, FromExpr)]
-    #[rust_query(From = ForeignKeyList)]
-    struct ForeignKey {
-        table: String,
-        to: Option<String>,
-    }
-
     let mut basic = BTreeMap::new();
     for (table_name, strict) in tables {
         assert!(strict, "all tables must be STRICT");
@@ -118,12 +114,7 @@ pub fn read_schema(conn: &'static Transaction<Pragma>) -> from_db::Schema {
             q.into_vec(Column::from_expr(table))
         });
 
-        let fks: BTreeMap<_, _> = conn
-            .query(|q| {
-                let fk = q.join(with_arg(ForeignKeyList, &table_name));
-                q.into_iter((&fk.from, ForeignKey::from_expr(&fk)))
-            })
-            .collect();
+        let fks = read_fks(conn, &table_name);
 
         let mut primary_key = None;
         for col in columns.extract_if(.., |col| col.pk != 0) {
@@ -175,7 +166,7 @@ pub fn read_schema(conn: &'static Transaction<Pragma>) -> from_db::Schema {
         for col in columns {
             let def = canonical::Column {
                 fk: fks.remove(&col.name).map(|x| {
-                    let to = x.to.unwrap_or_else(|| pks[&x.table].clone());
+                    let to = x.column.unwrap_or_else(|| pks[&x.table].clone());
                     (x.table, to)
                 }),
                 typ: col.r#type.parse().unwrap(),
@@ -252,6 +243,39 @@ pub fn read_schema(conn: &'static Transaction<Pragma>) -> from_db::Schema {
     }
 
     output
+}
+
+struct ForeignKey {
+    table: String,
+    column: Option<String>,
+}
+
+fn read_fks(
+    conn: &'static Transaction<Pragma>,
+    table_name: &String,
+) -> BTreeMap<String, ForeignKey> {
+    let fks: BTreeMap<_, _> = conn.query(|rows| {
+        let fk = rows.join(with_arg(ForeignKeyList, table_name));
+        rows.into_iter((&fk.id, &fk.table)).collect()
+    });
+
+    fks.into_iter()
+        .map(|(id, table)| {
+            let from_to: Vec<(String, Option<String>)> = conn.query(|rows| {
+                let fk = rows.join(with_arg(ForeignKeyList, table_name));
+                rows.filter(fk.id.eq(id));
+                rows.order_by()
+                    .asc(&fk.seq)
+                    .into_iter((&fk.from, &fk.to))
+                    .collect()
+            });
+            let [(from, to)] = from_to
+                .try_into()
+                .expect("foreign key must target one column");
+
+            (from, ForeignKey { table, column: to })
+        })
+        .collect()
 }
 
 fn with_arg<T: DbTyp>(
