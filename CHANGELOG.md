@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.10.0
+
 - Added `#[rename]` attribute to rename any table or column to be different from 
   the Rust struct or field.
 - Optimized migrations to never load all rows at once.
