@@ -188,7 +188,7 @@ impl<T: Migrateable> MigratedOptional<T> {
 }
 
 impl<T: Migrateable<Referer = Infallible>> MigratedOptional<T> {
-    /// The table has the no_reference attribute, so partial migration is always ok.
+    /// The table has the `#[no_reference]` attribute, so partial migration is always ok.
     pub fn no_reference(self) -> Migrated<'static, T> {
         self.map_fk_err(|| unreachable!("no references exist to this table"))
     }

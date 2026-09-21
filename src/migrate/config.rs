@@ -11,7 +11,7 @@ use crate::migrate::{Database, Migrator};
 /// [Config] is used to open a database from a file or in memory.
 ///
 /// This is the first step in the [Config] -> [Migrator] -> [Database] chain to
-/// get a [Database] instance.
+/// get a [Database] instance. See [Database::migrator] and [Database::new].
 ///
 /// # Sqlite config
 ///
