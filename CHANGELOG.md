@@ -9,7 +9,7 @@
 ## Breaking
 
 - Changed `TransactionMigrate::migrate_optional` to return `MigratedOptional`.
-  - `Migrated::map_fk_error` is replaced by `MigratedOptional::map_fk_error`.
+  - `Migrated::map_fk_err` is replaced by `MigratedOptional::map_fk_err`.
   - Schema generic is removed from `Migrated` type. 
   - Changed generics on `TransactionMigrate` methods to the new table type.
 

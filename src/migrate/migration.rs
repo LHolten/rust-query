@@ -74,7 +74,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// - 0 => [Infallible]
     /// - 1.. => [TableRow] (row in the old table that could not be migrated)
     ///
-    /// The closure should return [Migrate] to indicate what should happen with each row.
+    /// The closure returns [Option] to indicate if each row must be kept.
     pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> Option<T::Migration>,
@@ -105,7 +105,7 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// Migrate all rows to the new schema.
     ///
     /// Same as [Self::migrate_optional], but it does not require wrapping all migrated
-    /// rows in [Migrate::New].
+    /// rows in [Some].
     ///
     /// This is most likely the variant that you want to use, unless you have a table without
     /// unique constraint, see [Self::migrate_ok].
