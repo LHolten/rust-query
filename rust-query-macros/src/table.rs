@@ -33,8 +33,8 @@ pub fn define_all_tables(
         )?;
         mod_output.extend(table_def);
 
-        let table_name = &table.name;
-        schema_table_typs.push(quote! {b.table::<#table_name>()});
+        let table_ident = &table.name.ident;
+        schema_table_typs.push(quote! {b.table::<#table_ident>()});
     }
 
     // unwrap_or_default is used here because rust-analyzer sometimes doesn't give us the path
@@ -79,11 +79,11 @@ fn define_table(
     prev_mod: Option<&Ident>,
     next_mod: Option<&Ident>,
 ) -> syn::Result<TokenStream> {
-    let table_ident_with_span = table.name.clone();
-    table.name.set_span(Span::call_site());
-    let table_ident = &table.name;
+    let table_ident_with_span = table.name.ident.clone();
+    table.name.ident.set_span(Span::call_site());
+    let table_ident = &table.name.ident;
     let table_id = &table.primary_key;
-    let table_rename = &table.rename;
+    let table_str = &table.name.str;
     let table_helper = format_ident!("{table_ident}Index");
     let table_lazy = format_ident!("{table_ident}Lazy");
     let table_expr = format_ident!("{table_ident}Expr");
@@ -98,7 +98,7 @@ fn define_table(
     for index in &table.indices {
         let mut col_str = vec![];
         for col in &index.columns {
-            col_str.push(col.to_string());
+            col_str.push(&col.str);
         }
         let is_unique = index.kind.unique;
         let index_span = byte_range(source, index.kind.span);
@@ -126,7 +126,7 @@ fn define_table(
     let mut col_typ_immut = vec![];
 
     for (i, col) in &table.columns {
-        let ident = &col.name;
+        let ident = &col.name.ident;
         let tmp = format_ident!("_{table_ident}{i}", span = col.typ.span());
 
         let mut unique_columns = table
@@ -134,7 +134,7 @@ fn define_table(
             .iter()
             .filter(|x| x.kind.unique)
             .flat_map(|u| &u.columns);
-        if unique_columns.any(|x| x == ident) {
+        if unique_columns.any(|x| &x.ident == ident) {
             def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
             update_columns_safe.push(quote! {::rust_query::private::Ignore});
             try_from_update.push(quote! {Default::default()});
@@ -150,7 +150,7 @@ fn define_table(
         }
         parts.push(quote! {&col.#ident});
         generic.push(make_generic(ident));
-        col_rename.push(&col.rename);
+        col_rename.push(&col.name.str);
         col_ident.push(ident);
         col_doc.push(&col.doc_comments);
 
@@ -163,7 +163,7 @@ fn define_table(
         }
 
         col_typ.push(tmp);
-        col_span.push(byte_range(source, col.name.span()));
+        col_span.push(byte_range(source, col.name.str.span()));
         empty.push(quote! {});
     }
 
@@ -276,7 +276,7 @@ fn define_table(
                 }
 
                 const ID: &'static str = #table_id;
-                const NAME: &'static str = #table_rename;
+                const NAME: &'static str = #table_str;
                 const SPAN: (usize, usize) = #table_span;
 
                 type Conflict = #conflict_type;
@@ -340,7 +340,7 @@ impl SingleVersionTable {
             .iter()
             .filter(|index| index.kind.unique)
             .count();
-        let table_ident = &self.name;
+        let table_ident = &self.name.ident;
         match unique_indices {
             0 => quote! {::std::convert::Infallible},
             1 => quote! {::rust_query::TableRow<#table_ident>},

@@ -8,7 +8,9 @@ use syn::{
     Token, Visibility,
 };
 
-use crate::multi::{Index, IndexKind, VersionedColumn, VersionedSchema, VersionedTable};
+use crate::multi::{
+    Index, IndexKind, RenamedIdent, VersionedColumn, VersionedSchema, VersionedTable,
+};
 
 impl VersionedColumn {
     pub fn parse(field: Field, limit: Range<u32>) -> syn::Result<Self> {
@@ -62,8 +64,10 @@ impl VersionedColumn {
 
         Ok(VersionedColumn {
             versions,
-            rename,
-            name,
+            name: RenamedIdent {
+                ident: name,
+                str: rename,
+            },
             typ: field.ty.into_token_stream(),
             doc_comments,
             index,
@@ -78,25 +82,17 @@ impl VersionedTable {
         };
 
         let mut other_attrs = vec![];
-        let mut indices = vec![];
         let mut prev = None;
         let mut referenceable = true;
         let mut doc_comments = vec![];
         let mut primary_key = None;
         let mut rename = None;
+        let mut index_attrs = vec![];
 
         for attr in table.attrs {
             let path = attr.path();
             if path.is_ident("unique") || path.is_ident("index") {
-                let idents =
-                    attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?;
-                indices.push(Index {
-                    columns: idents.into_iter().collect(),
-                    kind: IndexKind {
-                        unique: path.is_ident("unique"),
-                        span: attr.meta.span(),
-                    },
-                })
+                index_attrs.push(attr);
             } else if path.is_ident("no_reference") {
                 referenceable = false;
             } else if path.is_ident("from") {
@@ -144,6 +140,29 @@ impl VersionedTable {
             .map(|x| VersionedColumn::parse(x, versions.clone()))
             .collect::<Result<_, _>>()?;
 
+        let mut indices = vec![];
+        for attr in index_attrs {
+            let mut index_cols = vec![];
+            for ident in
+                attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?
+            {
+                let Some(col) = columns.iter().find(|x| x.name.ident == ident) else {
+                    return Err(syn::Error::new_spanned(
+                        &ident,
+                        "no field with this name exists",
+                    ));
+                };
+                index_cols.push(col.name.clone());
+            }
+            indices.push(Index {
+                columns: index_cols,
+                kind: IndexKind {
+                    unique: attr.path().is_ident("unique"),
+                    span: attr.meta.span(),
+                },
+            })
+        }
+
         let primary_key = primary_key.unwrap_or_else(|| LitStr::new("id", Span::call_site()));
         let rename = rename.unwrap_or_else(|| {
             let new_name = table.ident.unraw().to_string().to_snake_case();
@@ -151,19 +170,21 @@ impl VersionedTable {
         });
 
         if let Some(col) = columns.iter().find(|col| {
-            col.name.to_string().to_ascii_lowercase() == primary_key.value().to_ascii_lowercase()
+            col.name.str.value().to_ascii_lowercase() == primary_key.value().to_ascii_lowercase()
         }) {
             return Err(syn::Error::new_spanned(
-                &col.name,
+                &col.name.str,
                 "column cannot have the same name as the primary_key",
             ));
         }
 
         Ok(VersionedTable {
-            rename,
             versions,
             prev,
-            name: table.ident,
+            name: RenamedIdent {
+                ident: table.ident,
+                str: rename,
+            },
             primary_key,
             columns,
             indices,

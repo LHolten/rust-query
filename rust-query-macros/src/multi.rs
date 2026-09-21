@@ -6,7 +6,7 @@ use syn::{Attribute, Ident, LitStr};
 
 #[derive(Clone)]
 pub(crate) struct Index {
-    pub columns: Vec<Ident>,
+    pub columns: Vec<RenamedIdent>,
     pub kind: IndexKind,
 }
 
@@ -24,8 +24,7 @@ pub(crate) struct VersionedSchema {
 
 // This is a table fully parsed from the schema, it represents multiple versions
 pub(crate) struct VersionedTable {
-    pub rename: LitStr,
-    pub name: Ident,
+    pub name: RenamedIdent,
     pub primary_key: LitStr,
     pub versions: std::ops::Range<u32>,
     // `prev` always has a distinct span from `name`
@@ -38,8 +37,7 @@ pub(crate) struct VersionedTable {
 
 pub(crate) struct VersionedColumn {
     pub versions: std::ops::Range<u32>,
-    pub rename: LitStr,
-    pub name: Ident,
+    pub name: RenamedIdent,
     pub typ: TokenStream,
     pub doc_comments: Vec<Attribute>,
     pub index: Option<IndexKind>,
@@ -67,7 +65,6 @@ impl VersionedSchema {
                     i,
                     SingleVersionColumn {
                         name: c.name.clone(),
-                        rename: c.rename.clone(),
                         typ: c.typ.clone(),
                         is_def: version == c.versions.end - 1,
                         doc_comments: c.doc_comments.clone(),
@@ -82,7 +79,11 @@ impl VersionedSchema {
             }
         }
         // we don't want to leak the span from table.name into `prev`
-        let mut prev = Some(format_ident!("{}", table.name, span = Span::call_site()));
+        let mut prev = Some(format_ident!(
+            "{}",
+            &table.name.ident,
+            span = Span::call_site()
+        ));
         if version == table.versions.start {
             prev = table.prev.clone();
         }
@@ -95,7 +96,6 @@ impl VersionedSchema {
 
         Ok(SingleVersionTable {
             prev,
-            rename: table.rename.clone(),
             name: table.name.clone(),
             primary_key: table.primary_key.clone(),
             indices,
@@ -108,8 +108,7 @@ impl VersionedSchema {
 
 pub(crate) struct SingleVersionTable {
     pub prev: Option<Ident>,
-    pub rename: LitStr,
-    pub name: Ident,
+    pub name: RenamedIdent,
     pub primary_key: LitStr,
     pub indices: Vec<Index>,
     pub doc_comments: Vec<Attribute>,
@@ -118,10 +117,35 @@ pub(crate) struct SingleVersionTable {
 }
 
 pub(crate) struct SingleVersionColumn {
-    pub name: Ident,
-    pub rename: LitStr,
+    pub name: RenamedIdent,
     pub typ: TokenStream,
     // is this the latest version where the column exists?
     pub is_def: bool,
     pub doc_comments: Vec<Attribute>,
+}
+
+#[derive(Clone)]
+pub struct RenamedIdent {
+    pub ident: Ident,
+    pub str: LitStr,
+}
+
+impl Ord for RenamedIdent {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.ident.cmp(&other.ident)
+    }
+}
+
+impl PartialOrd for RenamedIdent {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for RenamedIdent {}
+
+impl PartialEq for RenamedIdent {
+    fn eq(&self, other: &Self) -> bool {
+        self.ident == other.ident
+    }
 }

@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
 
-use crate::SingleVersionTable;
+use crate::{multi::RenamedIdent, SingleVersionTable};
 
 impl SingleVersionTable {
     pub fn make_unique_tree(&self) -> UniqueTree {
@@ -20,11 +20,11 @@ impl SingleVersionTable {
 #[derive(Default)]
 pub struct UniqueTree {
     pub is_unique: bool,
-    pub choice: BTreeMap<Ident, UniqueTree>,
+    pub choice: BTreeMap<RenamedIdent, UniqueTree>,
 }
 
 impl UniqueTree {
-    pub fn add_unique(&mut self, new: &[Ident], is_unique: bool) {
+    pub fn add_unique(&mut self, new: &[RenamedIdent], is_unique: bool) {
         match new {
             [] => self.is_unique = is_unique,
             [x, xs @ ..] => {
@@ -38,10 +38,10 @@ impl UniqueTree {
 }
 
 pub struct Info {
-    table: Ident,
+    table: RenamedIdent,
     schema: Ident,
     // maps column name to type
-    typs: BTreeMap<Ident, Ident>,
+    typs: BTreeMap<RenamedIdent, Ident>,
 }
 
 impl SingleVersionTable {
@@ -49,7 +49,7 @@ impl SingleVersionTable {
         let mut typs = BTreeMap::new();
         let table = &self.name;
         for (i, x) in &self.columns {
-            let tmp = format_ident!("_{table}{i}");
+            let tmp = format_ident!("_{}{i}", &table.ident);
             typs.insert(x.name.clone(), tmp);
         }
         Info {
@@ -67,16 +67,18 @@ pub fn unique_tree(
     info: &Info,
 ) -> syn::Result<TokenStream> {
     let schema = &info.schema;
-    let table = &info.table;
+    let table = &info.table.ident;
 
     let mut out = TokenStream::new();
     for (col, next) in &tree.choice {
+        let col_str = &col.str;
         let col_typ = info.typs.get(col).ok_or(syn::Error::new_spanned(
-            col,
+            col_str,
             "Expected a column to exists for every name in the unique constraint.",
         ))?;
+        let col = &col.ident;
+
         let helper_name = format_ident!("{prefix}_{col}");
-        let col_str = col.to_string();
 
         let anti_lt = (!prefix_lt).then_some(quote! {'inner}).unwrap_or_default();
         let prefix_lt = prefix_lt.then_some(quote! {'inner}).unwrap_or_default();

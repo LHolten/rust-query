@@ -21,10 +21,10 @@ pub fn migrations(
     let mut table_migrations = TokenStream::new();
     // loop over all new table and see what changed
     for (i, table) in new_tables {
-        let mut table_name = table.name.clone();
-        table_name.set_span(Span::call_site());
+        let mut table_ident = table.name.ident.clone();
+        table_ident.set_span(Span::call_site());
 
-        let table_lower = to_lower(&table_name);
+        let table_lower = to_lower(&table_ident);
 
         if let Some(prev_table) = prev_tables.remove(i) {
             // a table already existed, so we need to define a migration
@@ -37,24 +37,24 @@ pub fn migrations(
             table_migrations.extend(migration);
 
             create_table_lower.push(table_lower);
-            create_table_name.push(table_name.clone());
+            create_table_name.push(table_ident.clone());
 
-            tables.push(quote! {b.drop_table::<#prev_mod::#table_name>()})
+            tables.push(quote! {b.drop_table::<#prev_mod::#table_ident>()})
         } else if table.prev.is_some() {
             let migration =
                 define_table_migration(&BTreeMap::new(), table, true, &new_mod).unwrap();
 
             table_migrations.extend(migration);
             create_table_lower.push(table_lower);
-            create_table_name.push(table_name);
+            create_table_name.push(table_ident);
         } else {
-            tables.push(quote! {b.create_empty::<#new_mod::#table_name>()})
+            tables.push(quote! {b.create_empty::<#new_mod::#table_ident>()})
         }
     }
     for prev_table in prev_tables.into_values() {
         // a table was removed, so we drop it
 
-        let table_ident = &prev_table.name;
+        let table_ident = &prev_table.name.ident;
         tables.push(quote! {b.drop_table::<#prev_mod::#table_ident>()})
     }
 
@@ -85,7 +85,7 @@ fn define_table_migration(
     always_migrate: bool,
     new_mod: &TokenStream,
 ) -> syn::Result<Option<TokenStream>> {
-    let mut table_ident = table.name.clone();
+    let mut table_ident = table.name.ident.clone();
     table_ident.set_span(Span::call_site());
 
     let mut alter_ident = vec![];
@@ -97,17 +97,17 @@ fn define_table_migration(
     let mut conflict_from = quote! {::std::unreachable!()};
 
     for (i, col) in &table.columns {
-        let name = &col.name;
+        let col_ident = &col.name.ident;
         if prev_columns.contains_key(i) {
-            old_ident.push(name);
+            old_ident.push(col_ident);
         } else {
             let mut unique_columns = table.indices.iter().flat_map(|u| &u.columns);
-            if unique_columns.any(|c| c == name) {
+            if unique_columns.any(|c| &c.ident == col_ident) {
                 migration_conflict = quote! {::rust_query::TableRow<Self::MigrateFrom>};
                 conflict_from = quote! {val};
             }
 
-            alter_ident.push(name);
+            alter_ident.push(col_ident);
             alter_typ.push(&col.typ);
             alter_tmp.push(format_ident!("_{table_ident}{i}"))
         }
