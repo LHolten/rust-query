@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
 
-use crate::SingleVersionTable;
+use crate::{multi::SingleVersionColumn, SingleVersionTable};
 
 impl SingleVersionTable {
     pub fn make_unique_tree(&self) -> UniqueTree {
@@ -20,11 +20,11 @@ impl SingleVersionTable {
 #[derive(Default)]
 pub struct UniqueTree {
     pub is_unique: bool,
-    pub choice: BTreeMap<Ident, UniqueTree>,
+    pub choice: BTreeMap<usize, UniqueTree>,
 }
 
 impl UniqueTree {
-    pub fn add_unique(&mut self, new: &[Ident], is_unique: bool) {
+    pub fn add_unique(&mut self, new: &[usize], is_unique: bool) {
         match new {
             [] => self.is_unique = is_unique,
             [x, xs @ ..] => {
@@ -41,21 +41,15 @@ pub struct Info {
     table: Ident,
     schema: Ident,
     // maps column name to type
-    typs: BTreeMap<Ident, Ident>,
+    columns: BTreeMap<usize, SingleVersionColumn>,
 }
 
 impl SingleVersionTable {
     pub fn make_info(&self, schema: Ident) -> Info {
-        let mut typs = BTreeMap::new();
-        let table = &self.name;
-        for (i, x) in &self.columns {
-            let tmp = format_ident!("_{table}{i}");
-            typs.insert(x.name.clone(), tmp);
-        }
         Info {
-            table: self.name.clone(),
+            table: self.name.ident.clone(),
             schema,
-            typs,
+            columns: self.columns.clone(),
         }
     }
 }
@@ -67,16 +61,16 @@ pub fn unique_tree(
     info: &Info,
 ) -> syn::Result<TokenStream> {
     let schema = &info.schema;
-    let table = &info.table;
+    let table_ident = &info.table;
 
     let mut out = TokenStream::new();
-    for (col, next) in &tree.choice {
-        let col_typ = info.typs.get(col).ok_or(syn::Error::new_spanned(
-            col,
-            "Expected a column to exists for every name in the unique constraint.",
-        ))?;
+    for (i, next) in &tree.choice {
+        let col = &info.columns[i];
+        let col_str = &col.name.str;
+        let col_typ = format_ident!("_{table_ident}{i}");
+        let col = &col.name.ident;
+
         let helper_name = format_ident!("{prefix}_{col}");
-        let col_str = col.to_string();
 
         let anti_lt = (!prefix_lt).then_some(quote! {'inner}).unwrap_or_default();
         let prefix_lt = prefix_lt.then_some(quote! {'inner}).unwrap_or_default();
@@ -85,7 +79,7 @@ pub fn unique_tree(
             pub struct #helper_name<'inner>(#prefix<#prefix_lt>, ::rust_query::Expr<'inner, #schema, #col_typ>);
 
             impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #helper_name<'inner> {
-                type Typ = ::rust_query::TableRow<#table>;
+                type Typ = ::rust_query::TableRow<#table_ident>;
                 fn into_joinable(self) -> ::rust_query::private::Joinable<'inner, #schema, Self::Typ> {
                     ::rust_query::private::IntoJoinable::into_joinable(self.0).add_cond(#col_str, self.1)
                 }
@@ -96,7 +90,7 @@ pub fn unique_tree(
             out.extend(quote! {
                 impl<#prefix_lt> #prefix<#prefix_lt> {
                     pub fn #col<#anti_lt>(self, val: impl ::rust_query::IntoExpr<'inner, #schema, Typ = #col_typ>)
-                        -> ::rust_query::Expr<'inner, #schema, Option<::rust_query::TableRow<#table>>>
+                        -> ::rust_query::Expr<'inner, #schema, Option<::rust_query::TableRow<#table_ident>>>
                     {
                         ::rust_query::private::unique_from_joinable(#helper_name(self, val.into_expr()))
                     }

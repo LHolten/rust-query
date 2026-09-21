@@ -5,8 +5,13 @@ use quote::format_ident;
 use syn::{Attribute, Ident, LitStr};
 
 #[derive(Clone)]
-pub(crate) struct Index {
+pub(crate) struct VersionedIndex {
     pub columns: Vec<Ident>,
+    pub kind: IndexKind,
+}
+
+pub(crate) struct SingleVersionIndex {
+    pub columns: Vec<usize>,
     pub kind: IndexKind,
 }
 
@@ -24,13 +29,12 @@ pub(crate) struct VersionedSchema {
 
 // This is a table fully parsed from the schema, it represents multiple versions
 pub(crate) struct VersionedTable {
-    pub rename: LitStr,
-    pub name: Ident,
+    pub name: RenamedIdent,
     pub primary_key: LitStr,
     pub versions: std::ops::Range<u32>,
     // `prev` always has a distinct span from `name`
     pub prev: Option<Ident>,
-    pub indices: Vec<Index>,
+    pub indices: Vec<VersionedIndex>,
     pub doc_comments: Vec<Attribute>,
     pub columns: Vec<VersionedColumn>,
     pub referenceable: bool,
@@ -38,8 +42,7 @@ pub(crate) struct VersionedTable {
 
 pub(crate) struct VersionedColumn {
     pub versions: std::ops::Range<u32>,
-    pub rename: LitStr,
-    pub name: Ident,
+    pub name: RenamedIdent,
     pub typ: TokenStream,
     pub doc_comments: Vec<Attribute>,
     pub index: Option<IndexKind>,
@@ -60,29 +63,48 @@ impl VersionedSchema {
     fn get_table(&self, table: &VersionedTable, version: u32) -> syn::Result<SingleVersionTable> {
         assert!(table.versions.contains(&version));
         let mut columns = BTreeMap::new();
-        let mut indices = table.indices.clone();
+        let mut indices = vec![];
         for (i, c) in table.columns.iter().enumerate() {
             if c.versions.contains(&version) {
-                columns.insert(
-                    i,
-                    SingleVersionColumn {
-                        name: c.name.clone(),
-                        rename: c.rename.clone(),
-                        typ: c.typ.clone(),
-                        is_def: version == c.versions.end - 1,
-                        doc_comments: c.doc_comments.clone(),
-                    },
-                );
+                let col = SingleVersionColumn {
+                    name: c.name.clone(),
+                    typ: c.typ.clone(),
+                    is_def: version == c.versions.end - 1,
+                    doc_comments: c.doc_comments.clone(),
+                };
+                columns.insert(i, col);
                 if let Some(kind) = c.index.clone() {
-                    indices.push(Index {
-                        columns: vec![c.name.clone()],
+                    indices.push(SingleVersionIndex {
+                        columns: vec![i],
                         kind,
                     });
                 }
             }
         }
+        for index in &table.indices {
+            let mut index_cols = vec![];
+            for ident in &index.columns {
+                // look for the index column in the filtered columns
+                let Some((i, _col)) = columns.iter().find(|(_i, x)| &x.name.ident == ident) else {
+                    return Err(syn::Error::new_spanned(
+                        &ident,
+                        "Expected a column to exists for every name in the unique constraint.",
+                    ));
+                };
+                index_cols.push(*i);
+            }
+            indices.push(SingleVersionIndex {
+                columns: index_cols,
+                kind: index.kind.clone(),
+            });
+        }
+
         // we don't want to leak the span from table.name into `prev`
-        let mut prev = Some(format_ident!("{}", table.name, span = Span::call_site()));
+        let mut prev = Some(format_ident!(
+            "{}",
+            &table.name.ident,
+            span = Span::call_site()
+        ));
         if version == table.versions.start {
             prev = table.prev.clone();
         }
@@ -95,7 +117,6 @@ impl VersionedSchema {
 
         Ok(SingleVersionTable {
             prev,
-            rename: table.rename.clone(),
             name: table.name.clone(),
             primary_key: table.primary_key.clone(),
             indices,
@@ -108,20 +129,25 @@ impl VersionedSchema {
 
 pub(crate) struct SingleVersionTable {
     pub prev: Option<Ident>,
-    pub rename: LitStr,
-    pub name: Ident,
+    pub name: RenamedIdent,
     pub primary_key: LitStr,
-    pub indices: Vec<Index>,
+    pub indices: Vec<SingleVersionIndex>,
     pub doc_comments: Vec<Attribute>,
     pub columns: BTreeMap<usize, SingleVersionColumn>,
     pub referenceable: bool,
 }
 
+#[derive(Clone)]
 pub(crate) struct SingleVersionColumn {
-    pub name: Ident,
-    pub rename: LitStr,
+    pub name: RenamedIdent,
     pub typ: TokenStream,
     // is this the latest version where the column exists?
     pub is_def: bool,
     pub doc_comments: Vec<Attribute>,
+}
+
+#[derive(Clone)]
+pub struct RenamedIdent {
+    pub ident: Ident,
+    pub str: LitStr,
 }

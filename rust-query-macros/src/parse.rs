@@ -8,7 +8,9 @@ use syn::{
     Token, Visibility,
 };
 
-use crate::multi::{Index, IndexKind, VersionedColumn, VersionedSchema, VersionedTable};
+use crate::multi::{
+    IndexKind, RenamedIdent, VersionedColumn, VersionedIndex, VersionedSchema, VersionedTable,
+};
 
 impl VersionedColumn {
     pub fn parse(field: Field, limit: Range<u32>) -> syn::Result<Self> {
@@ -62,8 +64,10 @@ impl VersionedColumn {
 
         Ok(VersionedColumn {
             versions,
-            rename,
-            name,
+            name: RenamedIdent {
+                ident: name,
+                str: rename,
+            },
             typ: field.ty.into_token_stream(),
             doc_comments,
             index,
@@ -90,7 +94,7 @@ impl VersionedTable {
             if path.is_ident("unique") || path.is_ident("index") {
                 let idents =
                     attr.parse_args_with(Punctuated::<Ident, Token![,]>::parse_separated_nonempty)?;
-                indices.push(Index {
+                indices.push(VersionedIndex {
                     columns: idents.into_iter().collect(),
                     kind: IndexKind {
                         unique: path.is_ident("unique"),
@@ -151,19 +155,21 @@ impl VersionedTable {
         });
 
         if let Some(col) = columns.iter().find(|col| {
-            col.name.to_string().to_ascii_lowercase() == primary_key.value().to_ascii_lowercase()
+            col.name.str.value().to_ascii_lowercase() == primary_key.value().to_ascii_lowercase()
         }) {
             return Err(syn::Error::new_spanned(
-                &col.name,
+                &col.name.str,
                 "column cannot have the same name as the primary_key",
             ));
         }
 
         Ok(VersionedTable {
-            rename,
             versions,
             prev,
-            name: table.ident,
+            name: RenamedIdent {
+                ident: table.ident,
+                str: rename,
+            },
             primary_key,
             columns,
             indices,
