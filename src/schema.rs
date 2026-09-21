@@ -94,7 +94,7 @@ impl Schema {
 }
 
 impl Table {
-    pub fn to_db(self) -> from_db::Table {
+    pub fn into_db(self) -> from_db::Table {
         from_db::Table {
             primary_key: self.primary_key.to_owned(),
             columns: self

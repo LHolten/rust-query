@@ -242,10 +242,7 @@ struct ForeignKey {
     column: Option<String>,
 }
 
-fn read_fks(
-    conn: &'static Transaction<Pragma>,
-    table_name: &String,
-) -> BTreeMap<String, ForeignKey> {
+fn read_fks(conn: &'static Transaction<Pragma>, table_name: &str) -> BTreeMap<String, ForeignKey> {
     let fks: BTreeMap<_, _> = conn.query(|rows| {
         let fk = rows.join(with_arg(ForeignKeyList, table_name));
         rows.into_iter((&fk.id, &fk.table)).collect()

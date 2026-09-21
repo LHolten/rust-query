@@ -1,4 +1,4 @@
-#![allow(private_bounds, private_interfaces)]
+#![allow(private_bounds, private_interfaces, clippy::type_complexity)]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(docsrs), cfg(feature = "base0"))]
 #![cfg_attr(docsrs, feature(doc_cfg))]

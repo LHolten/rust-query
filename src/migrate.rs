@@ -87,7 +87,7 @@ impl<S: Schema> Database<S> {
             let schema = crate::schema::from_macro::Schema::new::<S>();
 
             for (table_name, table) in schema.tables {
-                let table = table.to_db();
+                let table = table.into_db();
                 let create = table.create(lower::JoinableTable::Table(table_name, None));
                 txn.get().execute(&create, []).unwrap();
                 for stmt in table.delayed_indices(table_name) {
@@ -272,7 +272,7 @@ impl<S: Schema> Migrator<S> {
         // This checks that the schema is correct and fixes indices etc
         self = self.with_transaction(|txn| {
             // sanity check, this should never fail
-            check_schema::<S>(&txn).unwrap_or_else(|e| e.as_sanity())
+            check_schema::<S>(txn).unwrap_or_else(|e| e.as_sanity())
         });
 
         // adds an sqlite_stat1 table
@@ -332,14 +332,14 @@ pub struct Renderable(Vec<Group<'static>>);
 
 impl Renderable {
     /// [Renderable] should be made into a panic on the thread of the caller.
-    pub fn to_panic(self) -> ! {
+    pub fn to_panic(&self) -> ! {
         let renderer = RENDERER
             .with_borrow(Clone::clone)
             .decor_style(DecorStyle::Unicode);
         panic!("{}", renderer.render(&self.0))
     }
 
-    pub fn as_sanity(self) -> ! {
+    pub fn as_sanity(&self) -> ! {
         unreachable!(
             "THIS IS A RUST-QUERY BUG {}",
             Renderer::plain().render(&self.0)
@@ -368,7 +368,7 @@ fn foreign_key_check(conn: &rusqlite::Transaction) -> Option<String> {
     let error = conn
         .prepare("PRAGMA foreign_key_check")
         .unwrap()
-        .query_map([], |row| Ok(row.get(2)?))
+        .query_map([], |row| row.get(2))
         .unwrap()
         .next();
     error.transpose().unwrap()
