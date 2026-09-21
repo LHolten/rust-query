@@ -75,10 +75,10 @@ impl<FromSchema: 'static> TransactionMigrate<FromSchema> {
     /// - 1.. => [TableRow] (row in the old table that could not be migrated)
     ///
     /// The closure returns [Option] to indicate if each row must be kept.
-    pub fn migrate_optional<'t, 'x, T: Migrateable<FromSchema = FromSchema>>(
+    pub fn migrate_optional<'t, T: Migrateable<FromSchema = FromSchema>>(
         &'t mut self,
         mut f: impl FnMut(Lazy<'t, T::MigrateFrom>) -> Option<T::Migration>,
-    ) -> Result<MigratedOptional<'x, T>, T::MigrateConflict> {
+    ) -> Result<MigratedOptional<T>, T::MigrateConflict> {
         let new_name = self.new_table_name::<T>();
 
         // We will do insertions here while retrieving rows from the database.
@@ -172,13 +172,13 @@ impl<'t, FromSchema: 'static> SchemaBuilder<'t, FromSchema> {
 ///
 /// This type can be turned into [Migrated] by providing an error
 /// handler.
-pub struct MigratedOptional<'t, T: Migrateable> {
-    inner: PhantomData<Migrated<'t, T>>,
+pub struct MigratedOptional<T: Migrateable> {
+    inner: PhantomData<Migrated<'static, T>>,
 }
 
-impl<'t, T: Migrateable> MigratedOptional<'t, T> {
+impl<T: Migrateable> MigratedOptional<T> {
     /// The closure is called when there is a foreign key error due to some row being removed.
-    pub fn map_fk_err(self, f: impl 't + FnOnce() -> Infallible) -> Migrated<'t, T> {
+    pub fn map_fk_err<'t>(self, f: impl 't + FnOnce() -> Infallible) -> Migrated<'t, T> {
         Migrated {
             _p: PhantomData,
             f: FkErrHandler(Box::new(f)),
@@ -187,9 +187,9 @@ impl<'t, T: Migrateable> MigratedOptional<'t, T> {
     }
 }
 
-impl<'t, T: Migrateable<Referer = Infallible>> MigratedOptional<'t, T> {
+impl<T: Migrateable<Referer = Infallible>> MigratedOptional<T> {
     /// The table has the no_reference attribute, so partial migration is always ok.
-    pub fn no_reference(self) -> Migrated<'t, T> {
+    pub fn no_reference(self) -> Migrated<'static, T> {
         self.map_fk_err(|| unreachable!("no references exist to this table"))
     }
 }
