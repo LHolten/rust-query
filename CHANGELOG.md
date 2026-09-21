@@ -5,6 +5,7 @@
 - Optimized migrations to never load all rows at once.
 - Fixed a bug where a custom primary key name was not used when decorrelating nested queries.
 - Fixed a migration bug with custom primary keys.
+- Fixed missing unraw on column and struct names (the `r#` prefix would previously be kept).
 
 ## Breaking
 

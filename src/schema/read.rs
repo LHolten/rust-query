@@ -62,14 +62,6 @@ pub mod vN {
         pub seqno: i64,
         pub name: Option<String>,
     }
-
-    #[rename("pragma_foreign_key_check")]
-    pub struct ForeignKeyCheck {
-        pub table: String,
-        pub rowid: i64,
-        pub parent: String,
-        pub fkid: i64,
-    }
 }
 pub use v0::*;
 

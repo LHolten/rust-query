@@ -108,9 +108,7 @@ fn define_table(
     let conflict_type = table.conflict();
 
     let mut def_typs = vec![];
-    let mut update_columns_safe = vec![];
     let mut generic = vec![];
-    let mut try_from_update = vec![];
     let mut col_rename = vec![];
     let mut col_ident = vec![];
     let mut col_doc = vec![];
@@ -136,15 +134,10 @@ fn define_table(
             .flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == i) {
             def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
-            update_columns_safe.push(quote! {::rust_query::private::Ignore});
-            try_from_update.push(quote! {Default::default()});
 
             col_ident_immut.push(ident);
             col_typ_immut.push(tmp.clone());
         } else {
-            update_columns_safe.push(quote! {::rust_query::private::AsUpdate});
-            try_from_update.push(quote! {val.#ident});
-
             col_ident_mut.push(ident);
             col_typ_mut.push(tmp.clone());
         }
