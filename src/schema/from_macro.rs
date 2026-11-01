@@ -54,9 +54,10 @@ impl<S> TypBuilder<S> {
     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
         let item = Column {
             def: canonical::Column {
-                typ: <T::Typ as DbTyp>::TYP,
+                typ: <T::Typ as StorableTyp>::TYP,
                 nullable: <T::Typ as DbTyp>::NULLABLE,
-                fk: <T::Typ as DbTyp>::FK.map(|(table, fk)| (table.to_owned(), fk.to_owned())),
+                fk: <T::Typ as StorableTyp>::FK
+                    .map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: <T::Typ as StorableTyp>::check(name).map(|sql| Parsed::parse(&sql)),
             },
             span,

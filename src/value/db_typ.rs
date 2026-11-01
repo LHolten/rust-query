@@ -10,8 +10,6 @@ use crate::{
 pub trait DbTyp: Sized + 'static {
     type Prev;
     const NULLABLE: bool = false;
-    const TYP: canonical::ColumnType;
-    const FK: Option<(&'static str, &'static str)> = None;
     type Ext<'t>;
     type Sql;
 
@@ -31,13 +29,15 @@ pub trait DbTyp: Sized + 'static {
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
 pub trait StorableTyp: DbTyp {
+    const TYP: canonical::ColumnType;
+    const FK: Option<(&'static str, &'static str)> = None;
+
     fn check(_col: &str) -> Option<String>;
 }
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
     type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     type Ext<'t> = ();
     type Sql = String;
     type FromLazy<'x> = Self;
@@ -76,6 +76,7 @@ impl DbTyp for jiff::Timestamp {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::Timestamp {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     fn check(col: &str) -> Option<String> {
         Some(format!(
             "{0} IS (ltrim(datetime({0} || 'Z'), '-') || rtrim(substr({0}, 20, 10), '0 '))",
@@ -87,7 +88,6 @@ impl StorableTyp for jiff::Timestamp {
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::civil::Date {
     type Prev = Self;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     type Ext<'t> = ();
     type Sql = String;
     type FromLazy<'x> = Self;
@@ -125,6 +125,7 @@ impl DbTyp for jiff::civil::Date {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::civil::Date {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     fn check(col: &str) -> Option<String> {
         Some(format!("{0} IS ltrim(date({0}), '-')", Alias(col)))
     }
@@ -132,8 +133,6 @@ impl StorableTyp for jiff::civil::Date {
 
 impl<T: Table> DbTyp for TableRow<T> {
     type Prev = TableRow<T::MigrateFrom>;
-    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
-    const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
     type Ext<'t> = T::Ext2<'t>;
     type Sql = i64;
 
@@ -168,6 +167,9 @@ impl<T: Table> DbTyp for TableRow<T> {
 }
 
 impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
+    const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
+
     fn check(_col: &str) -> Option<String> {
         None
     }
@@ -175,9 +177,7 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
 
 impl<T: EqTyp> DbTyp for Option<T> {
     type Prev = Option<T::Prev>;
-    const TYP: canonical::ColumnType = T::TYP;
     const NULLABLE: bool = true;
-    const FK: Option<(&'static str, &'static str)> = T::FK;
     type Ext<'t> = ();
     type Sql = T::Sql;
 
@@ -207,6 +207,9 @@ impl<T: EqTyp> DbTyp for Option<T> {
 }
 
 impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
+    const TYP: canonical::ColumnType = T::TYP;
+    const FK: Option<(&'static str, &'static str)> = T::FK;
+
     fn check(col: &str) -> Option<String> {
         T::check(col)
     }
@@ -219,7 +222,6 @@ macro_rules! impl_typ {
     ($typ:ty, $can:expr, $map:expr, $check:expr) => {
         impl DbTyp for $typ {
             type Prev = Self;
-            const TYP: canonical::ColumnType = $can;
             type Ext<'t> = ();
             type Sql = Self;
             type FromLazy<'x> = Self;
@@ -246,6 +248,8 @@ macro_rules! impl_typ {
         }
 
         impl StorableTyp for $typ {
+            const TYP: canonical::ColumnType = $can;
+
             fn check(col: &str) -> Option<String> {
                 let f: fn(col: &str) -> _ = $check;
                 return f(col);
