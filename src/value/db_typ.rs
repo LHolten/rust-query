@@ -8,14 +8,12 @@ use crate::{
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.
 pub trait DbTyp: Sized + 'static {
-    type Prev;
     const NULLABLE: bool = false;
     type Ext<'t>;
 
     type FromLazy<'x>;
     type Lazy<'t>: Sized;
 
-    fn migrate(prev: Self::Prev) -> Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
     fn out_to_value(self) -> rusqlite::types::Value;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
@@ -32,18 +30,17 @@ pub trait StorableTyp: DbTyp {
     const FK: Option<(&'static str, &'static str)> = None;
 
     fn check(_col: &str) -> Option<String>;
+
+    type Prev;
+    fn migrate(prev: Self::Prev) -> Self;
 }
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
-    type Prev = Self;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
 
-    fn migrate(prev: Self::Prev) -> Self {
-        prev
-    }
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
@@ -81,18 +78,19 @@ impl StorableTyp for jiff::Timestamp {
             Alias(col)
         ))
     }
+
+    type Prev = Self;
+    fn migrate(prev: Self::Prev) -> Self {
+        prev
+    }
 }
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::civil::Date {
-    type Prev = Self;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
 
-    fn migrate(prev: Self::Prev) -> Self {
-        prev
-    }
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         *lazy
     }
@@ -126,16 +124,17 @@ impl StorableTyp for jiff::civil::Date {
     fn check(col: &str) -> Option<String> {
         Some(format!("{0} IS ltrim(date({0}), '-')", Alias(col)))
     }
+
+    type Prev = Self;
+    fn migrate(prev: Self::Prev) -> Self {
+        prev
+    }
 }
 
 impl<T: Table> DbTyp for TableRow<T> {
-    type Prev = TableRow<T::MigrateFrom>;
     type Ext<'t> = T::Ext2<'t>;
 
     type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
-    fn migrate(prev: Self::Prev) -> Self {
-        TableRow::migrate_row(prev)
-    }
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         TableRow::migrate_row(lazy.table_row())
     }
@@ -169,17 +168,18 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
     fn check(_col: &str) -> Option<String> {
         None
     }
+
+    type Prev = TableRow<T::MigrateFrom>;
+    fn migrate(prev: Self::Prev) -> Self {
+        TableRow::migrate_row(prev)
+    }
 }
 
 impl<T: EqTyp> DbTyp for Option<T> {
-    type Prev = Option<T::Prev>;
     const NULLABLE: bool = true;
     type Ext<'t> = ();
 
     type FromLazy<'x> = Option<T::FromLazy<'x>>;
-    fn migrate(prev: Self::Prev) -> Self {
-        prev.map(T::migrate)
-    }
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
         lazy.as_ref().map(T::from_lazy)
     }
@@ -208,6 +208,11 @@ impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
     fn check(col: &str) -> Option<String> {
         T::check(col)
     }
+
+    type Prev = Option<T::Prev>;
+    fn migrate(prev: Self::Prev) -> Self {
+        prev.map(T::migrate)
+    }
 }
 
 macro_rules! impl_typ {
@@ -216,13 +221,9 @@ macro_rules! impl_typ {
     };
     ($typ:ty, $can:expr, $map:expr, $check:expr) => {
         impl DbTyp for $typ {
-            type Prev = Self;
             type Ext<'t> = ();
             type FromLazy<'x> = Self;
 
-            fn migrate(prev: Self) -> Self {
-                prev
-            }
             fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
                 lazy.clone()
             }
@@ -247,6 +248,11 @@ macro_rules! impl_typ {
             fn check(col: &str) -> Option<String> {
                 let f: fn(col: &str) -> _ = $check;
                 return f(col);
+            }
+
+            type Prev = Self;
+            fn migrate(prev: Self) -> Self {
+                prev
             }
         }
     };
