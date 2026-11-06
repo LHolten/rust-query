@@ -36,20 +36,55 @@ pub trait StorableTyp: DbTyp {
     fn migrate(prev: Self::Prev) -> Self;
 }
 
-pub trait BaseTyp {}
-impl BaseTyp for i64 {}
-impl BaseTyp for f64 {}
-impl BaseTyp for String {}
-impl BaseTyp for Vec<u8> {}
+pub trait BaseTyp: Sized {
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self>;
+}
+impl BaseTyp for i64 {
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        value.as_i64()
+    }
+}
+impl BaseTyp for f64 {
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        value.as_f64()
+    }
+}
+impl BaseTyp for String {
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(value.as_str()?.to_owned())
+    }
+}
+impl BaseTyp for Vec<u8> {
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(value.as_blob()?.to_vec())
+    }
+}
 
-pub trait BaseTypOpt {
+pub trait BaseTypOpt: Sized {
     const NULLABLE: bool;
+    fn base_opt_from_sql(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self>;
 }
 impl<T: BaseTyp> BaseTypOpt for T {
     const NULLABLE: bool = false;
+    fn base_opt_from_sql(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self> {
+        T::base_from_sql(value)
+    }
 }
 impl<T: BaseTyp> BaseTypOpt for Option<T> {
     const NULLABLE: bool = true;
+    fn base_opt_from_sql(
+        value: rusqlite::types::ValueRef<'_>,
+    ) -> rusqlite::types::FromSqlResult<Self> {
+        Ok(if let rusqlite::types::Type::Null = value.data_type() {
+            None
+        } else {
+            Some(T::base_from_sql(value)?)
+        })
+    }
 }
 
 #[cfg(feature = "jiff-02")]
