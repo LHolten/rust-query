@@ -1,6 +1,9 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use crate::{Expr, lower, value::DbTyp};
+use crate::{
+    Expr, lower,
+    value::{BaseTypOpt, DbTyp},
+};
 
 /// Opaque type used to implement [crate::Select].
 pub(crate) struct Cacher {
@@ -49,7 +52,9 @@ impl<'x> Row<'x> {
 
     pub fn get<T: DbTyp>(&self, val: Cached<T>) -> T {
         let idx = &self.fields[val.idx];
-        T::from_sql(self.row.get_ref_unwrap(idx.as_str())).unwrap()
+        let value = self.row.get_ref_unwrap(idx.as_str());
+        let base = T::Base::base_opt_from_sql(value).unwrap();
+        T::from_sql(base).unwrap()
     }
 }
 
