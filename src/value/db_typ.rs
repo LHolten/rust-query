@@ -8,7 +8,8 @@ use crate::{
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.
 pub trait DbTyp: Sized + 'static {
-    const NULLABLE: bool = false;
+    type Base: BaseTypOpt;
+
     type Ext<'t>;
 
     type FromLazy<'x>;
@@ -35,8 +36,25 @@ pub trait StorableTyp: DbTyp {
     fn migrate(prev: Self::Prev) -> Self;
 }
 
+pub trait BaseTyp {}
+impl BaseTyp for i64 {}
+impl BaseTyp for f64 {}
+impl BaseTyp for String {}
+impl BaseTyp for Vec<u8> {}
+
+pub trait BaseTypOpt {
+    const NULLABLE: bool;
+}
+impl<T: BaseTyp> BaseTypOpt for T {
+    const NULLABLE: bool = false;
+}
+impl<T: BaseTyp> BaseTypOpt for Option<T> {
+    const NULLABLE: bool = true;
+}
+
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
+    type Base = String;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
@@ -87,6 +105,7 @@ impl StorableTyp for jiff::Timestamp {
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::civil::Date {
+    type Base = String;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
@@ -132,6 +151,7 @@ impl StorableTyp for jiff::civil::Date {
 }
 
 impl<T: Table> DbTyp for TableRow<T> {
+    type Base = i64;
     type Ext<'t> = T::Ext2<'t>;
 
     type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
@@ -175,8 +195,37 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
     }
 }
 
+impl DbTyp for bool {
+    type Base = i64;
+    type Ext<'t> = ();
+    type FromLazy<'x> = Self;
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+        lazy.clone()
+    }
+    fn out_to_value(self) -> rusqlite::types::Value {
+        self.into()
+    }
+    type Lazy<'t> = Self;
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+        self
+    }
+    fn from_sql(val: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        val.as_i64().map(|x| x != 0)
+    }
+}
+impl StorableTyp for bool {
+    const TYP: canonical::ColumnType = (canonical::ColumnType::Integer);
+    fn check(col: &str) -> Option<String> {
+        Some(format!("{} IN (0, 1)", Alias(col)))
+    }
+    type Prev = Self;
+    fn migrate(prev: Self) -> Self {
+        prev
+    }
+}
+
 impl<T: EqTyp> DbTyp for Option<T> {
-    const NULLABLE: bool = true;
+    type Base = Option<T::Base>;
     type Ext<'t> = ();
 
     type FromLazy<'x> = Option<T::FromLazy<'x>>;
@@ -221,6 +270,7 @@ macro_rules! impl_typ {
     };
     ($typ:ty, $can:expr, $map:expr, $check:expr) => {
         impl DbTyp for $typ {
+            type Base = $typ;
             type Ext<'t> = ();
             type FromLazy<'x> = Self;
 
@@ -261,12 +311,7 @@ impl_typ!(i64, canonical::ColumnType::Integer, |x| x.as_i64());
 impl_typ!(String, canonical::ColumnType::Text, |x| x
     .as_str()
     .map(ToOwned::to_owned));
-impl_typ!(
-    bool,
-    canonical::ColumnType::Integer,
-    |x| x.as_i64().map(|x| x != 0),
-    |col| Some(format!("{} IN (0, 1)", Alias(col)))
-);
+
 impl_typ!(Vec<u8>, canonical::ColumnType::Blob, |x| x
     .as_blob()
     .map(ToOwned::to_owned));

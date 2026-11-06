@@ -22,8 +22,9 @@ use crate::{
     mutable::Mutable,
     private::IntoJoinable,
     scoped_transaction::{MutTemp, TransactionScope},
+    value::db_typ::BaseTyp,
 };
-pub use db_typ::{DbTyp, StorableTyp};
+pub use db_typ::{BaseTypOpt, DbTyp, StorableTyp};
 
 pub trait NumTyp: OrdTyp + Clone + Copy {
     const ZERO: &str;
@@ -55,7 +56,7 @@ impl BuffTyp for Vec<u8> {}
     message = "Columns with type `{Self}` can not be checked for equality",
     note = "`EqTyp` is also implemented for all table types"
 )]
-pub trait EqTyp: DbTyp {}
+pub trait EqTyp: DbTyp<Base: BaseTyp> {}
 
 impl EqTyp for String {}
 impl EqTyp for Vec<u8> {}
@@ -149,7 +150,7 @@ pub fn new_column<'x, S, C: DbTyp, T: Table>(
     let table = table.into_expr();
     Expr::new_inner(
         table.inner.col(T::NAME, name, T::ID, table.not_null_key),
-        table.not_null_key && !C::NULLABLE,
+        table.not_null_key && !C::Base::NULLABLE,
     )
 }
 
