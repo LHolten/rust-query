@@ -19,9 +19,7 @@ pub trait DbTyp: Sized + 'static {
     fn out_to_value(self) -> rusqlite::types::Value;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 
-    fn from_sql(value: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self>
-    where
-        Self: Sized;
+    fn from_sql(value: Self::Base<'_>) -> Self;
 }
 
 /// Not all types are allowed to be stored.
@@ -37,53 +35,47 @@ pub trait StorableTyp: DbTyp {
 }
 
 pub trait BaseTyp<'x>: Sized {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> rusqlite::types::FromSqlResult<Self>;
+    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self;
 }
 impl BaseTyp<'_> for i64 {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        value.as_i64()
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self {
+        value.as_i64().unwrap()
     }
 }
 impl BaseTyp<'_> for f64 {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        value.as_f64()
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self {
+        value.as_f64().unwrap()
     }
 }
 impl<'x> BaseTyp<'x> for &'x str {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> rusqlite::types::FromSqlResult<Self> {
-        value.as_str()
+    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
+        value.as_str().unwrap()
     }
 }
 impl<'x> BaseTyp<'x> for &'x [u8] {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> rusqlite::types::FromSqlResult<Self> {
-        value.as_blob()
+    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
+        value.as_blob().unwrap()
     }
 }
 
 pub trait BaseTypOpt<'x>: Sized {
     const NULLABLE: bool;
-    fn base_opt_from_sql(
-        value: rusqlite::types::ValueRef<'x>,
-    ) -> rusqlite::types::FromSqlResult<Self>;
+    fn base_opt_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self;
 }
 impl<'x, T: BaseTyp<'x>> BaseTypOpt<'x> for T {
     const NULLABLE: bool = false;
-    fn base_opt_from_sql(
-        value: rusqlite::types::ValueRef<'x>,
-    ) -> rusqlite::types::FromSqlResult<Self> {
+    fn base_opt_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
         T::base_from_sql(value)
     }
 }
 impl<'x, T: BaseTyp<'x>> BaseTypOpt<'x> for Option<T> {
     const NULLABLE: bool = true;
-    fn base_opt_from_sql(
-        value: rusqlite::types::ValueRef<'x>,
-    ) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(if let rusqlite::types::Type::Null = value.data_type() {
+    fn base_opt_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
+        if let rusqlite::types::Type::Null = value.data_type() {
             None
         } else {
-            Some(T::base_from_sql(value)?)
-        })
+            Some(T::base_from_sql(value))
+        }
     }
 }
 
@@ -108,17 +100,11 @@ impl DbTyp for jiff::Timestamp {
         self
     }
 
-    fn from_sql(value: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self>
-    where
-        Self: Sized,
-    {
-        use rusqlite::types::FromSqlError;
+    fn from_sql(value: Self::Base<'_>) -> Self {
         use std::str::FromStr;
 
-        let dt = jiff::civil::DateTime::from_str(value).map_err(FromSqlError::other)?;
-        jiff::tz::TimeZone::UTC
-            .to_timestamp(dt)
-            .map_err(FromSqlError::other)
+        let dt = jiff::civil::DateTime::from_str(value).unwrap();
+        jiff::tz::TimeZone::UTC.to_timestamp(dt).unwrap()
     }
 }
 
@@ -161,14 +147,10 @@ impl DbTyp for jiff::civil::Date {
         self
     }
 
-    fn from_sql(value: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self>
-    where
-        Self: Sized,
-    {
-        use rusqlite::types::FromSqlError;
+    fn from_sql(value: Self::Base<'_>) -> Self {
         use std::str::FromStr;
 
-        jiff::civil::Date::from_str(value).map_err(FromSqlError::other)
+        jiff::civil::Date::from_str(value).unwrap()
     }
 }
 
@@ -205,14 +187,14 @@ impl<T: Table> DbTyp for TableRow<T> {
         }
     }
 
-    fn from_sql(value: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(TableRow {
+    fn from_sql(value: Self::Base<'_>) -> Self {
+        TableRow {
             _local: PhantomData,
             inner: TableRowInner {
                 _p: PhantomData,
                 idx: value,
             },
-        })
+        }
     }
 }
 
@@ -244,8 +226,8 @@ impl DbTyp for bool {
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
         self
     }
-    fn from_sql(val: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        Ok(val != 0)
+    fn from_sql(val: Self::Base<'_>) -> Self {
+        val != 0
     }
 }
 impl StorableTyp for bool {
@@ -276,8 +258,8 @@ impl<T: EqTyp> DbTyp for Option<T> {
         self.map(T::out_to_lazy)
     }
 
-    fn from_sql(value: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        value.map(T::from_sql).transpose()
+    fn from_sql(value: Self::Base<'_>) -> Self {
+        value.map(T::from_sql)
     }
 }
 
@@ -297,9 +279,6 @@ impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
 
 macro_rules! impl_typ {
     ($typ:ty, $base:ty, $can:expr, $map:expr) => {
-        impl_typ!($typ, $base, $can, $map, |_col| None);
-    };
-    ($typ:ty, $base:ty, $can:expr, $map:expr, $check:expr) => {
         impl DbTyp for $typ {
             type Base<'x> = $base;
             type Ext<'t> = ();
@@ -315,7 +294,7 @@ macro_rules! impl_typ {
             fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
                 self
             }
-            fn from_sql(val: Self::Base<'_>) -> rusqlite::types::FromSqlResult<Self> {
+            fn from_sql(val: Self::Base<'_>) -> Self {
                 let f: fn(Self::Base<'_>) -> _ = $map;
                 f(val)
             }
@@ -324,9 +303,8 @@ macro_rules! impl_typ {
         impl StorableTyp for $typ {
             const TYP: canonical::ColumnType = $can;
 
-            fn check(col: &str) -> Option<String> {
-                let f: fn(col: &str) -> _ = $check;
-                return f(col);
+            fn check(_col: &str) -> Option<String> {
+                None
             }
 
             type Prev = Self;
@@ -336,15 +314,13 @@ macro_rules! impl_typ {
         }
     };
 }
-impl_typ!(i64, i64, canonical::ColumnType::Integer, |x| Ok(x));
-impl_typ!(String, &'x str, canonical::ColumnType::Text, |x| Ok(
-    x.to_owned()
-));
+impl_typ!(i64, i64, canonical::ColumnType::Integer, |x| x);
+impl_typ!(String, &'x str, canonical::ColumnType::Text, |x| x
+    .to_owned());
 
-impl_typ!(Vec<u8>, &'x [u8], canonical::ColumnType::Blob, |x| Ok(
-    x.to_owned()
-));
-impl_typ!(f64, f64, canonical::ColumnType::Real, |x| Ok(x));
+impl_typ!(Vec<u8>, &'x [u8], canonical::ColumnType::Blob, |x| x
+    .to_owned());
+impl_typ!(f64, f64, canonical::ColumnType::Real, |x| x);
 
 #[test]
 #[cfg(feature = "jiff-02")]
@@ -389,7 +365,7 @@ fn jiff_check_constraint() {
         txn.execute("INSERT INTO thing (created_at) VALUES ($1)", [good])
             .expect(&format!("{good}\n"));
 
-        let ts = jiff::Timestamp::from_sql(good).unwrap();
+        let ts = jiff::Timestamp::from_sql(good);
         assert_eq!(
             ts.out_to_value(),
             rusqlite::types::Value::Text(good.to_owned())
@@ -441,7 +417,7 @@ fn jiff_check_constraint_date() {
         txn.execute("INSERT INTO thing (created_at) VALUES ($1)", [good])
             .expect(&format!("{good}\n"));
 
-        let ts = jiff::civil::Date::from_sql(good).unwrap();
+        let ts = jiff::civil::Date::from_sql(good);
         assert_eq!(
             ts.out_to_value(),
             rusqlite::types::Value::Text(good.to_owned())

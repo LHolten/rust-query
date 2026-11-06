@@ -175,7 +175,7 @@ impl Config {
                     return Ok(None);
                 }
 
-                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?)?;
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?);
                 let seconds = ctx.get::<i64>(1)?;
                 let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
                 let rusqlite::types::Value::Text(res) = jiff::Timestamp::out_to_value(new) else {
@@ -197,7 +197,7 @@ impl Config {
                     return Ok(None);
                 }
 
-                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?)?;
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?);
                 Ok(Some(timestamp.subsec_nanosecond()))
             },
         )?;
@@ -214,7 +214,7 @@ impl Config {
                     return Ok(None);
                 }
 
-                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?)?;
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?);
                 Ok(Some(timestamp.as_second()))
             },
         )?;
@@ -237,7 +237,7 @@ impl Config {
 
                 static PARSER: temporal::DateTimeParser = temporal::DateTimeParser::new();
 
-                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?)?;
+                let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?);
                 let timezone = PARSER
                     .parse_time_zone(ctx.get_raw(1).as_str()?)
                     .expect("time zone was serialized with jiff");

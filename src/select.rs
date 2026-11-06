@@ -53,8 +53,8 @@ impl<'x> Row<'x> {
     pub fn get<T: DbTyp>(&self, val: Cached<T>) -> T {
         let idx = &self.fields[val.idx];
         let value = self.row.get_ref_unwrap(idx.as_str());
-        let base = T::Base::base_opt_from_sql(value).unwrap();
-        T::from_sql(base).unwrap()
+        let base = T::Base::base_opt_from_sql(value);
+        T::from_sql(base)
     }
 }
 

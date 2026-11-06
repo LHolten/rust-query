@@ -632,7 +632,7 @@ pub fn try_insert_private<T: Table>(
         let mut statement = txn.prepare_cached(&stmt.sql).unwrap();
         let mut res = statement
             .query_map(rusqlite::params_from_iter(stmt.params), |row| {
-                Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?.as_i64()?)?)
+                Ok(TableRow::<T>::from_sql(row.get_ref(T::ID)?.as_i64()?))
             })
             .unwrap();
 
