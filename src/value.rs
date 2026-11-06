@@ -23,7 +23,7 @@ use crate::{
     private::IntoJoinable,
     scoped_transaction::{MutTemp, TransactionScope},
 };
-pub use db_typ::{BaseTyp, DbTyp, StorableTyp};
+pub use db_typ::{BaseTyp, DbTyp, DbTypOpt, StorableTyp};
 
 pub trait NumTyp: OrdTyp + Clone + Copy {
     const ZERO: &str;
@@ -55,7 +55,7 @@ impl BuffTyp for Vec<u8> {}
     message = "Columns with type `{Self}` can not be checked for equality",
     note = "`EqTyp` is also implemented for all table types"
 )]
-pub trait EqTyp: DbTyp<Base: BaseTyp> {}
+pub trait EqTyp: DbTyp {}
 
 impl EqTyp for String {}
 impl EqTyp for Vec<u8> {}
@@ -70,7 +70,7 @@ impl EqTyp for jiff::civil::Date {}
 impl<T: Table> EqTyp for TableRow<T> {}
 
 /// Should not be used outside this crate.
-pub trait OptTable: DbTyp {
+pub trait OptTable: DbTypOpt {
     type Schema;
     type Mutable<'t>;
 
@@ -112,12 +112,12 @@ impl<T: Table> OptTable for Option<TableRow<T>> {
 /// - And finally the type paramter `T` specifies the type of the expression.
 ///
 /// [Expr] implements [Deref] to have column fields in case the expression has a table type.
-pub struct Expr<'column, S, T: DbTyp> {
+pub struct Expr<'column, S, T: DbTypOpt> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: Rc<lower::Expr>,
     pub(crate) _p: PhantomData<&'column ()>,
     pub(crate) _p2: PhantomData<S>,
-    pub(crate) ext: OnceCell<Box<T::Ext<'static>>>,
+    pub(crate) ext: OnceCell<Box<<T::Actual as DbTyp>::Ext<'static>>>,
     // is this expressions not null and a foreign key?
     pub(crate) not_null_key: bool,
 }
@@ -142,7 +142,7 @@ pub fn adhoc_expr<S, T: DbTyp>(f: lower::Expr) -> Expr<'static, S, T> {
     Expr::adhoc(f)
 }
 
-pub fn new_column<'x, S, C: DbTyp, T: Table>(
+pub fn new_column<'x, S, C: DbTypOpt, T: Table>(
     table: impl IntoExpr<'x, S, Typ = TableRow<T>>,
     name: &'static str,
 ) -> Expr<'x, S, C> {
@@ -165,7 +165,7 @@ pub fn unique_from_joinable<'inner, T: Table>(
     Expr::adhoc(lower::Expr::RowIndex(lower::RowLike::Unique(unique), T::ID))
 }
 
-impl<S, T: DbTyp> Expr<'_, S, T> {
+impl<S, T: DbTypOpt> Expr<'_, S, T> {
     pub(crate) fn adhoc(e: lower::Expr) -> Self {
         Self::new(Rc::new(e))
     }
@@ -186,7 +186,7 @@ impl<S, T: DbTyp> Expr<'_, S, T> {
     }
 }
 
-impl<S, T: DbTyp> Clone for Expr<'_, S, T> {
+impl<S, T: DbTypOpt> Clone for Expr<'_, S, T> {
     fn clone(&self) -> Self {
         Self {
             _local: PhantomData,

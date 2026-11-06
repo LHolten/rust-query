@@ -176,7 +176,9 @@ pub mod private {
     pub use crate::query::get_plan;
     pub use crate::schema::from_macro::{SchemaType, TypBuilder};
     pub use crate::schema::tokenizer::{Token, get_token};
-    pub use crate::value::{DbTyp, StorableTyp, adhoc_expr, new_column, unique_from_joinable};
+    pub use crate::value::{
+        DbTyp, DbTypOpt, StorableTyp, adhoc_expr, new_column, unique_from_joinable,
+    };
     pub use crate::writable::Reader;
 
     // pub trait Apply {

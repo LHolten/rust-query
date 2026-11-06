@@ -1,4 +1,7 @@
-use crate::{lower::ord_rc::OrdRc, value::DbTyp};
+use crate::{
+    lower::ord_rc::OrdRc,
+    value::{DbTyp, DbTypOpt},
+};
 
 #[derive(Default)]
 pub struct Reader {
@@ -6,7 +9,12 @@ pub struct Reader {
 }
 
 impl Reader {
-    pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
-        self.builder.push((name, OrdRc::new(T::out_to_value(val))));
+    pub fn col<T: DbTypOpt>(&mut self, name: &'static str, val: T) {
+        let val = if let Some(val) = T::to_actual(val) {
+            T::Actual::out_to_value(val)
+        } else {
+            rusqlite::types::Value::Null
+        };
+        self.builder.push((name, OrdRc::new(val)));
     }
 }

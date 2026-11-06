@@ -5,11 +5,65 @@ use crate::{
     value::EqTyp,
 };
 
+pub trait DbTypOpt: Sized + 'static {
+    type Actual: DbTyp;
+    const NULL_VAL: Option<Self>;
+    fn from_actual(val: Self::Actual) -> Self;
+    fn to_actual(self) -> Option<Self::Actual>;
+
+    type FromLazy<'x>;
+    type Lazy<'t>: Sized;
+
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
+}
+
+impl<T: DbTyp> DbTypOpt for T {
+    type Actual = Self;
+    const NULL_VAL: Option<Self> = None;
+    fn from_actual(val: Self::Actual) -> Self {
+        val
+    }
+    fn to_actual(self) -> Option<Self::Actual> {
+        Some(self)
+    }
+
+    type FromLazy<'x> = T::FromLazy<'x>;
+    type Lazy<'t> = T::Lazy<'t>;
+
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+        T::from_lazy(lazy)
+    }
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+        T::out_to_lazy(self)
+    }
+}
+
+impl<T: DbTyp> DbTypOpt for Option<T> {
+    type Actual = T;
+    const NULL_VAL: Option<Self> = Some(None);
+    fn from_actual(val: Self::Actual) -> Self {
+        Some(val)
+    }
+    fn to_actual(self) -> Option<Self::Actual> {
+        self
+    }
+
+    type FromLazy<'x> = Option<T::FromLazy<'x>>;
+    type Lazy<'t> = Option<T::Lazy<'t>>;
+
+    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+        lazy.as_ref().map(T::from_lazy)
+    }
+    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+        self.map(T::out_to_lazy)
+    }
+}
+
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.
 pub trait DbTyp: Sized + 'static {
     type Base: BaseTyp;
-    const NULL_VAL: Option<Self> = None;
 
     type Ext<'t>;
 
@@ -25,7 +79,7 @@ pub trait DbTyp: Sized + 'static {
 
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
-pub trait StorableTyp: DbTyp {
+pub trait StorableTyp: DbTypOpt {
     const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
 
@@ -236,29 +290,6 @@ impl StorableTyp for bool {
     type Prev = Self;
     fn migrate(prev: Self) -> Self {
         prev
-    }
-}
-
-impl<T: EqTyp> DbTyp for Option<T> {
-    type Base = T::Base;
-    type Ext<'t> = ();
-    const NULL_VAL: Option<Self> = Some(None);
-
-    type FromLazy<'x> = Option<T::FromLazy<'x>>;
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-        lazy.as_ref().map(T::from_lazy)
-    }
-    fn out_to_value(self) -> rusqlite::types::Value {
-        self.map(T::out_to_value)
-            .unwrap_or(rusqlite::types::Value::Null)
-    }
-    type Lazy<'t> = Option<T::Lazy<'t>>;
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-        self.map(T::out_to_lazy)
-    }
-
-    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
-        Some(T::from_sql(value))
     }
 }
 

@@ -2,7 +2,7 @@ use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
     Expr, lower,
-    value::{BaseTyp, DbTyp},
+    value::{BaseTyp, DbTyp, DbTypOpt},
 };
 
 /// Opaque type used to implement [crate::Select].
@@ -50,14 +50,14 @@ impl<'x> Row<'x> {
         Self { row, fields }
     }
 
-    pub fn get<T: DbTyp>(&self, val: Cached<T>) -> T {
+    pub fn get<T: DbTypOpt>(&self, val: Cached<T>) -> T {
         let idx = &self.fields[val.idx];
         let value = self.row.get_ref_unwrap(idx.as_str());
         if let rusqlite::types::Type::Null = value.data_type() {
             T::NULL_VAL.unwrap()
         } else {
-            let base = T::Base::base_from_sql(value);
-            T::from_sql(base)
+            let base = <T::Actual as DbTyp>::Base::base_from_sql(value);
+            T::from_actual(DbTyp::from_sql(base))
         }
     }
 }
@@ -235,7 +235,7 @@ impl<'columns, S> IntoSelect<'columns, S> for () {
     }
 }
 
-impl<T: DbTyp> Prepared for Cached<T> {
+impl<T: DbTypOpt> Prepared for Cached<T> {
     type Out = T;
 
     fn call(&mut self, row: Row<'_>) -> Self::Out {
@@ -248,7 +248,7 @@ pub struct ColumnImpl<Out> {
     pub(crate) _p: PhantomData<Out>,
 }
 
-impl<Out: DbTyp> SelectImpl for ColumnImpl<Out> {
+impl<Out: DbTypOpt> SelectImpl for ColumnImpl<Out> {
     type Out = Out;
     type Prepared = Cached<Out>;
 
@@ -262,7 +262,7 @@ impl<Out: DbTyp> SelectImpl for ColumnImpl<Out> {
 
 impl<'columns, S, T> IntoSelect<'columns, S> for Expr<'columns, S, T>
 where
-    T: DbTyp,
+    T: DbTypOpt,
 {
     type Out = T;
 

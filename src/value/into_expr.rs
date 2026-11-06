@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     Expr, Lazy, Table, TableRow,
     lower::{self, ord_rc::OrdRc},
-    value::{DbTyp, EqTyp},
+    value::{DbTyp, EqTyp, db_typ::DbTypOpt},
 };
 
 /// Trait for all values that can be used as expressions in queries.
@@ -23,7 +23,7 @@ use crate::{
 /// Using a reference lets you reuse [Expr] without calling [Clone] explicitly.
 pub trait IntoExpr<'column, S> {
     /// The type of the expression.
-    type Typ: DbTyp;
+    type Typ: DbTypOpt;
 
     /// Turn this value into an [Expr].
     fn into_expr(self) -> Expr<'column, S, Self::Typ>;
@@ -139,7 +139,7 @@ impl<'column, T: Table> IntoExpr<'column, T::Schema> for Lazy<'_, T> {
     }
 }
 
-impl<'column, S, T: DbTyp> IntoExpr<'column, S> for Expr<'column, S, T> {
+impl<'column, S, T: DbTypOpt> IntoExpr<'column, S> for Expr<'column, S, T> {
     type Typ = T;
     fn into_expr(self) -> Expr<'column, S, Self::Typ> {
         self
