@@ -21,7 +21,7 @@ use crate::{
     rows::Rows,
     schema::read::Pragma,
     scoped_transaction::TransactionScope,
-    value::{DbTyp, OptTable},
+    value::{DbTyp, LazyOf, OptTable, out_to_lazy},
 };
 
 /// [Database] is a proof that the database has been configured.
@@ -378,8 +378,8 @@ impl<S: 'static> Transaction<S> {
     pub fn lazy<'t, T: OptTable<Schema = S>>(
         &'t self,
         val: impl IntoExpr<'static, S, Typ = T>,
-    ) -> T::Lazy<'t> {
-        T::out_to_lazy(self.query_one(val.into_expr()))
+    ) -> LazyOf<'t, T> {
+        out_to_lazy(self.query_one(val.into_expr()))
     }
 
     /// This retrieves an iterator of [crate::Lazy] values.

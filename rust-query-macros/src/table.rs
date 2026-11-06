@@ -215,7 +215,7 @@ fn define_table(
             pub struct #table_lazy<'x> {
                 #(
                     #(#col_doc)*
-                    pub #col_ident: <#col_typ as ::rust_query::private::DbTypOpt>::Lazy<'x>,
+                    pub #col_ident: ::rust_query::private::LazyOf<'x, #col_typ>,
                 )*
                 #private: ::std::marker::PhantomData<&'x ()>
             }
@@ -295,7 +295,7 @@ fn define_table(
 
                 fn select_lazy<'t>(#wrap_ident: Self::Select) -> Self::Lazy<'t> {
                     Self::Lazy {
-                        #(#col_ident: ::rust_query::private::DbTypOpt::out_to_lazy(#col_ident),)*
+                        #(#col_ident: ::rust_query::private::out_to_lazy(#col_ident),)*
                         #private: ::std::marker::PhantomData,
                     }
                 }

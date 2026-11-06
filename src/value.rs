@@ -23,7 +23,7 @@ use crate::{
     private::IntoJoinable,
     scoped_transaction::{MutTemp, TransactionScope},
 };
-pub use db_typ::{BaseTyp, DbTyp, DbTypOpt, StorableTyp};
+pub use db_typ::{BaseTyp, DbTyp, DbTypOpt, LazyOf, StorableTyp, WrapTyp, from_lazy, out_to_lazy};
 
 pub trait NumTyp: OrdTyp + Clone + Copy {
     const ZERO: &str;
@@ -149,7 +149,7 @@ pub fn new_column<'x, S, C: DbTypOpt, T: Table>(
     let table = table.into_expr();
     Expr::new_inner(
         table.inner.col(T::NAME, name, T::ID, table.not_null_key),
-        table.not_null_key && !C::NULL_VAL.is_some(),
+        table.not_null_key && !C::null::<()>().is_some(),
     )
 }
 

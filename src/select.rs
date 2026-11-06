@@ -54,10 +54,10 @@ impl<'x> Row<'x> {
         let idx = &self.fields[val.idx];
         let value = self.row.get_ref_unwrap(idx.as_str());
         if let rusqlite::types::Type::Null = value.data_type() {
-            T::NULL_VAL.unwrap()
+            T::null::<T::Actual>().unwrap()
         } else {
             let base = <T::Actual as DbTyp>::Base::base_from_sql(value);
-            T::from_actual(DbTyp::from_sql(base))
+            T::some(T::Actual::from_sql(base))
         }
     }
 }

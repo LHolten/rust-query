@@ -10,7 +10,7 @@ pub struct Reader {
 
 impl Reader {
     pub fn col<T: DbTypOpt>(&mut self, name: &'static str, val: T) {
-        let val = if let Some(val) = T::to_actual(val) {
+        let val = if let Some(val) = T::to_option(val) {
             T::Actual::out_to_value(val)
         } else {
             rusqlite::types::Value::Null

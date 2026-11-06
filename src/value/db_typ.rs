@@ -5,59 +5,71 @@ use crate::{
     value::EqTyp,
 };
 
-pub trait DbTypOpt: Sized + 'static {
-    type Actual: DbTyp;
-    const NULL_VAL: Option<Self>;
-    fn from_actual(val: Self::Actual) -> Self;
-    fn to_actual(self) -> Option<Self::Actual>;
+pub type LazyOf<'t, T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as DbTyp>::Lazy<'t>>;
+pub type FromLazyOf<'x, T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as DbTyp>::FromLazy<'x>>;
 
-    type FromLazy<'x>;
-    type Lazy<'t>: Sized;
-
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
-}
-
-impl<T: DbTyp> DbTypOpt for T {
-    type Actual = Self;
-    const NULL_VAL: Option<Self> = None;
-    fn from_actual(val: Self::Actual) -> Self {
-        val
-    }
-    fn to_actual(self) -> Option<Self::Actual> {
-        Some(self)
-    }
-
-    type FromLazy<'x> = T::FromLazy<'x>;
-    type Lazy<'t> = T::Lazy<'t>;
-
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-        T::from_lazy(lazy)
-    }
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-        T::out_to_lazy(self)
+pub fn from_lazy<T: DbTypOpt>(lazy: &FromLazyOf<'_, T>) -> T {
+    match T::to_option(T::as_ref(lazy)) {
+        Some(val) => T::some(T::Actual::from_lazy(val)),
+        None => T::null::<T::Actual>().unwrap(),
     }
 }
 
-impl<T: DbTyp> DbTypOpt for Option<T> {
-    type Actual = T;
-    const NULL_VAL: Option<Self> = Some(None);
-    fn from_actual(val: Self::Actual) -> Self {
+pub fn out_to_lazy<'t, T: DbTypOpt>(val: T) -> LazyOf<'t, T> {
+    match T::to_option::<T::Actual>(val) {
+        Some(val) => T::some(val.out_to_lazy()),
+        None => T::null::<<T::Actual as DbTyp>::Lazy<'t>>().unwrap(),
+    }
+}
+
+pub trait WrapTyp: Sized + 'static {
+    /// Either `X` or `Option<X>`.
+    type Wrap<X>;
+    fn to_option<X>(val: Self::Wrap<X>) -> Option<X>;
+    fn some<X>(val: X) -> Self::Wrap<X>;
+    /// Returns [None] if not nullable.
+    fn null<X>() -> Option<Self::Wrap<X>>;
+    fn as_ref<X>(val: &Self::Wrap<X>) -> Self::Wrap<&X>;
+}
+impl<T: DbTyp> WrapTyp for T {
+    type Wrap<X> = X;
+    fn to_option<X>(val: X) -> Option<X> {
         Some(val)
     }
-    fn to_actual(self) -> Option<Self::Actual> {
-        self
+    fn some<X>(val: X) -> X {
+        val
     }
+    fn null<X>() -> Option<X> {
+        None
+    }
+    fn as_ref<X>(val: &X) -> &X {
+        val
+    }
+}
+impl<T: DbTyp> WrapTyp for Option<T> {
+    type Wrap<X> = Option<X>;
+    fn to_option<X>(val: Option<X>) -> Option<X> {
+        val
+    }
+    fn some<X>(val: X) -> Option<X> {
+        Some(val)
+    }
+    fn null<X>() -> Option<Option<X>> {
+        Some(None)
+    }
+    fn as_ref<X>(val: &Option<X>) -> Option<&X> {
+        val.as_ref()
+    }
+}
 
-    type FromLazy<'x> = Option<T::FromLazy<'x>>;
-    type Lazy<'t> = Option<T::Lazy<'t>>;
-
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-        lazy.as_ref().map(T::from_lazy)
-    }
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-        self.map(T::out_to_lazy)
-    }
+pub trait DbTypOpt: WrapTyp<Wrap<Self::Actual> = Self> {
+    type Actual: DbTyp;
+}
+impl<T: DbTyp> DbTypOpt for T {
+    type Actual = Self;
+}
+impl<T: DbTyp> DbTypOpt for Option<T> {
+    type Actual = T;
 }
 
 /// The types that can be used inside [crate::Expr].
