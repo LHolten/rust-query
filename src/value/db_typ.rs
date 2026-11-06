@@ -11,7 +11,6 @@ pub trait DbTyp: Sized + 'static {
     type Prev;
     const NULLABLE: bool = false;
     type Ext<'t>;
-    type Sql;
 
     type FromLazy<'x>;
     type Lazy<'t>: Sized;
@@ -39,7 +38,6 @@ pub trait StorableTyp: DbTyp {
 impl DbTyp for jiff::Timestamp {
     type Prev = Self;
     type Ext<'t> = ();
-    type Sql = String;
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
 
@@ -89,7 +87,6 @@ impl StorableTyp for jiff::Timestamp {
 impl DbTyp for jiff::civil::Date {
     type Prev = Self;
     type Ext<'t> = ();
-    type Sql = String;
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
 
@@ -134,7 +131,6 @@ impl StorableTyp for jiff::civil::Date {
 impl<T: Table> DbTyp for TableRow<T> {
     type Prev = TableRow<T::MigrateFrom>;
     type Ext<'t> = T::Ext2<'t>;
-    type Sql = i64;
 
     type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
     fn migrate(prev: Self::Prev) -> Self {
@@ -179,7 +175,6 @@ impl<T: EqTyp> DbTyp for Option<T> {
     type Prev = Option<T::Prev>;
     const NULLABLE: bool = true;
     type Ext<'t> = ();
-    type Sql = T::Sql;
 
     type FromLazy<'x> = Option<T::FromLazy<'x>>;
     fn migrate(prev: Self::Prev) -> Self {
@@ -223,7 +218,6 @@ macro_rules! impl_typ {
         impl DbTyp for $typ {
             type Prev = Self;
             type Ext<'t> = ();
-            type Sql = Self;
             type FromLazy<'x> = Self;
 
             fn migrate(prev: Self) -> Self {
