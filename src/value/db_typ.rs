@@ -8,7 +8,8 @@ use crate::{
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.
 pub trait DbTyp: Sized + 'static {
-    type Base<'x>: BaseTypOpt<'x>;
+    type Base: BaseTyp;
+    const NULL_VAL: Option<Self> = None;
 
     type Ext<'t>;
 
@@ -19,7 +20,7 @@ pub trait DbTyp: Sized + 'static {
     fn out_to_value(self) -> rusqlite::types::Value;
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
 
-    fn from_sql(value: Self::Base<'_>) -> Self;
+    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self;
 }
 
 /// Not all types are allowed to be stored.
@@ -34,54 +35,51 @@ pub trait StorableTyp: DbTyp {
     fn migrate(prev: Self::Prev) -> Self;
 }
 
-pub trait BaseTyp<'x>: Sized {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self;
+pub trait BaseTyp: Sized {
+    type Ref<'x>;
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_>;
+    fn base_to_value(val: Self) -> rusqlite::types::Value;
 }
-impl BaseTyp<'_> for i64 {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self {
+impl BaseTyp for i64 {
+    type Ref<'x> = i64;
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_i64().unwrap()
     }
+    fn base_to_value(val: Self) -> rusqlite::types::Value {
+        rusqlite::types::Value::Integer(val)
+    }
 }
-impl BaseTyp<'_> for f64 {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self {
+impl BaseTyp for f64 {
+    type Ref<'x> = f64;
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_f64().unwrap()
     }
+    fn base_to_value(val: Self) -> rusqlite::types::Value {
+        rusqlite::types::Value::Real(val)
+    }
 }
-impl<'x> BaseTyp<'x> for &'x str {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
+impl BaseTyp for String {
+    type Ref<'x> = &'x str;
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_str().unwrap()
     }
+    fn base_to_value(val: Self) -> rusqlite::types::Value {
+        rusqlite::types::Value::Text(val)
+    }
 }
-impl<'x> BaseTyp<'x> for &'x [u8] {
-    fn base_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
+impl BaseTyp for Vec<u8> {
+    type Ref<'x> = &'x [u8];
+    fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_blob().unwrap()
     }
-}
-
-pub trait BaseTypOpt<'x>: Sized {
-    const NULLABLE: bool;
-    fn base_opt_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self;
-}
-impl<'x, T: BaseTyp<'x>> BaseTypOpt<'x> for T {
-    const NULLABLE: bool = false;
-    fn base_opt_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
-        T::base_from_sql(value)
-    }
-}
-impl<'x, T: BaseTyp<'x>> BaseTypOpt<'x> for Option<T> {
-    const NULLABLE: bool = true;
-    fn base_opt_from_sql(value: rusqlite::types::ValueRef<'x>) -> Self {
-        if let rusqlite::types::Type::Null = value.data_type() {
-            None
-        } else {
-            Some(T::base_from_sql(value))
-        }
+    fn base_to_value(val: Self) -> rusqlite::types::Value {
+        rusqlite::types::Value::Blob(val)
     }
 }
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
-    type Base<'x> = &'x str;
+    type Base = String;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
@@ -100,7 +98,7 @@ impl DbTyp for jiff::Timestamp {
         self
     }
 
-    fn from_sql(value: Self::Base<'_>) -> Self {
+    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
         use std::str::FromStr;
 
         let dt = jiff::civil::DateTime::from_str(value).unwrap();
@@ -126,7 +124,7 @@ impl StorableTyp for jiff::Timestamp {
 
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::civil::Date {
-    type Base<'x> = &'x str;
+    type Base = String;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     type Lazy<'t> = Self;
@@ -147,7 +145,7 @@ impl DbTyp for jiff::civil::Date {
         self
     }
 
-    fn from_sql(value: Self::Base<'_>) -> Self {
+    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
         use std::str::FromStr;
 
         jiff::civil::Date::from_str(value).unwrap()
@@ -168,7 +166,7 @@ impl StorableTyp for jiff::civil::Date {
 }
 
 impl<T: Table> DbTyp for TableRow<T> {
-    type Base<'x> = i64;
+    type Base = i64;
     type Ext<'t> = T::Ext2<'t>;
 
     type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
@@ -187,7 +185,7 @@ impl<T: Table> DbTyp for TableRow<T> {
         }
     }
 
-    fn from_sql(value: Self::Base<'_>) -> Self {
+    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
         TableRow {
             _local: PhantomData,
             inner: TableRowInner {
@@ -213,7 +211,7 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
 }
 
 impl DbTyp for bool {
-    type Base<'x> = i64;
+    type Base = i64;
     type Ext<'t> = ();
     type FromLazy<'x> = Self;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
@@ -226,7 +224,7 @@ impl DbTyp for bool {
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
         self
     }
-    fn from_sql(val: Self::Base<'_>) -> Self {
+    fn from_sql(val: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
         val != 0
     }
 }
@@ -242,8 +240,9 @@ impl StorableTyp for bool {
 }
 
 impl<T: EqTyp> DbTyp for Option<T> {
-    type Base<'x> = Option<T::Base<'x>>;
+    type Base = T::Base;
     type Ext<'t> = ();
+    const NULL_VAL: Option<Self> = Some(None);
 
     type FromLazy<'x> = Option<T::FromLazy<'x>>;
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
@@ -258,8 +257,8 @@ impl<T: EqTyp> DbTyp for Option<T> {
         self.map(T::out_to_lazy)
     }
 
-    fn from_sql(value: Self::Base<'_>) -> Self {
-        value.map(T::from_sql)
+    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
+        Some(T::from_sql(value))
     }
 }
 
@@ -280,7 +279,7 @@ impl<T: EqTyp + StorableTyp> StorableTyp for Option<T> {
 macro_rules! impl_typ {
     ($typ:ty, $base:ty, $can:expr, $map:expr) => {
         impl DbTyp for $typ {
-            type Base<'x> = $base;
+            type Base = $base;
             type Ext<'t> = ();
             type FromLazy<'x> = Self;
 
@@ -294,8 +293,8 @@ macro_rules! impl_typ {
             fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
                 self
             }
-            fn from_sql(val: Self::Base<'_>) -> Self {
-                let f: fn(Self::Base<'_>) -> _ = $map;
+            fn from_sql(val: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
+                let f: fn(<Self::Base as BaseTyp>::Ref<'_>) -> _ = $map;
                 f(val)
             }
         }
@@ -315,10 +314,10 @@ macro_rules! impl_typ {
     };
 }
 impl_typ!(i64, i64, canonical::ColumnType::Integer, |x| x);
-impl_typ!(String, &'x str, canonical::ColumnType::Text, |x| x
+impl_typ!(String, String, canonical::ColumnType::Text, |x| x
     .to_owned());
 
-impl_typ!(Vec<u8>, &'x [u8], canonical::ColumnType::Blob, |x| x
+impl_typ!(Vec<u8>, Vec<u8>, canonical::ColumnType::Blob, |x| x
     .to_owned());
 impl_typ!(f64, f64, canonical::ColumnType::Real, |x| x);
 
