@@ -8,6 +8,7 @@ mod operations;
 pub mod optional;
 
 use std::{
+    any::Any,
     cell::{Cell, OnceCell},
     fmt::Debug,
     marker::PhantomData,
@@ -119,8 +120,8 @@ pub struct Expr<'column, S, T: DbTypOpt> {
     pub(crate) _local: PhantomData<*const ()>,
     pub(crate) inner: Rc<lower::Expr>,
     pub(crate) _p: PhantomData<&'column ()>,
-    pub(crate) _p2: PhantomData<S>,
-    pub(crate) ext: OnceCell<Box<<T::Actual as DbTyp>::Ext<'static>>>,
+    pub(crate) _p2: PhantomData<(S, T)>,
+    pub(crate) ext: OnceCell<Box<dyn Any>>,
     // is this expressions not null and a foreign key?
     pub(crate) not_null_key: bool,
 }
@@ -206,7 +207,7 @@ impl<'t, T: Table> Deref for Expr<'t, T::Schema, TableRow<T>> {
     type Target = T::Ext2<'t>;
 
     fn deref(&self) -> &Self::Target {
-        T::covariant_ext(self.ext.get_or_init(|| {
+        let ext = self.ext.get_or_init(|| {
             let expr = Expr {
                 _local: PhantomData,
                 inner: self.inner.clone(),
@@ -216,6 +217,7 @@ impl<'t, T: Table> Deref for Expr<'t, T::Schema, TableRow<T>> {
                 not_null_key: self.not_null_key,
             };
             Box::new(T::build_ext2(&expr))
-        }))
+        });
+        T::covariant_ext(ext.downcast_ref().unwrap())
     }
 }

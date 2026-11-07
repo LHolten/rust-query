@@ -88,7 +88,6 @@ impl<T: DbTypOpt<Actual: StorableTyp>> StorableTypOpt for T {}
 pub trait DbTyp: Sized + 'static {
     type Base: BaseTyp;
 
-    type Ext<'t>;
     type Lazy<'t>: Sized;
 
     fn out_to_lazy<'t>(self) -> Self::Lazy<'t>;
@@ -156,7 +155,6 @@ impl BaseTyp for Vec<u8> {
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::Timestamp {
     type Base = String;
-    type Ext<'t> = ();
     type Lazy<'t> = Self;
 
     fn out_to_value(self) -> Self::Base {
@@ -202,7 +200,6 @@ impl StorableTyp for jiff::Timestamp {
 #[cfg(feature = "jiff-02")]
 impl DbTyp for jiff::civil::Date {
     type Base = String;
-    type Ext<'t> = ();
     type Lazy<'t> = Self;
 
     fn out_to_value(self) -> Self::Base {
@@ -245,7 +242,6 @@ impl StorableTyp for jiff::civil::Date {
 
 impl<T: Table> DbTyp for TableRow<T> {
     type Base = i64;
-    type Ext<'t> = T::Ext2<'t>;
 
     fn out_to_value(self) -> Self::Base {
         self.inner.idx
@@ -291,7 +287,6 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
 
 impl DbTyp for bool {
     type Base = i64;
-    type Ext<'t> = ();
     fn out_to_value(self) -> Self::Base {
         self.into()
     }
@@ -323,7 +318,6 @@ macro_rules! impl_typ {
     ($typ:ty, $base:ty, $can:expr, $map:expr) => {
         impl DbTyp for $typ {
             type Base = $base;
-            type Ext<'t> = ();
             fn out_to_value(self) -> Self::Base {
                 self.into()
             }
