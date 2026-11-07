@@ -178,9 +178,7 @@ impl Config {
                 let timestamp = jiff::Timestamp::from_sql(ctx.get_raw(0).as_str()?);
                 let seconds = ctx.get::<i64>(1)?;
                 let new = timestamp + jiff::SignedDuration::from_nanos(seconds);
-                let rusqlite::types::Value::Text(res) = jiff::Timestamp::out_to_value(new) else {
-                    unreachable!("func always returns some string")
-                };
+                let res = jiff::Timestamp::out_to_value(new);
                 Ok(Some(res))
             },
         )?;
@@ -242,10 +240,7 @@ impl Config {
                     .parse_time_zone(ctx.get_raw(1).as_str()?)
                     .expect("time zone was serialized with jiff");
                 let date = timezone.to_datetime(timestamp).date();
-                let rusqlite::types::Value::Text(res) = jiff::civil::Date::out_to_value(date)
-                else {
-                    unreachable!("func always returns some string")
-                };
+                let res = jiff::civil::Date::out_to_value(date);
                 Ok(Some(res))
             },
         )?;

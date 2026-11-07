@@ -1,6 +1,6 @@
 use crate::{
     lower::ord_rc::OrdRc,
-    value::{DbTyp, DbTypOpt},
+    value::{BaseTyp, DbTyp, DbTypOpt},
 };
 
 #[derive(Default)]
@@ -11,7 +11,8 @@ pub struct Reader {
 impl Reader {
     pub fn col<T: DbTypOpt>(&mut self, name: &'static str, val: T) {
         let val = if let Some(val) = T::to_option(val) {
-            T::Actual::out_to_value(val)
+            let base = T::Actual::out_to_value(val);
+            BaseTyp::base_to_value(base)
         } else {
             rusqlite::types::Value::Null
         };
