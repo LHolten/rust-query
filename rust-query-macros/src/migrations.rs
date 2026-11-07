@@ -121,7 +121,7 @@ fn define_table_migration(
 
     let migration = quote! {
         pub struct #table_ident {#(
-            pub #alter_ident: <#new_mod::#alter_tmp as ::rust_query::private::StorableTyp>::Prev,
+            pub #alter_ident: ::rust_query::private::PrevOf<#new_mod::#alter_tmp>,
         )*}
 
         impl ::rust_query::private::Migrateable for #new_mod::#table_ident {
@@ -136,7 +136,7 @@ fn define_table_migration(
                 let prev = ::std::ops::Deref::deref(&prev);
                 Self {
                     #(#old_ident: ::rust_query::private::from_lazy(&prev.#old_ident),)*
-                    #(#alter_ident: ::rust_query::private::StorableTyp::migrate(val.#alter_ident),)*
+                    #(#alter_ident: ::rust_query::private::migrate(val.#alter_ident),)*
                 }
             }
 

@@ -177,8 +177,8 @@ pub mod private {
     pub use crate::schema::from_macro::{SchemaType, TypBuilder};
     pub use crate::schema::tokenizer::{Token, get_token};
     pub use crate::value::{
-        DbTyp, DbTypOpt, LazyOf, StorableTyp, adhoc_expr, from_lazy, new_column, out_to_lazy,
-        unique_from_joinable,
+        DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, adhoc_expr, from_lazy, migrate, new_column,
+        out_to_lazy, unique_from_joinable,
     };
     pub use crate::writable::Reader;
 

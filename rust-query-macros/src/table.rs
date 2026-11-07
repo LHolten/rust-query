@@ -152,7 +152,7 @@ fn define_table(
         } else {
             let next_mod = next_mod.unwrap();
             col_typ_original.push(
-                quote! {<super::#next_mod::#tmp as ::rust_query::private::StorableTyp>::Prev},
+                quote! {::rust_query::private::PrevOf<super::#next_mod::#tmp>},
             );
         }
 
