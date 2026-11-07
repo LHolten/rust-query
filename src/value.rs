@@ -23,7 +23,10 @@ use crate::{
     private::IntoJoinable,
     scoped_transaction::{MutTemp, TransactionScope},
 };
-pub use db_typ::{BaseTyp, DbTyp, DbTypOpt, LazyOf, StorableTyp, WrapTyp, from_lazy, out_to_lazy};
+pub use db_typ::{
+    BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, StorableTypOpt, WrapTyp, from_lazy,
+    migrate, out_to_lazy,
+};
 
 pub trait NumTyp: OrdTyp + Clone + Copy {
     const ZERO: &str;

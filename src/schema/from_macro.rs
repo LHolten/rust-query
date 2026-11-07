@@ -7,7 +7,7 @@ use std::{
 use crate::{
     IntoExpr,
     schema::{canonical, check_constraint::Parsed, from_db},
-    value::{EqTyp, StorableTyp, WrapTyp},
+    value::{DbTypOpt, EqTyp, StorableTyp, StorableTypOpt, WrapTyp},
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -54,11 +54,12 @@ impl<S> TypBuilder<S> {
     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
         let item = Column {
             def: canonical::Column {
-                typ: <T::Typ as StorableTyp>::TYP,
-                nullable: <T::Typ as WrapTyp>::null::<()>().is_some(),
-                fk: <T::Typ as StorableTyp>::FK
+                typ: <<T as DbTypOpt>::Actual as StorableTyp>::TYP,
+                nullable: <T as WrapTyp>::null::<()>().is_some(),
+                fk: <<T as DbTypOpt>::Actual as StorableTyp>::FK
                     .map(|(table, fk)| (table.to_owned(), fk.to_owned())),
-                check: <T::Typ as StorableTyp>::check(name).map(|sql| Parsed::parse(&sql)),
+                check: <<T as DbTypOpt>::Actual as StorableTyp>::check(name)
+                    .map(|sql| Parsed::parse(&sql)),
             },
             span,
         };
@@ -81,9 +82,9 @@ impl<S> TypBuilder<S> {
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
-pub trait SchemaType<S>: IntoExpr<'static, S, Typ = Self> + StorableTyp {}
+pub trait SchemaType<S>: IntoExpr<'static, S, Typ = Self> + StorableTypOpt {}
 
-impl<T, S> SchemaType<S> for T where T: IntoExpr<'static, S, Typ = Self> + StorableTyp {}
+impl<T, S> SchemaType<S> for T where T: IntoExpr<'static, S, Typ = Self> + StorableTypOpt {}
 
 #[cfg(test)]
 mod tests {
