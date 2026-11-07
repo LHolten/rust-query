@@ -7,7 +7,7 @@ use std::{
 use crate::{
     IntoExpr,
     schema::{canonical, check_constraint::Parsed, from_db},
-    value::{DbTypOpt, EqTyp, StorableTyp, StorableTypOpt, WrapTyp},
+    value::{BaseTyp, DbTyp, DbTypOpt, EqTyp, StorableTyp, StorableTypOpt, WrapTyp},
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -54,7 +54,7 @@ impl<S> TypBuilder<S> {
     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
         let item = Column {
             def: canonical::Column {
-                typ: <<T as DbTypOpt>::Actual as StorableTyp>::TYP,
+                typ: <<<T as DbTypOpt>::Actual as DbTyp>::Base as BaseTyp>::TYP,
                 nullable: <T as WrapTyp>::null::<()>().is_some(),
                 fk: <<T as DbTypOpt>::Actual as StorableTyp>::FK
                     .map(|(table, fk)| (table.to_owned(), fk.to_owned())),

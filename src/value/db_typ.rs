@@ -99,7 +99,6 @@ pub trait DbTyp: Sized + 'static {
 /// Not all types are allowed to be stored.
 /// Specificially `#[no_reference]` references.
 pub trait StorableTyp: DbTyp {
-    const TYP: canonical::ColumnType;
     const FK: Option<(&'static str, &'static str)> = None;
 
     fn check(_col: &str) -> Option<String>;
@@ -111,11 +110,13 @@ pub trait StorableTyp: DbTyp {
 }
 
 pub trait BaseTyp: Sized {
+    const TYP: canonical::ColumnType;
     type Ref<'x>;
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_>;
     fn base_to_value(val: Self) -> rusqlite::types::Value;
 }
 impl BaseTyp for i64 {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     type Ref<'x> = i64;
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_i64().unwrap()
@@ -125,6 +126,7 @@ impl BaseTyp for i64 {
     }
 }
 impl BaseTyp for f64 {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Real;
     type Ref<'x> = f64;
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_f64().unwrap()
@@ -134,6 +136,7 @@ impl BaseTyp for f64 {
     }
 }
 impl BaseTyp for String {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     type Ref<'x> = &'x str;
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_str().unwrap()
@@ -143,6 +146,7 @@ impl BaseTyp for String {
     }
 }
 impl BaseTyp for Vec<u8> {
+    const TYP: canonical::ColumnType = canonical::ColumnType::Blob;
     type Ref<'x> = &'x [u8];
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_blob().unwrap()
@@ -178,7 +182,6 @@ impl DbTyp for jiff::Timestamp {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::Timestamp {
-    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     fn check(col: &str) -> Option<String> {
         Some(format!(
             "{0} IS (ltrim(datetime({0} || 'Z'), '-') || rtrim(substr({0}, 20, 10), '0 '))",
@@ -224,7 +227,6 @@ impl DbTyp for jiff::civil::Date {
 
 #[cfg(feature = "jiff-02")]
 impl StorableTyp for jiff::civil::Date {
-    const TYP: canonical::ColumnType = canonical::ColumnType::Text;
     fn check(col: &str) -> Option<String> {
         Some(format!("{0} IS ltrim(date({0}), '-')", Alias(col)))
     }
@@ -267,7 +269,6 @@ impl<T: Table> DbTyp for TableRow<T> {
 }
 
 impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
-    const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     const FK: Option<(&'static str, &'static str)> = Some((T::NAME, T::ID));
 
     fn check(_col: &str) -> Option<String> {
@@ -299,7 +300,6 @@ impl DbTyp for bool {
     }
 }
 impl StorableTyp for bool {
-    const TYP: canonical::ColumnType = (canonical::ColumnType::Integer);
     fn check(col: &str) -> Option<String> {
         Some(format!("{} IN (0, 1)", Alias(col)))
     }
@@ -332,8 +332,6 @@ macro_rules! impl_typ {
         }
 
         impl StorableTyp for $typ {
-            const TYP: canonical::ColumnType = $can;
-
             fn check(_col: &str) -> Option<String> {
                 None
             }
