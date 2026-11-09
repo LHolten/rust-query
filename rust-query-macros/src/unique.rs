@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::Ident;
+use syn::{spanned::Spanned, Ident};
 
 use crate::{multi::SingleVersionColumn, SingleVersionTable};
 
@@ -67,7 +67,7 @@ pub fn unique_tree(
     for (i, next) in &tree.choice {
         let col = &info.columns[i];
         let col_str = &col.name.str;
-        let col_typ = format_ident!("_{table_ident}{i}");
+        let col_typ = format_ident!("_{table_ident}{i}", span = col.typ.span());
         let col = &col.name.ident;
 
         let helper_name = format_ident!("{prefix}_{col}");
@@ -81,7 +81,7 @@ pub fn unique_tree(
             impl<'inner> ::rust_query::private::IntoJoinable<'inner, #schema> for #helper_name<'inner> {
                 type Typ = ::rust_query::TableRow<#table_ident>;
                 fn into_joinable(self) -> ::rust_query::private::Joinable<'inner, #schema, Self::Typ> {
-                    ::rust_query::private::IntoJoinable::into_joinable(self.0).add_cond(#col_str, self.1)
+                    ::rust_query::private::IntoJoinable::into_joinable(self.0).add_cond::<#col_typ>(#col_str, self.1)
                 }
             }
         });

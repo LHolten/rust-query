@@ -7,7 +7,7 @@ use std::{
 use crate::{
     IntoExpr,
     schema::{canonical, check_constraint::Parsed, from_db},
-    value::{BaseTyp, DbTyp, DbTypOpt, EqTyp, StorableTyp, StorableTypOpt, WrapTyp},
+    value::{BaseTyp, DbTyp, DbTypOpt, StorableTyp, StorableTypOpt, WrapTyp},
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -74,8 +74,6 @@ impl<S> TypBuilder<S> {
         };
         self.ast.indices.insert(Index { def, span });
     }
-
-    pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
 }
 
 #[diagnostic::on_unimplemented(

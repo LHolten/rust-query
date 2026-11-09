@@ -107,7 +107,6 @@ fn define_table(
 
     let conflict_type = table.conflict();
 
-    let mut def_typs = vec![];
     let mut generic = vec![];
     let mut col_rename = vec![];
     let mut col_ident = vec![];
@@ -133,8 +132,6 @@ fn define_table(
             .filter(|x| x.kind.unique)
             .flat_map(|u| &u.columns);
         if unique_columns.any(|x| x == i) {
-            def_typs.push(quote!(f.check_unique_compatible::<#tmp>()));
-
             col_ident_immut.push(ident);
             col_typ_immut.push(tmp.clone());
         } else {
@@ -263,7 +260,6 @@ fn define_table(
 
                 fn typs(f: &mut ::rust_query::private::TypBuilder<Self::Schema>) {
                     #(f.col::<#col_typ>(#col_rename, #col_span);)*
-                    #(#def_typs;)*
                     #(#unique_typs;)*
                 }
 

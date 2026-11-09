@@ -62,29 +62,6 @@ note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
   |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
 
-error[E0277]: Columns with type `Option<i64>` can not be checked for equality
- --> tests/compile/schema_types.rs:9:23
-  |
-3 | #[schema(Schema)]
-  | ----------------- required by a bound introduced by this call
-...
-9 |         pub optional: Option<i64>,
-  |                       ^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
-  |
-  = help: the following other types implement trait `rust_query::private::EqTyp`:
-            String
-            Vec<u8>
-            bool
-            f64
-            i64
-            jiff::civil::date::Date
-            jiff::timestamp::Timestamp
-note: required by a bound in `rust_query::private::TypBuilder::<S>::check_unique_compatible`
- --> src/schema/from_macro.rs
-  |
-  |     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
-  |                                       ^^^^^ required by this bound in `TypBuilder::<S>::check_unique_compatible`
-
 error[E0277]: Can not use `Option<Option<i64>>` as a column type
  --> tests/compile/schema_types.rs:8:13
   |
@@ -118,10 +95,13 @@ note: required by a bound in `rust_query::private::Reader::col`
   |                   ^^^^^^^^ required by this bound in `Reader::col`
 
 error[E0277]: Columns with type `Option<i64>` can not be checked for equality
- --> tests/compile/schema_types.rs:3:1
+ --> tests/compile/schema_types.rs:9:23
   |
 3 | #[schema(Schema)]
-  | ^^^^^^^^^^^^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
+  | ----------------- required by a bound introduced by this call
+...
+9 |         pub optional: Option<i64>,
+  |                       ^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
   |
   = help: the following other types implement trait `rust_query::private::EqTyp`:
             String
@@ -136,4 +116,3 @@ note: required by a bound in `rust_query::private::Joinable::<'inner, S, T>::add
   |
   |     pub fn add_cond<C: EqTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
   |                        ^^^^^ required by this bound in `Joinable::<'inner, S, T>::add_cond`
-  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)

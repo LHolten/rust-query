@@ -1,6 +1,9 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use crate::{Expr, Table, TableRow, lower, value::{DbTyp, EqTyp}};
+use crate::{
+    Expr, Table, TableRow, lower,
+    value::{DbTyp, EqTyp},
+};
 
 pub trait IntoJoinable<'inner, S> {
     type Typ: DbTyp;

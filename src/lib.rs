@@ -180,8 +180,7 @@ pub mod private {
     pub use crate::schema::tokenizer::{Token, get_token};
     pub use crate::value::{
         BaseTyp, DbTyp, DbTypOpt, EqTyp, LazyOf, PrevOf, StorableTyp, StorableTypOpt, adhoc_expr,
-        db_typ_to_expr,
-        from_lazy, migrate, new_column, out_to_lazy, unique_from_joinable,
+        db_typ_to_expr, from_lazy, migrate, new_column, out_to_lazy, unique_from_joinable,
     };
     pub use crate::writable::Reader;
 
