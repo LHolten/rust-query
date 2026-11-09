@@ -175,12 +175,12 @@ pub mod private {
         with_test_renderer,
     };
     pub use crate::query::get_plan;
+    pub use crate::refinement_typ;
     pub use crate::schema::from_macro::{SchemaType, TypBuilder};
     pub use crate::schema::tokenizer::{Token, get_token};
     pub use crate::value::{
-        BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, adhoc_expr, from_lazy, migrate,
-        new_column, out_to_lazy, refinement_to_expr, refinement_typ::RefinementTyp,
-        unique_from_joinable,
+        BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, adhoc_expr, db_typ_to_expr,
+        from_lazy, migrate, new_column, out_to_lazy, unique_from_joinable,
     };
     pub use crate::writable::Reader;
 

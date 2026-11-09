@@ -1,113 +1,108 @@
-use crate::{
-    lower::list_writer::Alias,
-    value::{BaseTyp, DbTyp, StorableTyp},
-};
+#[doc(hidden)]
+#[macro_export]
+macro_rules! refinement_typ {
+    ($(#[$attr:meta])* $typ:ty, $base:ty, $out:expr, $from:expr, $check:expr $(,)?) => {
+        impl $crate::private::DbTyp for $typ {
+            type Base = $base;
+            type Lazy<'t> = Self;
 
-pub trait RefinementTyp: Clone + 'static {
-    type RBase: BaseTyp;
+            fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
+                self
+            }
+            fn out_to_value(self) -> Self::Base {
+                let f: fn(Self) -> Self::Base = $out;
+                f(self)
+            }
+            fn from_sql(val: <Self::Base as $crate::private::BaseTyp>::Ref<'_>) -> Self {
+                let f: fn(<Self::Base as $crate::private::BaseTyp>::Ref<'_>) -> Self = $from;
+                f(val)
+            }
+        }
 
-    fn r_out_to_value(self) -> Self::RBase;
-    fn r_from_sql(value: <Self::RBase as BaseTyp>::Ref<'_>) -> Self;
+        impl $crate::private::StorableTyp for $typ {
+            type Prev = Self;
+            type FromLazy<'x> = Self;
 
-    fn r_check(_col: Alias) -> String;
-}
+            fn check(col: &str) -> Option<String> {
+                let f: fn($crate::private::Alias) -> String = $check;
+                Some(f($crate::private::Alias(col)))
+            }
+            fn migrate(prev: Self::Prev) -> Self {
+                prev
+            }
+            fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+                lazy.clone()
+            }
+        }
 
-impl<T: RefinementTyp> DbTyp for T {
-    type Base = T::RBase;
-    type Lazy<'t> = T;
+        $(#[$attr])*
+        impl<'column, S> $crate::IntoExpr<'column, S> for $typ {
+            type Typ = Self;
 
-    fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-        self
-    }
-    fn out_to_value(self) -> Self::Base {
-        Self::r_out_to_value(self)
-    }
-    fn from_sql(value: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
-        Self::r_from_sql(value)
-    }
-}
-
-impl<T: RefinementTyp> StorableTyp for T {
-    type Prev = Self;
-    type FromLazy<'x> = Self;
-
-    fn check(col: &str) -> Option<String> {
-        Some(Self::r_check(Alias(col)))
-    }
-    fn migrate(prev: Self::Prev) -> Self {
-        prev
-    }
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
-        lazy.clone()
-    }
+            fn into_expr(&self) -> $crate::Expr<'column, S, Self::Typ> {
+                $crate::private::db_typ_to_expr(self.clone())
+            }
+        }
+    };
 }
 
 #[cfg(feature = "jiff-02")]
-impl RefinementTyp for jiff::Timestamp {
-    type RBase = String;
-
-    fn r_out_to_value(self) -> Self::RBase {
+refinement_typ!(
+    /// Note that timestamps before `0000-01-01 00:00:00` can not be used in an expression.
+    /// The reason is that datetimes are represented in sqlite as strings and for negative
+    /// years the sorting order is wrong.
+    ///
+    /// The conversion is lossless, everything up to nanoseconds is preserved.
+    jiff::Timestamp,
+    String,
+    |ts| {
         // check that year is positive
-        assert!(self >= jiff::Timestamp::from_second(-62167219200).unwrap());
+        assert!(ts >= jiff::Timestamp::from_second(-62167219200).unwrap());
         // Use space instead of `T` for date and time separator
-        self.strftime("%F %T%.f").to_string()
-    }
-
-    fn r_from_sql(value: <Self::RBase as BaseTyp>::Ref<'_>) -> Self {
+        ts.strftime("%F %T%.f").to_string()
+    },
+    |value| {
         use std::str::FromStr;
 
         let dt = jiff::civil::DateTime::from_str(value).unwrap();
         jiff::tz::TimeZone::UTC.to_timestamp(dt).unwrap()
-    }
-
-    fn r_check(col: Alias) -> String {
-        format!(
-            "{col} IS (ltrim(datetime({col} || 'Z'), '-') || rtrim(substr({col}, 20, 10), '0 '))"
-        )
-    }
-}
+    },
+    |col| format!(
+        "{col} IS (ltrim(datetime({col} || 'Z'), '-') || rtrim(substr({col}, 20, 10), '0 '))"
+    ),
+);
 
 #[cfg(feature = "jiff-02")]
-impl RefinementTyp for jiff::civil::Date {
-    type RBase = String;
-
-    fn r_out_to_value(self) -> Self::RBase {
+refinement_typ!(
+    /// Note that dates before `0000-01-01` can not be used in an expression.
+    /// The reason is that dates are represented in sqlite as strings and for negative
+    /// years the sorting order is wrong.
+    jiff::civil::Date,
+    String,
+    |date| {
         // check that year is positive
         assert!(
-            self.year() >= 0,
+            date.year() >= 0,
             "only dates with a year that is greater than or equal to zero can be used"
         );
-        self.to_string()
-    }
-
-    fn r_from_sql(value: <Self::RBase as BaseTyp>::Ref<'_>) -> Self {
+        date.to_string()
+    },
+    |value| {
         use std::str::FromStr;
 
         jiff::civil::Date::from_str(value).unwrap()
-    }
+    },
+    |col| format!("{col} IS ltrim(date({col}), '-')"),
+);
 
-    fn r_check(col: Alias) -> String {
-        format!("{col} IS ltrim(date({col}), '-')")
-    }
-}
-
-impl RefinementTyp for bool {
-    type RBase = i64;
-    fn r_out_to_value(self) -> Self::RBase {
-        self.into()
-    }
-    fn r_from_sql(val: <Self::RBase as BaseTyp>::Ref<'_>) -> Self {
-        val != 0
-    }
-    fn r_check(col: Alias) -> String {
-        format!("{col} IN (0, 1)")
-    }
-}
+refinement_typ!(bool, i64, |val| val.into(), |val| val != 0, |col| format!(
+    "{col} IN (0, 1)"
+),);
 
 #[test]
 #[cfg(feature = "jiff-02")]
 fn jiff_check_constraint() {
-    use crate::{Database, migration::Config};
+    use crate::{Database, migration::Config, value::DbTyp};
 
     #[crate::migration::schema(Schema)]
     pub mod vN {
@@ -167,7 +162,7 @@ fn jiff_check_constraint() {
 #[test]
 #[cfg(feature = "jiff-02")]
 fn jiff_check_constraint_date() {
-    use crate::{Database, migration::Config};
+    use crate::{Database, migration::Config, value::DbTyp};
 
     #[crate::migration::schema(Schema)]
     pub mod vN {

@@ -26,8 +26,8 @@ use crate::{
     scoped_transaction::{MutTemp, TransactionScope},
 };
 pub use db_typ::{
-    BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, StorableTypOpt, WrapTyp, from_lazy,
-    migrate, out_to_lazy, refinement_to_expr,
+    BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, StorableTypOpt, WrapTyp, db_typ_to_expr,
+    from_lazy, migrate, out_to_lazy,
 };
 
 pub trait NumTyp: OrdTyp + Clone + Copy {

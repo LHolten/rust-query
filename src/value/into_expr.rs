@@ -67,13 +67,6 @@ impl<'column, S> IntoExpr<'column, S> for [u8] {
     }
 }
 
-impl<'column, S> IntoExpr<'column, S> for bool {
-    type Typ = bool;
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
-    }
-}
-
 impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
@@ -84,31 +77,6 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
-    }
-}
-
-#[cfg(feature = "jiff-02")]
-/// Note that timestamps before `0000-01-01 00:00:00` can not be used in an expression.
-/// The reason is that datetimes are represented in sqlite as strings and for negative
-/// years the sorting order is wrong.
-///
-/// The conversion is lossless, everything up to nanoseconds is preserved.
-impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
-    type Typ = Self;
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        super::db_typ::refinement_to_expr(*self)
-    }
-}
-
-#[cfg(feature = "jiff-02")]
-/// Note that dates before `0000-01-01` can not be used in an expression.
-/// The reason is that dates are represented in sqlite as strings and for negative
-/// years the sorting order is wrong.
-impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
-    type Typ = Self;
-
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        super::db_typ::refinement_to_expr(*self)
     }
 }
 

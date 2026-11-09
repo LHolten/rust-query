@@ -18,34 +18,18 @@ pub enum Quality {
     Bar,
 }
 
-impl rust_query::private::RefinementTyp for Quality {
-    type RBase = String;
-
-    fn r_out_to_value(self) -> Self::RBase {
-        match self {
-            Quality::Foo => "foo",
-            Quality::Bar => "bar",
-        }
-        .to_owned()
+rust_query::private::refinement_typ!(
+    Quality,
+    String,
+    |val| match val {
+        Quality::Foo => "foo",
+        Quality::Bar => "bar",
     }
-
-    fn r_from_sql(value: <Self::RBase as rust_query::private::BaseTyp>::Ref<'_>) -> Self {
-        match value {
-            "foo" => Quality::Foo,
-            "bar" => Quality::Bar,
-            _ => unreachable!(),
-        }
-    }
-
-    fn r_check(col: rust_query::private::Alias) -> String {
-        format!("{col} IN ('foo', 'bar')")
-    }
-}
-
-impl<'column, S> rust_query::IntoExpr<'column, S> for Quality {
-    type Typ = Quality;
-
-    fn into_expr(&self) -> rust_query::Expr<'column, S, Self::Typ> {
-        rust_query::private::refinement_to_expr(self.clone())
-    }
-}
+    .to_owned(),
+    |value| match value {
+        "foo" => Quality::Foo,
+        "bar" => Quality::Bar,
+        _ => unreachable!(),
+    },
+    |col| format!("{col} IN ('foo', 'bar')"),
+);
