@@ -107,20 +107,16 @@ pub trait StorableTyp: DbTyp {
     fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
 }
 
-pub trait BaseTyp: Sized {
+pub trait BaseTyp: Into<rusqlite::types::Value> {
     const TYP: canonical::ColumnType;
     type Ref<'x>;
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_>;
-    fn base_to_value(val: Self) -> rusqlite::types::Value;
 }
 impl BaseTyp for i64 {
     const TYP: canonical::ColumnType = canonical::ColumnType::Integer;
     type Ref<'x> = i64;
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_i64().unwrap()
-    }
-    fn base_to_value(val: Self) -> rusqlite::types::Value {
-        rusqlite::types::Value::Integer(val)
     }
 }
 impl BaseTyp for f64 {
@@ -129,9 +125,6 @@ impl BaseTyp for f64 {
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_f64().unwrap()
     }
-    fn base_to_value(val: Self) -> rusqlite::types::Value {
-        rusqlite::types::Value::Real(val)
-    }
 }
 impl BaseTyp for String {
     const TYP: canonical::ColumnType = canonical::ColumnType::Text;
@@ -139,18 +132,12 @@ impl BaseTyp for String {
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_str().unwrap()
     }
-    fn base_to_value(val: Self) -> rusqlite::types::Value {
-        rusqlite::types::Value::Text(val)
-    }
 }
 impl BaseTyp for Vec<u8> {
     const TYP: canonical::ColumnType = canonical::ColumnType::Blob;
     type Ref<'x> = &'x [u8];
     fn base_from_sql(value: rusqlite::types::ValueRef<'_>) -> Self::Ref<'_> {
         value.as_blob().unwrap()
-    }
-    fn base_to_value(val: Self) -> rusqlite::types::Value {
-        rusqlite::types::Value::Blob(val)
     }
 }
 
