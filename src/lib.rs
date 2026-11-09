@@ -168,6 +168,7 @@ pub mod migration {
 pub mod private {
 
     pub use crate::joinable::{IntoJoinable, Joinable};
+    pub use crate::lower::list_writer::Alias;
     pub use crate::migrate::{
         Schema, SchemaMigration, TableTypBuilder,
         migration::{Migrateable, SchemaBuilder},
@@ -177,8 +178,8 @@ pub mod private {
     pub use crate::schema::from_macro::{SchemaType, TypBuilder};
     pub use crate::schema::tokenizer::{Token, get_token};
     pub use crate::value::{
-        DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, adhoc_expr, from_lazy, migrate, new_column,
-        out_to_lazy, unique_from_joinable,
+        BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, adhoc_expr, from_lazy, migrate,
+        new_column, out_to_lazy, refinement_typ::RefinementTyp, unique_from_joinable,
     };
     pub use crate::writable::Reader;
 

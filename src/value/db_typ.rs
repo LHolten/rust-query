@@ -81,8 +81,6 @@ impl<T: DbTyp> DbTypOpt for Option<T> {
 pub trait StorableTypOpt: DbTypOpt<Actual: StorableTyp> {}
 impl<T: DbTypOpt<Actual: StorableTyp>> StorableTypOpt for T {}
 
-mod refinement_typ;
-
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.
 pub trait DbTyp: Sized + 'static {
