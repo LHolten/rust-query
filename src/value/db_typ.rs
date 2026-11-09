@@ -57,12 +57,17 @@ impl<T: DbTyp> WrapTyp for Option<T> {
     }
 }
 
+#[diagnostic::on_unimplemented(
+    message = "Can not use `{Self}` as a column type",
+    note = "column types can be wrapped in at most one `Option`"
+)]
 pub trait DbTypOpt: WrapTyp<Wrap<Self::Actual> = Self> {
     type Actual: DbTyp;
 }
 impl<T: DbTyp> DbTypOpt for T {
     type Actual = Self;
 }
+#[diagnostic::do_not_recommend]
 impl<T: DbTyp> DbTypOpt for Option<T> {
     type Actual = T;
 }

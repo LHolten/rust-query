@@ -1,43 +1,41 @@
-error[E0277]: Columns with type `Option<i64>` can not be checked for equality
+error[E0277]: Can not use `Option<Option<i64>>` as a column type
  --> tests/compile/schema_types.rs:3:1
   |
 3 | #[schema(Schema)]
-  | ^^^^^^^^^^^^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+  | ^^^^^^^^^^^^^^^^^ the trait `rust_query::private::DbTypOpt` is not implemented for `Option<Option<i64>>`
   |
-  = note: `EqTyp` is also implemented for all table types
-  = help: the following other types implement trait `rust_query::value::EqTyp`:
-            String
-            Vec<u8>
-            bool
-            f64
-            i64
-            jiff::civil::date::Date
-            jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
+  = note: column types can be wrapped in at most one `Option`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: Columns with type `Option<i64>` can not be checked for equality
+error[E0277]: Can not use `Option<Option<i64>>` as a column type
  --> tests/compile/schema_types.rs:3:1
   |
 3 | #[schema(Schema)]
-  | ^^^^^^^^^^^^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+  | ^^^^^^^^^^^^^^^^^ the trait `rust_query::private::DbTypOpt` is not implemented for `Option<Option<i64>>`
   |
-  = note: `EqTyp` is also implemented for all table types
-  = help: the following other types implement trait `rust_query::value::EqTyp`:
-            String
-            Vec<u8>
-            bool
-            f64
-            i64
-            jiff::civil::date::Date
-            jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
+  = note: column types can be wrapped in at most one `Option`
 note: required by a bound in `Expr`
  --> src/value.rs
   |
-  | pub struct Expr<'column, S, T: DbTyp> {
-  |                                ^^^^^ required by this bound in `Expr`
+  | pub struct Expr<'column, S, T: DbTypOpt> {
+  |                                ^^^^^^^^ required by this bound in `Expr`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `Schema`
+ --> tests/compile/schema_types.rs:8:21
+  |
+3 | #[schema(Schema)]
+  | ----------------- required by a bound introduced by this call
+...
+8 |         pub nested: Option<Option<i64>>,
+  |                     ^^^^^^ the trait `rust_query::private::DbTypOpt` is not implemented for `Option<Option<i64>>`
+  |
+  = note: `TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]
+note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
+ --> src/schema/from_macro.rs
+  |
+  |     pub fn col<T: SchemaType<S>>(&mut self, name: &'static str, span: (usize, usize)) {
+  |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
 
 error[E0277]: Columns with type `Option<i64>` can not be checked for equality
  --> tests/compile/schema_types.rs:8:21
@@ -46,10 +44,9 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
   | ----------------- required by a bound introduced by this call
 ...
 8 |         pub nested: Option<Option<i64>>,
-  |                     ^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+  |                     ^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
   |
-  = note: `EqTyp` is also implemented for all table types
-  = help: the following other types implement trait `rust_query::value::EqTyp`:
+  = help: the following other types implement trait `rust_query::private::EqTyp`:
             String
             Vec<u8>
             bool
@@ -72,10 +69,9 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
   | ----------------- required by a bound introduced by this call
 ...
 9 |         pub optional: Option<i64>,
-  |                       ^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+  |                       ^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
   |
-  = note: `EqTyp` is also implemented for all table types
-  = help: the following other types implement trait `rust_query::value::EqTyp`:
+  = help: the following other types implement trait `rust_query::private::EqTyp`:
             String
             Vec<u8>
             bool
@@ -89,37 +85,45 @@ note: required by a bound in `rust_query::private::TypBuilder::<S>::check_unique
   |     pub fn check_unique_compatible<T: EqTyp>(&mut self) {}
   |                                       ^^^^^ required by this bound in `TypBuilder::<S>::check_unique_compatible`
 
-error[E0277]: Columns with type `Option<i64>` can not be checked for equality
+error[E0277]: Can not use `Option<Option<i64>>` as a column type
  --> tests/compile/schema_types.rs:8:13
   |
 3 | #[schema(Schema)]
   | ----------------- required by a bound introduced by this call
 ...
 8 |         pub nested: Option<Option<i64>>,
-  |             ^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+  |             ^^^^^^ the trait `rust_query::private::DbTypOpt` is not implemented for `Option<Option<i64>>`
   |
-  = note: `EqTyp` is also implemented for all table types
-  = help: the following other types implement trait `rust_query::value::EqTyp`:
-            String
-            Vec<u8>
-            bool
-            f64
-            i64
-            jiff::civil::date::Date
-            jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
+  = note: column types can be wrapped in at most one `Option`
+note: required by a bound in `rust_query::private::out_to_lazy`
+ --> src/value/db_typ.rs
+  |
+  | pub fn out_to_lazy<'t, T: DbTypOpt>(val: T) -> LazyOf<'t, T> {
+  |                           ^^^^^^^^ required by this bound in `out_to_lazy`
 
-error[E0277]: Columns with type `Option<i64>` can not be checked for equality
+error[E0277]: Can not use `Option<Option<i64>>` as a column type
  --> tests/compile/schema_types.rs:8:21
   |
 3 | #[schema(Schema)]
   | ----------------- required by a bound introduced by this call
 ...
 8 |         pub nested: Option<Option<i64>>,
-  |                     ^^^^^^ the trait `rust_query::value::EqTyp` is not implemented for `Option<i64>`
+  |                     ^^^^^^ the trait `rust_query::private::DbTypOpt` is not implemented for `Option<Option<i64>>`
   |
-  = note: `EqTyp` is also implemented for all table types
-  = help: the following other types implement trait `rust_query::value::EqTyp`:
+  = note: column types can be wrapped in at most one `Option`
+note: required by a bound in `rust_query::private::Reader::col`
+ --> src/writable.rs
+  |
+  |     pub fn col<T: DbTypOpt>(&mut self, name: &'static str, val: T) {
+  |                   ^^^^^^^^ required by this bound in `Reader::col`
+
+error[E0277]: Columns with type `Option<i64>` can not be checked for equality
+ --> tests/compile/schema_types.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
+  |
+  = help: the following other types implement trait `rust_query::private::EqTyp`:
             String
             Vec<u8>
             bool
@@ -127,9 +131,9 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `Option<Option<i64>>` to implement `rust_query::private::DbTyp`
-note: required by a bound in `rust_query::private::Reader::col`
- --> src/writable.rs
+note: required by a bound in `rust_query::private::Joinable::<'inner, S, T>::add_cond`
+ --> src/joinable.rs
   |
-  |     pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
-  |                   ^^^^^ required by this bound in `Reader::col`
+  |     pub fn add_cond<C: EqTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
+  |                        ^^^^^ required by this bound in `Joinable::<'inner, S, T>::add_cond`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)

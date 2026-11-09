@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, rc::Rc};
 
-use crate::{Expr, Table, TableRow, lower, value::DbTyp};
+use crate::{Expr, Table, TableRow, lower, value::{DbTyp, EqTyp}};
 
 pub trait IntoJoinable<'inner, S> {
     type Typ: DbTyp;
@@ -32,7 +32,7 @@ impl<'inner, S, T: Table> Joinable<'inner, S, TableRow<T>> {
     }
 }
 impl<'inner, S, T: DbTyp> Joinable<'inner, S, T> {
-    pub fn add_cond<C: DbTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
+    pub fn add_cond<C: EqTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
         self.conds.push((col, val.inner));
         self
     }

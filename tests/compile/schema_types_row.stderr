@@ -1,16 +1,15 @@
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied
  --> tests/compile/schema_types_row.rs:9:20
   |
 9 |         pub other: Other,
   |                    ^^^^^ unsatisfied trait bound
   |
-help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -21,19 +20,18 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
             jiff::timestamp::Timestamp
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -55,19 +53,18 @@ note: required by a bound in `rust_query::private::IntoJoinable::Typ`
   |               ^^^^^ required by this bound in `IntoJoinable::Typ`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -89,19 +86,18 @@ note: required by a bound in `rust_query::private::Joinable`
   |                                   ^^^^^ required by this bound in `Joinable`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -112,19 +108,18 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
             jiff::timestamp::Timestamp
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -145,19 +140,18 @@ note: required by a bound in `rust_query::Table::MigrateFrom`
   |     ^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Table::MigrateFrom`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -178,19 +172,18 @@ note: required by a bound in `rust_query::Table`
   |                  ^^^^^ required by this bound in `Table`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::_::TableMut`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::_::TableMut`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::_::TableMut`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::_::TableMut`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -211,19 +204,18 @@ note: required by a bound in `rust_query::Table::Mutable`
   |     ^^^^^^^^^^^^^^^^^^^^ required by this bound in `Table::Mutable`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -244,19 +236,18 @@ note: required by an implicit `Sized` bound in `Lazy`
   |                               ^ required by the implicit `Sized` requirement on this type parameter in `Lazy`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -277,19 +268,18 @@ note: required by an implicit `Sized` bound in `TableRow`
   |                     ^ required by the implicit `Sized` requirement on this type parameter in `TableRow`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -323,7 +313,6 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
   = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
             String
             TableRow<T>
             Vec<u8>
@@ -332,26 +321,49 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-note: required by a bound in `Expr`
- --> src/value.rs
-  |
-  | pub struct Expr<'column, S, T: DbTyp> {
-  |                                ^^^^^ required by this bound in `Expr`
+  = note: required for `v1::Other` to implement `rust_query::private::DbTypOpt`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
   = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+            String
+            TableRow<T>
+            Vec<u8>
+            bool
+            f64
+            i64
+            jiff::civil::date::Date
+            jiff::timestamp::Timestamp
+  = note: required for `v1::Other` to implement `rust_query::private::DbTypOpt`
+note: required by a bound in `Expr`
+ --> src/value.rs
+  |
+  | pub struct Expr<'column, S, T: DbTypOpt> {
+  |                                ^^^^^^^^ required by this bound in `Expr`
+  = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
+ --> tests/compile/schema_types_row.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+  |
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
+ --> tests/compile/schema_types_row.rs:3:1
+  |
+3 | #[schema(Schema)]
+  | ^^^^^^^^^^^^^^^^^
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -368,19 +380,18 @@ note: required because it appears within the type `v0::Table`
   = note: the return type of a function must have a statically known size
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -403,19 +414,18 @@ note: required by a bound in `rust_query::private::Joinable::<'inner, S, TableRo
   |            ----- required by a bound in this associated function
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -436,19 +446,18 @@ note: required by an implicit `Sized` bound in `rust_query::private::TableTypBui
   |                  ^ required by the implicit `Sized` requirement on this type parameter in `TableTypBuilder::<S>::table`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -465,19 +474,18 @@ note: required because it appears within the type `v0::Table`
   = note: required for `Lazy<'_, v0::Table>` to implement `Deref`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied in `v0::Table`
+error[E0277]: the trait bound `v1::Other: rust_query::private::StorableTyp` is not satisfied in `v0::Table`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^ unsatisfied trait bound
   |
-help: within `v0::Table`, the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
+help: within `v0::Table`, the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
-  = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -515,13 +523,13 @@ help: the trait `IntoExpr<'static, v1::Schema>` is not implemented for `v1::Othe
   = note: `TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]
   = help: the following other types implement trait `IntoExpr<'column, S>`:
             `&T` implements `IntoExpr<'column, S>`
-            `&[u8]` implements `IntoExpr<'column, S>`
-            `&str` implements `IntoExpr<'column, S>`
             `Expr<'column, S, T>` implements `IntoExpr<'column, S>`
             `Lazy<'_, T>` implements `IntoExpr<'column, <T as rust_query::Table>::Schema>`
             `Option<T>` implements `IntoExpr<'column, S>`
             `String` implements `IntoExpr<'column, S>`
             `TableRow<T>` implements `IntoExpr<'column, <T as rust_query::Table>::Schema>`
+            `Vec<u8>` implements `IntoExpr<'column, S>`
+            `[u8]` implements `IntoExpr<'column, S>`
           and $N others
   = note: required for `v1::Other` to implement `rust_query::private::SchemaType<v1::Schema>`
 note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
@@ -540,14 +548,13 @@ error[E0277]: Can not use `v1::Other` as a column type in schema `v1::Schema`
 9 |         pub other: Other,
   |                    ^^^^^ unsatisfied trait bound
   |
-help: the trait `rust_query::value::db_typ::StorableTyp` is not implemented for `v1::Other`
+help: the trait `rust_query::private::StorableTyp` is not implemented for `v1::Other`
  --> tests/compile/schema_types_row.rs:3:1
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
   = note: `TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]
-  = help: the following other types implement trait `rust_query::value::db_typ::StorableTyp`:
-            Option<T>
+  = help: the following other types implement trait `rust_query::private::StorableTyp`:
             String
             TableRow<T>
             Vec<u8>
@@ -556,6 +563,7 @@ help: the trait `rust_query::value::db_typ::StorableTyp` is not implemented for 
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
+  = note: required for `v1::Other` to implement `rust_query::private::StorableTypOpt`
   = note: required for `v1::Other` to implement `rust_query::private::SchemaType<v1::Schema>`
 note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
@@ -564,7 +572,7 @@ note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
   |                   ^^^^^^^^^^^^^ required by this bound in `TypBuilder::<S>::col`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied
+error[E0277]: Can not use `v1::Other` as a column type
  --> tests/compile/schema_types_row.rs:9:13
   |
 3 | #[schema(Schema)]
@@ -578,8 +586,8 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
+  = note: column types can be wrapped in at most one `Option`
   = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
             String
             TableRow<T>
             Vec<u8>
@@ -588,9 +596,15 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
+  = note: required for `v1::Other` to implement `rust_query::private::DbTypOpt`
+note: required by a bound in `rust_query::private::out_to_lazy`
+ --> src/value/db_typ.rs
+  |
+  | pub fn out_to_lazy<'t, T: DbTypOpt>(val: T) -> LazyOf<'t, T> {
+  |                           ^^^^^^^^ required by this bound in `out_to_lazy`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `v1::Other: rust_query::private::DbTyp` is not satisfied
+error[E0277]: Can not use `v1::Other` as a column type
  --> tests/compile/schema_types_row.rs:9:20
   |
 3 | #[schema(Schema)]
@@ -604,8 +618,8 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
   |
 3 | #[schema(Schema)]
   | ^^^^^^^^^^^^^^^^^
+  = note: column types can be wrapped in at most one `Option`
   = help: the following other types implement trait `rust_query::private::DbTyp`:
-            Option<T>
             String
             TableRow<T>
             Vec<u8>
@@ -614,11 +628,12 @@ help: the trait `rust_query::private::DbTyp` is not implemented for `v1::Other`
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
+  = note: required for `v1::Other` to implement `rust_query::private::DbTypOpt`
 note: required by a bound in `rust_query::private::Reader::col`
  --> src/writable.rs
   |
-  |     pub fn col<T: DbTyp>(&mut self, name: &'static str, val: T) {
-  |                   ^^^^^ required by this bound in `Reader::col`
+  |     pub fn col<T: DbTypOpt>(&mut self, name: &'static str, val: T) {
+  |                   ^^^^^^^^ required by this bound in `Reader::col`
   = note: this error originates in the attribute macro `schema` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `v1::Other: Clone` is not satisfied
