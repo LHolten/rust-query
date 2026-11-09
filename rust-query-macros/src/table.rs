@@ -151,9 +151,7 @@ fn define_table(
             col_typ_original.push(col.typ.clone());
         } else {
             let next_mod = next_mod.unwrap();
-            col_typ_original.push(
-                quote! {::rust_query::private::PrevOf<super::#next_mod::#tmp>},
-            );
+            col_typ_original.push(quote! {::rust_query::private::PrevOf<super::#next_mod::#tmp>});
         }
 
         col_typ.push(tmp);
