@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     Expr, Lazy, Table, TableRow,
     lower::{self, ord_rc::OrdRc},
-    value::{DbTyp, EqTyp, db_typ::DbTypOpt},
+    value::{EqTyp, db_typ::DbTypOpt},
 };
 
 /// Trait for all values that can be used as expressions in queries.
@@ -96,7 +96,7 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
 impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
     type Typ = Self;
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.out_to_value())))
+        super::db_typ::refinement_to_expr(*self)
     }
 }
 
@@ -108,7 +108,7 @@ impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
     type Typ = Self;
 
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.out_to_value())))
+        super::db_typ::refinement_to_expr(*self)
     }
 }
 

@@ -27,7 +27,7 @@ use crate::{
 };
 pub use db_typ::{
     BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, StorableTypOpt, WrapTyp, from_lazy,
-    migrate, out_to_lazy,
+    migrate, out_to_lazy, refinement_to_expr,
 };
 
 pub trait NumTyp: OrdTyp + Clone + Copy {

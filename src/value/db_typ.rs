@@ -1,6 +1,9 @@
 use std::{cell::OnceCell, marker::PhantomData};
 
-use crate::{Table, TableRow, Transaction, db::TableRowInner, schema::canonical};
+use crate::{
+    Table, TableRow, Transaction, db::TableRowInner, lower::ord_rc::OrdRc, private::RefinementTyp,
+    schema::canonical,
+};
 
 pub type LazyOf<'t, T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as DbTyp>::Lazy<'t>>;
 pub type FromLazyOf<'x, T> =
@@ -26,6 +29,10 @@ pub fn out_to_lazy<'t, T: DbTypOpt>(val: T) -> LazyOf<'t, T> {
         Some(val) => T::some(val.out_to_lazy()),
         None => T::null::<<T::Actual as DbTyp>::Lazy<'t>>().unwrap(),
     }
+}
+
+pub fn refinement_to_expr<S, T: RefinementTyp>(t: T) -> crate::Expr<'static, S, T> {
+    crate::Expr::adhoc(crate::lower::Expr::Parameter(OrdRc::new(t.out_to_value())))
 }
 
 pub trait WrapTyp: Sized + 'static {
