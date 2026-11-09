@@ -26,13 +26,13 @@ pub trait IntoExpr<'column, S> {
     type Typ: DbTypOpt;
 
     /// Turn this value into an [Expr].
-    fn into_expr(self) -> Expr<'column, S, Self::Typ>;
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ>;
 }
 
 impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: EqTyp> IntoExpr<'column, S> for Option<T> {
     type Typ = Option<X>;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        let this = self.map(|x| x.into_expr().inner);
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        let this = self.as_ref().map(|x| x.into_expr().inner);
 
         // TODO: check if the original expression is a parameter and then upgrade the parameter to be nullable instead
         Expr::new(this.unwrap_or_else(|| Rc::new(lower::Expr::Constant("NULL"))))
@@ -41,49 +41,49 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: EqTyp> IntoExpr<'column, S
 
 impl<'column, S> IntoExpr<'column, S> for String {
     type Typ = String;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.clone())))
     }
 }
 
-impl<'column, S> IntoExpr<'column, S> for &str {
+impl<'column, S> IntoExpr<'column, S> for str {
     type Typ = String;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         self.to_owned().into_expr()
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
     type Typ = Vec<u8>;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.clone())))
     }
 }
 
-impl<'column, S> IntoExpr<'column, S> for &[u8] {
+impl<'column, S> IntoExpr<'column, S> for [u8] {
     type Typ = Vec<u8>;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         self.to_owned().into_expr()
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for bool {
     type Typ = bool;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
     }
 }
 
 impl<'column, S> IntoExpr<'column, S> for i64 {
     type Typ = i64;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
     }
 }
 impl<'column, S> IntoExpr<'column, S> for f64 {
     type Typ = f64;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self)))
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
     }
 }
 
@@ -95,7 +95,7 @@ impl<'column, S> IntoExpr<'column, S> for f64 {
 /// The conversion is lossless, everything up to nanoseconds is preserved.
 impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
     type Typ = Self;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.out_to_value())))
     }
 }
@@ -107,24 +107,24 @@ impl<'column, S> IntoExpr<'column, S> for jiff::Timestamp {
 impl<'column, S> IntoExpr<'column, S> for jiff::civil::Date {
     type Typ = Self;
 
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.out_to_value())))
     }
 }
 
 impl<'column, S, T> IntoExpr<'column, S> for &T
 where
-    T: IntoExpr<'column, S> + Clone,
+    T: ?Sized + IntoExpr<'column, S>,
 {
     type Typ = T::Typ;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        T::into_expr(self.clone())
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        T::into_expr(self)
     }
 }
 
 impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
     type Typ = Self;
-    fn into_expr(self) -> Expr<'static, T::Schema, Self::Typ> {
+    fn into_expr(&self) -> Expr<'static, T::Schema, Self::Typ> {
         let idx = self.inner.idx;
 
         Expr::adhoc(lower::Expr::Parameter(OrdRc::new(idx)))
@@ -134,14 +134,14 @@ impl<'column, T: Table> IntoExpr<'column, T::Schema> for TableRow<T> {
 impl<'column, T: Table> IntoExpr<'column, T::Schema> for Lazy<'_, T> {
     type Typ = TableRow<T>;
 
-    fn into_expr(self) -> crate::Expr<'column, T::Schema, Self::Typ> {
+    fn into_expr(&self) -> crate::Expr<'column, T::Schema, Self::Typ> {
         self.id.into_expr()
     }
 }
 
 impl<'column, S, T: DbTypOpt> IntoExpr<'column, S> for Expr<'column, S, T> {
     type Typ = T;
-    fn into_expr(self) -> Expr<'column, S, Self::Typ> {
-        self
+    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
+        self.clone()
     }
 }
