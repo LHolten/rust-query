@@ -43,6 +43,8 @@ macro_rules! refinement_typ {
                 $crate::private::db_typ_to_expr(self.clone())
             }
         }
+
+        impl $crate::private::EqTyp for $typ {}
     };
 }
 

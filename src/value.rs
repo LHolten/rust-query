@@ -57,8 +57,7 @@ impl BuffTyp for String {}
 impl BuffTyp for Vec<u8> {}
 
 #[diagnostic::on_unimplemented(
-    message = "Columns with type `{Self}` can not be checked for equality",
-    note = "`EqTyp` is also implemented for all table types"
+    message = "Columns with type `{Self}` can not be checked for equality"
 )]
 pub trait EqTyp: DbTyp {}
 
@@ -66,11 +65,6 @@ impl EqTyp for String {}
 impl EqTyp for Vec<u8> {}
 impl EqTyp for i64 {}
 impl EqTyp for f64 {}
-impl EqTyp for bool {}
-#[cfg(feature = "jiff-02")]
-impl EqTyp for jiff::Timestamp {}
-#[cfg(feature = "jiff-02")]
-impl EqTyp for jiff::civil::Date {}
 #[diagnostic::do_not_recommend]
 impl<T: Table> EqTyp for TableRow<T> {}
 
