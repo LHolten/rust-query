@@ -55,7 +55,7 @@ impl<S> TypBuilder<S> {
         let item = Column {
             def: canonical::Column {
                 typ: <<<T as DbTypOpt>::Actual as DbTyp>::Base as BaseTyp>::TYP,
-                nullable: <T as WrapTyp>::null::<()>().is_some(),
+                nullable: <T as WrapTyp>::from_option::<()>(None).is_some(),
                 fk: <<T as DbTypOpt>::Actual as StorableTyp>::FK
                     .map(|(table, fk)| (table.to_owned(), fk.to_owned())),
                 check: <<T as DbTypOpt>::Actual as StorableTyp>::check(name)

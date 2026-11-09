@@ -11,24 +11,15 @@ pub type FromLazyOf<'x, T> =
 pub type PrevOf<T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as StorableTyp>::Prev>;
 
 pub fn migrate<T: StorableTypOpt>(prev: PrevOf<T>) -> T {
-    match T::to_option(prev) {
-        Some(val) => T::some(T::Actual::migrate(val)),
-        None => T::null::<T::Actual>().unwrap(),
-    }
+    T::from_option::<T::Actual>(T::to_option(prev).map(StorableTyp::migrate)).unwrap()
 }
 
 pub fn from_lazy<T: StorableTypOpt>(lazy: &FromLazyOf<'_, T>) -> T {
-    match T::to_option(T::as_ref(lazy)) {
-        Some(val) => T::some(T::Actual::from_lazy(val)),
-        None => T::null::<T::Actual>().unwrap(),
-    }
+    T::from_option::<T::Actual>(T::to_option(T::as_ref(lazy)).map(StorableTyp::from_lazy)).unwrap()
 }
 
 pub fn out_to_lazy<'t, T: DbTypOpt>(val: T) -> LazyOf<'t, T> {
-    match T::to_option::<T::Actual>(val) {
-        Some(val) => T::some(val.out_to_lazy()),
-        None => T::null::<<T::Actual as DbTyp>::Lazy<'t>>().unwrap(),
-    }
+    T::from_option(T::to_option::<T::Actual>(val).map(DbTyp::out_to_lazy)).unwrap()
 }
 
 pub fn refinement_to_expr<S, T: RefinementTyp>(t: T) -> crate::Expr<'static, S, T> {
@@ -39,9 +30,7 @@ pub trait WrapTyp: Sized + 'static {
     /// Either `X` or `Option<X>`.
     type Wrap<X>;
     fn to_option<X>(val: Self::Wrap<X>) -> Option<X>;
-    fn some<X>(val: X) -> Self::Wrap<X>;
-    /// Returns [None] if not nullable.
-    fn null<X>() -> Option<Self::Wrap<X>>;
+    fn from_option<X>(val: Option<X>) -> Option<Self::Wrap<X>>;
     fn as_ref<X>(val: &Self::Wrap<X>) -> Self::Wrap<&X>;
 }
 impl<T: DbTyp> WrapTyp for T {
@@ -49,11 +38,8 @@ impl<T: DbTyp> WrapTyp for T {
     fn to_option<X>(val: X) -> Option<X> {
         Some(val)
     }
-    fn some<X>(val: X) -> X {
+    fn from_option<X>(val: Option<X>) -> Option<Self::Wrap<X>> {
         val
-    }
-    fn null<X>() -> Option<X> {
-        None
     }
     fn as_ref<X>(val: &X) -> &X {
         val
@@ -64,11 +50,8 @@ impl<T: DbTyp> WrapTyp for Option<T> {
     fn to_option<X>(val: Option<X>) -> Option<X> {
         val
     }
-    fn some<X>(val: X) -> Option<X> {
+    fn from_option<X>(val: Option<X>) -> Option<Self::Wrap<X>> {
         Some(val)
-    }
-    fn null<X>() -> Option<Option<X>> {
-        Some(None)
     }
     fn as_ref<X>(val: &Option<X>) -> Option<&X> {
         val.as_ref()

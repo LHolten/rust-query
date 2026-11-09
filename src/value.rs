@@ -154,7 +154,7 @@ pub fn new_column<'x, S, C: DbTypOpt, T: Table>(
     let table = table.into_expr();
     Expr::new_inner(
         table.inner.col(T::NAME, name, T::ID, table.not_null_key),
-        table.not_null_key && !C::null::<()>().is_some(),
+        table.not_null_key && !C::from_option::<()>(None).is_some(),
     )
 }
 
