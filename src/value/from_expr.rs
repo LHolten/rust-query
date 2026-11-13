@@ -1,4 +1,8 @@
-use crate::{IntoExpr, IntoSelect, Table, TableRow, optional, select::Select, value::EqTyp};
+use crate::{
+    IntoExpr, IntoSelect, optional,
+    select::Select,
+    value::{DbTyp, EqTyp},
+};
 
 /// Trait for values that can be retrieved from the database using one expression.
 ///
@@ -13,32 +17,8 @@ pub trait FromExpr<S, From>: 'static + Sized {
     ) -> Select<'columns, S, Self>;
 }
 
-macro_rules! from_expr {
-    ($typ:ty) => {
-        impl<S> FromExpr<S, $typ> for $typ {
-            fn from_expr<'columns>(
-                col: impl IntoExpr<'columns, S, Typ = $typ>,
-            ) -> Select<'columns, S, Self> {
-                col.into_expr().into_select()
-            }
-        }
-    };
-}
-
-from_expr! {String}
-from_expr! {Vec<u8>}
-from_expr! {i64}
-from_expr! {f64}
-from_expr! {bool}
-#[cfg(feature = "jiff-02")]
-from_expr! {jiff::Timestamp}
-#[cfg(feature = "jiff-02")]
-from_expr! {jiff::civil::Date}
-
-impl<T: Table> FromExpr<T::Schema, TableRow<T>> for TableRow<T> {
-    fn from_expr<'columns>(
-        col: impl IntoExpr<'columns, T::Schema, Typ = TableRow<T>>,
-    ) -> Select<'columns, T::Schema, Self> {
+impl<S, T: DbTyp> FromExpr<S, T> for T {
+    fn from_expr<'columns>(col: impl IntoExpr<'columns, S, Typ = T>) -> Select<'columns, S, Self> {
         col.into_expr().into_select()
     }
 }
