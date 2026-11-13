@@ -6,7 +6,7 @@ use crate::{
 
 pub type LazyOf<'t, T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as DbTyp>::Lazy<'t>>;
 pub type FromLazyOf<'x, T> =
-    <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as StorableTyp>::FromLazy<'x>>;
+    <T as WrapTyp>::Wrap<<<<T as DbTypOpt>::Actual as StorableTyp>::Prev as DbTyp>::Lazy<'x>>;
 pub type PrevOf<T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as StorableTyp>::Prev>;
 
 pub fn migrate<T: StorableTypOpt>(prev: PrevOf<T>) -> T {
@@ -95,10 +95,9 @@ pub trait StorableTyp: DbTyp {
 
     fn check(_col: &str) -> Option<String>;
 
-    type Prev;
+    type Prev: DbTyp;
     fn migrate(prev: Self::Prev) -> Self;
-    type FromLazy<'x>;
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self;
+    fn from_lazy(lazy: &<Self::Prev as DbTyp>::Lazy<'_>) -> Self;
 }
 
 pub trait BaseTyp: Into<rusqlite::types::Value> {
@@ -173,8 +172,7 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
         TableRow::migrate_row(prev)
     }
 
-    type FromLazy<'x> = crate::Lazy<'x, <T as crate::Table>::MigrateFrom>;
-    fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+    fn from_lazy(lazy: &crate::Lazy<'_, T::MigrateFrom>) -> Self {
         TableRow::migrate_row(lazy.table_row())
     }
 }
@@ -205,9 +203,7 @@ macro_rules! impl_typ {
             fn migrate(prev: Self) -> Self {
                 prev
             }
-
-            type FromLazy<'x> = Self;
-            fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+            fn from_lazy(lazy: &Self) -> Self {
                 lazy.clone()
             }
         }

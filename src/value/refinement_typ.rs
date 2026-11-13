@@ -21,7 +21,6 @@ macro_rules! refinement_typ {
 
         impl $crate::private::StorableTyp for $typ {
             type Prev = Self;
-            type FromLazy<'x> = Self;
 
             fn check(col: &str) -> Option<String> {
                 let f: fn($crate::private::Alias) -> String = $check;
@@ -30,7 +29,7 @@ macro_rules! refinement_typ {
             fn migrate(prev: Self::Prev) -> Self {
                 prev
             }
-            fn from_lazy(lazy: &Self::FromLazy<'_>) -> Self {
+            fn from_lazy(lazy: &Self) -> Self {
                 lazy.clone()
             }
         }
