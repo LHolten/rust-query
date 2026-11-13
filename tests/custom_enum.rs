@@ -1,4 +1,4 @@
-use rust_query::migration::schema;
+use rust_query::{StorableTyp, migration::schema};
 
 fn main() {}
 
@@ -12,24 +12,8 @@ pub mod vN {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, StorableTyp)]
 pub enum Quality {
     Foo,
     Bar,
 }
-
-rust_query::private::refinement_typ!(
-    Quality,
-    String,
-    |val| match val {
-        Quality::Foo => "foo",
-        Quality::Bar => "bar",
-    }
-    .to_owned(),
-    |value| match value {
-        "foo" => Quality::Foo,
-        "bar" => Quality::Bar,
-        _ => unreachable!(),
-    },
-    |col| format!("{col} IN ('foo', 'bar')"),
-);

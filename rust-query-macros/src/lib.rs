@@ -3,16 +3,18 @@ use heck::{ToSnekCase, ToUpperCamelCase};
 use multi::{SingleVersionTable, VersionedSchema};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Ident, ItemMod, ItemStruct};
+use syn::{Ident, ItemEnum, ItemMod, ItemStruct};
 use table::define_all_tables;
 
 mod dummy;
 mod migrations;
 mod multi;
 mod parse;
+mod refinement;
 mod table;
 mod unique;
 
+#[doc(hidden)]
 #[proc_macro_attribute]
 pub fn schema(
     attr: proc_macro::TokenStream,
@@ -28,6 +30,7 @@ pub fn schema(
     .into()
 }
 
+#[doc(hidden)]
 #[proc_macro_derive(Select)]
 pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
@@ -38,10 +41,22 @@ pub fn from_row(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     .into()
 }
 
+#[doc(hidden)]
 #[proc_macro_derive(FromExpr, attributes(rust_query))]
 pub fn from_expr_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let item = syn::parse_macro_input!(item as ItemStruct);
     match from_expr(item) {
+        Ok(x) => x,
+        Err(e) => e.into_compile_error(),
+    }
+    .into()
+}
+
+#[doc(hidden)]
+#[proc_macro_derive(StorableTyp)]
+pub fn refinement_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let item = syn::parse_macro_input!(item as ItemEnum);
+    match refinement::expand_refinement(item) {
         Ok(x) => x,
         Err(e) => e.into_compile_error(),
     }

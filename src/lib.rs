@@ -134,6 +134,8 @@ pub use rust_query_macros::Select;
 /// ```
 pub use rust_query_macros::FromExpr;
 
+pub use rust_query_macros::StorableTyp;
+
 use crate::error::FromConflict;
 
 /// Types that are used as closure arguments.
