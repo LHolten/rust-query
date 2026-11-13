@@ -39,13 +39,6 @@ impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: DbTyp> IntoExpr<'column, S
     }
 }
 
-impl<'column, S> IntoExpr<'column, S> for String {
-    type Typ = String;
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.clone())))
-    }
-}
-
 impl<'column, S> IntoExpr<'column, S> for str {
     type Typ = String;
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
@@ -53,30 +46,10 @@ impl<'column, S> IntoExpr<'column, S> for str {
     }
 }
 
-impl<'column, S> IntoExpr<'column, S> for Vec<u8> {
-    type Typ = Vec<u8>;
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(self.clone())))
-    }
-}
-
 impl<'column, S> IntoExpr<'column, S> for [u8] {
     type Typ = Vec<u8>;
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         self.to_owned().into_expr()
-    }
-}
-
-impl<'column, S> IntoExpr<'column, S> for i64 {
-    type Typ = i64;
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
-    }
-}
-impl<'column, S> IntoExpr<'column, S> for f64 {
-    type Typ = f64;
-    fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
-        Expr::adhoc(lower::Expr::Parameter(OrdRc::new(*self)))
     }
 }
 

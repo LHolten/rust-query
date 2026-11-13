@@ -1,7 +1,7 @@
 #[doc(hidden)]
 #[macro_export]
 macro_rules! refinement_typ {
-    ($(#[$attr:meta])* $typ:ty, $base:ty, $out:expr, $from:expr, $check:expr $(,)?) => {
+    ($(#[$attr:meta])* $typ:ty, $base:ty, $out:expr, $from:expr $(, $check:expr)? $(,)?) => {
         impl $crate::private::DbTyp for $typ {
             type Base = $base;
             type Lazy<'t> = Self;
@@ -23,8 +23,10 @@ macro_rules! refinement_typ {
             type Prev = Self;
 
             fn check(col: &str) -> Option<String> {
-                let f: fn($crate::private::Alias) -> String = $check;
-                Some(f($crate::private::Alias(col)))
+                #[allow(unused)]
+                let mut f: fn($crate::private::Alias) -> Option<String> = |_| None;
+                $(f = |x| Some($check(x));)?
+                f($crate::private::Alias(col))
             }
             fn migrate(prev: Self::Prev) -> Self {
                 prev

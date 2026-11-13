@@ -181,41 +181,8 @@ impl<T: Table<Referer = ()>> StorableTyp for TableRow<T> {
 }
 
 macro_rules! impl_typ {
-    ($typ:ty, $base:ty, $can:expr, $map:expr) => {
-        impl DbTyp for $typ {
-            type Base = $base;
-            fn out_to_value(self) -> Self::Base {
-                self.into()
-            }
-            type Lazy<'t> = Self;
-            fn out_to_lazy<'t>(self) -> Self::Lazy<'t> {
-                self
-            }
-            fn from_sql(val: <Self::Base as BaseTyp>::Ref<'_>) -> Self {
-                let f: fn(<Self::Base as BaseTyp>::Ref<'_>) -> _ = $map;
-                f(val)
-            }
-        }
-
-        impl StorableTyp for $typ {
-            fn check(_col: &str) -> Option<String> {
-                None
-            }
-
-            type Prev = Self;
-            fn migrate(prev: Self) -> Self {
-                prev
-            }
-            fn from_lazy(lazy: &Self) -> Self {
-                lazy.clone()
-            }
-        }
-    };
+    ($($typ:ty),*) => {$(
+        crate::refinement_typ!($typ, $typ, |x| x, |x| x.to_owned());
+    )*};
 }
-impl_typ!(i64, i64, canonical::ColumnType::Integer, |x| x);
-impl_typ!(String, String, canonical::ColumnType::Text, |x| x
-    .to_owned());
-
-impl_typ!(Vec<u8>, Vec<u8>, canonical::ColumnType::Blob, |x| x
-    .to_owned());
-impl_typ!(f64, f64, canonical::ColumnType::Real, |x| x);
+impl_typ!(i64, f64, String, Vec<u8>);
