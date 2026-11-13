@@ -563,7 +563,6 @@ help: the trait `rust_query::private::StorableTyp` is not implemented for `v1::O
             i64
             jiff::civil::date::Date
             jiff::timestamp::Timestamp
-  = note: required for `v1::Other` to implement `rust_query::private::StorableTypOpt`
   = note: required for `v1::Other` to implement `rust_query::private::SchemaType<v1::Schema>`
 note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
  --> src/schema/from_macro.rs

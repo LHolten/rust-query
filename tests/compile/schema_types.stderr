@@ -31,6 +31,7 @@ error[E0277]: Can not use `Option<Option<i64>>` as a column type in schema `Sche
   |                     ^^^^^^ the trait `rust_query::private::DbTypOpt` is not implemented for `Option<Option<i64>>`
   |
   = note: `TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]
+  = note: required for `Option<Option<i64>>` to implement `rust_query::private::SchemaType<Schema>`
 note: required by a bound in `rust_query::private::TypBuilder::<S>::col`
  --> src/schema/from_macro.rs
   |

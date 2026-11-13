@@ -9,11 +9,11 @@ pub type FromLazyOf<'x, T> =
     <T as WrapTyp>::Wrap<<<<T as DbTypOpt>::Actual as StorableTyp>::Prev as DbTyp>::Lazy<'x>>;
 pub type PrevOf<T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as StorableTyp>::Prev>;
 
-pub fn migrate<T: StorableTypOpt>(prev: PrevOf<T>) -> T {
+pub fn migrate<T: DbTypOpt<Actual: StorableTyp>>(prev: PrevOf<T>) -> T {
     T::from_option::<T::Actual>(T::to_option(prev).map(StorableTyp::migrate)).unwrap()
 }
 
-pub fn from_lazy<T: StorableTypOpt>(lazy: &FromLazyOf<'_, T>) -> T {
+pub fn from_lazy<T: DbTypOpt<Actual: StorableTyp>>(lazy: &FromLazyOf<'_, T>) -> T {
     T::from_option::<T::Actual>(T::to_option(T::as_ref(lazy)).map(StorableTyp::from_lazy)).unwrap()
 }
 
@@ -71,9 +71,6 @@ impl<T: DbTyp> DbTypOpt for T {
 impl<T: DbTyp> DbTypOpt for Option<T> {
     type Actual = T;
 }
-
-pub trait StorableTypOpt: DbTypOpt<Actual: StorableTyp> {}
-impl<T: DbTypOpt<Actual: StorableTyp>> StorableTypOpt for T {}
 
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.

@@ -7,7 +7,7 @@ use std::{
 use crate::{
     IntoExpr,
     schema::{canonical, check_constraint::Parsed, from_db},
-    value::{BaseTyp, DbTyp, DbTypOpt, StorableTyp, StorableTypOpt, WrapTyp},
+    value::{BaseTyp, DbTyp, DbTypOpt, StorableTyp, WrapTyp},
 };
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,9 +80,12 @@ impl<S> TypBuilder<S> {
     message = "Can not use `{Self}` as a column type in schema `{S}`",
     note = "`TableRow<Table>` can be used as a schema column types as long as the table `Table` is not #[no_reference]"
 )]
-pub trait SchemaType<S>: IntoExpr<'static, S, Typ = Self> + StorableTypOpt {}
+pub trait SchemaType<S>: IntoExpr<'static, S, Typ = Self> + DbTypOpt<Actual: StorableTyp> {}
 
-impl<T, S> SchemaType<S> for T where T: IntoExpr<'static, S, Typ = Self> + StorableTypOpt {}
+impl<T, S> SchemaType<S> for T where
+    T: IntoExpr<'static, S, Typ = Self> + DbTypOpt<Actual: StorableTyp>
+{
+}
 
 #[cfg(test)]
 mod tests {
