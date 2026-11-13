@@ -4,7 +4,7 @@ use crate::{
     IntoSelect,
     lower::{self, CONST_NULL},
     select::{Cached, Cacher, ColumnImpl, Prepared, Row, Select, SelectImpl},
-    value::EqTyp,
+    value::DbTyp,
 };
 
 use super::{Expr, IntoExpr};
@@ -82,7 +82,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// # });
     /// ```
     #[doc(alias = "join")]
-    pub fn and<T: EqTyp>(
+    pub fn and<T: DbTyp>(
         &mut self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'inner, S, T> {
@@ -151,7 +151,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// assert_eq!(val2, Some(1));
     /// # });
     /// ```
-    pub fn and_then<T: EqTyp>(
+    pub fn and_then<T: DbTyp>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = Option<T>>,
     ) -> Expr<'outer, S, Option<T>> {
@@ -177,7 +177,7 @@ impl<'outer, 'inner, S> Optional<'outer, 'inner, S> {
     /// assert_eq!(val2, None);
     /// # });
     /// ```
-    pub fn then<T: EqTyp + 'outer>(
+    pub fn then<T: DbTyp + 'outer>(
         &self,
         col: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, Option<T>> {

@@ -5,7 +5,7 @@ use crate::{
     value::{BuffTyp, OrdTyp},
 };
 
-use super::{EqTyp, Expr, IntoExpr, NumTyp};
+use super::{DbTyp, Expr, IntoExpr, NumTyp};
 
 impl<'column, S, T: NumTyp> Expr<'column, S, T> {
     /// Add two expressions together.
@@ -222,7 +222,7 @@ impl<'column, S, T: OrdTyp> Expr<'column, S, T> {
     }
 }
 
-impl<'column, S, T: EqTyp + 'static> Expr<'column, S, T> {
+impl<'column, S, T: DbTyp + 'static> Expr<'column, S, T> {
     /// Check whether two expressions are equal.
     ///
     /// ```
@@ -312,7 +312,7 @@ impl<'column, S> Expr<'column, S, bool> {
     }
 }
 
-impl<'column, S, Typ: EqTyp> Expr<'column, S, Option<Typ>> {
+impl<'column, S, Typ: DbTyp> Expr<'column, S, Option<Typ>> {
     /// Use the first expression if it is [Some], otherwise use the second expression.
     ///
     /// ```

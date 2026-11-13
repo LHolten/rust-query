@@ -41,7 +41,7 @@ impl NumTyp for f64 {
     const ZERO: &str = "0.0";
 }
 
-pub trait OrdTyp: EqTyp {}
+pub trait OrdTyp: DbTyp {}
 impl OrdTyp for String {}
 impl OrdTyp for Vec<u8> {}
 impl OrdTyp for i64 {}
@@ -55,18 +55,6 @@ impl OrdTyp for jiff::civil::Date {}
 pub trait BuffTyp: DbTyp {}
 impl BuffTyp for String {}
 impl BuffTyp for Vec<u8> {}
-
-#[diagnostic::on_unimplemented(
-    message = "Columns with type `{Self}` can not be checked for equality"
-)]
-pub trait EqTyp: DbTyp {}
-
-impl EqTyp for String {}
-impl EqTyp for Vec<u8> {}
-impl EqTyp for i64 {}
-impl EqTyp for f64 {}
-#[diagnostic::do_not_recommend]
-impl<T: Table> EqTyp for TableRow<T> {}
 
 /// Should not be used outside this crate.
 pub trait OptTable: DbTypOpt {

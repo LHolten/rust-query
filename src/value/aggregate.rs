@@ -7,7 +7,7 @@ use std::{
 use crate::{
     Expr, IntoExpr, lower,
     rows::Rows,
-    value::{EqTyp, NumTyp},
+    value::{DbTyp, NumTyp},
 };
 
 /// This is the argument type used for [aggregate].
@@ -83,7 +83,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// ```
     pub fn max<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
     where
-        T: EqTyp,
+        T: DbTyp,
     {
         let val = val.into_expr().inner;
         Expr::new(self.select_func("max", val))
@@ -110,7 +110,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// ```
     pub fn min<T>(&self, val: impl IntoExpr<'inner, S, Typ = T>) -> Expr<'outer, S, Option<T>>
     where
-        T: EqTyp,
+        T: DbTyp,
     {
         let val = val.into_expr().inner;
         Expr::new(self.select_func("min", val))
@@ -167,7 +167,7 @@ impl<'outer, 'inner, S: 'static> Aggregate<'outer, 'inner, S> {
     /// assert_eq!(count2, 0);
     /// # });
     /// ```
-    pub fn count_distinct<T: EqTyp + 'static>(
+    pub fn count_distinct<T: DbTyp + 'static>(
         &self,
         val: impl IntoExpr<'inner, S, Typ = T>,
     ) -> Expr<'outer, S, i64> {

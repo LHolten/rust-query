@@ -1,14 +1,15 @@
-error[E0277]: Columns with type `Option<i64>` can not be checked for equality
+error[E0277]: `Option<i64>` can not be used here, expected a non-optional column type
  --> tests/compile/index_optional.rs:7:23
   |
 3 | #[schema(Schema)]
   | ----------------- required by a bound introduced by this call
 ...
 7 |         pub optional: Option<i64>,
-  |                       ^^^^^^ the trait `rust_query::private::EqTyp` is not implemented for `Option<i64>`
+  |                       ^^^^^^ the trait `rust_query::private::DbTyp` is not implemented for `Option<i64>`
   |
-  = help: the following other types implement trait `rust_query::private::EqTyp`:
+  = help: the following other types implement trait `rust_query::private::DbTyp`:
             String
+            TableRow<T>
             Vec<u8>
             bool
             f64
@@ -18,5 +19,5 @@ error[E0277]: Columns with type `Option<i64>` can not be checked for equality
 note: required by a bound in `rust_query::private::Joinable::<'inner, S, T>::add_cond`
  --> src/joinable.rs
   |
-  |     pub fn add_cond<C: EqTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
+  |     pub fn add_cond<C: DbTyp>(mut self, col: &'static str, val: Expr<'inner, S, C>) -> Self {
   |                        ^^^^^ required by this bound in `Joinable::<'inner, S, T>::add_cond`

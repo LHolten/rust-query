@@ -77,6 +77,9 @@ impl<T: DbTypOpt<Actual: StorableTyp>> StorableTypOpt for T {}
 
 /// The types that can be used inside [crate::Expr].
 /// Some stuff like nested [Option] is not allowed.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` can not be used here, expected a non-optional column type"
+)]
 pub trait DbTyp: Sized + 'static {
     type Base: BaseTyp;
 

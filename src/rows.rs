@@ -1,11 +1,7 @@
 use std::{marker::PhantomData, rc::Rc};
 
 use crate::{
-    Expr, IntoExpr, Table, TableRow,
-    joinable::IntoJoinable,
-    lower,
-    private::Joinable,
-    value::{DbTyp, EqTyp},
+    Expr, IntoExpr, Table, TableRow, joinable::IntoJoinable, lower, private::Joinable, value::DbTyp,
 };
 
 /// [Rows] keeps track of all rows in the current query.
@@ -84,7 +80,7 @@ impl<'inner, S> Rows<'inner, S> {
     /// })
     /// # });
     /// ```
-    pub fn filter_some<Typ: EqTyp>(
+    pub fn filter_some<Typ: DbTyp>(
         &mut self,
         val: impl IntoExpr<'inner, S, Typ = Option<Typ>>,
     ) -> Expr<'inner, S, Typ> {

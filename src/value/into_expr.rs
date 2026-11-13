@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     Expr, Lazy, Table, TableRow,
     lower::{self, ord_rc::OrdRc},
-    value::{EqTyp, db_typ::DbTypOpt},
+    value::{DbTyp, db_typ::DbTypOpt},
 };
 
 /// Trait for all values that can be used as expressions in queries.
@@ -29,7 +29,7 @@ pub trait IntoExpr<'column, S> {
     fn into_expr(&self) -> Expr<'column, S, Self::Typ>;
 }
 
-impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: EqTyp> IntoExpr<'column, S> for Option<T> {
+impl<'column, S, T: IntoExpr<'column, S, Typ = X>, X: DbTyp> IntoExpr<'column, S> for Option<T> {
     type Typ = Option<X>;
     fn into_expr(&self) -> Expr<'column, S, Self::Typ> {
         let this = self.as_ref().map(|x| x.into_expr().inner);
