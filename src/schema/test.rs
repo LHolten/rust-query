@@ -167,7 +167,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Table mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:126:36
+           ╭▸ src/schema/test.rs:LL:36
            │
         LL │         #[crate::migration::schema(Schema)]
            │                                    ━━━━━━ database has table `foo`
@@ -184,7 +184,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Column mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:138:24
+           ╭▸ src/schema/test.rs:LL:24
            │
         LL │             pub struct Foo {
            │                        ━━━ database has column `field1: String`
@@ -194,7 +194,7 @@ fn diagnostics() {
            │                     ━━━ database column has type `String`
            ╰╴
         error: Unique constraint mismatch for `#[version(0)]`
-           ╭▸ src/schema/test.rs:137:15
+           ╭▸ src/schema/test.rs:LL:15
            │
         LL │             #[unique(baz, field2)]
            │               ━━━━━━ database does not have this unique constraint
@@ -210,7 +210,7 @@ fn diagnostics() {
     .unwrap_err();
     expect_test::expect![[r#"
         error: Database has primary key `id`
-           ╭▸ src/schema/test.rs:150:24
+           ╭▸ src/schema/test.rs:LL:24
            │
         LL │             pub struct Foo {
            ╰╴                       ─── in this table"#]]

@@ -20,7 +20,7 @@ fn schema_change() {
     let err = catch_unwind(move || with_test_renderer(|| db.transaction(|_txn| ()))).unwrap_err();
     expect_test::expect![[r#"
         error: Column mismatch for `#[version(0)]`
-           ╭▸ tests/bad-use.rs:11:16
+           ╭▸ tests/bad-use.rs:LL:16
            │
         LL │     pub struct Foo;
            ╰╴               ━━━ database has column `name: Option<String>`"#]]

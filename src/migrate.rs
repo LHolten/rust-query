@@ -359,7 +359,11 @@ pub fn with_test_renderer<R>(f: impl FnOnce() -> R) -> R {
         }
     }
     let _g = TestRenderGuard(Some(
-        RENDERER.replace(Renderer::plain().anonymized_line_numbers(true)),
+        RENDERER.replace(
+            Renderer::plain()
+                .anonymized_snippet_line_numbers(true)
+                .anonymized_origin_line_numbers(true),
+        ),
     ));
     f()
 }
