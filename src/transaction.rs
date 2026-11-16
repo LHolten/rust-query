@@ -77,7 +77,8 @@ self_cell!(
 /// borrow of `owner` and `OwnedTransaction: !Sync` so `dependent` can not be borrowed
 /// from multiple threads.
 unsafe impl Send for OwnedTransaction {}
-assert_not_impl_any! {OwnedTransaction: Sync}
+#[cfg(test)]
+static_assertions::assert_not_impl_any! {OwnedTransaction: Sync}
 
 thread_local! {
     pub(crate) static TXN: RefCell<Option<TransactionWithRows>> = const { RefCell::new(None) };
