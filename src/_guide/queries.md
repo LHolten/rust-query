@@ -69,3 +69,55 @@ rows based on the expressions from the `InvoiceInfoSelect`.
 Another interesting bit in this example is the use of foreign key joins like `&ivl.track.album.artist.name`.
 `rust-query` allows this kind of implicit joining because it can not affect the number of rows.
 For `Option` (nullable) foreign keys, you have to filter first (see a later section).
+
+P.S. You can query nested `Select` derive structs.
+
+## Plain table subset select
+
+Not always do you need complex expressions for the different result columns.
+That is why there is another derive that makes it easier.
+
+```rust
+#[derive(FromExpr)]
+#[rust_query(From = Album)]
+struct AlbumInfo {
+    name: String
+}
+
+#[derive(FromExpr)]
+#[rust_query(From = Track)]
+struct TrackInfo {
+    name: String
+    genre: String,
+    album: AlbumInfo,
+}
+
+fn track_info(db: &Transaction<Schema>) -> Vec<TrackInfo> {
+    db.query(|rows| {
+        let track = rows.join(Track);
+        rows.filter(track.name.starts_with("Symphony"));
+        rows.into_vec(TrackInfo::from_expr(track))
+    })
+}
+```
+The `FromExpr` derive can be used to get a subset of table columns and it works over foreign keys!
+This example also shows a more interesting filter.
+
+## TableRow and query_one
+
+You may wonder what happens when you put a table directly into `rows.into_vec` instead
+of specifying one of the fields.
+
+```rust
+fn track_info(db: &Transaction<Schema>) -> Vec<TableRow<Track>> {
+    let tracks: Vec<TableRow<Track>> = db.query(|rows| {
+        let track = rows.join(Track);
+        rows.filter(track.name.starts_with("Symphony"));
+        rows.into_vec(track)
+    })
+
+    for track in tracks {
+        db.query_one(track)
+    }
+}
+```
