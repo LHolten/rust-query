@@ -1,7 +1,7 @@
 use std::{cell::OnceCell, marker::PhantomData};
 
 use crate::{
-    Table, TableRow, Transaction, db::TableRowInner, lower::ord_rc::OrdRc, schema::canonical,
+    Table, TableRow, Transaction, table_row::TableRowInner, lower::ord_rc::OrdRc, schema::canonical,
 };
 
 pub type LazyOf<'t, T> = <T as WrapTyp>::Wrap<<<T as DbTypOpt>::Actual as DbTyp>::Lazy<'t>>;

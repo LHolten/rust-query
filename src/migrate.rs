@@ -13,6 +13,7 @@ use self_cell::MutBorrow;
 
 use crate::{
     Table, Transaction,
+    database::Database,
     lower::{self, list_writer::Alias},
     migrate::{
         config::Config,
@@ -21,7 +22,7 @@ use crate::{
     },
     pool::Pool,
     schema::{from_macro, read::read_schema},
-    transaction::{Database, OwnedTransaction, TXN, TransactionWithRows},
+    transaction::{OwnedTransaction, TXN, TransactionWithRows},
 };
 
 pub struct TableTypBuilder<S> {
@@ -62,6 +63,20 @@ pub trait SchemaMigration<'a> {
 }
 
 impl<S: Schema> Database<S> {
+    /// This is a quick way to open a database if you don't care about migration.
+    ///
+    /// Note that this will panic if the schema version doesn't match or when the schema
+    /// itself doesn't match the expected schema.
+    pub fn new(config: Config) -> Self {
+        let Some(m) = Self::migrator(config) else {
+            panic!("schema version {}, but got an older version", S::VERSION)
+        };
+        let Some(m) = m.finish() else {
+            panic!("schema version {}, but got a new version", S::VERSION)
+        };
+        m
+    }
+
     /// Create a [Migrator] to migrate a database.
     ///
     /// Returns [None] if the database `user_version` on disk is older than `S`.

@@ -18,12 +18,11 @@ use std::{
 };
 
 use crate::{
-    IntoExpr, Table,
-    db::TableRow,
-    lower,
+    IntoExpr, Table, lower,
     mutable::Mutable,
     private::IntoJoinable,
-    scoped_transaction::{MutTemp, TransactionScope},
+    table_row::TableRow,
+    transaction_scope::{MutTemp, TransactionScope},
 };
 pub use db_typ::{
     BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, WrapTyp, db_typ_to_expr, from_lazy,

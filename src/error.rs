@@ -2,7 +2,7 @@ use std::{borrow::Cow, convert::Infallible, fmt::Debug, marker::PhantomData, rc:
 
 use crate::{
     Table, TableRow,
-    db::TableRowInner,
+    table_row::TableRowInner,
     lower::{
         self,
         emit::{self, IndexMap},

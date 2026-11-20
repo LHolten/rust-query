@@ -2,12 +2,12 @@ use std::{cell::OnceCell, marker::PhantomData};
 
 use crate::{
     Expr, Lazy, Mutable, Select, Table, TableRow, Transaction,
-    db::TableRowInner,
     lower::{self, JoinableTable, JoinableTableWithId, Scope, TmpTable},
     private::Joinable,
     query::Iter,
-    scoped_transaction::MutTemp,
     select::{self, Cached, DynPrepared, DynSelectImpl},
+    table_row::TableRowInner,
+    transaction_scope::MutTemp,
     value::DbTyp,
 };
 

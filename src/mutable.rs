@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    IntoExpr, Table, TableRow, Transaction, scoped_transaction::MutTemp,
-    transaction::try_update_private,
+    IntoExpr, Table, TableRow, Transaction, transaction::try_update_private,
+    transaction_scope::MutTemp,
 };
 
 /// [Mutable] access to columns of a single table row.

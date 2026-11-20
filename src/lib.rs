@@ -9,8 +9,8 @@ extern crate self as rust_query;
 #[doc = include_str!("_guide.md")]
 pub mod _guide {}
 // mod ast;
-mod async_db;
-mod db;
+mod database;
+mod database_async;
 mod error;
 mod joinable;
 mod lazy;
@@ -23,9 +23,10 @@ mod pool;
 mod query;
 mod rows;
 mod schema;
-mod scoped_transaction;
 mod select;
+mod table_row;
 mod transaction;
+mod transaction_scope;
 mod value;
 mod writable;
 
@@ -34,14 +35,15 @@ use schema::from_macro::TypBuilder;
 use std::fmt::Debug;
 use std::ops::Deref;
 
-pub use async_db::DatabaseAsync;
-pub use db::TableRow;
+pub use database::Database;
+pub use database_async::DatabaseAsync;
 pub use error::Conflict;
 pub use lazy::Lazy;
 pub use mutable::Mutable;
-pub use scoped_transaction::TransactionScope;
 pub use select::{IntoSelect, Select};
-pub use transaction::{Database, Transaction, TransactionWeak};
+pub use table_row::TableRow;
+pub use transaction::{Transaction, TransactionWeak};
+pub use transaction_scope::TransactionScope;
 pub use value::aggregate::aggregate;
 pub use value::from_expr::FromExpr;
 pub use value::{Expr, into_expr::IntoExpr, optional::optional};
