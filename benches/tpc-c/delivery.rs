@@ -54,12 +54,12 @@ pub fn delivery(
         txn.mutable(order).carrier_id = Some(input.carrier_id);
 
         let mut total_amount = 0;
-        for mut line in txn.mutable_vec(OrderLine.order(order)) {
+        for line in txn.mutable_vec(OrderLine.order(order)) {
             total_amount += line.amount;
             line.delivery_d = Some(input.delivery_d);
         }
 
-        let mut customer = txn.mutable(&order.into_expr().customer);
+        let customer = txn.mutable(&order.into_expr().customer);
         customer.balance += total_amount;
         customer.delivery_cnt += 1;
     });

@@ -1,13 +1,12 @@
 use std::{
     any::Any,
-    cell::{Cell, OnceCell},
+    cell::Cell,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
 use crate::{
-    IntoExpr, Mutable, Table, TableRow, Transaction, private::IntoJoinable,
-    transaction::try_update_private, value::OptTable,
+    IntoExpr, Mutable, Table, TableRow, Transaction, private::IntoJoinable, value::OptTable,
 };
 
 /// [Transaction] with mutation support and without downgrade support.
@@ -54,11 +53,11 @@ impl<S> TransactionScope<S> {
     /// txn.scope(|txn| {
     /// let baz_id = txn.insert(Player {number: 1, name: "Baz".to_owned(), score: 0}).unwrap();
     ///
-    /// let mut tmp = txn.mutable(baz_id);
+    /// let tmp = txn.mutable(baz_id);
     /// tmp.score += 50;
     /// tmp.name = format!("{}{}", tmp.name, tmp.score);
     ///
-    /// if let Some(mut player) = txn.mutable(Player.number(1)) {
+    /// if let Some(player) = txn.mutable(Player.number(1)) {
     ///     player.score += 100;
     /// }
     /// # })});
@@ -89,7 +88,7 @@ impl<S> TransactionScope<S> {
     /// # rust_query::Database::new(rust_query::migration::Config::open_in_memory()).transaction_mut_ok(|mut txn| {
     /// # txn.scope(|txn|{
     /// # txn.insert_ok(User {age: 30});
-    /// for mut user in txn.mutable_vec(User.age(20)) {
+    /// for user in txn.mutable_vec(User.age(20)) {
     ///     user.age += 1;
     /// }
     /// # })});
@@ -97,42 +96,18 @@ impl<S> TransactionScope<S> {
     pub fn mutable_vec<'t, T: Table<Schema = S>>(
         &'t mut self,
         val: impl IntoJoinable<'static, S, Typ = TableRow<T>>,
-    ) -> Vec<Mutable<'t, T>> {
+    ) -> Vec<&'t mut Mutable<T>> {
         let val = val.into_joinable();
 
         let new_mutable = self.query(|rows| {
             let val = rows.join(val);
-            rows.into_iter(val).map(|x| MutTemp::new(x) as _).collect()
+            rows.into_iter(val).map(|x| Mutable::new(x) as _).collect()
         });
         self.tmp = Cell::new(new_mutable);
 
         Cell::get_mut(&mut self.tmp)
             .iter_mut()
-            .map(|x| Mutable::new(&mut **x))
+            .map(|x| x.downcast_mut().unwrap())
             .collect()
-    }
-}
-
-pub struct MutTemp<T: Table> {
-    pub inner: OnceCell<T::Mutable>,
-    pub row_id: TableRow<T>,
-}
-
-impl<T: Table> MutTemp<T> {
-    pub fn new(row_id: TableRow<T>) -> Box<Self> {
-        Box::new(MutTemp {
-            inner: OnceCell::new(),
-            row_id,
-        })
-    }
-}
-
-impl<T: Table> Drop for MutTemp<T> {
-    fn drop(&mut self) {
-        if let Some(update) = self.inner.take() {
-            let Ok(_) = try_update_private(self.row_id, update) else {
-                panic!("mutable can not fail, no unique is updated")
-            };
-        }
     }
 }

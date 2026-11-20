@@ -22,7 +22,7 @@ use crate::{
     mutable::Mutable,
     private::IntoJoinable,
     table_row::TableRow,
-    transaction_scope::{MutTemp, TransactionScope},
+    transaction_scope::TransactionScope,
 };
 pub use db_typ::{
     BaseTyp, DbTyp, DbTypOpt, LazyOf, PrevOf, StorableTyp, WrapTyp, db_typ_to_expr, from_lazy,
@@ -68,20 +68,20 @@ pub trait OptTable: DbTypOpt {
 
 impl<T: Table> OptTable for TableRow<T> {
     type Schema = T::Schema;
-    type Mutable<'t> = Mutable<'t, T>;
+    type Mutable<'t> = &'t mut Mutable<T>;
 
     fn into_mutable<'t>(
         txn: &'t mut TransactionScope<Self::Schema>,
         inp: Self,
     ) -> Self::Mutable<'t> {
-        txn.tmp = Cell::new(vec![MutTemp::new(inp)]);
-        Mutable::new(&mut *Cell::get_mut(&mut txn.tmp)[0])
+        txn.tmp = Cell::new(vec![Mutable::new(inp)]);
+        Cell::get_mut(&mut txn.tmp)[0].downcast_mut().unwrap()
     }
 }
 
 impl<T: Table> OptTable for Option<TableRow<T>> {
     type Schema = T::Schema;
-    type Mutable<'t> = Option<Mutable<'t, T>>;
+    type Mutable<'t> = Option<&'t mut Mutable<T>>;
 
     fn into_mutable<'t>(
         txn: &'t mut TransactionScope<Self::Schema>,

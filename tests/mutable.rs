@@ -19,7 +19,7 @@ fn mutable_shenanigans() {
         txn.scope(|txn| {
             txn.insert(Foo { alpha: 1, bravo: 1 }).unwrap();
             let row = txn.insert(Foo { alpha: 1, bravo: 2 }).unwrap();
-            let mut mutable = txn.mutable(row);
+            let mutable = txn.mutable(row);
             mutable.alpha = 100;
             mutable
                 .unique(|x| {
@@ -34,7 +34,7 @@ fn mutable_shenanigans() {
             assert_eq!(view.alpha, 100);
             assert_eq!(view.bravo, 2);
 
-            let mut mutable = txn.mutable(row);
+            let mutable = txn.mutable(row);
             mutable.alpha = 200;
 
             // User applies AssertUnwindSafe to full closure. Should still be fine.

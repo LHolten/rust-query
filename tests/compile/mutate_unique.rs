@@ -9,7 +9,7 @@ pub mod vN {
 }
 use v0::*;
 
-fn test(mut foo: Mutable<User>) {
+fn test(foo: &mut Mutable<User>) {
     foo.name = "test".to_owned();
 }
 

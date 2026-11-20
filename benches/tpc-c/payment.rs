@@ -35,12 +35,12 @@ pub struct PaymentInput {
 }
 
 pub fn payment(txn: &mut TransactionScope<Schema>, input: PaymentInput) -> PaymentOutput {
-    let mut warehouse = txn.mutable(Warehouse.number(input.warehouse)).unwrap();
+    let warehouse = txn.mutable(Warehouse.number(input.warehouse)).unwrap();
     warehouse.ytd += input.amount;
     let warehouse_name = warehouse.name.clone();
     let warehouse = warehouse.table_row();
 
-    let mut district = txn
+    let district = txn
         .mutable(District.warehouse(warehouse).number(input.district))
         .unwrap();
     district.ytd += input.amount;
@@ -52,7 +52,7 @@ pub fn payment(txn: &mut TransactionScope<Schema>, input: PaymentInput) -> Payme
             .customer
             .lookup_customer(txn, input.customer_warehouse, input.customer_district);
 
-    let mut customer = txn.mutable(customer);
+    let customer = txn.mutable(customer);
     customer.ytd_payment += input.amount;
     customer.payment_cnt += 1;
 

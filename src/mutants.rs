@@ -7,7 +7,6 @@ use crate::{
     query::Iter,
     select::{self, Cached, DynPrepared, DynSelectImpl},
     table_row::TableRowInner,
-    transaction_scope::MutTemp,
     value::DbTyp,
 };
 
@@ -79,14 +78,12 @@ impl<T> Default for select::Cached<T> {
     }
 }
 
-impl<T: Table> Default for Mutable<'_, T> {
+impl<T: Table> Default for Mutable<T> {
     #[cfg_attr(false, mutants::skip)]
     fn default() -> Self {
         Mutable {
-            temp: Box::leak(Box::new(MutTemp {
-                inner: Default::default(),
-                row_id: Default::default(),
-            })),
+            inner: Default::default(),
+            row_id: Default::default(),
         }
     }
 }

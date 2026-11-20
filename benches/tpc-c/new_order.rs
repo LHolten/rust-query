@@ -119,7 +119,7 @@ pub fn new_order(
 
         let is_remote = supplying_warehouse != input.warehouse;
 
-        let mut stock = txn
+        let stock = txn
             .mutable(optional(|row| {
                 let supplying_warehouse = row.and(Warehouse.number(supplying_warehouse));
                 row.and_then(Stock.warehouse(supplying_warehouse).item(item))
