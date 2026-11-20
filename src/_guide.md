@@ -4,7 +4,7 @@ Overview of [rust_query] and where to find relevant docs.
 
 `cargo add rust-query`
 
-Then start definition your schema using the [migration::schema] macro.
+Then start defining your schema using the [migration::schema] macro.
 ```
 use rust_query::{Database, migration::{schema, Config}};
 
@@ -34,6 +34,10 @@ All mutation requires a mutable [Transaction], which can be obtained using [Data
 All mutation are done using [Transaction::insert], [TransactionScope::mutable] and [TransactionWeak::delete] methods. In some cases it is possible to use the more ergonomic [Transaction::insert_ok] and [TransactionWeak::delete_ok].
 
 Deleting is special as it requires the [Transaction] to be downgraded using [Transaction::downgrade]. This signals that all [TableRow] have lost their proof of existence, since rows can now be deleted.
+
+Mutation is kind of similar because it requires creating a non static scope with [Transaction::scope]. This
+is required because otherwise the "active record" like rows could be kept indefinitly, while the transaction
+that they borrows from would still end.
 
 # Queries
 
