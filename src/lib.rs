@@ -7,7 +7,10 @@ extern crate self as rust_query;
 
 #[cfg(doc)]
 #[doc = include_str!("_guide.md")]
-pub mod _guide {}
+pub mod _guide {
+    #[doc = include_str!("_guide/queries.md")]
+    pub mod queries {}
+}
 // mod ast;
 mod database;
 mod database_async;

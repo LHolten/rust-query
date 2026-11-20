@@ -433,7 +433,7 @@ impl<S: Schema> TransactionWeak<S> {
     /// This allows you to do (almost) anything you want with the internal [rusqlite::Transaction].
     ///
     /// Note that there are some things that you should not do with the transaction, such as:
-    /// - Changes to the schema, these will result in a panic as described in [Database].
+    /// - Changes to the schema, these will result in a panic as described in [crate::Database].
     /// - Making changes that violate foreign-key constraints (see below).
     ///
     /// Sadly it is not possible to enable (or disable) the `foreign_keys` pragma during a transaction.
