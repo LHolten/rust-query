@@ -185,25 +185,6 @@ pub mod private {
     };
     pub use crate::writable::Reader;
 
-    // pub trait Apply {
-    //     type Out<T: MigrateTyp>;
-    // }
-
-    // pub struct AsNormal;
-    // impl Apply for AsNormal {
-    //     type Out<T: MigrateTyp> = T;
-    // }
-
-    // struct AsExpr<'x, S>(PhantomData<(&'x (), S)>);
-    // impl<'x, S> Apply for AsExpr<'x, S> {
-    //     type Out<T: MigrateTyp> = crate::Expr<'x, S, T::ExprTyp>;
-    // }
-
-    // struct AsLazy<'x>(PhantomData<&'x ()>);
-    // impl<'x> Apply for AsLazy<'x> {
-    //     type Out<T: MigrateTyp> = T::Lazy<'x>;
-    // }
-
     pub mod doctest_aggregate {
         #[crate::migration::schema(M)]
         pub mod vN {
