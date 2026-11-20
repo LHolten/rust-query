@@ -74,7 +74,7 @@ mod using_v1 {
     use v1::*;
 
     pub fn migrate() -> Database<Schema> {
-        let m = Database::migrator(Config::open("db.sqlite"))
+        let m = Database::migrator(Config::open_in_memory())
             .expect("database should not be older than supported versions");
         let m = m.migrate(|txn| v0::migrate::Schema {
             measurement: txn.migrate_ok(|old: Lazy<v0::Measurement>| v0::migrate::Measurement {

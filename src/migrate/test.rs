@@ -1,4 +1,4 @@
-use std::{fs, panic};
+use std::panic;
 
 use crate::{Database, Lazy, migration::Config};
 
@@ -20,10 +20,8 @@ fn unique_constraint_violation() {
     }
     use schema::*;
 
-    const FILE: &str = "unique_constraint_violation.sqlite";
-    let _ = fs::remove_file(FILE);
-
-    let db: Database<v0::Test> = Database::new(Config::open(FILE));
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let db: Database<v0::Test> = Database::new(Config::open(file.path()));
     db.transaction_mut_ok(|txn| {
         txn.insert_ok(v0::Foo {
             name: "alpha".to_owned(),
@@ -33,7 +31,7 @@ fn unique_constraint_violation() {
         });
     });
 
-    Database::migrator(Config::open(FILE))
+    Database::migrator(Config::open(file.path()))
         .unwrap()
         .migrate(|txn| {
             let res = txn.migrate::<v1::Foo>(|prev: Lazy<v0::Foo>| v0::migrate::Foo {
@@ -85,10 +83,8 @@ fn migrations_preserve_index() {
     }
     use schema::*;
 
-    const FILE: &str = "migrations_preserve_index.sqlite";
-    let _ = fs::remove_file(FILE);
-
-    let db: Database<v0::Test> = Database::new(Config::open(FILE));
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let db: Database<v0::Test> = Database::new(Config::open(file.path()));
     db.transaction_mut_ok(|txn| {
         let alpha = txn.insert_ok(v0::Foo {
             name: "alpha".to_owned(),
@@ -106,7 +102,7 @@ fn migrations_preserve_index() {
         assert!(txn.delete(alpha).unwrap());
     });
 
-    Database::migrator(Config::open(FILE))
+    Database::migrator(Config::open(file.path()))
         .unwrap()
         .migrate(|txn| v0::migrate::Test {
             foo_new: txn
@@ -118,7 +114,7 @@ fn migrations_preserve_index() {
         .finish()
         .unwrap();
 
-    let db: Database<schema_with_index::v1::Test> = Database::new(Config::open(FILE));
+    let db: Database<schema_with_index::v1::Test> = Database::new(Config::open(file.path()));
     db.transaction(|txn| {
         let [item] = txn
             .lazy_iter(schema_with_index::v1::Ref)
@@ -148,10 +144,8 @@ fn foreign_key_violation() {
     }
     use schema::*;
 
-    const FILE: &str = "foreign_key_violation.sqlite";
-    let _ = fs::remove_file(FILE);
-
-    let db: Database<v0::Test> = Database::new(Config::open(FILE));
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let db: Database<v0::Test> = Database::new(Config::open(file.path()));
     db.transaction_mut_ok(|txn| {
         let spacer = txn.insert_ok(v0::Foo {
             name: "spacer".to_owned(),
@@ -165,7 +159,7 @@ fn foreign_key_violation() {
     });
 
     let err = panic::catch_unwind(|| {
-        Database::migrator(Config::open(FILE))
+        Database::migrator(Config::open(file.path()))
             .unwrap()
             .migrate(|txn| v0::migrate::Test {
                 foo: txn

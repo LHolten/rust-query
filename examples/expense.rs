@@ -1,4 +1,4 @@
-use std::fs;
+use std::path::Path;
 
 use rust_query::{Database, Lazy, migration::Config};
 
@@ -29,10 +29,8 @@ pub mod vN {
     }
 }
 
-const FILE_NAME: &str = "expense.sqlite";
-
-fn migrate() -> Database<v1::Mifg> {
-    Database::migrator(Config::open(FILE_NAME))
+fn migrate(file: &Path) -> Database<v1::Mifg> {
+    Database::migrator(Config::open(file))
         .unwrap()
         .fixup(|txn| {
             // we insert some test data when the database is created
@@ -80,8 +78,8 @@ fn migrate() -> Database<v1::Mifg> {
 
 fn main() {
     use v1::*;
-    let _ = fs::remove_file(FILE_NAME);
-    let db = migrate();
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let db = migrate(file.path());
     db.transaction_mut_ok(|txn| {
         let user1 = txn.query_one(User.user_id("user1")).unwrap();
         txn.insert(Expense {
@@ -90,7 +88,7 @@ fn main() {
         })
         .unwrap();
     });
-    let db = migrate();
+    let db = migrate(file.path());
     db.transaction(|txn| {
         let mut split_with: Vec<_> = txn
             .lazy_iter(ExpensedUser)
