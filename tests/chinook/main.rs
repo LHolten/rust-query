@@ -30,7 +30,7 @@ fn test_queries() {
     db.transaction_mut_ok(|mut txn| run_queries(&mut txn));
 }
 
-fn run_queries(txn: &mut Transaction<Schema>) {
+fn run_queries(txn: &mut Transaction<Chinook>) {
     assert_dbg("invoice_info", || invoice_info(txn));
     assert_dbg("playlist_track_count", || playlist_track_count(txn));
     assert_dbg("avg_album_track_count_for_artist", || {
@@ -66,7 +66,7 @@ struct InvoiceInfo {
     ivl_id: TableRow<InvoiceLine>,
 }
 
-fn invoice_info(db: &Transaction<Schema>) -> Vec<InvoiceInfo> {
+fn invoice_info(db: &Transaction<Chinook>) -> Vec<InvoiceInfo> {
     db.query(|rows| {
         let ivl = rows.join(InvoiceLine);
         rows.into_vec(InvoiceInfoSelect {
@@ -83,7 +83,7 @@ struct PlaylistTrackCount {
     track_count: i64,
 }
 
-fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
+fn playlist_track_count(db: &Transaction<Chinook>) -> Vec<PlaylistTrackCount> {
     db.query(|rows| {
         let pl = rows.join(Playlist);
         let track_count = aggregate(|rows| {
@@ -98,7 +98,7 @@ fn playlist_track_count(db: &Transaction<Schema>) -> Vec<PlaylistTrackCount> {
     })
 }
 
-fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Option<f64>)> {
+fn avg_album_track_count_for_artist(db: &Transaction<Chinook>) -> Vec<(String, Option<f64>)> {
     db.query(|rows| {
         let artist = rows.join(Artist);
         let avg_track_count = aggregate(|rows| {
@@ -113,7 +113,7 @@ fn avg_album_track_count_for_artist(db: &Transaction<Schema>) -> Vec<(String, Op
     })
 }
 
-fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
+fn count_reporting(db: &Transaction<Chinook>) -> Vec<(String, i64)> {
     db.query(|rows| {
         let receiver = rows.join(Employee);
         let report_count = aggregate(|rows| {
@@ -128,7 +128,7 @@ fn count_reporting(db: &Transaction<Schema>) -> Vec<(String, i64)> {
     })
 }
 
-fn list_all_genres(db: &Transaction<Schema>) -> Vec<String> {
+fn list_all_genres(db: &Transaction<Chinook>) -> Vec<String> {
     db.query(|rows| {
         let genre = rows.join(Genre);
         rows.into_vec(&genre.name)
@@ -147,7 +147,7 @@ struct Stats {
     milis: i64,
 }
 
-fn filtered_track(db: &Transaction<Schema>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
+fn filtered_track(db: &Transaction<Chinook>, genre: &str, max_milis: i64) -> Vec<FilteredTrack> {
     db.query(|rows| {
         let genre = rows.filter_some(Genre.name(genre));
         let track = rows.join(Track.genre(genre));
@@ -169,7 +169,7 @@ struct GenreStats {
     milis_average: f64,
 }
 
-fn genre_statistics(db: &Transaction<Schema>) -> Vec<GenreStats> {
+fn genre_statistics(db: &Transaction<Chinook>) -> Vec<GenreStats> {
     db.query(|rows| {
         let genre = rows.join(Genre);
         let (bytes, milis) = aggregate(|rows| {
@@ -194,7 +194,7 @@ struct HighInvoiceInfo {
     high_avg_spend: f64,
 }
 
-fn high_avg_invoice_total(db: &Transaction<Schema>) -> Vec<HighInvoiceInfo> {
+fn high_avg_invoice_total(db: &Transaction<Chinook>) -> Vec<HighInvoiceInfo> {
     db.query(|q_rows| {
         let customer = q_rows.join(Customer);
         aggregate(|rows| {
@@ -217,7 +217,7 @@ struct CustomerSpending {
     total_spending: f64,
 }
 
-fn all_customer_spending(db: &Transaction<Schema>) -> Vec<CustomerSpending> {
+fn all_customer_spending(db: &Transaction<Chinook>) -> Vec<CustomerSpending> {
     db.query(|rows| {
         let customer = rows.join(Customer);
         let total = customer_spending(&customer);
@@ -236,7 +236,7 @@ struct TopTrack {
     playlist_count: i64,
 }
 
-fn top_tracks(db: &Transaction<Schema>) -> Vec<TopTrack> {
+fn top_tracks(db: &Transaction<Chinook>) -> Vec<TopTrack> {
     db.query(|rows| {
         let track = rows.join(Track);
         let count = aggregate(|rows| {
@@ -256,8 +256,8 @@ fn top_tracks(db: &Transaction<Schema>) -> Vec<TopTrack> {
 }
 
 fn customer_spending<'t>(
-    customer: impl IntoExpr<'t, Schema, Typ = TableRow<Customer>>,
-) -> Expr<'t, Schema, f64> {
+    customer: impl IntoExpr<'t, Chinook, Typ = TableRow<Customer>>,
+) -> Expr<'t, Chinook, f64> {
     let customer = customer.into_expr();
     aggregate(|rows| {
         let invoice = rows.join(Invoice.customer(customer));
@@ -265,14 +265,14 @@ fn customer_spending<'t>(
     })
 }
 
-fn customer_spending_by_email(db: &Transaction<Schema>, email: &str) -> Option<f64> {
+fn customer_spending_by_email(db: &Transaction<Chinook>, email: &str) -> Option<f64> {
     db.query_one(optional(|row| {
         let customer = row.and(Customer.email(email));
         row.then(customer_spending(customer))
     }))
 }
 
-fn free_reference(db: &Transaction<Schema>) {
+fn free_reference(db: &Transaction<Chinook>) {
     let tracks = db.lazy_iter(Track);
 
     for track in tracks {
@@ -294,7 +294,7 @@ struct ArtistDetails {
     track_stats: TrackStats,
 }
 
-fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistDetails {
+fn artist_details(db: &Transaction<Chinook>, artist: TableRow<Artist>) -> ArtistDetails {
     db.query_one(ArtistDetailsSelect {
         name: &artist.into_expr().name,
         album_count: aggregate(|rows| {
@@ -313,7 +313,7 @@ fn artist_details(db: &Transaction<Schema>, artist: TableRow<Artist>) -> ArtistD
     })
 }
 
-fn get_the_artists(db: &Transaction<Schema>) -> Vec<String> {
+fn get_the_artists(db: &Transaction<Chinook>) -> Vec<String> {
     db.query(|rows| {
         let artist = rows.join(Artist);
         rows.filter(artist.name.starts_with("The "));
@@ -321,7 +321,7 @@ fn get_the_artists(db: &Transaction<Schema>) -> Vec<String> {
     })
 }
 
-fn ten_space_tracks(db: &Transaction<Schema>) -> Vec<String> {
+fn ten_space_tracks(db: &Transaction<Chinook>) -> Vec<String> {
     db.query(|rows| {
         let track = rows.join(Track);
         rows.filter(track.name.like("% % % % % % % % % % %"));

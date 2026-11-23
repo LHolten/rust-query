@@ -44,7 +44,7 @@ evaluated in any query scope, or with no scope at all (`Transaction::query_one`)
 And another useful property is that `Expr` that are created in a query are not static, but can still be used in sub-queries.
 
 Values like `String`, `Option<String>`, `i64`, `TableRow<X>`, `bool` and `jiff::Timestamp` can be converted into an `Expr<'static, S, T>` where `T` is the type of the value.
-This conversion is automatic in most places because `rust-query` arguments are often `impl IntoExpr<S, T>`.
+This conversion is automatic in most places because `rust-query` arguments are often `impl IntoExpr<S, Typ = T>`.
 Sometimes you may need to do a manual conversion using `IntoExpr::into_expr` though.
 
 
@@ -57,8 +57,8 @@ struct InvoiceInfo {
     ivl_id: TableRow<InvoiceLine>,
 }
 
-fn invoice_info(db: &Transaction<Schema>) -> Vec<InvoiceInfo> {
-    db.query(|rows| {
+fn invoice_info(txn: &Transaction<Chinook>) -> Vec<InvoiceInfo> {
+    txn.query(|rows| {
         let ivl = rows.join(InvoiceLine);
         rows.into_vec(InvoiceInfoSelect {
             track: &ivl.track.name,
@@ -110,8 +110,8 @@ struct TrackInfo {
     album: AlbumInfo,
 }
 
-fn track_info(db: &Transaction<Schema>) -> Vec<TrackInfo> {
-    db.query(|rows| {
+fn track_info(txn: &Transaction<Chinook>) -> Vec<TrackInfo> {
+    txn.query(|rows| {
         let track = rows.join(Track);
         rows.filter(track.name.starts_with("Symphony"));
         rows.into_vec(TrackInfo::from_expr(track))
@@ -127,15 +127,16 @@ You may wonder what happens when you put a table directly into `rows.into_vec` i
 of specifying one of the fields.
 
 ```rust
-fn track_info(db: &Transaction<Schema>) {
-    let tracks: Vec<TableRow<Track>> = db.query(|rows| {
+fn track_info(txn: &Transaction<Chinook>) {
+    let tracks: Vec<TableRow<Track>> = txn.query(|rows| {
         let track = rows.join(Track);
         rows.filter(track.name.starts_with("Symphony"));
         rows.into_vec(track)
     })
 
     for track in tracks {
-        db.query_one(track.into_expr().)
+        let album = txn.query_one(&track.into_expr().album.name);
+        println!("symphony track in album: {album}")
     }
 }
 ```

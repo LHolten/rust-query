@@ -7,7 +7,7 @@ use rust_query::{
 
 pub use v2::*;
 
-#[schema(Schema)]
+#[schema(Chinook)]
 #[version(0..=2)]
 pub mod vN {
     use jiff::civil::Date;
@@ -139,7 +139,7 @@ pub mod vN {
     }
 }
 
-pub fn migrate() -> Database<v2::Schema> {
+pub fn migrate() -> Database<v2::Chinook> {
     if !fs::exists("Chinook_Sqlite.sqlite").unwrap() {
         panic!(
             "test data file 'Chinook_Sqlite.sqlite' does not exist.
@@ -158,7 +158,7 @@ pub fn migrate() -> Database<v2::Schema> {
                 txn.execute_batch(include_str!("migrate.sql")).unwrap();
             })
         })
-        .migrate(|txn| v0::migrate::Schema {
+        .migrate(|txn| v0::migrate::Chinook {
             genre_new: txn.migrate_ok(|old: Lazy<v0::Genre>| v0::migrate::GenreNew {
                 name: old.name.clone(),
             }),
@@ -173,7 +173,7 @@ pub fn migrate() -> Database<v2::Schema> {
             track: txn.migrate_ok(|_old| v0::migrate::Track { favorite: false }),
         });
 
-    let m = m.migrate(|txn| v1::migrate::Schema {
+    let m = m.migrate(|txn| v1::migrate::Chinook {
         customer: txn.migrate_ok(|old: Lazy<v1::Customer>| {
             v1::migrate::Customer {
                 // lets do some cursed phone number parsing :D
@@ -208,7 +208,7 @@ mod tests {
     fn backwards_compat() {
         use rust_query::migration::hash_schema;
 
-        expect!["64bf0828bbfdf867"].assert_eq(&hash_schema::<v0::Schema>());
-        expect!["3449b981d786c043"].assert_eq(&hash_schema::<v1::Schema>());
+        expect!["64bf0828bbfdf867"].assert_eq(&hash_schema::<v0::Chinook>());
+        expect!["3449b981d786c043"].assert_eq(&hash_schema::<v1::Chinook>());
     }
 }
