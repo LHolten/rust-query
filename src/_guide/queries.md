@@ -146,8 +146,19 @@ fn track_info(txn: &Transaction<Chinook>) {
 This example is a bit silly, because you could have just retrieved the album name in the original query.
 What it does show is that `TableRow<Track>` is a useful type. 
 It references a row in the database by id and it will never point at a different row.
+Since `TableRow` is `Copy + Ord` you can put it in `BTreeMap` and sets etc.
 This makes it different from `Expr`, since an `Expr<S, TableRow<T>>` can change what row it points to.
+And an `Expr` is not `Copy` or `Ord`.
 
 `TableRow` also proves the existence of the row that it points to.
 This is what makes it possible for `txn.query_one(&track.into_expr().album.name)` to guarantee that it can evaluate the expression and that it will have exactly one result.
 We don't want deletions to invalidate `TableRow`, so that is why `TableRow` can not be moved between transactions.
+
+## Unique constraints
+
+So, since `TableRow` can not be moved across transactions, how do we find a specific row?
+For this we have `unique` constraints! If for example you have a `#[unique] pub_id: String` field, then
+you can do `MyTable.pub_id("foo")` to get an `Expr<'static, Schema, Option<TableRow<MyTable>>>`.
+The unique constraint can not prove that the row still exists, but at least it can prove that there
+is at most one.
+Learn more about this in the `rust_query::migration::schema` docs.
