@@ -28,7 +28,25 @@ It gives the closure a `rows: Query`. `Query` dereferences to `Rows`, which prov
 and what those tables are filtered on. `Query` itself has the `Query::into_vec` method, which makes
 actual execution of the query possible.
 
-All other things you see in this query are `Expr` "expressions". For example `customer`, `customer.city`, `customer.email`, `customer.city.eq("Paris")` are all `Expr`. The `Expr` type has a generic to keep track of the type of the value that the expression evaluates to.
+You can actually use control flow like `if` conditions and `for` loops inside of a query closure.
+This is useful if you want an optional condition for example or if you have a whole list of requirements.
+Since the closure only runs once, you have to decide stuff for all result rows at once.
+For that reason all the other things you see in this query are `Expr` "expressions". 
+For example `customer`, `customer.city`, `customer.email`, `customer.city.eq("Paris")` are all `Expr`.
+
+
+## Expression and values
+
+As seen in the previous section, `rust-query` makes a lot of use of one "expression" like type: `Expr<S, T>`. 
+You can think of `Expr<S, T>` as a function `fn(S) -> T`. It maps data in schema `S` to a value `T`.
+`Expr` also has a lifetime, which is used for scoping. All you need to know is that `Expr<'static, S, T>` can be
+evaluated in any query scope, or with no scope at all (`Transaction::query_one`).
+And another useful property is that `Expr` that are created in a query are not static, but can still be used in sub-queries.
+
+Values like `String`, `Option<String>`, `i64`, `TableRow<X>`, `bool` and `jiff::Timestamp` can be converted into an `Expr<'static, S, T>` where `T` is the type of the value.
+This conversion is automatic in most places because `rust-query` arguments are often `impl IntoExpr<S, T>`.
+Sometimes you may need to do a manual conversion using `IntoExpr::into_expr` though.
+
 
 ## Multiple results per row and foreign key joins
 ```rust
@@ -81,14 +99,14 @@ That is why there is another derive that makes it easier.
 #[derive(FromExpr)]
 #[rust_query(From = Album)]
 struct AlbumInfo {
-    name: String
+    name: String,
 }
 
 #[derive(FromExpr)]
 #[rust_query(From = Track)]
 struct TrackInfo {
-    name: String
-    genre: String,
+    name: String,
+    genre: TableRow<Genre>,
     album: AlbumInfo,
 }
 
@@ -109,7 +127,7 @@ You may wonder what happens when you put a table directly into `rows.into_vec` i
 of specifying one of the fields.
 
 ```rust
-fn track_info(db: &Transaction<Schema>) -> Vec<TableRow<Track>> {
+fn track_info(db: &Transaction<Schema>) {
     let tracks: Vec<TableRow<Track>> = db.query(|rows| {
         let track = rows.join(Track);
         rows.filter(track.name.starts_with("Symphony"));
@@ -117,7 +135,7 @@ fn track_info(db: &Transaction<Schema>) -> Vec<TableRow<Track>> {
     })
 
     for track in tracks {
-        db.query_one(track)
+        db.query_one(track.into_expr().)
     }
 }
 ```
