@@ -125,6 +125,8 @@ This example also shows a more interesting filter.
 
 You may wonder what happens when you put a table directly into `rows.into_vec` instead
 of specifying one of the fields.
+The previous section already did this for `genre`, but that was through `FromExpr`. 
+You can also do it without the derives:
 
 ```rust
 fn track_info(txn: &Transaction<Chinook>) {
@@ -132,7 +134,7 @@ fn track_info(txn: &Transaction<Chinook>) {
         let track = rows.join(Track);
         rows.filter(track.name.starts_with("Symphony"));
         rows.into_vec(track)
-    })
+    });
 
     for track in tracks {
         let album = txn.query_one(&track.into_expr().album.name);
@@ -140,3 +142,12 @@ fn track_info(txn: &Transaction<Chinook>) {
     }
 }
 ```
+
+This example is a bit silly, because you could have just retrieved the album name in the original query.
+What it does show is that `TableRow<Track>` is a useful type. 
+It references a row in the database by id and it will never point at a different row.
+This makes it different from `Expr`, since an `Expr<S, TableRow<T>>` can change what row it points to.
+
+`TableRow` also proves the existence of the row that it points to.
+This is what makes it possible for `txn.query_one(&track.into_expr().album.name)` to guarantee that it can evaluate the expression and that it will have exactly one result.
+We don't want deletions to invalidate `TableRow`, so that is why `TableRow` can not be moved between transactions.
